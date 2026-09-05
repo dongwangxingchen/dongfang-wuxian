@@ -7,7 +7,7 @@ android {
  compileSdk = 36
  buildFeatures { buildConfig = true; aidl = true }
  androidResources { additionalParameters += listOf("--no-xml-namespaces", "--no-compile-sdk-metadata") }
- defaultConfig { applicationId = "dfwx.dongdang"; minSdk = 24; targetSdk = 36; versionCode = 1000005; versionName = "1.0.5" }
+ defaultConfig { applicationId = "dfwx.dongdang"; minSdk = 24; targetSdk = 36; versionCode = 1000006; versionName = "1.0.6" }
  flavorDimensions += "catalog"
  productFlavors {
   create("empty") {
