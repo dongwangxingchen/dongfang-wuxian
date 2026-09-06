@@ -7,7 +7,7 @@ android {
  compileSdk = 36
  buildFeatures { buildConfig = true; aidl = true }
  androidResources { additionalParameters += listOf("--no-xml-namespaces", "--no-compile-sdk-metadata") }
- defaultConfig { applicationId = "dfwx.dongdang"; minSdk = 24; targetSdk = 36; versionCode = 1000006; versionName = "1.0.6" }
+ defaultConfig { applicationId = "dfwx.dongdang"; minSdk = 24; targetSdk = 36; versionCode = 1000007; versionName = "1.0.7" }
  flavorDimensions += "catalog"
  productFlavors {
   create("empty") {
@@ -16,7 +16,7 @@ android {
    applicationId = "dfwx.dongdang"
    buildConfigField("boolean", "IS_FULL", "false")
    buildConfigField("String", "OFFICIAL_URL", "\"https://github.com/nekobyran/lanzouplus\"")
-   resValue("string", "app_name", "黑曜")
+   resValue("string", "app_name", "东方无限")
   }
  }
  buildTypes {
