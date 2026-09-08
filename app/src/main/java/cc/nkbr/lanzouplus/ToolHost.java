@@ -211,7 +211,7 @@ final class ToolHost {
   //—— 工具页 ——
 
   void renderTool(String id){
-    if("__screen_test__".equals(id)){act.rebuildToolStackTop();return;}
+    if("__screen_test__".equals(id)){act.startScreenTest();return;}// 复审3:配置重建/切页返回时直接重进全屏检测，而不是弹回列表
     String title=Toolbox.toolName(id);
     LinearLayout header=new LinearLayout(act);header.setGravity(Gravity.CENTER_VERTICAL);
     ImageButton back=act.iconButton(R.drawable.ic_back,"返回工具箱");back.setOnClickListener(v->{act.pageDirection=-1;act.popToolBack();});header.addView(back,new LinearLayout.LayoutParams(act.dp(48),act.dp(48)));
@@ -271,19 +271,23 @@ final class ToolHost {
 
   void unit(LinearLayout body){
     String[] categories={"长度","重量","温度","数据","速度","面积"};
+    TextView catTitle=text("类别",11,act.MUTED);catTitle.setPadding(0,act.dp(4),0,act.dp(2));body.addView(catTitle,new LinearLayout.LayoutParams(-1,-2));
     LinearLayout catRow=chipRow(body);int[] catSel={0};
     TextView[] catChips=new TextView[categories.length];
     final Runnable[] rebuildRef={(Runnable)null};
     for(int i=0;i<categories.length;i++){final int idx=i;catChips[i]=selectChip(catRow,categories[i],i==0,()->{catSel[0]=idx;for(int j=0;j<catChips.length;j++)styleSelect(catChips[j],j==idx);if(rebuildRef[0]!=null)rebuildRef[0].run();});}
-    LinearLayout fromRow=chipRow(body),toRow=chipRow(body);
+    TextView fromTitle=text("从",11,act.MUTED);fromTitle.setPadding(0,act.dp(6),0,act.dp(2));body.addView(fromTitle,new LinearLayout.LayoutParams(-1,-2));
+    LinearLayout fromRow=chipRow(body);
+    TextView toTitle=text("到",11,act.MUTED);toTitle.setPadding(0,act.dp(6),0,act.dp(2));body.addView(toTitle,new LinearLayout.LayoutParams(-1,-2));
+    LinearLayout toRow=chipRow(body);
     EditText value=input(body,"输入数值",44);value.setInputType(InputType.TYPE_CLASS_NUMBER|InputType.TYPE_NUMBER_FLAG_DECIMAL);value.setSingleLine(true);
     TextView out=result(body);
     Runnable convert=()->{try{double v=Double.parseDouble(value.getText().toString());out.setText(Toolbox.convertUnit(categories[catSel[0]],v,unitOf(fromRow),unitOf(toRow)));}catch(Exception ignored){}};
     Runnable rebuildUnits=()->{
       fromRow.removeAllViews();toRow.removeAllViews();
       String[] units=unitsOf(categories[catSel[0]]);
-      for(int i=0;i<units.length;i++){final int fi=i;selectChip(fromRow,units[i],i==0,convert);}
-      for(int i=0;i<units.length;i++){final int ti=i;selectChip(toRow,units[i],i==Math.min(1,units.length-1),convert);}
+      for(int i=0;i<units.length;i++)selectChip(fromRow,units[i],i==0,convert);
+      for(int i=0;i<units.length;i++)selectChip(toRow,units[i],i==Math.min(1,units.length-1),convert);
       convert.run();
     };
     rebuildRef[0]=rebuildUnits;rebuildUnits.run();
@@ -316,24 +320,25 @@ final class ToolHost {
 
   void decision(LinearLayout body){
     LinearLayout actions=actionRow(body);
-    TextView out=result(body);
-    action(actions,"抛硬币",()->out.setText(Toolbox.coinFlip()));
-    action(actions,"掷骰子",()->out.setText("点数："+Toolbox.diceRoll(6)));
-    action(actions,"1-100 随机",()->out.setText(String.valueOf(Toolbox.diceRoll(100))));
+    action(actions,"抛硬币",()->((TextView)body.findViewWithTag("tool-output")).setText(Toolbox.coinFlip()));
+    action(actions,"掷骰子",()->((TextView)body.findViewWithTag("tool-output")).setText("点数："+Toolbox.diceRoll(6)));
+    action(actions,"1-100 随机",()->((TextView)body.findViewWithTag("tool-output")).setText(String.valueOf(Toolbox.diceRoll(100))));
     EditText options=input(body,"做个决定：候选用空格分隔（如 吃面 吃饭 麻辣烫）",60);
-    action(actions,"帮我决定",()->out.setText(Toolbox.decide(options.getText().toString().trim().split("\\s+"))));
+    LinearLayout decideRow=actionRow(body);
+    action(decideRow,"帮我决定",()->((TextView)body.findViewWithTag("tool-output")).setText(Toolbox.decide(options.getText().toString().trim().split("\\s+"))));
+    result(body);
   }
 
   void scorecard(LinearLayout body){
     int[] scores={0,0};
     LinearLayout row=new LinearLayout(act);
     TextView a=bigScore("甲"),b=bigScore("乙");
-    LinearLayout.LayoutParams half=new LinearLayout.LayoutParams(0,act.dp(120),1);half.setMargins(act.dp(4),0,act.dp(4),0);
-    row.addView(a,half);row.addView(b,half);
+    LinearLayout.LayoutParams half=new LinearLayout.LayoutParams(0,-1,1);half.setMargins(act.dp(4),0,act.dp(4),0);
+    row.addView((View)a.getTag(),half);row.addView((View)b.getTag(),half);// 外壳承载布局，内部 value TextView 才是点击目标
     body.addView(row,new LinearLayout.LayoutParams(-1,act.dp(120)));
     LinearLayout actions=actionRow(body);
     action(actions,"重置",()->{scores[0]=0;scores[1]=0;a.setText("0");b.setText("0");});
-    TextView hint=text("点击分数 +/- 加减；长按清零该侧",11,act.MUTED);hint.setPadding(0,act.dp(6),0,0);body.addView(hint,new LinearLayout.LayoutParams(-1,-2));
+    TextView hint=text("点击分数加减；长按清零该侧",11,act.MUTED);hint.setPadding(0,act.dp(6),0,0);body.addView(hint,new LinearLayout.LayoutParams(-1,-2));
     a.setOnClickListener(v->{scores[0]++;a.setText(String.valueOf(scores[0]));bump(a);});
     a.setOnLongClickListener(v->{scores[0]=0;a.setText("0");return true;});
     b.setOnClickListener(v->{scores[1]++;b.setText(String.valueOf(scores[1]));bump(b);});
@@ -481,7 +486,7 @@ final class ToolHost {
     parent.addView(box,new LinearLayout.LayoutParams(-2,-2));return box;
   }
   LinearLayout listCard(){LinearLayout card=new LinearLayout(act);card.setOrientation(LinearLayout.VERTICAL);GradientDrawable bg=solid(act.SURFACE);bg.setStroke(act.dp(1),act.DIV);card.setBackground(bg);card.setClipToOutline(true);card.setPadding(act.dp(4),act.dp(4),act.dp(4),act.dp(6));LinearLayout.LayoutParams params=new LinearLayout.LayoutParams(-1,-2);params.setMargins(0,0,0,act.dp(10));card.setLayoutParams(params);return card;}
-  LinearLayout chipRow(LinearLayout parent){LinearLayout row=new LinearLayout(act);row.setOrientation(LinearLayout.VERTICAL);TextView label=text("",11,act.MUTED);row.addView(label,new LinearLayout.LayoutParams(-1,act.dp(22)));parent.addView(row,new LinearLayout.LayoutParams(-1,-2));return row;}
+  LinearLayout chipRow(LinearLayout parent){LinearLayout row=new LinearLayout(act);row.setOrientation(LinearLayout.HORIZONTAL);parent.addView(row,new LinearLayout.LayoutParams(-1,-2));return row;}
   TextView selectChip(LinearLayout row,String label,boolean selected,Runnable click){
     TextView chip=text(label,12,selected?act.PRIMARY:act.TEXT);chip.setGravity(Gravity.CENTER);chip.setClickable(true);chip.setFocusable(true);chip.setSelected(selected);
     styleSelect(chip,selected);chip.setOnClickListener(v->press(v,click));row.addView(chip,chipMargin());return chip;
