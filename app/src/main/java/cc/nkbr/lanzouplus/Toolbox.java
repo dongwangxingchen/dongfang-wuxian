@@ -248,8 +248,8 @@ final class Toolbox {
   static String zodiacOf(int year){int idx=((year-4)%12+12)%12;return ZODIAC_ANIMALS[idx];}
   static final String[] STAR_SIGNS={"摩羯","水瓶","双鱼","白羊","金牛","双子","巨蟹","狮子","处女","天秤","天蝎","射手"};
   static String starSign(int month,int day){
-    int[] cut={20,19,21,20,21,22,23,23,23,24,23,22};
-    int idx=day<cut[month-1]?month-1:month;// 12/22 之后 idx=12 → 摩羯
+    int[] cut={20,19,21,20,21,22,23,23,23,24,23,22};// 复审3:每月 cut 前属上一个星座,从 cut 起属本月星座;12 月 22+ 绕回摩羯(idx=12%12=0)
+    int idx=day<cut[month-1]?month-1:month;
     return STAR_SIGNS[idx%12]+"座";
   }
   static String zodiac(String yyyymmdd){
