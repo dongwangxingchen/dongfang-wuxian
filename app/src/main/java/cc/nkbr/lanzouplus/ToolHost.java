@@ -157,7 +157,7 @@ final class ToolHost {
     LinearLayout copy=new LinearLayout(act);copy.setOrientation(LinearLayout.VERTICAL);
     TextView title=text(category,15,act.TEXT);title.setTypeface(android.graphics.Typeface.DEFAULT,android.graphics.Typeface.BOLD);copy.addView(title,new LinearLayout.LayoutParams(-1,act.dp(28)));
     LinearLayout titleRow=new LinearLayout(act);titleRow.setGravity(Gravity.CENTER_VERTICAL);titleRow.addView(copy,new LinearLayout.LayoutParams(0,-2,1));
-    TextView badge=text(ids.size()+" 个",10,act.PRIMARY);badge.getBackground().mutate();
+    TextView badge=text(ids.size()+" 个",10,act.PRIMARY);
     GradientDrawable pill=solid(Color.argb(30,167,139,250));pill.setCornerRadius(act.dp(20));badge.setBackground(pill);badge.setPadding(act.dp(10),act.dp(2),act.dp(10),act.dp(2));
     titleRow.addView(badge,new LinearLayout.LayoutParams(-2,act.dp(24)));
     header.addView(titleRow,new LinearLayout.LayoutParams(0,act.dp(52),1));
