@@ -48,6 +48,13 @@ final class Toolbox {
     {"agecalc","年龄计算","按出生日期算周岁与生活天数","年龄 周岁 生日 天数",CALENDAR,"生活查询","38"},
     {"bmi","健康计算","BMI 体质指数与参考区间","bmi 健康 体重 身高 肥胖",HEART,"生活查询","52"},
     {"level","水平仪","气泡水平仪，挂画找平","水平 仪 气泡 平衡 挂画 角度",CHECK,"设备相关","36"},
+    {"stopwatch","秒表计时","正计时/倒计时/计圈","秒表 计时 倒计时 定时 停表",CHECK,"常用工具","58"},
+    {"timestamp","时间戳转换","Unix 时间戳与日期互转","时间戳 unix 秒 毫秒 日期",EDIT,"文字处理","44"},
+    {"radix","进制转换","2/8/10/16 进制互转","进制 二进制 十六进制 hex bin 转换",TEXT,"文字处理","40"},
+    {"compass","指南针","实时指向，度数+方位读数","指南针 方向 北 东南西北 罗盘",INFO,"设备相关","42"},
+    {"freqgen","频率发生器","正弦波发声 20Hz-20kHz","频率 声音 正弦 测试 音叉 发生器",AUDIO,"设备相关","30"},
+    {"picker","随机抽取","名单随机抽 N 个，可点名","抽取 随机 点名 抽奖 名单 抽签",DICE,"生活查询","36"},
+    {"morse","摩斯电码","英文与摩斯电码互转","摩斯 电码 morse 报文 密码",COPY,"文字处理","26"},
   };
   static final String[] CATEGORIES={"常用工具","文字处理","图片工具","设备相关","生活查询"};
   static final String CAT_ALL="全部";
@@ -86,6 +93,50 @@ final class Toolbox {
   static String toolCategory(String id){for(String[] t:TOOLS)if(t[0].equals(id))return t[5];return CATEGORIES[0];}
   static int toolHeat(String id){for(String[] t:TOOLS)if(t[0].equals(id))return Integer.parseInt(t[6]);return 0;}
   static String toolCatalogJson(){try{JSONArray array=new JSONArray();for(String[] t:TOOLS)array.put(new JSONObject().put("id",t[0]).put("name",t[1]).put("description",t[2]).put("keywords",t[3]).put("category",t[5]));return new JSONObject().put("tools",array).toString();}catch(Exception e){return "{\"tools\":[]}";}}
+  //——— v1.2.2 新增工具纯逻辑 ———
+  static String timestampConvert(String mode,String value){
+    try{
+      java.text.SimpleDateFormat fmt=new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss",Locale.CHINA);
+      if("now".equals(mode))return "当前时间戳："+System.currentTimeMillis()/1000+" 秒 / "+System.currentTimeMillis()+" 毫秒\n本地时间："+fmt.format(new java.util.Date());
+      if("to_date".equals(mode)){long v=Long.parseLong(value.trim());if(v<100000000000L)v*=1000;return "对应时间："+fmt.format(new java.util.Date(v));}
+      java.util.Date d=fmt.parse(value.trim());if(d==null)return"无法解析";
+      return "时间戳（秒）："+d.getTime()/1000+"\n时间戳（毫秒）："+d.getTime();
+    }catch(Exception e){return"格式错误：日期用 yyyy-MM-dd HH:mm:ss，时间戳为纯数字";}
+  }
+  static String radixConvert(String value,int from){
+    try{long v=Long.parseLong(value.trim(),from);
+      return "二进制："+Long.toString(v,2)+"\n八进制："+Long.toString(v,8)+"\n十进制："+v+"\n十六进制："+Long.toString(v,16).toUpperCase(Locale.ROOT);
+    }catch(Exception e){return"无法按所选进制解析该数字（范围限 64 位整数）";}
+  }
+  static String pickFrom(String names,int count){
+    java.util.List<String> pool=new ArrayList<>();
+    for(String n:names.split("[,，\\n;；]+"))if(!n.trim().isEmpty())pool.add(n.trim());
+    if(pool.isEmpty())return"先粘贴名单（换行或逗号分隔）";
+    if(count<1)count=1;if(count>pool.size())count=pool.size();
+    java.util.Collections.shuffle(pool,new SecureRandom());
+    StringBuilder out=new StringBuilder("共 "+pool.size()+" 项，抽出 "+count+" 个：\n");
+    for(int i=0;i<count;i++)out.append(i+1).append(". ").append(pool.get(i)).append('\n');
+    return out.toString().trim();
+  }
+  static String morseConvert(boolean toMorse,String value){
+    String[] codes={".-","-...","-.-.","-..",".","..-.","--.","....","..",".---","-.-",".-..","--","-.","---",".--.","--.-",".-.","...","-","..-","...-",".--","-..-","-.--","--.."};
+    if(toMorse){
+      StringBuilder out=new StringBuilder();
+      for(char c:value.toUpperCase(Locale.ROOT).toCharArray()){
+        if(c>='A'&&c<='Z'){if(out.length()>0)out.append(' ');out.append(codes[c-'A']);}
+        else if(c==' '&&out.length()>0)out.append(" / ");
+      }
+      return out.length()==0?"输入英文字母（A-Z 和空格）":out.toString();
+    }
+    java.util.Map<String,Character> map=new java.util.HashMap<>();
+    for(int i=0;i<26;i++)map.put(codes[i],(char)('A'+i));
+    StringBuilder out=new StringBuilder();
+    for(String p:value.trim().split("\\s+")){
+      if(p.equals("/")){out.append(' ');continue;}
+      Character c=map.get(p);if(c!=null)out.append(c);
+    }
+    return out.length()==0?"输入摩斯电码（. - 间隔，/ 分隔单词）":out.toString();
+  }
 
   //——— 计算器：递归下降解析，支持 + - * / % ( ) ———
   static String calculate(String expr){

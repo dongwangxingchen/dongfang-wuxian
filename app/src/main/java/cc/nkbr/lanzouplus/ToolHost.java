@@ -252,6 +252,13 @@ final class ToolHost {
       case "idcard":{EditText input=input(body,"18 位身份证号（仅本机解析，不上传）",44);LinearLayout actions=actionRow(body);action(actions,"解析",()->output(body,Toolbox.parseIdCard(input.getText().toString())));result(body);}break;
       case "agecalc":{EditText input=input(body,"出生日期（2000-06-15）",44);LinearLayout actions=actionRow(body);action(actions,"计算年龄",()->output(body,Toolbox.ageCalc(input.getText().toString())));result(body);}break;
       case "bmi":bmi(body);break;
+      case "stopwatch":stopwatch(body);break;
+      case "timestamp":timestamp(body);break;
+      case "radix":radix(body);break;
+      case "compass":compass(body);break;
+      case "freqgen":freqgen(body);break;
+      case "picker":picker(body);break;
+      case "morse":morse(body);break;
       default:{TextView info=text("该工具即将上线",13,act.MUTED);body.addView(info,new LinearLayout.LayoutParams(-1,act.dp(48)));break;}
     }
     if(act.motionEnabled())enterStagger(scroll);
@@ -263,7 +270,7 @@ final class ToolHost {
     live.setBackground(solid(act.SURFACE));live.setPadding(act.dp(14),act.dp(8),act.dp(14),act.dp(8));
     body.addView(live,new LinearLayout.LayoutParams(-1,act.dp(56)));
     expr.addTextChangedListener(new android.text.TextWatcher(){public void beforeTextChanged(CharSequence s,int a,int b,int c){}public void onTextChanged(CharSequence s,int a,int b,int c){}
-      public void afterTextChanged(android.text.Editable s){String value=s.toString().trim();if(value.isEmpty()){live.setText("0");return;}String out=Toolbox.calculate(value);live.setText(out.startsWith("表达式")?out:out);live.setTextColor(out.startsWith("表达式")?act.MUTED:act.TEXT);}});
+      public void afterTextChanged(android.text.Editable s){String value=s.toString().trim();if(value.isEmpty()){live.setText("0");return;}String out=Toolbox.calculate(value);live.setText(out);live.setTextColor(out.startsWith("表达式")?act.MUTED:act.TEXT);}});
     LinearLayout actions=actionRow(body);
     action(actions,"复制结果",()->{String value=live.getText().toString();if(value.isEmpty()||value.equals("0"))return;copy(value);});
     result(body);
@@ -423,26 +430,102 @@ final class ToolHost {
   }
 
   void deviceinfo(LinearLayout body){
-    LinearLayout actions=actionRow(body);action(actions,"读取设备信息",()->output(body,collectDeviceInfo()));
-    result(body);
+    // 复审2-推倒重做:进入即加载,分组卡片,不要"点按钮才出结果";所有读取包 try-catch,任一项失败显示"不可用"而不是崩溃
+    body.addView(infoSection(act,"系统"));
+    body.addView(kvCard(act,new String[][]{
+      {"设备名称",safe(()->Build.BRAND+" "+Build.MODEL)},
+      {"制造商",safe(()->Build.MANUFACTURER)},
+      {"型号",safe(()->Build.MODEL)},
+      {"品牌",safe(()->Build.BRAND)},
+      {"Android 版本",safe(()->"Android "+Build.VERSION.RELEASE+"（API "+Build.VERSION.SDK_INT+"）")},
+      {"系统构建号",safe(()->Build.DISPLAY)},
+      {"安全补丁",Build.VERSION.SDK_INT>=23?safe(()->Build.VERSION.SECURITY_PATCH):"需要 Android 6.0+"},
+      {"Bootloader",safe(()->Build.BOOTLOADER)},
+    }));
+    body.addView(infoSection(act,"处理器与内存"));
+    body.addView(kvCard(act,new String[][]{
+      {"芯片",safe(()->Build.HARDWARE)},
+      {"架构",safe(()->Build.SUPPORTED_ABIS!=null&&Build.SUPPORTED_ABIS.length>0?Build.SUPPORTED_ABIS[0]:"—")},
+      {"核心数",safe(()->String.valueOf(Runtime.getRuntime().availableProcessors()))},
+      {"Java 堆上限",safe(()->act.toolBytes(Runtime.getRuntime().maxMemory()))},
+      {"内存总量",safe(()->{android.app.ActivityManager am=(android.app.ActivityManager)act.getSystemService(android.content.Context.ACTIVITY_SERVICE);android.app.ActivityManager.MemoryInfo mi=new android.app.ActivityManager.MemoryInfo();if(am==null)return"不可用";am.getMemoryInfo(mi);return act.toolBytes(mi.totalMem);})},
+      {"内存可用",safe(()->{android.app.ActivityManager am=(android.app.ActivityManager)act.getSystemService(android.content.Context.ACTIVITY_SERVICE);android.app.ActivityManager.MemoryInfo mi=new android.app.ActivityManager.MemoryInfo();if(am==null)return"不可用";am.getMemoryInfo(mi);return act.toolBytes(mi.availMem)+"（"+(mi.totalMem>0?mi.availMem*100/mi.totalMem:0)+"%）";})},
+      {"内存低水位",safe(()->{android.app.ActivityManager am=(android.app.ActivityManager)act.getSystemService(android.content.Context.ACTIVITY_SERVICE);android.app.ActivityManager.MemoryInfo mi=new android.app.ActivityManager.MemoryInfo();if(am==null)return"不可用";am.getMemoryInfo(mi);return mi.lowMemory?"是（系统内存紧张）":"否";})},
+    }));
+    body.addView(infoSection(act,"存储"));
+    body.addView(kvCard(act,new String[][]{
+      {"内置存储总量",safe(()->storageInfo(true))},
+      {"内置存储可用",safe(()->storageInfo(false))},
+      {"数据目录",safe(()->act.getApplicationInfo().dataDir)},
+    }));
+    body.addView(infoSection(act,"电池"));
+    body.addView(kvCard(act,new String[][]{
+      {"电量",safe(()->batteryInfo("level"))},
+      {"状态",safe(()->batteryInfo("status"))},
+      {"电源",safe(()->batteryInfo("plugged"))},
+      {"温度",safe(()->batteryInfo("temperature"))},
+      {"健康度",safe(()->batteryInfo("health"))},
+    }));
+    body.addView(infoSection(act,"屏幕"));
+    body.addView(kvCard(act,new String[][]{
+      {"分辨率",safe(()->{android.util.DisplayMetrics m=act.getResources().getDisplayMetrics();return m.widthPixels+" × "+m.heightPixels;})},
+      {"密度",safe(()->{android.util.DisplayMetrics m=act.getResources().getDisplayMetrics();return m.densityDpi+" dpi（"+m.density+"x）";})},
+      {"物理尺寸",safe(()->{android.util.DisplayMetrics m=act.getResources().getDisplayMetrics();double wIn=m.widthPixels/m.xdpi,hIn=m.heightPixels/m.ydpi;if(m.xdpi<=0||m.ydpi<=0)return"不可用";return String.format(java.util.Locale.US,"%.1f 英寸（对角线）",Math.sqrt(wIn*wIn+hIn*hIn));})},
+      {"刷新率",Build.VERSION.SDK_INT>=30?safe(()->{android.view.Display display=act.getDisplay()==null?act.getWindowManager().getDefaultDisplay():act.getDisplay();return display==null?"不可用":display.getRefreshRate()+" Hz";}):safe(()->{android.view.Display display=act.getWindowManager().getDefaultDisplay();return display==null?"不可用":display.getRefreshRate()+" Hz";})},
+    }));
+    body.addView(infoSection(act,"传感器"));
+    body.addView(sensorCard(act));
+    body.addView(infoSection(act,"运行状态"));
+    body.addView(kvCard(act,new String[][]{
+      {"开机时长",safe(()->{long ms=android.os.SystemClock.elapsedRealtime();long h=ms/3600000,m=(ms%3600000)/60000;return h+" 小时 "+m+" 分钟";})},
+      {"开机时长（含休眠）",safe(()->{long ms=android.os.SystemClock.uptimeMillis();long h=ms/3600000,m=(ms%3600000)/60000;return h+" 小时 "+m+" 分钟";})},
+      {"应用版本",safe(()->{try{return act.getPackageManager().getPackageInfo(act.getPackageName(),0).versionName;}catch(Exception e){return"不可用";}})},
+      {"目标 SDK",safe(()->String.valueOf(act.getApplicationInfo().targetSdkVersion))},
+    }));
+    LinearLayout actions=actionRow(body);
+    action(actions,"复制全部信息",()->{StringBuilder all=new StringBuilder();for(int i=0;i<body.getChildCount();i++){View child=body.getChildAt(i);Object tag=child.getTag();if(tag instanceof String[][])for(String[] row:(String[][])tag)all.append(row[0]).append("：").append(row[1]).append('\n');}if(all.length()==0){act.showNotice("没有可复制的信息",true);return;}copy(all.toString());});
   }
-  String collectDeviceInfo(){
-    android.app.ActivityManager.MemoryInfo memory=new android.app.ActivityManager.MemoryInfo();
-    android.app.ActivityManager am=(android.app.ActivityManager)act.getSystemService(android.content.Context.ACTIVITY_SERVICE);
-    if(am!=null)am.getMemoryInfo(memory);
-    android.content.Intent battery=act.registerReceiver(null,new android.content.IntentFilter(android.content.Intent.ACTION_BATTERY_CHANGED));
-    int level=battery==null?0:battery.getIntExtra("level",0),scale=battery==null?0:battery.getIntExtra("scale",100),temperature=battery==null?0:battery.getIntExtra("temperature",0);
-    android.util.DisplayMetrics metrics=act.getResources().getDisplayMetrics();
-    StringBuilder out=new StringBuilder();
-    out.append("品牌：").append(Build.BRAND).append(" ").append(Build.MODEL).append('\n');
-    out.append("系统：Android ").append(Build.VERSION.RELEASE).append("（API ").append(Build.VERSION.SDK_INT).append("）\n");
-    out.append("芯片：").append(Build.HARDWARE).append(" / ").append(Build.CPU_ABI).append('\n');
-    out.append("屏幕：").append(metrics.widthPixels).append("×").append(metrics.heightPixels).append(" @").append(metrics.densityDpi).append("dpi\n");
-    out.append("内存：可用 ").append(act.toolBytes(memory.availMem)).append(" / 共 ").append(act.toolBytes(memory.totalMem)).append('\n');
-    if(scale>0)out.append("电池：").append(level*100/scale).append("% · ").append(temperature/10.0).append("℃\n");
-    out.append("Java 堆：").append(act.toolBytes(Runtime.getRuntime().maxMemory()));
-    return out.toString();
+  /** 每项读取都兜异常：任一 API 在该机型上缺失时显示"不可用"，绝不崩整页 */
+  String safe(java.util.function.Supplier<String> read){try{String value=read.get();return value==null||value.trim().isEmpty()?"不可用":value;}catch(Throwable ignored){return"不可用";}}
+  String storageInfo(boolean total){
+    try{
+      java.io.File dir=android.os.Environment.getDataDirectory();
+      long space=total?dir.getTotalSpace():dir.getUsableSpace();
+      return act.toolBytes(space);
+    }catch(Throwable ignored){return"不可用";}
   }
+  String batteryInfo(String field){
+    android.content.Intent intent=act.registerReceiver(null,new android.content.IntentFilter(android.content.Intent.ACTION_BATTERY_CHANGED));
+    if(intent==null)return"不可用";
+    switch(field){
+      case "level":{int level=intent.getIntExtra("level",-1),scale=intent.getIntExtra("scale",-1);return level<0||scale<=0?"不可用":level*100/scale+"%";}
+      case "status":{int status=intent.getIntExtra("status",-1);switch(status){case 2:return"充电中";case 3:return"放电中";case 4:return"未充电";case 5:return"已充满";default:return"未知";}}
+      case "plugged":{int plugged=intent.getIntExtra("plugged",0);switch(plugged){case 1:return"交流充电器";case 2:return"USB";case 4:return"无线充电";default:return"电池供电";}}
+      case "temperature":{int temperature=intent.getIntExtra("temperature",-1);return temperature<0?"不可用":temperature/10.0+"℃";}
+      case "health":{int health=intent.getIntExtra("health",-1);switch(health){case 2:return"良好";case 3:return"过热";case 4:return"已损坏";case 5:return"电压过高";case 7:return"健康（冷）";default:return"未知";}}
+      default:return"不可用";
+    }
+  }
+  View sensorCard(android.content.Context context){
+    android.hardware.SensorManager manager=(android.hardware.SensorManager)act.getSystemService(android.content.Context.SENSOR_SERVICE);
+    LinearLayout card=kvCardShell(act);
+    if(manager==null){addKvRow(act,card,"传感器","此设备没有传感器服务");return card;}
+    java.util.List<android.hardware.Sensor> sensors=manager.getSensorList(android.hardware.Sensor.TYPE_ALL);
+    if(sensors.isEmpty()){addKvRow(act,card,"传感器","未检测到传感器");return card;}
+    java.util.Set<String> seen=new java.util.LinkedHashSet<>();
+    java.util.Map<String,String> names=new java.util.HashMap<>();
+    names.put(android.hardware.Sensor.STRING_TYPE_ACCELEROMETER,"加速度计");names.put(android.hardware.Sensor.STRING_TYPE_MAGNETIC_FIELD,"磁力计");names.put(android.hardware.Sensor.STRING_TYPE_GYROSCOPE,"陀螺仪");
+    names.put(android.hardware.Sensor.STRING_TYPE_LIGHT,"光线传感器");names.put(android.hardware.Sensor.STRING_TYPE_PRESSURE,"气压计");names.put(android.hardware.Sensor.STRING_TYPE_PROXIMITY,"距离传感器");
+    names.put(android.hardware.Sensor.STRING_TYPE_GRAVITY,"重力传感器");names.put(android.hardware.Sensor.STRING_TYPE_LINEAR_ACCELERATION,"线性加速度");names.put(android.hardware.Sensor.STRING_TYPE_ROTATION_VECTOR,"旋转矢量");
+    names.put(android.hardware.Sensor.STRING_TYPE_AMBIENT_TEMPERATURE,"环境温度");names.put(android.hardware.Sensor.STRING_TYPE_RELATIVE_HUMIDITY,"湿度");names.put(android.hardware.Sensor.STRING_TYPE_STEP_COUNTER,"计步器");
+    for(android.hardware.Sensor sensor:sensors){
+      String key=sensor.getStringType()==null?sensor.getName():sensor.getStringType();
+      String label=names.getOrDefault(key,key);
+      if(seen.add(label))addKvRow(act,card,label,sensor.getVendor()+" · "+sensor.getMaximumRange());
+    }
+    return card;
+  }
+  String collectDeviceInfo(){return"";}// 已由 deviceinfo 分组卡片取代（保留空壳防外部引用）
 
   void torch(LinearLayout body){
     TextView state=text("未开启",14,act.TEXT);state.setPadding(0,act.dp(6),0,act.dp(6));
@@ -542,4 +625,149 @@ final class ToolHost {
     target.animate().alpha(0f).setDuration(90).withEndAction(()->{rebuild.run();target.setAlpha(0f);target.animate().alpha(1f).setDuration(190).setInterpolator(new android.view.animation.PathInterpolator(0.05f,0.7f,0.1f,1f)).start();}).start();
   }
   int parseInt(EditText field,int fallback){try{return Integer.parseInt(field.getText().toString().trim());}catch(Exception ignored){return fallback;}}
+
+  //—— 设备信息页部件：小节标题 + 键值卡片 ——
+
+  TextView infoSection(android.content.Context context,String title){
+    TextView label=text(title,12,act.PRIMARY);label.setTypeface(android.graphics.Typeface.DEFAULT,android.graphics.Typeface.BOLD);
+    label.setPadding(act.dp(4),act.dp(8),0,act.dp(4));label.setContentDescription(title+"信息组");
+    return label;
+  }
+  LinearLayout kvCardShell(android.content.Context context){
+    LinearLayout card=new LinearLayout(act);card.setOrientation(LinearLayout.VERTICAL);
+    GradientDrawable bg=solid(act.SURFACE);bg.setStroke(act.dp(1),act.DIV);card.setBackground(bg);card.setClipToOutline(true);
+    card.setPadding(act.dp(4),act.dp(2),act.dp(4),act.dp(2));
+    LinearLayout.LayoutParams params=new LinearLayout.LayoutParams(-1,-2);params.setMargins(0,0,0,act.dp(12));
+    card.setLayoutParams(params);return card;
+  }
+  /** 行数据卡片：键值对两列布局，偶数行淡底色；tag 存数据供"复制全部"用 */
+  LinearLayout kvCard(android.content.Context context,String[][] rows){
+    LinearLayout card=kvCardShell(context);
+    java.util.List<String[]> kept=new ArrayList<>();
+    for(int i=0;i<rows.length;i++){
+      if(rows[i].length<2)continue;
+      addKvRow(act,card,rows[i][0],rows[i][1]);
+      kept.add(new String[]{rows[i][0],rows[i][1]});
+    }
+    card.setTag(kept.toArray(new String[0][]));
+    return card;
+  }
+  void addKvRow(android.content.Context context,LinearLayout card,String key,String value){
+    LinearLayout row=new LinearLayout(act);row.setGravity(Gravity.CENTER_VERTICAL);row.setPadding(act.dp(10),act.dp(9),act.dp(10),act.dp(9));
+    if(card.getChildCount()%2==2){GradientDrawable stripe=solid(Color.argb(10,167,139,250));row.setBackground(stripe);}
+    TextView k=text(key,12,act.MUTED);k.setSingleLine(true);
+    row.addView(k,new LinearLayout.LayoutParams(0,-2,1));
+    TextView v=text(value==null||value.isEmpty()?"—":value,12,act.TEXT);v.setGravity(Gravity.END|Gravity.CENTER_VERTICAL);v.setTextIsSelectable(false);
+    boolean longValue=value!=null&&(value.contains("\n")||value.length()>28);
+    if(longValue){v.setGravity(Gravity.START);row.setOrientation(LinearLayout.VERTICAL);k.setPadding(0,0,0,act.dp(2));row.addView(v,new LinearLayout.LayoutParams(-1,-2));}
+    else{v.setSingleLine(true);v.setEllipsize(TextUtils.TruncateAt.MIDDLE);row.addView(v,new LinearLayout.LayoutParams(0,-2,1));}
+    row.setContentDescription(key+"："+v.getText());
+    card.addView(row,new LinearLayout.LayoutParams(-1,-2));
+  }
+  //——— v1.2.2 新增工具 ———
+
+  void stopwatch(LinearLayout body){
+    final android.os.Handler handler=new android.os.Handler(android.os.Looper.getMainLooper());
+    TextView clock=text("00:00.0",30,act.TEXT);clock.setTypeface(android.graphics.Typeface.DEFAULT,android.graphics.Typeface.BOLD);clock.setGravity(Gravity.CENTER);clock.setBackground(solid(act.SURFACE));body.addView(clock,new LinearLayout.LayoutParams(-1,act.dp(80)));
+    final EditText mins=input(body,"倒计时分钟数（正计时留空）",24);mins.setInputType(InputType.TYPE_CLASS_NUMBER);
+    LinearLayout actions=actionRow(body);result(body);
+    final long[] accum={0},startAt={0},cdEnd={0};final boolean[] running={false},cdMode={false};
+    final Runnable[] tick={null};
+    tick[0]=new Runnable(){public void run(){
+      if(cdMode[0]){
+        long shown=Math.max(0,cdEnd[0]-System.currentTimeMillis());long s=shown/1000;
+        clock.setText(String.format(java.util.Locale.US,"%02d:%02d",s/60,s%60));
+        if(shown<=0){running[0]=false;cdMode[0]=false;act.showNotice("时间到",true);return;}
+        if(running[0])handler.postDelayed(tick[0],100);
+        return;
+      }
+      long shown=accum[0]+(running[0]?System.currentTimeMillis()-startAt[0]:0);long t=shown/100;
+      clock.setText(String.format(java.util.Locale.US,"%02d:%02d.%d",t/600,(t/1000)%60,t%10));
+      if(running[0])handler.postDelayed(tick[0],100);
+    }};
+    action(actions,"开始/暂停",()->{
+      if(cdMode[0]){if(cdEnd[0]-System.currentTimeMillis()<=0){act.showNotice("已结束，请清零",true);return;}running[0]=!running[0];if(running[0])handler.post(tick[0]);return;}
+      if(running[0]){accum[0]+=System.currentTimeMillis()-startAt[0];running[0]=false;}
+      else{startAt[0]=System.currentTimeMillis();running[0]=true;handler.post(tick[0]);}
+    });
+    action(actions,"计圈",()->{long shown=accum[0]+(running[0]?System.currentTimeMillis()-startAt[0]:0);output(body,"圈："+String.format(java.util.Locale.US,"%.1f 秒",shown/1000.0));});
+    action(actions,"清零",()->{running[0]=false;cdMode[0]=false;accum[0]=0;clock.setText("00:00.0");});
+    action(actions,"倒计时开始",()->{try{long ms=Long.parseLong(mins.getText().toString().trim())*60000;if(ms<=0)throw new NumberFormatException();cdMode[0]=true;running[0]=true;cdEnd[0]=System.currentTimeMillis()+ms;handler.post(tick[0]);}catch(Exception e){act.showNotice("先填倒计时分钟数",true);}});
+    handler.post(tick[0]);
+  }
+  void timestamp(LinearLayout body){
+    final EditText field=input(body,"时间戳（秒/毫秒）或日期（yyyy-MM-dd HH:mm:ss）",44);
+    LinearLayout actions=actionRow(body);
+    action(actions,"当前时间戳",()->output(body,Toolbox.timestampConvert("now","")));
+    action(actions,"时间戳 → 日期",()->output(body,Toolbox.timestampConvert("to_date",field.getText().toString())));
+    action(actions,"日期 → 时间戳",()->output(body,Toolbox.timestampConvert("to_stamp",field.getText().toString())));
+    result(body);
+  }
+  void radix(LinearLayout body){
+    final EditText value=input(body,"数值",44);
+    LinearLayout actions=actionRow(body);result(body);
+    action(actions,"按十进制解析",()->output(body,Toolbox.radixConvert(value.getText().toString().trim(),10)));
+    action(actions,"按十六进制解析",()->output(body,Toolbox.radixConvert(value.getText().toString().trim(),16)));
+    action(actions,"按二进制解析",()->output(body,Toolbox.radixConvert(value.getText().toString().trim(),2)));
+  }
+  void compass(LinearLayout body){
+    TextView dial=text("…",44,act.PRIMARY);dial.setGravity(Gravity.CENTER);dial.setBackground(solid(act.SURFACE));body.addView(dial,new LinearLayout.LayoutParams(-1,act.dp(150)));
+    TextView degree=text("",13,act.TEXT);degree.setGravity(Gravity.CENTER);body.addView(degree,new LinearLayout.LayoutParams(-1,act.dp(30)));
+    TextView note=text("电子设备/磁场附近可能不准。",11,act.MUTED);body.addView(note,new LinearLayout.LayoutParams(-1,act.dp(24)));
+    android.hardware.SensorManager sm=(android.hardware.SensorManager)act.getSystemService(android.content.Context.SENSOR_SERVICE);
+    android.hardware.Sensor sensor=sm==null?null:sm.getDefaultSensor(android.hardware.Sensor.TYPE_ROTATION_VECTOR);
+    if(sensor==null&&sm!=null)sensor=sm.getDefaultSensor(android.hardware.Sensor.TYPE_ORIENTATION);
+    if(sm==null||sensor==null){dial.setText("此设备不支持方向传感器");return;}
+    final float[] rot=new float[9],ori=new float[3];
+    final String[] dirs={"北","东北","东","东南","南","西南","西","西北"};
+    android.hardware.SensorEventListener listener=new android.hardware.SensorEventListener(){
+      public void onSensorChanged(android.hardware.SensorEvent event){
+        int deg;
+        if(event.sensor.getType()==android.hardware.Sensor.TYPE_ROTATION_VECTOR){
+          android.hardware.SensorManager.getRotationMatrixFromVector(rot,event.values);
+          android.hardware.SensorManager.getOrientation(rot,ori);
+          deg=(int)Math.round(Math.toDegrees(ori[0]));
+        }else deg=(int)event.values[0];
+        deg=(deg%360+360)%360;
+        dial.setText(dirs[Math.round(deg/45f)%8]);
+        degree.setText(deg+"°");
+      }
+      public void onAccuracyChanged(android.hardware.Sensor s,int a){}
+    };
+    sm.registerListener(listener,sensor,android.hardware.SensorManager.SENSOR_DELAY_UI);
+    if(act.levelCleanup!=null){try{act.levelCleanup.run();}catch(Exception ignored){}}
+    act.levelCleanup=()->sm.unregisterListener(listener);// 独立清理槽（同水平仪），离开工具页自动注销
+  }
+  void freqgen(LinearLayout body){
+    TextView status=text("未播放",14,act.TEXT);status.setPadding(0,act.dp(8),0,act.dp(8));body.addView(status,new LinearLayout.LayoutParams(-1,act.dp(32)));
+    final EditText hz=input(body,"频率 Hz（20–20000）",44);hz.setInputType(InputType.TYPE_CLASS_NUMBER);hz.setText("440");
+    LinearLayout actions=actionRow(body);result(body);
+    final android.media.AudioTrack[] track={null};
+    action(actions,"播放",()->{
+      try{
+        int f=Math.max(20,Math.min(20000,parseInt(hz,440)));
+        if(track[0]!=null){try{track[0].stop();track[0].release();}catch(Exception ignored){}track[0]=null;}
+        int rate=44100,n=rate;
+        short[] wave=new short[n];
+        for(int i=0;i<n;i++)wave[i]=(short)(Math.sin(2*Math.PI*f*i/rate)*8000);
+        android.media.AudioTrack t=new android.media.AudioTrack(android.media.AudioManager.STREAM_MUSIC,rate,android.media.AudioFormat.CHANNEL_OUT_MONO,android.media.AudioFormat.ENCODING_PCM_16BIT,n,android.media.AudioTrack.MODE_STATIC);
+        t.write(wave,0,n);t.setLoopPoints(0,n,-1);t.play();track[0]=t;
+        status.setText("正在播放 "+f+" Hz（注意音量）");
+      }catch(Exception e){act.showNotice("播放失败："+e.getMessage(),true);}
+    });
+    action(actions,"停止",()->{if(track[0]!=null){try{track[0].stop();track[0].release();}catch(Exception ignored){}track[0]=null;}status.setText("已停止");});
+    if(act.levelCleanup!=null){try{act.levelCleanup.run();}catch(Exception ignored){}}
+    act.levelCleanup=()->{if(track[0]!=null){try{track[0].stop();track[0].release();}catch(Exception ignored){}track[0]=null;}};// 离开工具页自动停止
+  }
+  void picker(LinearLayout body){
+    final EditText names=input(body,"名单（换行或逗号分隔）",120);
+    final EditText count=input(body,"抽几项（默认 1）",24);count.setInputType(InputType.TYPE_CLASS_NUMBER);
+    LinearLayout actions=actionRow(body);action(actions,"抽取",()->output(body,Toolbox.pickFrom(names.getText().toString(),parseInt(count,1))));result(body);
+  }
+  void morse(LinearLayout body){
+    final EditText field=input(body,"英文或摩斯电码（. - 与 /）",100);
+    LinearLayout actions=actionRow(body);result(body);
+    action(actions,"编码为摩斯",()->output(body,Toolbox.morseConvert(true,field.getText().toString())));
+    action(actions,"解码为英文",()->output(body,Toolbox.morseConvert(false,field.getText().toString())));
+  }
 }
