@@ -293,7 +293,10 @@ final class LanzouCore {
   private DirectLink resolveDirectRoute(String logicalShareUrl,String password,RouteCandidate route,long deadline,Set<String> attempted)throws Exception{
     directRemainingMillis(deadline);long now=System.currentTimeMillis();DirectCookiePool.Lease lease=directCookiePool.acquire(attempted,now,route.ua&0xff);attempted.add(lease.id);NetSession session=new NetSession(lease.jar,route.ua,deadline);try{DirectLink direct=resolveDirectWithSession(logicalShareUrl,route.url,password,session);directCookiePool.finish(lease,session.snapshot(),true,false,0,System.currentTimeMillis());return direct;}catch(Exception error){DirectRetryException retry=directRetry(error);directCookiePool.finish(lease,session.snapshot(),false,retry!=null&&retry.rateLimited,retry==null?0:retry.retryAfterMs,System.currentTimeMillis());throw error;}
   }
-  static long directRetryDelay(Throwable error,int failures){return 0;}
+  static long directRetryDelay(Throwable error,int failures){// 500ms 起、指数退避有上限，避免频率受限后死磕
+    if(failures<=0||failures>5)return 0;
+    return Math.min(8000L,500L<<(failures-1));
+  }
   private static int directRemainingMillis(long deadline)throws SocketTimeoutException{long nanos=deadline-System.nanoTime();if(nanos<=0)throw new SocketTimeoutException("直链解析超时");return(int)Math.min(Integer.MAX_VALUE,Math.max(1L,TimeUnit.NANOSECONDS.toMillis(nanos)));}
   private static DirectRetryException directRetry(Throwable error){for(Throwable value=error;value!=null;value=value.getCause())if(value instanceof DirectRetryException)return(DirectRetryException)value;return null;}
   private static boolean terminalDirectFailure(Throwable error){String value=error.getMessage();return value!=null&&DIRECT_PROFILE_TERMINAL_INFO.matcher(value).find();}

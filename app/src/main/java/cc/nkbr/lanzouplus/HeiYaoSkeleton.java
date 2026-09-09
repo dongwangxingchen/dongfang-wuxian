@@ -46,7 +46,7 @@ final class HeiYaoSkeleton extends View {
         canvas.drawRoundRect(barX,y+dp(12)+barH+dp(9),barX+barMaxW*.38f,y+dp(12)+barH*2+dp(9),barH/2f,barH/2f,blockPaint);
       }
     }
-    if(shine==null)shine=new LinearGradient(-w*.55f,0,w*.15f,0,new int[]{Color.TRANSPARENT,Color.argb(46,167,139,250),Color.TRANSPARENT},new float[]{0f,.5f,1f},Shader.TileMode.CLAMP);
+    if(shine==null)shine=new LinearGradient(-w*.55f,0,w*.15f,0,new int[]{Color.TRANSPARENT,ThemeEngine.tint(ThemeEngine.active(getContext()).primary,46),Color.TRANSPARENT},new float[]{0f,.5f,1f},Shader.TileMode.CLAMP);
     shineMatrix.reset();shineMatrix.postTranslate(shineOffset*w,0);shine.setLocalMatrix(shineMatrix);shinePaint.setShader(shine);
     canvas.drawRect(0,0,w,h,shinePaint);shinePaint.setShader(null);
   }
