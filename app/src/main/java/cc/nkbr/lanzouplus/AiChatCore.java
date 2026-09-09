@@ -22,17 +22,19 @@ import org.json.JSONObject;
  *  协议参照 openai-java / langchain4j 的开源实现约定(delta.content/delta.reasoning/[DONE]),零第三方依赖。 */
 final class AiChatCore {
   static final class Settings {
-    String name = "", url = "", key = "", model = "";
+    String name = "", url = "", key = "", model = "", provider = "";
+    boolean toolsEnabled = true;
     int contextMessages = 12, maxTokens = 2048;
-    JSONObject toJson() {try{return new JSONObject().put("name",name).put("url",url).put("key",key).put("model",model).put("ctx",contextMessages).put("max",maxTokens);}catch(Exception e){return new JSONObject();}}
-    static Settings from(JSONObject o) {Settings s=new Settings();try{s.name=o.optString("name");s.url=o.optString("url");s.key=o.optString("key");s.model=o.optString("model");s.contextMessages=Math.max(2,o.optInt("ctx",12));s.maxTokens=Math.max(64,o.optInt("max",2048));}catch(Exception ignored){}return s;}
+    JSONObject toJson() {try{return new JSONObject().put("name",name).put("url",url).put("key",key).put("model",model).put("provider",provider).put("tools",toolsEnabled).put("ctx",contextMessages).put("max",maxTokens);}catch(Exception e){return new JSONObject();}}
+    static Settings from(JSONObject o) {Settings s=new Settings();try{s.name=o.optString("name");s.url=o.optString("url");s.key=o.optString("key");s.model=o.optString("model");s.provider=o.optString("provider");s.toolsEnabled=o.optBoolean("tools",true);s.contextMessages=Math.max(2,o.optInt("ctx",12));s.maxTokens=Math.max(64,o.optInt("max",2048));}catch(Exception ignored){}return s;}
   }
   static final class Message {
     String role = "user", content = "", reasoning = "";
+    String toolCallsJson = "", toolCallId = "", toolName = "";
     Message() {}
     Message(String role,String content) {this.role=role;this.content=content==null?"":content;}
-    JSONObject toJson() {try{JSONObject o=new JSONObject().put("role",role).put("content",content);if(!reasoning.isEmpty())o.put("reasoning",reasoning);return o;}catch(Exception e){return new JSONObject();}}
-    static Message from(JSONObject o) {Message m=new Message(o.optString("role","user"),o.optString("content"));try{m.reasoning=o.optString("reasoning");}catch(Exception ignored){}return m;}
+    JSONObject toJson() {try{JSONObject o=new JSONObject().put("role",role).put("content",content);if(!reasoning.isEmpty())o.put("reasoning",reasoning);if(!toolCallsJson.isEmpty())o.put("tcalls",toolCallsJson);if(!toolCallId.isEmpty())o.put("tcid",toolCallId);if(!toolName.isEmpty())o.put("tname",toolName);return o;}catch(Exception e){return new JSONObject();}}
+    static Message from(JSONObject o) {Message m=new Message(o.optString("role","user"),o.optString("content"));try{m.reasoning=o.optString("reasoning");m.toolCallsJson=o.optString("tcalls");m.toolCallId=o.optString("tcid");m.toolName=o.optString("tname");}catch(Exception ignored){}return m;}
   }
   static final class Session {
     String id, title = "新对话";
@@ -41,10 +43,13 @@ final class AiChatCore {
     JSONObject toJson() {try{JSONArray a=new JSONArray();for(Message m:messages)a.put(m.toJson());return new JSONObject().put("id",id).put("title",title).put("at",createdAt).put("messages",a);}catch(Exception e){return new JSONObject();}}
     static Session from(JSONObject o) {Session s=new Session();try{s.id=o.optString("id");s.title=o.optString("title","新对话");s.createdAt=o.optLong("at");JSONArray a=o.optJSONArray("messages");if(a!=null)for(int i=0;i<a.length();i++)s.messages.add(Message.from(a.optJSONObject(i)));}catch(Exception ignored){}return s;}
   }
+  /** v1.2.2:function calling 的单次工具调用 */
+  static final class ToolCall {final String id,name,arguments;ToolCall(String id,String name,String arguments){this.id=id==null?"":id;this.name=name==null?"":name;this.arguments=arguments==null||arguments.trim().isEmpty()?"{}":arguments;}}
   interface StreamListener {
     void onOpen();
     void onDelta(String content,String reasoning);
     void onDone(String fullContent,String reasoning,String error);
+    default void onToolCalls(List<ToolCall> calls) {}
   }
   static final class Request implements AutoCloseable {
     volatile HttpURLConnection connection;volatile boolean cancelled;
@@ -122,7 +127,8 @@ final class AiChatCore {
     String value=url==null?"":url.trim();
     if(!value.matches("(?i)^[a-z][a-z0-9+.-]*://.*"))value="https://"+value;
     while(value.endsWith("/"))value=value.substring(0,value.length()-1);
-    if(!value.endsWith("/v1"))value=value+"/v1";
+    // v1.2.2:已带版本段的地址(智谱 /v4、豆包 /v3 等)不再追加 /v1
+    if(!value.matches("(?i).*/v\\d+$"))value=value+"/v1";
     return value;
   }
   /** 流式对话。返回 Request 用于取消;回调全部回主线程。 */
@@ -138,8 +144,12 @@ final class AiChatCore {
         if(!resolved.isEmpty())throw new java.io.IOException(resolved);
         JSONArray payload=new JSONArray();
         int from=Math.max(0,context.size()-Math.max(1,s.contextMessages));
-        for(int i=from;i<context.size();i++) {Message m=context.get(i);payload.put(new JSONObject().put("role",m.role).put("content",m.content));}
+        for(int i=from;i<context.size();i++) {Message m=context.get(i);
+          if(m.toolCallsJson!=null&&!m.toolCallsJson.isEmpty()){JSONObject o=new JSONObject().put("role","assistant").put("content",m.content==null?"":m.content);try{o.put("tool_calls",new JSONArray(m.toolCallsJson));}catch(Exception ignored){}payload.put(o);}
+          else if(m.toolCallId!=null&&!m.toolCallId.isEmpty())payload.put(new JSONObject().put("role","tool").put("tool_call_id",m.toolCallId).put("content",m.content==null?"":m.content));
+          else payload.put(new JSONObject().put("role",m.role).put("content",m.content==null?"":m.content));}
         JSONObject body=new JSONObject().put("model",s.model).put("messages",payload).put("max_tokens",s.maxTokens).put("stream",true);
+        if(s.toolsEnabled){try{body.put("tools",AiTools.openaiToolSchemas());body.put("tool_choice","auto");}catch(Exception ignored){}}
         HttpURLConnection c=(HttpURLConnection)new URL(normalizeBase(s.url)+"/chat/completions").openConnection();
         request.connection=c;
         c.setConnectTimeout(15000);c.setReadTimeout(120000);c.setDoOutput(true);c.setRequestMethod("POST");
@@ -152,6 +162,8 @@ final class AiChatCore {
         ui.post(listener::onOpen);
         BufferedReader reader=new BufferedReader(new InputStreamReader(c.getInputStream(),StandardCharsets.UTF_8));
         String line;
+        java.util.Map<Integer,ToolCall> acc=new java.util.LinkedHashMap<>();
+        try {
         while(!request.cancelled&&(line=reader.readLine())!=null) {
           if(!line.startsWith("data:"))continue;
           String data=line.substring(5).trim();
@@ -162,12 +174,19 @@ final class AiChatCore {
           if(choices==null||choices.length()==0)continue;
           JSONObject delta=choices.optJSONObject(0)==null?null:choices.optJSONObject(0).optJSONObject("delta");
           if(delta==null)continue;
+          JSONArray tcalls=delta.optJSONArray("tool_calls");
+          if(tcalls!=null)for(int i=0;i<tcalls.length();i++){JSONObject t=tcalls.optJSONObject(i);if(t==null)continue;int idx=t.optInt("index",i);ToolCall cur=acc.get(idx);JSONObject fn=t.optJSONObject("function");String name=fn==null?"":fn.optString("name");String args=fn==null?"":fn.optString("arguments");if(cur==null){cur=new ToolCall(t.optString("id"),name,args);acc.put(idx,cur);}else{String id=t.optString("id");if(!id.isEmpty()&&cur.id.isEmpty()){acc.put(idx,new ToolCall(id,cur.name.isEmpty()?name:cur.name,cur.arguments+args));continue;}if(!name.isEmpty()&&cur.name.isEmpty()){acc.put(idx,new ToolCall(cur.id,name,args+cur.arguments));continue;}acc.put(idx,new ToolCall(cur.id,cur.name.isEmpty()?name:cur.name,cur.arguments+args));}continue;}
           String piece=delta.optString("content","");
           String think=firstNonEmpty(delta.optString("reasoning_content"),delta.optString("reasoning"));
           if(!piece.isEmpty()) {full+=piece;ui.post(() -> listener.onDelta(piece,""));}
           else if(!think.isEmpty()) {reasoning+=think;ui.post(() -> listener.onDelta("",think));}
         }
-        try {reader.close();}catch(Exception ignored){}
+        } finally {try{reader.close();}catch(Exception ignored){}}
+        if(!acc.isEmpty()&&!request.cancelled) {
+          java.util.List<ToolCall> calls=new ArrayList<>();
+          for(int k=0;k<acc.size();k++){ToolCall tc=acc.get(k);if(tc!=null&&!tc.name.isEmpty())calls.add(tc);}
+          if(!calls.isEmpty()){ui.post(() -> listener.onToolCalls(calls));return;}
+        }
       }catch(Exception e) {
         if(request.cancelled) {final String cancelledFull=full,cancelledThink=reasoning;ui.post(() -> listener.onDone(cancelledFull,cancelledThink,null));return;}
         error=e.getMessage()==null?"请求失败":e.getMessage();
