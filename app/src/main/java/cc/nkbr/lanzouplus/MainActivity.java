@@ -23,7 +23,14 @@ import java.net.HttpURLConnection;
 import java.util.*;
 import java.util.concurrent.*;
 
-public final class MainActivity extends Activity {
+public final class MainActivity extends Activity implements ToolHost.Host {
+  @Override public int BG(){return BG;}@Override public int TEXT(){return TEXT;}@Override public int MUTED(){return MUTED;}@Override public int SURFACE(){return SURFACE;}@Override public int PRIMARY(){return PRIMARY;}@Override public int DIV(){return DIV;}
+  @Override public LinearLayout root(){return root;}@Override public android.content.Context context(){return this;}
+  @Override public Runnable levelCleanup(){return levelCleanup;}@Override public void setLevelCleanup(Runnable value){levelCleanup=value;}
+  @Override public int pageDirection(){return pageDirection;}@Override public void setPageDirection(int value){pageDirection=value;}
+  @Override public int toolQuality(){return toolQuality;}@Override public void setToolQuality(int value){toolQuality=value;}
+  @Override public android.net.Uri toolImageUri(){return toolImageUri;}@Override public void setToolImageUri(android.net.Uri value){toolImageUri=value;}@Override public void setToolImageInfoText(String value){toolImageInfoText=value;}
+  
   static final String PRODUCT_NAME="东方无限";
   static final String LANZOU_PLUS_REPOSITORY="https://github.com/nekobyran/lanzouplus";
   int BG,SURFACE,PRIMARY,TEXT,MUTED,DIV; boolean darkMode;
@@ -245,15 +252,15 @@ public final class MainActivity extends Activity {
   void drainDownloadHistoryPersist(){synchronized(downloadPersistLock){if(downloadPersistClosed)return;downloadPersistDirty=false;}writeDownloadHistoryNow();synchronized(downloadPersistLock){downloadPersistFuture=null;if(downloadPersistDirty&&!downloadPersistClosed)downloadPersistFuture=downloadPersistIo.schedule(this::drainDownloadHistoryPersist,DOWNLOAD_PERSIST_DEBOUNCE_MS,TimeUnit.MILLISECONDS);}}
   void writeDownloadHistoryNow(){try{org.json.JSONArray items=new org.json.JSONArray();int start=Math.max(0,downloadEntries.size()-100);for(int i=start;i<downloadEntries.size();i++){DownloadEntry entry=downloadEntries.get(i);synchronized(entry){items.put(new org.json.JSONObject().put("type",entry.entryType).put("batchId",entry.batchId).put("batchTitle",entry.batchTitle).put("name",entry.name).put("state",entry.state).put("error",entry.error).put("percent",entry.percent).put("icon",entry.iconUrl).put("share",entry.shareUrl).put("password",entry.password).put("uri",entry.uriString).put("parent",entry.parentUriString).put("sourceSize",entry.sourceSizeText).put("expectedUpdateVersion",entry.expectedUpdateVersion).put("created",entry.createdAt).put("started",entry.startedAt).put("completed",entry.completedAt).put("doneBytes",entry.downloadedBytes).put("totalBytes",entry.totalBytes).put("verifiedTotalBytes",entry.verifiedTotalBytes).put("direct",entry.directUrl).put("resolvedAt",entry.resolvedAt).put("speed",entry.speedBps).put("eta",entry.etaSeconds).put("saveTotal",entry.saveTotal).put("saveDone",entry.saveDone).put("saveSucceeded",entry.saveSucceeded).put("saveFailed",entry.saveFailed).put("saveParallelism",entry.saveParallelism).put("savePayload",entry.savePayload).put("saveAccountKeys",entry.saveAccountKeys).put("saveCompletedKeys",entry.saveCompletedKeys).put("saveUnitPlan",entry.saveUnitPlan));}}getSharedPreferences("download_history",MODE_PRIVATE).edit().putString("items",items.toString()).commit();}catch(Exception ignored){}}
   void flushDownloadHistoryNow(){Future<?> finalWrite=null;synchronized(downloadPersistLock){downloadPersistClosed=true;downloadPersistDirty=false;if(downloadPersistFuture!=null)downloadPersistFuture.cancel(false);downloadPersistFuture=null;}try{finalWrite=downloadPersistIo.submit(this::writeDownloadHistoryNow);finalWrite.get(4,TimeUnit.SECONDS);}catch(Exception failure){if(finalWrite!=null)finalWrite.cancel(true);downloadPersistIo.shutdownNow();try{downloadPersistIo.awaitTermination(1,TimeUnit.SECONDS);}catch(InterruptedException interrupted){Thread.currentThread().interrupt();}writeDownloadHistoryNow();return;}downloadPersistIo.shutdownNow();}
-  int dp(int v){return (int)(v*getResources().getDisplayMetrics().density+.5f);} TextView text(String s,int sp,int color){TextView v=new TextView(this);v.setText(s);v.setTextSize(sp);v.setTextColor(color);v.setGravity(Gravity.CENTER_VERTICAL);v.setFontFeatureSettings("kern");return v;}
+  public int dp(int v){return (int)(v*getResources().getDisplayMetrics().density+.5f);} TextView text(String s,int sp,int color){TextView v=new TextView(this);v.setText(s);v.setTextSize(sp);v.setTextColor(color);v.setGravity(Gravity.CENTER_VERTICAL);v.setFontFeatureSettings("kern");return v;}
   String friendlyError(Throwable error){String raw=error==null||error.getMessage()==null?"":error.getMessage().trim(),lower=raw.toLowerCase(Locale.ROOT);if(raw.contains("分享已取消"))return"分享已取消";if(raw.contains("不受信任")||raw.contains("跳转"))return"该源已失效或跳转异常";if(raw.contains("超时")||lower.contains("timeout")||lower.contains("timed out"))return"连接超时，请稍后重试";if(raw.contains("密码"))return raw;if(raw.contains("过快")||raw.contains("频率")||raw.contains("受限"))return"请求频率受限，请稍后重试";if(raw.contains("ACW"))return"蓝奏验证暂不可用，请稍后重试";if(lower.contains("socket")||lower.contains("connect")||lower.contains("host")||raw.contains("网络"))return"网络连接异常，请稍后重试";if(raw.startsWith("请输入")||raw.startsWith("无法")||raw.startsWith("未获得")||raw.startsWith("没有"))return raw;return"操作失败，请稍后重试";}
   GradientDrawable shape(int color,int radius){GradientDrawable g=new GradientDrawable();g.setColor(color);g.setCornerRadius(dp(radius));g.setStroke(dp(1),DIV);return g;}
-  GradientDrawable solidShape(int color,int radius){GradientDrawable g=new GradientDrawable();g.setColor(color);g.setCornerRadius(dp(radius));return g;}
-  Drawable filterRipple(Drawable content){return new RippleDrawable(android.content.res.ColorStateList.valueOf(Color.argb(42,Color.red(PRIMARY),Color.green(PRIMARY),Color.blue(PRIMARY))),content,null);}
+  public GradientDrawable solidShape(int color,int radius){GradientDrawable g=new GradientDrawable();g.setColor(color);g.setCornerRadius(dp(radius));return g;}
+  public Drawable filterRipple(Drawable content){return new RippleDrawable(android.content.res.ColorStateList.valueOf(Color.argb(42,Color.red(PRIMARY),Color.green(PRIMARY),Color.blue(PRIMARY))),content,null);}
   void resetButtonChrome(Button b){b.setAllCaps(false);b.setMinWidth(0);b.setMinimumWidth(0);b.setMinHeight(dp(44));b.setMinimumHeight(dp(44));b.setPadding(dp(12),0,dp(12),0);b.setStateListAnimator(null);}
   void styleDialogButton(Button b,boolean emphasized){if(b==null)return;resetButtonChrome(b);b.setTextSize(13);b.setTextColor(emphasized?PRIMARY:MUTED);b.setBackground(filterRipple(new ColorDrawable(Color.TRANSPARENT)));b.setGravity(Gravity.CENTER);}
   void animateIn(View view,int order){float scale=1f;try{scale=Settings.Global.getFloat(getContentResolver(),Settings.Global.ANIMATOR_DURATION_SCALE,1f);}catch(Exception ignored){}view.animate().cancel();view.setTranslationY(0);if(scale==0f){view.setAlpha(1f);return;}view.setAlpha(0f);view.animate().alpha(1f).setDuration(160).start();}
-  ImageButton iconButton(int icon,String description){ImageButton b=new ImageButton(this);b.setImageResource(icon);b.setColorFilter(PRIMARY);b.setContentDescription(description);b.setScaleType(ImageView.ScaleType.CENTER_INSIDE);b.setPadding(dp(10),dp(10),dp(10),dp(10));b.setBackground(filterRipple(new ColorDrawable(Color.TRANSPARENT)));b.setMinimumWidth(dp(44));b.setMinimumHeight(dp(44));b.setFocusable(true);return b;}
+  public ImageButton iconButton(int icon,String description){ImageButton b=new ImageButton(this);b.setImageResource(icon);b.setColorFilter(PRIMARY);b.setContentDescription(description);b.setScaleType(ImageView.ScaleType.CENTER_INSIDE);b.setPadding(dp(10),dp(10),dp(10),dp(10));b.setBackground(filterRipple(new ColorDrawable(Color.TRANSPARENT)));b.setMinimumWidth(dp(44));b.setMinimumHeight(dp(44));b.setFocusable(true);return b;}
   Button button(String label){Button b=new Button(this);b.setText(label);b.setTextColor(PRIMARY);b.setTextSize(13);resetButtonChrome(b);b.setBackground(filterRipple(shape(SURFACE,12)));return b;}
   Button toolbarTextButton(String label){Button b=new Button(this);b.setText(label);b.setTextColor(PRIMARY);b.setTextSize(11);resetButtonChrome(b);b.setPadding(dp(8),0,dp(8),0);b.setBackground(filterRipple(new ColorDrawable(Color.TRANSPARENT)));return b;}
   int settingsRowHeight(){return dp(56);}
@@ -280,14 +287,14 @@ public final class MainActivity extends Activity {
   <K> void syncChecks(Set<K> selected,Map<K,CheckBox> checks){for(Map.Entry<K,CheckBox> entry:checks.entrySet())entry.getValue().setChecked(selected.contains(entry.getKey()));}
   boolean allChosen(Collection<?> visible,Set<?> selected){return !visible.isEmpty()&&selected.containsAll(visible);}
   void resetSelection(Set<?> selected,Map<?,CheckBox> checks,LinearLayout bar){selected.clear();if(bar!=null&&bar.getParent()==root)root.removeView(bar);if(root!=null)root.setPadding(dp(16),dp(8),dp(16),dp(16));showChecks(checks,false);}
-  boolean motionEnabled(){if(suppressUiMotion)return false;try{return Settings.Global.getFloat(getContentResolver(),Settings.Global.ANIMATOR_DURATION_SCALE,1f)>0f;}catch(Exception ignored){return true;}}
+  public boolean motionEnabled(){if(suppressUiMotion)return false;try{return Settings.Global.getFloat(getContentResolver(),Settings.Global.ANIMATOR_DURATION_SCALE,1f)>0f;}catch(Exception ignored){return true;}}
   View underlineFilter(String label,boolean selected,Runnable action){FrameLayout tab=new FrameLayout(this);tab.setClickable(true);tab.setFocusable(true);tab.setSelected(selected);tab.setBackground(filterRipple(new ColorDrawable(Color.TRANSPARENT)));TextView title=text(label,12,selected?PRIMARY:MUTED);title.setGravity(Gravity.CENTER);title.setSingleLine(true);title.setSelected(selected);title.setPadding(dp(14),0,dp(14),dp(3));tab.addView(title,new FrameLayout.LayoutParams(-2,-1,Gravity.CENTER));View underline=new View(this);underline.setBackground(solidShape(PRIMARY,2));underline.setAlpha(selected?1f:0f);underline.setScaleX(selected?1f:0f);FrameLayout.LayoutParams line=new FrameLayout.LayoutParams(-1,dp(2),Gravity.BOTTOM);line.setMargins(dp(10),0,dp(10),dp(1));tab.addView(underline,line);tab.setTag(new FilterTab(title,underline));tab.setContentDescription(label+(selected?"，已选择":""));tab.setOnClickListener(v->{if(v.isSelected())return;transferUnderline((LinearLayout)v.getParent(),v);action.run();});return tab;}
   void transferUnderline(LinearLayout strip,View target){int oldIndex=-1,newIndex=strip.indexOfChild(target);View old=null;for(int i=0;i<strip.getChildCount();i++)if(strip.getChildAt(i).isSelected()){old=strip.getChildAt(i);oldIndex=i;break;}boolean right=oldIndex<newIndex;for(int i=0;i<strip.getChildCount();i++){View tab=strip.getChildAt(i);if(!(tab.getTag() instanceof FilterTab))continue;FilterTab holder=(FilterTab)tab.getTag();boolean active=tab==target;tab.setSelected(active);holder.label.setSelected(active);holder.label.setTextColor(active?PRIMARY:MUTED);tab.setContentDescription(holder.label.getText()+(active?"，已选择":""));holder.underline.animate().cancel();if(!motionEnabled()){holder.underline.setAlpha(active?1f:0f);holder.underline.setScaleX(active?1f:0f);continue;}if(tab==old){holder.underline.setPivotX(right?holder.underline.getWidth():0);holder.underline.animate().alpha(0f).scaleX(0f).setDuration(140).start();}else if(active){holder.underline.setPivotX(right?0:holder.underline.getWidth());holder.underline.setAlpha(1f);holder.underline.setScaleX(0f);holder.underline.animate().scaleX(1f).setDuration(140).start();}else{holder.underline.setAlpha(0f);holder.underline.setScaleX(0f);}}}
   TextView roundedDownloadFilter(String label,boolean selected,Runnable action){TextView filter=text(label,12,selected?BG:MUTED);filter.setGravity(Gravity.CENTER);filter.setPadding(dp(14),0,dp(14),0);filter.setBackground(filterRipple(solidShape(selected?PRIMARY:SURFACE,16)));filter.setClickable(true);filter.setFocusable(true);filter.setSelected(selected);filter.setContentDescription(label+(selected?"，已选择":""));filter.setOnClickListener(v->{if(v.isSelected())return;selectRoundedDownloadFilter((LinearLayout)v.getParent(),filter);action.run();});return filter;}
   void selectRoundedDownloadFilter(LinearLayout strip,TextView target){for(int i=0;i<strip.getChildCount();i++){TextView filter=(TextView)strip.getChildAt(i);boolean selected=filter==target;filter.setSelected(selected);filter.setTextColor(selected?BG:MUTED);filter.setBackground(filterRipple(solidShape(selected?PRIMARY:SURFACE,16)));filter.setContentDescription(filter.getText()+(selected?"，已选择":""));if(selected&&motionEnabled()){filter.animate().cancel();filter.setScaleX(.92f);filter.setScaleY(.92f);filter.animate().scaleX(1f).scaleY(1f).setDuration(140).start();}}}
   void transitionDownloadFilter(Runnable update){int token=++downloadFilterGeneration;if(downloadList==null){update.run();return;}downloadList.animate().cancel();if(!motionEnabled()){downloadList.setAlpha(1f);update.run();return;}downloadList.animate().alpha(0f).setDuration(90).withEndAction(()->{if(token!=downloadFilterGeneration)return;update.run();downloadList.setAlpha(0f);downloadList.animate().alpha(1f).setDuration(130).start();}).start();}
   void transitionSourceFilter(Runnable update){int token=++sourceFilterGeneration;if(sourceGrid==null){update.run();return;}sourceGrid.animate().cancel();if(!motionEnabled()){sourceGrid.setAlpha(1f);update.run();return;}sourceGrid.animate().alpha(0f).setDuration(90).withEndAction(()->{if(token!=sourceFilterGeneration)return;update.run();sourceGrid.setAlpha(0f);sourceGrid.animate().alpha(1f).setDuration(130).start();}).start();}
-  TextView primaryHeader(String title){LinearLayout header=new LinearLayout(this);pageHeaderRow=header;header.setGravity(Gravity.CENTER_VERTICAL);TextView heading=text(title,22,TEXT);heading.setPadding(dp(4),0,0,0);header.addView(heading,new LinearLayout.LayoutParams(0,dp(52),1));root.addView(header,new LinearLayout.LayoutParams(-1,dp(56)));return heading;}
+  public TextView primaryHeader(String title){LinearLayout header=new LinearLayout(this);pageHeaderRow=header;header.setGravity(Gravity.CENTER_VERTICAL);TextView heading=text(title,22,TEXT);heading.setPadding(dp(4),0,0,0);header.addView(heading,new LinearLayout.LayoutParams(0,dp(52),1));root.addView(header,new LinearLayout.LayoutParams(-1,dp(56)));return heading;}
   EditText pageSearch(java.util.function.Consumer<String> action){FrameLayout box=new FrameLayout(this);box.setBackground(shape(SURFACE,14));EditText input=new EditText(this);input.setSingleLine();input.setTextColor(TEXT);input.setHintTextColor(MUTED);input.setHint("搜索");input.setTextSize(14);input.setBackgroundColor(Color.TRANSPARENT);input.setPadding(dp(14),0,dp(52),0);input.setImeOptions(EditorInfo.IME_ACTION_SEARCH);box.addView(input,new FrameLayout.LayoutParams(-1,-1));ImageButton find=iconButton(R.drawable.ic_search,"筛选");FrameLayout.LayoutParams fp=new FrameLayout.LayoutParams(dp(44),dp(44),Gravity.END|Gravity.CENTER_VERTICAL);box.addView(find,fp);root.addView(box,new LinearLayout.LayoutParams(-1,dp(48)));Runnable run=()->action.accept(input.getText().toString().trim());find.setOnClickListener(v->run.run());input.setOnEditorActionListener((v,a,e)->{run.run();return true;});input.addTextChangedListener(new TextWatcher(){public void beforeTextChanged(CharSequence s,int start,int count,int after){}public void onTextChanged(CharSequence s,int start,int before,int count){run.run();}public void afterTextChanged(Editable e){}});return input;}
   int itemColumns(){int width=root!=null&&root.getWidth()>0?root.getWidth():getResources().getDisplayMetrics().widthPixels,height=root!=null&&root.getHeight()>0?root.getHeight():getResources().getDisplayMetrics().heightPixels;return width>height||width>=dp(600)?4:2;}
   GridLayout newItemGrid(int columns){GridLayout grid=new GridLayout(this);grid.setColumnCount(columns);grid.setAlignmentMode(GridLayout.ALIGN_BOUNDS);return grid;}
@@ -593,7 +600,7 @@ public final class MainActivity extends Activity {
   LinearLayout buildUnifiedSliderPanel(View... sections){LinearLayout panel=new LinearLayout(this);panel.setOrientation(LinearLayout.VERTICAL);panel.setPadding(dp(6),0,dp(6),dp(4));for(View section:sections)panel.addView(section,new LinearLayout.LayoutParams(-1,-2));panel.setContentDescription("设置调节项");return panel;}
   void updateSearchConcurrencyLimit(String category,int mode,int[] total,int[] selectedConcurrency,SeekBar concurrencyBar,TextView concurrencyLabel){total[0]=searchableSourceTotal(category,mode);if(total[0]>0&&selectedConcurrency[0]>total[0])selectedConcurrency[0]=0;int value=total[0]==0?0:selectedConcurrency[0];concurrencyBar.setMax(Math.max(0,total[0]));concurrencyBar.setProgress(total[0]==0?0:(value<=0?total[0]:value-1));concurrencyBar.setEnabled(total[0]>0);concurrencyLabel.setText(concurrencyText(value,total[0]));concurrencyLabel.setContentDescription(concurrencyDescription(value,total[0]));}
   View settingsSection(String title,String summary,boolean expanded,View... children){LinearLayout section=new LinearLayout(this);section.setOrientation(LinearLayout.VERTICAL);GradientDrawable surface=solidShape(SURFACE,16);surface.setStroke(dp(1),DIV);section.setBackground(surface);section.setClipToOutline(true);LinearLayout header=new LinearLayout(this);header.setGravity(Gravity.CENTER_VERTICAL);header.setPadding(dp(14),dp(4),dp(10),dp(4));header.setClickable(true);header.setFocusable(true);header.setBackground(filterRipple(new ColorDrawable(Color.TRANSPARENT)));LinearLayout copy=new LinearLayout(this);copy.setOrientation(LinearLayout.VERTICAL);TextView heading=text(title,15,TEXT);heading.setTypeface(android.graphics.Typeface.DEFAULT,android.graphics.Typeface.BOLD);copy.addView(heading,new LinearLayout.LayoutParams(-1,dp(28)));TextView caption=text(summary,11,MUTED);caption.setSingleLine(true);caption.setEllipsize(android.text.TextUtils.TruncateAt.END);copy.addView(caption,new LinearLayout.LayoutParams(-1,dp(22)));header.addView(copy,new LinearLayout.LayoutParams(0,dp(52),1));ImageView arrow=new ImageView(this);arrow.setImageResource(R.drawable.ic_expand);arrow.setColorFilter(PRIMARY);arrow.setPadding(dp(8),dp(8),dp(8),dp(8));header.addView(arrow,new LinearLayout.LayoutParams(dp(40),dp(52)));section.addView(header,new LinearLayout.LayoutParams(-1,dp(60)));LinearLayout content=new LinearLayout(this);content.setOrientation(LinearLayout.VERTICAL);content.setPadding(dp(4),0,dp(4),dp(6));for(View child:children)if(child!=null){removeFromParent(child);content.addView(child,new LinearLayout.LayoutParams(-1,-2));}section.addView(content,new LinearLayout.LayoutParams(-1,-2));content.setVisibility(expanded?View.VISIBLE:View.GONE);arrow.setRotation(expanded?180f:0f);header.setContentDescription(title+"，"+(expanded?"已展开":"已收起")+"，点击"+(expanded?"收起":"展开"));header.setOnClickListener(v->{boolean open=content.getVisibility()!=View.VISIBLE;header.setContentDescription(title+"，"+(open?"已展开":"已收起")+"，点击"+(open?"收起":"展开"));animateSection(section,content,arrow,open);});return section;}
-  void animateSection(LinearLayout section,LinearLayout content,ImageView arrow,boolean open){// M3 emphasized easing cubic(0.2,0,0,1)·240ms;ChangeBounds+Fade 即官方 animation-samples 的展开收起配方,零依赖
+  public void animateSection(LinearLayout section,LinearLayout content,ImageView arrow,boolean open){// M3 emphasized easing cubic(0.2,0,0,1)·240ms;ChangeBounds+Fade 即官方 animation-samples 的展开收起配方,零依赖
     arrow.animate().cancel();if(!motionEnabled()){content.setVisibility(open?View.VISIBLE:View.GONE);arrow.setRotation(open?180f:0f);return;}
     android.transition.ChangeBounds resize=new android.transition.ChangeBounds();android.transition.Fade fade=new android.transition.Fade(open?android.transition.Fade.IN:android.transition.Fade.OUT);
     android.transition.TransitionSet set=new android.transition.TransitionSet().addTransition(resize).addTransition(fade).setDuration(240).setInterpolator(new android.view.animation.PathInterpolator(0.2f,0f,0f,1f));
@@ -780,11 +787,11 @@ public final class MainActivity extends Activity {
   /** 打开工具后/返回列表时整页重建：由 ToolHost.openTool 与 popToolBack 调用。 */
   void rebuildToolStackTop(){primaryBase(5);pageKind=6;if(toolBackStack.isEmpty()||"__screen_test__".equals(toolBackStack.peek())){toolBackStack.clear();toolHostRenderList();return;}toolHostRenderTool(toolBackStack.peek());}
   /** 工具屏返回：弹栈到列表页或上一级（返回键由 performSystemBack 统一分发）。 */
-  void popToolBack(){releaseToolMedia();/** 复审3:若当前 content view 是全屏 overlay（屏幕检测），先恢复主视图框架 */if(host!=null&&host.getParent()==null){setContentView(host);installSystemNavigationInsets();}if(toolBackStack.isEmpty()){toolBackStack.clear();showTools();return;}toolBackStack.pop();pageKind=6;primaryBase(5);if(toolBackStack.isEmpty())toolHostRenderList();else toolHostRenderTool(toolBackStack.peek());}
+  public void popToolBack(){releaseToolMedia();/** 复审3:若当前 content view 是全屏 overlay（屏幕检测），先恢复主视图框架 */if(host!=null&&host.getParent()==null){setContentView(host);installSystemNavigationInsets();}if(toolBackStack.isEmpty()){toolBackStack.clear();showTools();return;}toolBackStack.pop();pageKind=6;primaryBase(5);if(toolBackStack.isEmpty())toolHostRenderList();else toolHostRenderTool(toolBackStack.peek());}
   /** 打开工具：入栈 + 整页重建（ToolHost 与返回键共用）。 */
-  void openTool(String id){if(id==null||id.isEmpty())return;toolBackStack.push(id);pageDirection=1;primaryBase(5);pageKind=6;toolHostRenderTool(id);}
+  public void openTool(String id){if(id==null||id.isEmpty())return;toolBackStack.push(id);pageDirection=1;primaryBase(5);pageKind=6;toolHostRenderTool(id);}
   //—— 手电筒（CameraManager torch，离开工具页/销毁时经 releaseToolMedia 关闭）——
-  boolean startTorch(){
+  public boolean startTorch(){
     if(Build.VERSION.SDK_INT<23){showNotice("需要 Android 6.0 以上",true);return false;}
     try{
       android.hardware.camera2.CameraManager manager=(android.hardware.camera2.CameraManager)getSystemService(CAMERA_SERVICE);
@@ -797,8 +804,8 @@ public final class MainActivity extends Activity {
       return true;
     }catch(Exception error){showNotice("手电筒开启失败："+friendlyError(error),true);return false;}
   }
-  void stopTorch(){if(torchCleanup!=null){try{torchCleanup.run();}catch(Exception ignored){}torchCleanup=null;}}
-  static String toolBytes(long value){if(value<1024)return value+" B";if(value<1024*1024)return String.format(java.util.Locale.CHINA,"%.1f KB",value/1024f);return String.format(java.util.Locale.CHINA,"%.2f MB",value/1024f/1024f);}
+  public void stopTorch(){if(torchCleanup!=null){try{torchCleanup.run();}catch(Exception ignored){}torchCleanup=null;}}
+  public String toolBytes(long value){if(value<1024)return value+" B";if(value<1024*1024)return String.format(java.util.Locale.CHINA,"%.1f KB",value/1024f);return String.format(java.util.Locale.CHINA,"%.2f MB",value/1024f/1024f);}
   void runImageCompress(Uri uri){
     try{
       toolImageUri=uri;
@@ -838,9 +845,9 @@ public final class MainActivity extends Activity {
     }catch(Exception error){java.io.File fallback=new java.io.File(getExternalFilesDir(android.os.Environment.DIRECTORY_PICTURES),name);try(java.io.FileOutputStream out=new java.io.FileOutputStream(fallback)){out.write(bytes);}catch(Exception ignored){return"保存失败";}return fallback.getAbsolutePath();}
   }
   void refreshToolImageInfo(){if(pageKind==6&&toolHost!=null&&toolHost.toolBody!=null){TextView meta=toolHost.toolBody.findViewWithTag("img-info");if(meta!=null)meta.setText(toolImageInfoText);}}
-  String toolImageInfoText(){return toolImageInfoText==null||toolImageInfoText.isEmpty()?"未选择图片":toolImageInfoText;}
+  public String toolImageInfoText(){return toolImageInfoText==null||toolImageInfoText.isEmpty()?"未选择图片":toolImageInfoText;}
   /** 简易画板：手指绘制，存 PNG 到相册 */
-  void toolHostSketch(LinearLayout body){
+  public void toolHostSketch(LinearLayout body){
     SketchView sketch=new SketchView(this);sketch.setBackground(solidShape(SURFACE,16));sketch.setMinimumHeight(dp(300));
     body.addView(sketch,new LinearLayout.LayoutParams(-1,dp(320)));sketch.post(()->sketch.setFixedSize(sketch.getWidth(),sketch.getHeight()));
     LinearLayout actions=new LinearLayout(this);actions.setGravity(Gravity.CENTER_VERTICAL);actions.setPadding(0,dp(10),0,0);
@@ -869,7 +876,7 @@ public final class MainActivity extends Activity {
     byte[] exportPng(){if(canvas==null)return null;java.io.ByteArrayOutputStream buffer=new java.io.ByteArrayOutputStream();canvas.compress(Bitmap.CompressFormat.PNG,100,buffer);return buffer.toByteArray();}
   }
   /** 直尺：按屏幕物理宽度标定厘米刻度 */
-  void toolHostRuler(LinearLayout body){
+  public void toolHostRuler(LinearLayout body){
     RulerView ruler=new RulerView(this);
     body.addView(ruler,new LinearLayout.LayoutParams(-1,dp(220)));
     android.util.DisplayMetrics metrics=getResources().getDisplayMetrics();
@@ -902,7 +909,7 @@ public final class MainActivity extends Activity {
       }
       c.drawLine(0,dp(2),getWidth(),dp(2),line);
     }
-    int dp(int v){return(int)(v*getResources().getDisplayMetrics().density+.5f);}
+    public int dp(int v){return(int)(v*getResources().getDisplayMetrics().density+.5f);}
   }
   /** 水平仪气泡视图：中心十字 + 气泡随重力偏移 */
   static final class LevelView extends View{
@@ -924,10 +931,10 @@ public final class MainActivity extends Activity {
       c.drawLine(cx-r,cy,cx+r,cy,cross);c.drawLine(cx,cy-r,cx,cy+r,cross);
       c.drawCircle(cx+bubbleX,cy+bubbleY,dp(14),bubble);
     }
-    int dp(int v){return(int)(v*getResources().getDisplayMetrics().density+.5f);}
+    public int dp(int v){return(int)(v*getResources().getDisplayMetrics().density+.5f);}
   }
   /** 水平仪：重力传感器气泡 */
-  void toolHostLevel(LinearLayout body){
+  public void toolHostLevel(LinearLayout body){
     LevelView level=new LevelView(this);
     body.addView(level,new LinearLayout.LayoutParams(-1,dp(260)));
     TextView readout=text("将手机放平，气泡居中即水平",12,MUTED);readout.setGravity(Gravity.CENTER);readout.setPadding(0,dp(10),0,0);
@@ -948,9 +955,9 @@ public final class MainActivity extends Activity {
     sensors.registerListener(listener,gravity,android.hardware.SensorManager.SENSOR_DELAY_UI);
     levelCleanup=()->sensors.unregisterListener(listener);// 独立清理槽（v1.2.2：不再复用手电筒槽位，修复互相覆盖）
   }
-  void pickToolImage(){try{Intent intent=new Intent(Intent.ACTION_GET_CONTENT);intent.setType("image/*");startActivityForResult(Intent.createChooser(intent,"选择图片"),TOOL_PICK_IMAGE);}catch(Exception error){showNotice("没有可用的图片选择器",true);}}
-  void runImageCompressPending(){if(toolImageUri!=null)runImageCompress(toolImageUri);}
-  void startScreenTest(){toolBackStack.push("__screen_test__");showScreenTestOverlay();}
+  public void pickToolImage(){try{Intent intent=new Intent(Intent.ACTION_GET_CONTENT);intent.setType("image/*");startActivityForResult(Intent.createChooser(intent,"选择图片"),TOOL_PICK_IMAGE);}catch(Exception error){showNotice("没有可用的图片选择器",true);}}
+  public void runImageCompressPending(){if(toolImageUri!=null)runImageCompress(toolImageUri);}
+  public void startScreenTest(){toolBackStack.push("__screen_test__");showScreenTestOverlay();}
   void showScreenTestOverlay(){
     final int[] colors={0xFF000000,0xFFFFFFFF,0xFFFF0000,0xFF00FF00,0xFF0000FF,0xFF808080};
     final int[] idx={0};
@@ -1482,7 +1489,7 @@ void showCustomLanzouBaseOriginDialog(){EditText input=sourceInput("输入 oreoj
   static String safeName(String name){String value=name.replaceAll("[\\/:*?\"<>|]","_").trim();return value.isEmpty()?"download.bin":value;}
 
   //—— 工具屏媒体资源：棕噪音 / TTS（退出工具页或销毁时释放）——
-  void startBrownNoise(){
+  public void startBrownNoise(){
     stopBrownNoise();
     int sampleRate=44100,len=sampleRate*4;// 4 秒循环
     byte[] buffer=new byte[len];
@@ -1494,13 +1501,13 @@ void showCustomLanzouBaseOriginDialog(){EditText input=sourceInput("输入 oreoj
     noiseTrack.setLoopPoints(0,len,-1);
     noiseTrack.play();
   }
-  void stopBrownNoise(){if(noiseTrack!=null){try{noiseTrack.stop();noiseTrack.release();}catch(Exception ignored){}noiseTrack=null;}}
-  void speakTts(String value){
+  public void stopBrownNoise(){if(noiseTrack!=null){try{noiseTrack.stop();noiseTrack.release();}catch(Exception ignored){}noiseTrack=null;}}
+  public void speakTts(String value){
     if(value==null||value.trim().isEmpty()){showNotice("先输入文字",true);return;}
     if(ttsEngine==null){ttsEngine=new android.speech.tts.TextToSpeech(this,status->{if(status==android.speech.tts.TextToSpeech.SUCCESS){ttsEngine.setLanguage(Locale.SIMPLIFIED_CHINESE);ttsEngine.speak(value,android.speech.tts.TextToSpeech.QUEUE_FLUSH,null,"dfwx");}else showNotice("TTS 初始化失败",true);});return;}
     ttsEngine.speak(value,android.speech.tts.TextToSpeech.QUEUE_FLUSH,null,"dfwx");
   }
-  void stopTts(){if(ttsEngine!=null)ttsEngine.stop();}
+  public void stopTts(){if(ttsEngine!=null)ttsEngine.stop();}
   void releaseToolMedia(){
     stopBrownNoise();stopTts();
     if(ttsEngine!=null){try{ttsEngine.shutdown();}catch(Exception ignored){}ttsEngine=null;}
@@ -1553,7 +1560,7 @@ void showCustomLanzouBaseOriginDialog(){EditText input=sourceInput("输入 oreoj
   }
   long downloadUiIntervalMs(){int active=0;for(DownloadEntry entry:downloadEntries)if(isDownloadActive(entry))active++;return active>=64?500L:active>=24?250L:DOWNLOAD_UI_INTERVAL_MS;}
   void drainDownloadUi(){List<DownloadEntry> changed;synchronized(dirtyDownloadUi){changed=new ArrayList<>(dirtyDownloadUi);dirtyDownloadUi.clear();downloadUiFramePosted=false;}refreshDownloadGlobalControl();boolean rebuild=false,toastStructureChanged=false;List<DownloadEntry> toastContentChanged=new ArrayList<>();for(DownloadEntry entry:changed){boolean stateChanged=!entry.state.equals(entry.uiState);entry.uiState=entry.state;boolean terminal=entry.state.equals(DOWNLOAD_COMPLETED)||entry.state.equals(DOWNLOAD_FAILED)||entry.state.equals(DOWNLOAD_CANCELLED),parsing=entry.state.equals(DOWNLOAD_RESOLVING);if(downloadsPage){if(!entry.batchId.isEmpty()){if(stateChanged)rebuild=true;else updateBatchDownloadRow(entry.batchId);}else{boolean shown=downloadLabels.containsKey(entry),matches=downloadMatchesCurrentView(entry);if(shown!=matches)rebuild=true;else if(shown){TextView label=downloadLabels.get(entry);if(label!=null&&label.getParent()!=null)label.setText(downloadMetrics(entry));ProgressBar bar=downloadBars.get(entry);if(bar!=null&&bar.getParent()!=null){bar.setIndeterminate(parsing);if(!parsing){bar.setIndeterminate(false);bar.setProgress(entry.percent);}}if(stateChanged){LinearLayout actions=downloadActions.get(entry);if(actions!=null&&actions.getParent()!=null)bindDownloadActions(entry,actions);View row=downloadRows.get(entry);if(row!=null&&row.getParent()!=null)bindDownloadRowDescription(entry,row);}}}}boolean show=!parsing||!entry.suppressParseToast;if(show&&!entry.toastDismissed){if(downloadToastEntries.add(entry))toastStructureChanged=true;toastContentChanged.add(entry);if(terminal&&!entry.dismissScheduled){entry.dismissScheduled=true;int generation=entry.controlGeneration;ui.postDelayed(()->{if(generation!=entry.controlGeneration||!entry.dismissScheduled)return;entry.toastDismissed=true;downloadToastEntries.remove(entry);detachDownloadToast(entry);syncDownloadToastPresentation();},entry.state.equals(DOWNLOAD_COMPLETED)?5000:3200);}}}if(rebuild)renderDownloads(downloadQuery);if(toastStructureChanged)syncDownloadToastPresentation();else if(mergedDownloadToast!=null)updateMergedDownloadToast(visibleDownloadToastEntries());else for(DownloadEntry entry:toastContentChanged){LinearLayout panel=taskToasts.get(entry);if(panel!=null&&panel.getParent()==toastLayer)updateDownloadToast(entry,panel);else if(downloadToastEntries.contains(entry)){syncDownloadToastPresentation();break;}}}
-  void showNotice(String message,boolean longLived){runOnUiThread(()->{TextView notice=text(message,12,TEXT);notice.setPadding(dp(4),0,dp(4),0);LinearLayout holder=toastPanel();holder.addView(notice,new LinearLayout.LayoutParams(-1,-1));addToastPanel(holder,48);notice.postDelayed(()->{if(holder.getParent()==toastLayer)dismissPanel(holder,null);},longLived?5000:2500);});}
+  public void showNotice(String message,boolean longLived){runOnUiThread(()->{TextView notice=text(message,12,TEXT);notice.setPadding(dp(4),0,dp(4),0);LinearLayout holder=toastPanel();holder.addView(notice,new LinearLayout.LayoutParams(-1,-1));addToastPanel(holder,48);notice.postDelayed(()->{if(holder.getParent()==toastLayer)dismissPanel(holder,null);},longLived?5000:2500);});}
   void saveDialog(String url){String target=url==null?"":url.trim();if(target.isEmpty()){showNotice("当前分享没有可用的保存入口",false);return;}Runnable confirm=()->showPremiumSaveConfirm(target);if(premiumCloud.hasStoredLogin())confirm.run();else showPremiumLoginDialog(confirm);}
   void showPremiumLoginDialog(Runnable afterLogin){
     LinearLayout panel=new LinearLayout(this);panel.setOrientation(LinearLayout.VERTICAL);panel.setPadding(dp(22),dp(6),dp(22),0);
