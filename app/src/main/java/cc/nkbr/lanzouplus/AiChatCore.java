@@ -22,11 +22,12 @@ import org.json.JSONObject;
  *  协议参照 openai-java / langchain4j 的开源实现约定(delta.content/delta.reasoning/[DONE]),零第三方依赖。 */
 final class AiChatCore {
   static final class Settings {
-    String name = "", url = "", key = "", model = "", provider = "";
+    String id = "", name = "", url = "", key = "", model = "", provider = "";
     boolean toolsEnabled = true;
+    java.util.List<String> models = new ArrayList<>();
     int contextMessages = 12, maxTokens = 2048;
-    JSONObject toJson() {try{return new JSONObject().put("name",name).put("url",url).put("key",key).put("model",model).put("provider",provider).put("tools",toolsEnabled).put("ctx",contextMessages).put("max",maxTokens);}catch(Exception e){return new JSONObject();}}
-    static Settings from(JSONObject o) {Settings s=new Settings();try{s.name=o.optString("name");s.url=o.optString("url");s.key=o.optString("key");s.model=o.optString("model");s.provider=o.optString("provider");s.toolsEnabled=o.optBoolean("tools",true);s.contextMessages=Math.max(2,o.optInt("ctx",12));s.maxTokens=Math.max(64,o.optInt("max",2048));}catch(Exception ignored){}return s;}
+    JSONObject toJson() {try{JSONObject o=new JSONObject().put("id",id).put("name",name).put("url",url).put("key",key).put("model",model).put("provider",provider).put("tools",toolsEnabled).put("ctx",contextMessages).put("max",maxTokens);JSONArray ms=new JSONArray();for(String m:models)ms.put(m);o.put("models",ms);return o;}catch(Exception e){return new JSONObject();}}
+    static Settings from(JSONObject o) {Settings s=new Settings();try{s.id=o.optString("id");s.name=o.optString("name");s.url=o.optString("url");s.key=o.optString("key");s.model=o.optString("model");s.provider=o.optString("provider");s.toolsEnabled=o.optBoolean("tools",true);s.contextMessages=Math.max(2,o.optInt("ctx",12));s.maxTokens=Math.max(64,o.optInt("max",2048));JSONArray ms=o.optJSONArray("models");if(ms!=null)for(int i=0;i<ms.length();i++){String m=ms.optString(i);if(!m.isEmpty())s.models.add(m);}}catch(Exception ignored){}return s;}
   }
   static final class Message {
     String role = "user", content = "", reasoning = "";
@@ -58,8 +59,53 @@ final class AiChatCore {
   private final Context context;private final Handler ui=new Handler(Looper.getMainLooper());
   AiChatCore(Context context) {this.context=context;}
   private SharedPreferences prefs() {return context.getSharedPreferences("ai_chat_settings",Context.MODE_PRIVATE);}
-  Settings settings() {try{return Settings.from(new JSONObject(prefs().getString("config","{}")));}catch(Exception e){return new Settings();}}
-  void saveSettings(Settings s) {prefs().edit().putString("config",s.toJson().toString()).apply();}
+  Settings settings() {return settingsActive();}
+  /** v1.2.3:当前激活渠道；无渠道时回退旧 config 并迁移为首个渠道 */
+  Settings settingsActive() {
+    List<Settings> all=channels();
+    String id=activeId();
+    for(Settings s:all)if(s.id.equals(id))return s;
+    return all.isEmpty()?settingsLegacy():all.get(0);
+  }
+  Settings settingsLegacy() {try{return Settings.from(new JSONObject(prefs().getString("config","{}")));}catch(Exception e){return new Settings();}}
+  void saveSettings(Settings s) {
+    if(s.id==null||s.id.isEmpty())s.id="ch"+System.currentTimeMillis();
+    List<Settings> all=channelsRaw();
+    boolean replaced=false;
+    for(int i=0;i<all.size();i++)if(all.get(i).id.equals(s.id)){all.set(i,s);replaced=true;}
+    if(!replaced)all.add(s);
+    saveChannels(all);setActiveId(s.id);
+  }
+  List<Settings> channelsRaw() {
+    List<Settings> out=new ArrayList<>();
+    try {JSONArray a=new JSONArray(prefs().getString("channels","[]"));for(int i=0;i<a.length();i++)out.add(Settings.from(a.getJSONObject(i)));}
+    catch(Exception ignored){}
+    return out;
+  }
+  List<Settings> channels() {
+    List<Settings> out=channelsRaw();
+    if(out.isEmpty()) {
+      Settings legacy=settingsLegacy();
+      Settings first;
+      if(!legacy.url.isEmpty()||!legacy.key.isEmpty()){legacy.name=legacy.name==null||legacy.name.isEmpty()?"默认渠道":legacy.name;first=legacy;}
+      else {first=new Settings();first.name="默认渠道";first.provider="custom";}
+      first.id="ch"+System.currentTimeMillis();
+      out.add(first);saveChannels(out);setActiveId(first.id);
+    }
+    else if(activeId().isEmpty())setActiveId(out.get(0).id);
+    return out;
+  }
+  void saveChannels(List<Settings> list) {
+    try {JSONArray a=new JSONArray();for(Settings s:list)a.put(s.toJson());prefs().edit().putString("channels",a.toString()).apply();}catch(Exception ignored){}
+  }
+  void deleteChannel(String id) {
+    List<Settings> all=channelsRaw();
+    for(int i=0;i<all.size();i++)if(all.get(i).id.equals(id)){all.remove(i);break;}
+    saveChannels(all);
+    if(id.equals(activeId()))setActiveId(all.isEmpty()?"":all.get(0).id);
+  }
+  String activeId() {return prefs().getString("active","");}
+  void setActiveId(String id) {prefs().edit().putString("active",id==null?"":id).apply();}
   boolean configured() {Settings s=settings();return !s.url.isEmpty()&&!s.key.isEmpty()&&!s.model.isEmpty();}
   List<Session> sessions() {
     List<Session> out=new ArrayList<>();
@@ -104,8 +150,10 @@ final class AiChatCore {
     return "";
   }
   interface ModelsCallback {void onResult(List<String> models,String error);}
-  void fetchModels(final ModelsCallback callback) {
-    final Settings s=settings();String invalid=validateOutboundUrl(s.url);
+  void fetchModels(final ModelsCallback callback) {fetchModelsWith(settings(),callback);}
+  /** v1.2.3:编辑页用未保存的地址/Key 探测 */
+  void fetchModels(final String urlRaw,final String keyRaw,final ModelsCallback callback) {Settings s=new Settings();s.url=urlRaw==null?"":urlRaw;s.key=keyRaw==null?"":keyRaw;fetchModelsWith(s,callback);}
+  private void fetchModelsWith(final Settings s,final ModelsCallback callback) {String invalid=validateOutboundUrl(s.url);
     if(!invalid.isEmpty()) {callback.onResult(null,invalid);return;}
     new Thread(() -> {
       List<String> models=new ArrayList<>();String error="";

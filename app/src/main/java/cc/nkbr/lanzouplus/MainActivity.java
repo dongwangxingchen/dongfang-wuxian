@@ -613,7 +613,7 @@ public final class MainActivity extends Activity implements ToolHost.Host {
     ImageButton history=iconButton(R.drawable.ic_sources,"聊天记录");history.setOnClickListener(v->showAiHistoryDrawer());header.addView(history,new LinearLayout.LayoutParams(dp(46),dp(48)));
     LinearLayout titleBox=new LinearLayout(this);titleBox.setOrientation(LinearLayout.VERTICAL);titleBox.setPadding(dp(10),0,0,0);TextView title=text("AI 对话",18,TEXT);title.setTypeface(android.graphics.Typeface.DEFAULT,android.graphics.Typeface.BOLD);aiModelBadge=text("",10,MUTED);aiModelBadge.setSingleLine(true);aiModelBadge.setEllipsize(android.text.TextUtils.TruncateAt.END);titleBox.addView(title,new LinearLayout.LayoutParams(-1,dp(28)));titleBox.addView(aiModelBadge,new LinearLayout.LayoutParams(-1,dp(18)));header.addView(titleBox,new LinearLayout.LayoutParams(0,dp(48),1));
     ImageButton add=iconButton(R.drawable.ic_add,"新建对话");add.setOnClickListener(v->{stopAiRequest(false);aiCurrent=null;renderAiMessages();});header.addView(add,new LinearLayout.LayoutParams(dp(46),dp(48)));
-    ImageButton config=iconButton(R.drawable.ic_settings,"AI 接口设置");config.setOnClickListener(v->showAiSettingsDialog());header.addView(config,new LinearLayout.LayoutParams(dp(46),dp(48)));
+    ImageButton config=iconButton(R.drawable.ic_settings,"AI 接口设置");config.setOnClickListener(v->showAiChannelsPage());header.addView(config,new LinearLayout.LayoutParams(dp(46),dp(48)));
     root.addView(header,new LinearLayout.LayoutParams(-1,dp(52)));
     aiStatusText=text("",11,MUTED);aiStatusText.setGravity(Gravity.CENTER);root.addView(aiStatusText,new LinearLayout.LayoutParams(-1,dp(24)));
     aiScroll=new ScrollView(this);aiScroll.setFillViewport(true);LinearLayout clip=new LinearLayout(this);clip.setOrientation(LinearLayout.VERTICAL);aiMessageList=new LinearLayout(this);aiMessageList.setOrientation(LinearLayout.VERTICAL);aiMessageList.setPadding(dp(4),dp(4),dp(4),dp(10));clip.addView(aiMessageList,new LinearLayout.LayoutParams(-1,-2));aiScroll.addView(clip,new ScrollView.LayoutParams(-1,-2));root.addView(aiScroll,new LinearLayout.LayoutParams(-1,0,1));
@@ -627,7 +627,7 @@ public final class MainActivity extends Activity implements ToolHost.Host {
   void ensureAiSession(){if(aiCurrent!=null)return;AiChatCore.Session session=new AiChatCore.Session();session.id="s"+System.currentTimeMillis();session.createdAt=System.currentTimeMillis();session.title="新对话";AiChatCore.Message welcome=new AiChatCore.Message("assistant","你好，我是东方无限助手。你可以让我查资料、写文案、解释问题；工具箱里的工具也随时可用。");session.messages.add(welcome);aiSessions.add(session);aiCurrent=session;aiPersist();}
   void aiPersist(){if(aiCore!=null)aiCore.saveSessions(aiSessions);}
   void renderAiMessages(){if(aiMessageList==null)return;aiMessageList.removeAllViews();aiSetupCard=null;ensureAiSession();if(!aiCore.configured()){aiSetupCard=aiSetupCard();aiMessageList.addView(aiSetupCard,new LinearLayout.LayoutParams(-1,-2));}else if(aiCurrent!=null&&aiCurrent.messages.size()<=1){aiMessageList.addView(aiSuggestionsCard(),new LinearLayout.LayoutParams(-1,-2));}if(aiCurrent!=null)for(AiChatCore.Message message:aiCurrent.messages)aiMessageList.addView(aiBubble(message,false),new LinearLayout.LayoutParams(-1,-2));ui.post(()->{if(aiScroll!=null)aiScroll.fullScroll(View.FOCUS_DOWN);});syncAiSendButton();}
-  View aiSetupCard(){LinearLayout card=new LinearLayout(this);card.setOrientation(LinearLayout.VERTICAL);GradientDrawable bg=solidShape(SURFACE,18);bg.setStroke(dp(1),Color.argb(90,167,139,250));card.setBackground(bg);card.setPadding(dp(16),dp(14),dp(16),dp(14));TextView title=text("尚未配置 AI 接口",15,TEXT);title.setTypeface(android.graphics.Typeface.DEFAULT,android.graphics.Typeface.BOLD);card.addView(title,new LinearLayout.LayoutParams(-1,dp(30)));TextView desc=text("从预置服务商一键填入，或完全自定义地址；配置只保存在本机。",12,MUTED);desc.setPadding(0,dp(4),0,dp(10));card.addView(desc,new LinearLayout.LayoutParams(-1,-2));Button go=new Button(this);go.setText("去配置");go.setTextColor(BG);go.setTextSize(13);go.setAllCaps(false);go.setBackground(filterRipple(solidShape(PRIMARY,14)));go.setMinWidth(0);go.setMinimumWidth(0);go.setMinHeight(dp(40));LinearLayout.LayoutParams gp=new LinearLayout.LayoutParams(-2,dp(40));gp.gravity=Gravity.END;go.setOnClickListener(v->showAiSettingsDialog());card.addView(go,gp);return card;}
+  View aiSetupCard(){LinearLayout card=new LinearLayout(this);card.setOrientation(LinearLayout.VERTICAL);GradientDrawable bg=solidShape(SURFACE,18);bg.setStroke(dp(1),Color.argb(90,167,139,250));card.setBackground(bg);card.setPadding(dp(16),dp(14),dp(16),dp(14));TextView title=text("尚未配置 AI 接口",15,TEXT);title.setTypeface(android.graphics.Typeface.DEFAULT,android.graphics.Typeface.BOLD);card.addView(title,new LinearLayout.LayoutParams(-1,dp(30)));TextView desc=text("从预置服务商一键填入，或完全自定义地址；配置只保存在本机。",12,MUTED);desc.setPadding(0,dp(4),0,dp(10));card.addView(desc,new LinearLayout.LayoutParams(-1,-2));Button go=new Button(this);go.setText("去配置");go.setTextColor(BG);go.setTextSize(13);go.setAllCaps(false);go.setBackground(filterRipple(solidShape(PRIMARY,14)));go.setMinWidth(0);go.setMinimumWidth(0);go.setMinHeight(dp(40));LinearLayout.LayoutParams gp=new LinearLayout.LayoutParams(-2,dp(40));gp.gravity=Gravity.END;go.setOnClickListener(v->showAiChannelsPage());card.addView(go,gp);return card;}
   /** v1.2.2:空会话建议提示词卡 */
   View aiSuggestionsCard(){LinearLayout card=new LinearLayout(this);card.setOrientation(LinearLayout.VERTICAL);card.setBackground(solidShape(SURFACE,18));card.setPadding(dp(16),dp(12),dp(16),dp(8));TextView tip=text("试试这些",12,MUTED);tip.setPadding(0,0,0,dp(6));card.addView(tip,new LinearLayout.LayoutParams(-1,-2));LinearLayout rows=new LinearLayout(this);rows.setOrientation(LinearLayout.VERTICAL);
   String[] sugs={"帮我把一段长文总结成三个要点","写一条幽默的生日祝福","通俗地解释一下什么是 RSS","3.5 英寸等于多少厘米？帮我算算"};
@@ -643,7 +643,7 @@ public final class MainActivity extends Activity implements ToolHost.Host {
   void syncAiSendButton(){if(aiSendButton==null)return;if(aiStreaming){aiSendButton.setImageResource(R.drawable.ic_close);aiSendButton.setContentDescription("停止生成");}else{aiSendButton.setImageResource(R.drawable.ic_share);aiSendButton.setContentDescription("发送");}}
   void sendAiMessage(){
     if(aiInput==null)return;String value=aiInput.getText().toString().trim();
-    if(!aiCore.configured()){showAiSettingsDialog();return;}
+    if(!aiCore.configured()){showAiChannelsPage();return;}
     if(value.isEmpty()){aiInput.setError("先输入内容");return;}
     stopAiRequest(false);ensureAiSession();
     AiChatCore.Message user=new AiChatCore.Message("user",value);aiCurrent.messages.add(user);
@@ -776,6 +776,162 @@ public final class MainActivity extends Activity implements ToolHost.Host {
     TextView title=text(label,11,MUTED);title.setPadding(0,dp(10),0,dp(2));parent.addView(title,new LinearLayout.LayoutParams(-1,-2));
     EditText input=new EditText(this);input.setSingleLine();input.setText(value);input.setTextColor(TEXT);input.setHintTextColor(MUTED);input.setTextSize(14);input.setBackground(shape(SURFACE,12));input.setPadding(dp(12),dp(10),dp(12),dp(10));input.setMinHeight(dp(44));if(password)input.setInputType(android.text.InputType.TYPE_CLASS_TEXT|android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD);
     parent.addView(input,new LinearLayout.LayoutParams(-1,dp(48)));return input;}
+  //—— v1.2.3:AI 渠道管理（独立页面，NextChat/Cherry Studio 范式）——
+
+  void showAiChannelsPage(){
+    primaryBase(4);pageKind=5;activeSource=null;clearFolderTrail();systemBackAction=null;
+    LinearLayout header=new LinearLayout(this);header.setGravity(Gravity.CENTER_VERTICAL);header.setPadding(0,dp(2),0,dp(6));
+    ImageButton back=iconButton(R.drawable.ic_back,"返回对话");back.setOnClickListener(v->buildAiPage());header.addView(back,new LinearLayout.LayoutParams(dp(46),dp(48)));
+    TextView title=text("AI 渠道",20,TEXT);title.setTypeface(android.graphics.Typeface.DEFAULT,android.graphics.Typeface.BOLD);title.setPadding(dp(10),0,0,0);header.addView(title,new LinearLayout.LayoutParams(0,dp(48),1));
+    ImageButton add=iconButton(R.drawable.ic_add,"添加渠道");add.setOnClickListener(v->editChannelPage(null));header.addView(add,new LinearLayout.LayoutParams(dp(46),dp(48)));
+    root.addView(header,new LinearLayout.LayoutParams(-1,dp(52)));
+    TextView hint=text("点卡片编辑渠道；「使用」一键切换当前渠道。配置只保存在本机。",11,MUTED);hint.setPadding(dp(10),0,dp(10),dp(6));root.addView(hint,new LinearLayout.LayoutParams(-1,-2));
+    ScrollView scroll=new ScrollView(this);scroll.setFillViewport(true);
+    LinearLayout body=new LinearLayout(this);body.setOrientation(LinearLayout.VERTICAL);body.setPadding(dp(8),dp(2),dp(8),dp(18));
+    scroll.addView(body,new ScrollView.LayoutParams(-1,-2));root.addView(scroll,new LinearLayout.LayoutParams(-1,0,1));
+    List<AiChatCore.Settings> all=aiCore.channels();final String active=aiCore.activeId();
+    for(final AiChatCore.Settings ch:all){
+      LinearLayout card=new LinearLayout(this);card.setOrientation(LinearLayout.VERTICAL);card.setClickable(true);card.setFocusable(true);
+      GradientDrawable bg=solidShape(SURFACE,16);bg.setStroke(dp(1),ch.id.equals(active)?PRIMARY:DIV);card.setBackground(filterRipple(bg));card.setPadding(dp(14),dp(12),dp(14),dp(12));
+      LinearLayout topRow=new LinearLayout(this);topRow.setGravity(Gravity.CENTER_VERTICAL);
+      boolean isActive=ch.id.equals(active);
+      String displayName=ch.name==null||ch.name.isEmpty()?"未命名渠道":ch.name;
+      TextView name=text((isActive?"● ":"")+displayName,15,isActive?PRIMARY:TEXT);name.setTypeface(android.graphics.Typeface.DEFAULT,android.graphics.Typeface.BOLD);name.setSingleLine(true);name.setEllipsize(android.text.TextUtils.TruncateAt.END);
+      topRow.addView(name,new LinearLayout.LayoutParams(0,-2,1));
+      if(!isActive){TextView use=text("使用",12,PRIMARY);use.setClickable(true);use.setFocusable(true);use.setPadding(dp(12),dp(6),dp(12),dp(6));GradientDrawable ubg=solidShape(Color.argb(40,167,139,250),12);use.setBackground(filterRipple(ubg));use.setOnClickListener(v->{aiCore.setActiveId(ch.id);syncAiModelBadge();showAiChannelsPage();});topRow.addView(use,new LinearLayout.LayoutParams(-2,-2));}
+      card.addView(topRow,new LinearLayout.LayoutParams(-1,-2));
+      TextView urlLine=text(ch.url==null||ch.url.isEmpty()?"未填写 API 地址":ch.url,11,MUTED);urlLine.setSingleLine(true);urlLine.setEllipsize(android.text.TextUtils.TruncateAt.MIDDLE);urlLine.setPadding(0,dp(4),0,0);card.addView(urlLine,new LinearLayout.LayoutParams(-1,-2));
+      String modelLine=(ch.model==null||ch.model.isEmpty()?"未设默认模型":"默认 "+ch.model)+(ch.models.isEmpty()?"":" · "+ch.models.size()+" 个模型");
+      TextView modelText=text(modelLine,11,MUTED);modelText.setSingleLine(true);modelText.setEllipsize(android.text.TextUtils.TruncateAt.END);modelText.setPadding(0,dp(2),0,0);card.addView(modelText,new LinearLayout.LayoutParams(-1,-2));
+      card.setOnClickListener(v->editChannelPage(ch.id));
+      LinearLayout.LayoutParams cardLp=new LinearLayout.LayoutParams(-1,-2);cardLp.setMargins(0,0,0,dp(10));body.addView(card,cardLp);
+    }
+    if(all.isEmpty()){TextView empty=text("还没有渠道，点右上角添加",13,MUTED);empty.setGravity(Gravity.CENTER);body.addView(empty,new LinearLayout.LayoutParams(-1,dp(80)));}
+  }
+
+  void editChannelPage(final String editId){
+    primaryBase(4);pageKind=5;activeSource=null;clearFolderTrail();systemBackAction=null;
+    final boolean isNew=editId==null||editId.isEmpty();
+    final AiChatCore.Settings current=isNew?new AiChatCore.Settings():findChannelDraft(editId);
+    if(isNew)current.provider="custom";
+    final java.util.List<String> pickedModels=new ArrayList<>(current.models);
+    LinearLayout header=new LinearLayout(this);header.setGravity(Gravity.CENTER_VERTICAL);header.setPadding(0,dp(2),0,dp(6));
+    ImageButton back=iconButton(R.drawable.ic_back,"返回渠道列表");back.setOnClickListener(v->showAiChannelsPage());header.addView(back,new LinearLayout.LayoutParams(dp(46),dp(48)));
+    TextView title=text(isNew?"添加渠道":"编辑渠道",20,TEXT);title.setTypeface(android.graphics.Typeface.DEFAULT,android.graphics.Typeface.BOLD);title.setPadding(dp(10),0,0,0);header.addView(title,new LinearLayout.LayoutParams(0,dp(48),1));
+    root.addView(header,new LinearLayout.LayoutParams(-1,dp(52)));
+    ScrollView scroll=new ScrollView(this);scroll.setFillViewport(true);
+    LinearLayout panel=new LinearLayout(this);panel.setOrientation(LinearLayout.VERTICAL);panel.setPadding(dp(16),dp(4),dp(16),dp(24));
+    scroll.addView(panel,new ScrollView.LayoutParams(-1,-2));root.addView(scroll,new LinearLayout.LayoutParams(-1,0,1));
+    final EditText name=aiField(panel,"渠道名称（备注）",current.name,false);
+    TextView provLabel=text("服务商预设（点选自动填地址）",11,MUTED);provLabel.setPadding(0,dp(10),0,dp(4));panel.addView(provLabel,new LinearLayout.LayoutParams(-1,-2));
+    HorizontalScrollView provScroll=new HorizontalScrollView(this);provScroll.setHorizontalScrollBarEnabled(false);
+    final LinearLayout provRow=new LinearLayout(this);provRow.setOrientation(LinearLayout.HORIZONTAL);provScroll.addView(provRow,new ViewGroup.LayoutParams(-2,-2));
+    panel.addView(provScroll,new LinearLayout.LayoutParams(-1,-2));
+    final TextView provHint=text(AiProviders.byId(current.provider).hint,11,MUTED);provHint.setPadding(dp(2),dp(4),0,0);panel.addView(provHint,new LinearLayout.LayoutParams(-1,-2));
+    final EditText url=aiField(panel,"API 地址",current.url,false);
+    final EditText key=aiField(panel,"API Key",current.key,true);
+    Button eye=new Button(this);eye.setText("显示 Key");eye.setTextColor(PRIMARY);eye.setTextSize(11);eye.setAllCaps(false);eye.setBackground(filterRipple(shape(SURFACE,10)));eye.setMinWidth(0);eye.setMinimumWidth(0);eye.setMinHeight(dp(30));eye.setPadding(dp(10),0,dp(10),0);LinearLayout.LayoutParams ep=new LinearLayout.LayoutParams(-2,dp(30));ep.gravity=Gravity.END;panel.addView(eye,ep);
+    eye.setOnClickListener(v->{boolean hidden=(key.getInputType()&android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD)!=0;if(hidden){key.setInputType(android.text.InputType.TYPE_CLASS_TEXT);eye.setText("隐藏 Key");}else{key.setInputType(android.text.InputType.TYPE_CLASS_TEXT|android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD);eye.setText("显示 Key");}key.setSelection(key.getText().length());});
+    final EditText model=aiField(panel,"默认模型",current.model,false);
+    TextView modelLabel=text("已选模型（点击设为默认 · 长按移除）",11,MUTED);modelLabel.setPadding(0,dp(10),0,dp(4));panel.addView(modelLabel,new LinearLayout.LayoutParams(-1,-2));
+    final LinearLayout pickedRow=new LinearLayout(this);pickedRow.setOrientation(LinearLayout.VERTICAL);panel.addView(pickedRow,new LinearLayout.LayoutParams(-1,-2));
+    final Runnable[] rebuildPicked={null};
+    rebuildPicked[0]=()->{pickedRow.removeAllViews();if(pickedModels.isEmpty()){TextView none=text("尚未选择模型，可手动填默认模型或点下方获取",11,MUTED);pickedRow.addView(none,new LinearLayout.LayoutParams(-2,-2));return;}
+      for(final String m:pickedModels){TextView chip=new TextView(this);chip.setText((m.equals(current.model)?"● ":"")+m);chip.setTextSize(11);chip.setTextColor(m.equals(current.model)?PRIMARY:TEXT);chip.setSingleLine(true);chip.setEllipsize(android.text.TextUtils.TruncateAt.MIDDLE);chip.setMaxWidth(dp(240));chip.setPadding(dp(10),dp(6),dp(10),dp(6));chip.setClickable(true);chip.setFocusable(true);
+        GradientDrawable cbg=solidShape(m.equals(current.model)?Color.argb(60,167,139,250):SURFACE,12);if(m.equals(current.model))cbg.setStroke(dp(1),PRIMARY);chip.setBackground(cbg);
+        chip.setOnClickListener(v->{current.model=m;model.setText(m);rebuildPicked[0].run();});
+        chip.setOnLongClickListener(v->{pickedModels.remove(m);if(current.model.equals(m))current.model=pickedModels.isEmpty()?"":pickedModels.get(0);rebuildPicked[0].run();return true;});
+        LinearLayout.LayoutParams clp=new LinearLayout.LayoutParams(-2,-2);clp.setMargins(0,0,0,dp(6));pickedRow.addView(chip,clp);}};
+    rebuildPicked[0].run();
+    final TextView[] provChips=new TextView[AiProviders.ALL.length];
+    final Runnable[] refreshProv={null};
+    for(int i=0;i<AiProviders.ALL.length;i++){final AiProviders.Provider pr=AiProviders.ALL[i];
+      TextView chip=new TextView(this);chip.setText(pr.name);chip.setTextSize(12);chip.setPadding(dp(12),dp(7),dp(12),dp(7));chip.setClickable(true);chip.setFocusable(true);provChips[i]=chip;
+      LinearLayout.LayoutParams cp=new LinearLayout.LayoutParams(-2,-2);cp.setMargins(0,0,dp(8),0);provRow.addView(chip,cp);
+      chip.setOnClickListener(v->{current.provider=pr.id;if(!"custom".equals(pr.id)){url.setText(pr.url);if(pr.models.length>0){if(current.model==null||current.model.isEmpty())current.model=pr.models[0];if(pickedModels.isEmpty())for(String m:pr.models)pickedModels.add(m);}provHint.setText(pr.hint);model.setText(current.model==null?"":current.model);rebuildPicked[0].run();}refreshProv[0].run();});
+    }
+    refreshProv[0]=()->{for(int i=0;i<provChips.length;i++){AiProviders.Provider pr=AiProviders.ALL[i];boolean on=pr.id.equals(current.provider);GradientDrawable pbg=solidShape(on?Color.argb(60,167,139,250):SURFACE,16);if(on)pbg.setStroke(dp(1),PRIMARY);provChips[i].setBackground(pbg);provChips[i].setTextColor(on?PRIMARY:TEXT);}};
+    refreshProv[0].run();
+    Button fetch=new Button(this);fetch.setText("测试连接并获取模型列表（可多选）");fetch.setTextColor(PRIMARY);fetch.setTextSize(12);fetch.setAllCaps(false);fetch.setBackground(filterRipple(shape(SURFACE,12)));fetch.setMinWidth(0);fetch.setMinimumWidth(0);fetch.setMinHeight(dp(38));LinearLayout.LayoutParams fp=new LinearLayout.LayoutParams(-2,dp(38));fp.topMargin=dp(10);panel.addView(fetch,fp);
+    fetch.setOnClickListener(v->{fetch.setEnabled(false);fetch.setText("获取中…");aiCore.fetchModels(url.getText().toString().trim(),key.getText().toString().trim(),(models,error)->{fetch.setEnabled(true);fetch.setText("测试连接并获取模型列表（可多选）");if(error!=null){showNotice(error,true);return;}if(models==null||models.isEmpty()){showNotice("该接口未返回可用模型",true);return;}showNotice("连接成功，共 "+models.size()+" 个模型",false);showModelMultiSelect(models,pickedModels,()->{if(current.model.isEmpty()&&!pickedModels.isEmpty())current.model=pickedModels.get(0);model.setText(current.model);rebuildPicked[0].run();});});});
+    final EditText ctx=aiField(panel,"上下文整合条数（带多少条历史一起发送，2-100）",String.valueOf(current.contextMessages),false);ctx.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
+    final EditText maxOut=aiField(panel,"最大输出长度（tokens，64-32768）",String.valueOf(current.maxTokens),false);maxOut.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
+    final boolean[] tools={current.toolsEnabled};
+    panel.addView(settingsSwitchRow("允许 AI 调用工具箱工具",current.toolsEnabled,checked->tools[0]=checked));
+    TextView saveHint=text("地址仅支持 http/https，会拒绝内网与保留地址；配置只保存在本机。",11,MUTED);saveHint.setPadding(0,dp(10),0,dp(6));panel.addView(saveHint,new LinearLayout.LayoutParams(-1,-2));
+    LinearLayout actions=actionRow(panel);
+    primaryAction(actions,"保存渠道",()->{
+      AiChatCore.Settings d=new AiChatCore.Settings();d.id=isNew?"ch"+System.currentTimeMillis():current.id;d.provider=current.provider;
+      d.name=name.getText().toString().trim();d.url=url.getText().toString().trim();d.key=key.getText().toString().trim();d.model=model.getText().toString().trim();
+      d.models=new ArrayList<>(pickedModels);d.toolsEnabled=tools[0];
+      try{d.contextMessages=Math.max(2,Math.min(100,Integer.parseInt(ctx.getText().toString().trim())));}catch(Exception e){d.contextMessages=12;}
+      try{d.maxTokens=Math.max(64,Math.min(32768,Integer.parseInt(maxOut.getText().toString().trim())));}catch(Exception e){d.maxTokens=2048;}
+      String invalid=AiChatCore.validateOutboundUrl(d.url);
+      if(!invalid.isEmpty()){url.setError(invalid);url.requestFocus();return;}
+      if(d.key.isEmpty()){key.setError("填写 API Key");key.requestFocus();return;}
+      if(d.model.isEmpty()&&!d.models.isEmpty())d.model=d.models.get(0);
+      if(d.model.isEmpty()){model.setError("填写或选择默认模型");model.requestFocus();return;}
+      aiCore.saveSettings(d);showNotice("渠道已保存",false);syncAiModelBadge();showAiChannelsPage();
+    });
+    if(!isNew)action(actions,"删除渠道",()->roundDialogConfirm("删除渠道","删除后不可恢复，确定删除「"+(current.name==null||current.name.isEmpty()?"未命名渠道":current.name)+"」？",()->{aiCore.deleteChannel(current.id);showNotice("已删除",false);syncAiModelBadge();showAiChannelsPage();}));
+  }
+
+  AiChatCore.Settings findChannelDraft(String id){
+    for(AiChatCore.Settings s:aiCore.channels())if(s.id.equals(id))return s;
+    return new AiChatCore.Settings();
+  }
+
+  void roundDialogConfirm(String title,String message,Runnable onOk){
+    TextView body=text(message,13,TEXT);body.setPadding(dp(6),dp(8),dp(6),dp(8));
+    AlertDialog dialog=new AlertDialog.Builder(this).setTitle(title).setView(body).setNegativeButton("取消",null).setPositiveButton("删除",(d,w)->onOk.run()).create();showRounded(dialog);
+  }
+  LinearLayout actionRow(LinearLayout parent){LinearLayout row=new LinearLayout(this);row.setGravity(Gravity.CENTER_VERTICAL);LinearLayout.LayoutParams params=new LinearLayout.LayoutParams(-1,-2);params.setMargins(0,0,0,dp(10));parent.addView(row,params);return row;}
+  /** 次级操作按钮：描边/浅底（与 ToolHost 的 action() 视觉一致） */
+  void action(LinearLayout row,String label,Runnable click){
+    Button button=new Button(this);button.setText(label);button.setTextColor(PRIMARY);button.setTextSize(12);button.setAllCaps(false);
+    button.setBackground(filterRipple(solidShape(SURFACE,12)));button.setMinWidth(0);button.setMinimumWidth(0);button.setMinHeight(dp(40));button.setPadding(dp(14),0,dp(14),0);
+    button.setOnClickListener(v->click.run());
+    LinearLayout.LayoutParams params=new LinearLayout.LayoutParams(-2,dp(40));params.setMargins(0,0,dp(8),0);
+    row.addView(button,params);
+  }
+  /** 主操作按钮：实心品牌色（v1.2.3 主次分明，与工具页主键一致） */
+  void primaryAction(LinearLayout row,String label,Runnable click){
+    Button button=new Button(this);button.setText(label);button.setTextColor(BG);button.setTextSize(12);button.setAllCaps(false);
+    button.setBackground(filterRipple(solidShape(PRIMARY,12)));button.setMinWidth(0);button.setMinimumWidth(0);button.setMinHeight(dp(40));button.setPadding(dp(16),0,dp(16),0);
+    button.setOnClickListener(v->click.run());
+    LinearLayout.LayoutParams params=new LinearLayout.LayoutParams(-2,dp(40));params.setMargins(0,0,dp(8),0);
+    row.addView(button,params);
+  }
+
+  /** 模型多选：搜索过滤 + 手动补录 + 复选，确定后回调 */
+  void showModelMultiSelect(java.util.List<String> fetched,final java.util.List<String> picked,final Runnable onDone){
+    final java.util.List<String> data=new ArrayList<>(fetched);
+    final java.util.Set<String> box=new java.util.LinkedHashSet<>(picked);
+    LinearLayout panel=new LinearLayout(this);panel.setOrientation(LinearLayout.VERTICAL);panel.setPadding(dp(16),dp(4),dp(16),0);
+    final EditText filter=aiField(panel,"搜索模型","",false);
+    LinearLayout addRow=new LinearLayout(this);addRow.setGravity(Gravity.CENTER_VERTICAL);addRow.setPadding(0,dp(6),0,0);
+    final EditText manual=new EditText(this);manual.setHint("手动补录模型 ID");manual.setHintTextColor(MUTED);manual.setTextColor(TEXT);manual.setTextSize(13);manual.setBackground(shape(SURFACE,12));manual.setPadding(dp(12),dp(8),dp(12),dp(8));manual.setMinHeight(dp(40));manual.setSingleLine(true);
+    addRow.addView(manual,new LinearLayout.LayoutParams(0,-2,1));
+    TextView addBtn=text("添加",13,PRIMARY);addBtn.setClickable(true);addBtn.setFocusable(true);addBtn.setPadding(dp(14),dp(10),dp(6),dp(10));addRow.addView(addBtn,new LinearLayout.LayoutParams(-2,-2));
+    panel.addView(addRow,new LinearLayout.LayoutParams(-1,-2));
+    ScrollView scroll=new ScrollView(this);
+    final LinearLayout rows=new LinearLayout(this);rows.setOrientation(LinearLayout.VERTICAL);rows.setPadding(dp(4),dp(6),dp(4),dp(6));
+    scroll.addView(rows,new ScrollView.LayoutParams(-1,-2));panel.addView(scroll,new LinearLayout.LayoutParams(-1,dp(320)));
+    final Runnable[] rebuild={null};
+    rebuild[0]=()->{rows.removeAllViews();String q=filter.getText().toString().trim().toLowerCase(java.util.Locale.ROOT);
+      for(final String m:data){if(!q.isEmpty()&&!m.toLowerCase(java.util.Locale.ROOT).contains(q))continue;
+        android.widget.CheckBox cb=new android.widget.CheckBox(this);cb.setText(m);cb.setTextColor(TEXT);cb.setTextSize(13);cb.setChecked(box.contains(m));
+        cb.setOnCheckedChangeListener((b,ck)->{if(ck)box.add(m);else box.remove(m);});
+        rows.addView(cb,new LinearLayout.LayoutParams(-1,-2));}
+      if(rows.getChildCount()==0){TextView none=text("无匹配模型",12,MUTED);none.setGravity(Gravity.CENTER);rows.addView(none,new LinearLayout.LayoutParams(-1,dp(48)));}};
+    filter.addTextChangedListener(new android.text.TextWatcher(){public void beforeTextChanged(CharSequence s,int a,int b,int c){}public void onTextChanged(CharSequence s,int a,int b,int c){}public void afterTextChanged(android.text.Editable s){rebuild[0].run();}});
+    addBtn.setOnClickListener(v->{String value=manual.getText().toString().trim();if(value.isEmpty())return;if(!data.contains(value))data.add(value);box.add(value);manual.setText("");rebuild[0].run();});
+    rebuild[0].run();
+    AlertDialog dialog=new AlertDialog.Builder(this).setTitle("选择模型（可多选）").setView(limitedDialogScroll(panel,460))
+      .setNegativeButton("取消",null)
+      .setPositiveButton("确定",(d,w)->{picked.clear();picked.addAll(box);onDone.run();})
+      .create();showRounded(dialog);
+  }
   Uri toolImageUri;int toolQuality=70;String toolImageInfoText="";
   final java.util.ArrayDeque<String> toolBackStack=new java.util.ArrayDeque<>();
   ToolHost toolHost;
