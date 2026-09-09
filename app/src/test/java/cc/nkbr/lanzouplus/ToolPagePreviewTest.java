@@ -26,48 +26,57 @@ import org.junit.runners.Parameterized;
 import java.util.ArrayList;
 import java.util.List;
 
-/** 全工具页截图自检：每个工具渲染一张 PNG，供人工/视觉复查布局与美观（v1.2.3）。 */
+/** 全工具页截图自检：双主题（nova/legacy）每个工具各渲染一张 PNG，供人工/视觉复查布局与美观（v1.2.4）。 */
 @RunWith(Parameterized.class)
 public class ToolPagePreviewTest {
   @Rule public final Paparazzi paparazzi = new Paparazzi();
 
   private final String toolId;
+  private final String themeId;
 
-  public ToolPagePreviewTest(String toolId) {this.toolId = toolId;}
+  public ToolPagePreviewTest(String toolId, String themeId) {this.toolId = toolId;this.themeId = themeId;}
 
-  @Parameterized.Parameters(name = "{0}")
-  public static List<String> tools() {
-    List<String> ids = new ArrayList<>();
-    ids.add("__list__");
-    for (String id : Toolbox.allToolIds()) ids.add(id);
-    return ids;
+  @Parameterized.Parameters(name = "{0}-{1}")
+  public static List<String[]> tools() {
+    List<String[]> cases = new ArrayList<>();
+    cases.add(new String[]{"__list__", "nova"});
+    cases.add(new String[]{"__list__", "legacy"});
+    for (String id : Toolbox.allToolIds()) {cases.add(new String[]{id, "nova"});cases.add(new String[]{id, "legacy"});}
+    return cases;
   }
 
   @Test public void renderToolPage() {
-    PreviewHost host = new PreviewHost(paparazzi.getContext());
+    PreviewHost host = new PreviewHost(paparazzi.getContext(), ThemeEngine.byId(themeId));
     host.newRoot();
     ToolHost toolHost = new ToolHost(host);
     if ("__list__".equals(toolId)) toolHost.renderList(); else toolHost.renderTool(toolId);
-    paparazzi.snapshot(host.rootView, toolId);
+    paparazzi.snapshot(host.rootView, toolId + "-" + themeId);
   }
 
   static final class PreviewHost implements ToolHost.Host {
     final Context ctx;
     final float density;
+    final ThemeEngine.Design design;
     LinearLayout rootView;
     final Handler ui = new Handler(Looper.getMainLooper());
 
-    PreviewHost(Context ctx) {this.ctx = ctx;density = ctx.getResources().getDisplayMetrics().density;}
+    PreviewHost(Context ctx, ThemeEngine.Design design) {this.ctx = ctx;this.density = ctx.getResources().getDisplayMetrics().density;this.design = design;}
 
-    void newRoot() {rootView = new LinearLayout(ctx);rootView.setOrientation(LinearLayout.VERTICAL);rootView.setBackgroundColor(Color.rgb(11, 10, 18));}
+    void newRoot() {rootView = new LinearLayout(ctx);rootView.setOrientation(LinearLayout.VERTICAL);rootView.setBackgroundColor(design.bg);}
 
     @Override public int dp(int v) {return Math.round(v * density);}
-    @Override public int BG() {return Color.rgb(11, 10, 18);}
-    @Override public int TEXT() {return Color.rgb(242, 240, 247);}
-    @Override public int MUTED() {return Color.rgb(154, 147, 171);}
-    @Override public int SURFACE() {return Color.rgb(22, 20, 31);}
-    @Override public int PRIMARY() {return Color.rgb(167, 139, 250);}
-    @Override public int DIV() {return Color.rgb(38, 35, 50);}
+    @Override public int BG() {return design.bg;}
+    @Override public int TEXT() {return design.text;}
+    @Override public int MUTED() {return design.muted;}
+    @Override public int SURFACE() {return design.surface;}
+    @Override public int PRIMARY() {return design.primary;}
+    @Override public int DIV() {return design.border;}
+    @Override public int BORDER() {return design.border;}
+    @Override public int SURFACE2() {return design.surface2;}
+    @Override public int SECONDARY() {return design.secondary;}
+    @Override public int PRIMARY_HI() {return design.primaryHi;}
+    @Override public int PRIMARY_LO() {return design.primaryLo;}
+    @Override public int ERROR_TOKEN() {return design.error;}
     @Override public boolean motionEnabled() {return false;}
     @Override public String toolBytes(long value) {return value < 1024 ? value + " B" : (value / 1048576) + " MB";}
     @Override public LinearLayout root() {return rootView;}

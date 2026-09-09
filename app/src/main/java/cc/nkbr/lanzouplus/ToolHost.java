@@ -91,12 +91,12 @@ final class ToolHost {
   TextView tabChip(String label,boolean active){
     TextView chip=new TextView(ctx);chip.setText(label);chip.setTextSize(13);chip.setGravity(Gravity.CENTER);
     chip.setTextColor(active?act.PRIMARY():act.MUTED());chip.setTypeface(android.graphics.Typeface.DEFAULT,android.graphics.Typeface.BOLD);
-    chip.setBackground(ripple(solid(active?Color.rgb(46,38,68):Color.TRANSPARENT)));chip.setContentDescription(label+(active?"，已选中":""));
+    chip.setBackground(ripple(solid(active?ThemeEngine.SELECTED_FILL:Color.TRANSPARENT)));chip.setContentDescription(label+(active?"，已选中":""));
     return chip;
   }
   void selectTab(TextView selected,TextView other){
     selected.setTextColor(act.PRIMARY());other.setTextColor(act.MUTED());
-    selected.setBackground(ripple(solid(Color.rgb(46,38,68))));other.setBackground(ripple(solid(Color.TRANSPARENT)));
+    selected.setBackground(ripple(solid(ThemeEngine.SELECTED_FILL)));other.setBackground(ripple(solid(Color.TRANSPARENT)));
     selected.setContentDescription(selected.getText()+"，已选中");other.setContentDescription(other.getText()+"");
   }
 
@@ -158,11 +158,11 @@ final class ToolHost {
     TextView title=text(category,15,act.TEXT());title.setTypeface(android.graphics.Typeface.DEFAULT,android.graphics.Typeface.BOLD);copy.addView(title,new LinearLayout.LayoutParams(-1,act.dp(28)));
     LinearLayout titleRow=new LinearLayout(ctx);titleRow.setGravity(Gravity.CENTER_VERTICAL);titleRow.addView(copy,new LinearLayout.LayoutParams(0,-2,1));
     TextView badge=text(ids.size()+" 个",10,act.PRIMARY());
-    GradientDrawable pill=solid(Color.argb(30,167,139,250));pill.setCornerRadius(act.dp(20));badge.setBackground(pill);badge.setPadding(act.dp(10),act.dp(2),act.dp(10),act.dp(2));
+    GradientDrawable pill=solid(ThemeEngine.tint(act.PRIMARY(),30));pill.setCornerRadius(act.dp(20));badge.setBackground(pill);badge.setPadding(act.dp(10),act.dp(2),act.dp(10),act.dp(2));
     titleRow.addView(badge,new LinearLayout.LayoutParams(-2,act.dp(24)));
     header.addView(titleRow,new LinearLayout.LayoutParams(0,act.dp(52),1));
     ImageView arrow=new ImageView(ctx);arrow.setImageResource(R.drawable.ic_expand);arrow.setColorFilter(act.PRIMARY());arrow.setPadding(act.dp(8),act.dp(8),act.dp(8),act.dp(8));
-    header.addView(arrow,new LinearLayout.LayoutParams(act.dp(40),act.dp(52)));
+    header.addView(arrow,new LinearLayout.LayoutParams(act.dp(44),act.dp(52)));
     section.addView(header,new LinearLayout.LayoutParams(-1,act.dp(60)));
     LinearLayout content=new LinearLayout(ctx);content.setOrientation(LinearLayout.VERTICAL);content.setPadding(act.dp(6),0,act.dp(6),act.dp(8));
     GridLayout grid=new GridLayout(ctx);grid.setColumnCount(2);
@@ -479,8 +479,8 @@ final class ToolHost {
     body.addView(sensorCard(ctx));
     body.addView(infoSection(ctx,"运行状态"));
     body.addView(kvCard(ctx,new String[][]{
-      {"开机时长",safe(()->{long ms=android.os.SystemClock.elapsedRealtime();long h=ms/3600000,m=(ms%3600000)/60000;return h+" 小时 "+m+" 分钟";})},
-      {"开机时长（含休眠）",safe(()->{long ms=android.os.SystemClock.uptimeMillis();long h=ms/3600000,m=(ms%3600000)/60000;return h+" 小时 "+m+" 分钟";})},
+      {"开机时长",safe(()->{long ms=android.os.SystemClock.uptimeMillis();long h=ms/3600000,m=(ms%3600000)/60000;return h+" 小时 "+m+" 分钟";})},
+      {"开机时长（含休眠）",safe(()->{long ms=android.os.SystemClock.elapsedRealtime();long h=ms/3600000,m=(ms%3600000)/60000;return h+" 小时 "+m+" 分钟";})},
       {"应用版本",safe(()->{try{return act.getPackageManager().getPackageInfo(act.getPackageName(),0).versionName;}catch(Exception e){return"不可用";}})},
       {"目标 SDK",safe(()->String.valueOf(act.getApplicationInfo().targetSdkVersion))},
     }));
@@ -578,10 +578,10 @@ final class ToolHost {
   }
   void styleSelect(TextView chip,boolean selected){
     chip.setTextColor(selected?act.PRIMARY():act.TEXT());chip.setSelected(selected);
-    GradientDrawable bg=solid(selected?Color.rgb(46,38,68):act.SURFACE());bg.setStroke(act.dp(1),selected?act.PRIMARY():act.DIV());
+    GradientDrawable bg=solid(selected?ThemeEngine.SELECTED_FILL:act.SURFACE());bg.setStroke(act.dp(1),selected?act.PRIMARY():act.DIV());
     chip.setBackground(ripple(bg));
   }
-  LinearLayout.LayoutParams chipMargin(){LinearLayout.LayoutParams params=new LinearLayout.LayoutParams(-2,act.dp(40));params.setMargins(0,0,act.dp(8),act.dp(8));return params;}
+  LinearLayout.LayoutParams chipMargin(){LinearLayout.LayoutParams params=new LinearLayout.LayoutParams(-2,act.dp(44));params.setMargins(0,0,act.dp(8),act.dp(8));return params;}
   EditText input(LinearLayout parent,String hint,int minDp){
     EditText field=new EditText(ctx);field.setHint(hint);field.setHintTextColor(act.MUTED());field.setTextColor(act.TEXT());field.setTextSize(14);
     field.setGravity(Gravity.TOP|Gravity.START);field.setBackground(solid(act.SURFACE()));field.setPadding(act.dp(12),act.dp(10),act.dp(12),act.dp(10));field.setMinHeight(act.dp(minDp));
@@ -592,9 +592,9 @@ final class ToolHost {
   LinearLayout actionRow(LinearLayout parent){LinearLayout row=new LinearLayout(ctx);row.setGravity(Gravity.CENTER_VERTICAL);LinearLayout.LayoutParams params=new LinearLayout.LayoutParams(-1,-2);params.setMargins(0,0,0,act.dp(10));parent.addView(row,params);return row;}
   void action(LinearLayout row,String label,Runnable click){
     Button button=new Button(ctx);button.setText(label);button.setTextColor(act.PRIMARY());button.setTextSize(12);button.setAllCaps(false);
-    button.setBackground(ripple(solid(act.SURFACE())));button.setMinWidth(0);button.setMinimumWidth(0);button.setMinHeight(act.dp(40));button.setPadding(act.dp(14),0,act.dp(14),0);
+    button.setBackground(ripple(solid(act.SURFACE())));button.setMinWidth(0);button.setMinimumWidth(0);button.setMinHeight(act.dp(44));button.setPadding(act.dp(14),0,act.dp(14),0);
     button.setOnClickListener(v->press(v,click));
-    LinearLayout.LayoutParams params=new LinearLayout.LayoutParams(-2,act.dp(40));params.setMargins(0,0,act.dp(8),0);
+    LinearLayout.LayoutParams params=new LinearLayout.LayoutParams(-2,act.dp(44));params.setMargins(0,0,act.dp(8),0);
     row.addView(button,params);
   }
   TextView result(LinearLayout parent){
@@ -607,7 +607,7 @@ final class ToolHost {
     TextView copyBtn=text("复制",11,act.PRIMARY());copyBtn.setGravity(Gravity.CENTER);copyBtn.setClickable(true);copyBtn.setFocusable(true);copyBtn.setPadding(act.dp(12),0,act.dp(12),0);
     copyBtn.setBackground(ripple(solid(act.SURFACE())));
     copyBtn.setOnClickListener(v->{String value=output.getText().toString();if(value.isEmpty())return;copy(value);act.showNotice("已复制",false);});
-    android.widget.FrameLayout.LayoutParams cp=new android.widget.FrameLayout.LayoutParams(-2,act.dp(40),Gravity.END|Gravity.TOP);
+    android.widget.FrameLayout.LayoutParams cp=new android.widget.FrameLayout.LayoutParams(-2,act.dp(44),Gravity.END|Gravity.TOP);
     wrap.addView(copyBtn,cp);
     box.addView(wrap,new LinearLayout.LayoutParams(-1,-2));
     output.setTag("tool-output");return output;
@@ -615,9 +615,9 @@ final class ToolHost {
   /** 主操作按钮：实心品牌色；次级操作用 action()（v1.2.3 工具页主次分明） */
   void primaryAction(LinearLayout row,String label,Runnable click){
     Button button=new Button(ctx);button.setText(label);button.setTextColor(act.BG());button.setTextSize(12);button.setAllCaps(false);
-    button.setBackground(ripple(solid(act.PRIMARY())));button.setMinWidth(0);button.setMinimumWidth(0);button.setMinHeight(act.dp(40));button.setPadding(act.dp(16),0,act.dp(16),0);
+    button.setBackground(ripple(solid(act.PRIMARY())));button.setMinWidth(0);button.setMinimumWidth(0);button.setMinHeight(act.dp(44));button.setPadding(act.dp(16),0,act.dp(16),0);
     button.setOnClickListener(v->press(v,click));
-    LinearLayout.LayoutParams params=new LinearLayout.LayoutParams(-2,act.dp(40));params.setMargins(0,0,act.dp(8),0);
+    LinearLayout.LayoutParams params=new LinearLayout.LayoutParams(-2,act.dp(44));params.setMargins(0,0,act.dp(8),0);
     row.addView(button,params);
   }
   View gap(int heightDp){View v=new View(ctx);v.setLayoutParams(new LinearLayout.LayoutParams(-1,heightDp));return v;}
@@ -668,7 +668,7 @@ final class ToolHost {
   }
   void addKvRow(android.content.Context context,LinearLayout card,String key,String value){
     LinearLayout row=new LinearLayout(ctx);row.setGravity(Gravity.CENTER_VERTICAL);row.setPadding(act.dp(10),act.dp(9),act.dp(10),act.dp(9));
-    if(card.getChildCount()%2==2){GradientDrawable stripe=solid(Color.argb(10,167,139,250));row.setBackground(stripe);}
+    if(card.getChildCount()%2==2){GradientDrawable stripe=solid(ThemeEngine.tint(act.PRIMARY(),10));row.setBackground(stripe);}
     TextView k=text(key,12,act.MUTED());k.setSingleLine(true);
     row.addView(k,new LinearLayout.LayoutParams(0,-2,1));
     TextView v=text(value==null||value.isEmpty()?"—":value,12,act.TEXT());v.setGravity(Gravity.END|Gravity.CENTER_VERTICAL);v.setTextIsSelectable(false);
@@ -792,6 +792,7 @@ final class ToolHost {
     int dp(int v);
     android.content.Context context();
     int BG();int TEXT();int MUTED();int SURFACE();int PRIMARY();int DIV();
+    int BORDER();int SURFACE2();int SECONDARY();int PRIMARY_HI();int PRIMARY_LO();int ERROR_TOKEN();
     boolean motionEnabled();
     String toolBytes(long value);
     LinearLayout root();
