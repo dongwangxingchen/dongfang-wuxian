@@ -1190,25 +1190,33 @@ public final class MainActivity extends Activity implements ToolHost.Host {
   LinearLayout buildThemeRow(){ThemeEngine.Design current=ThemeEngine.active(this);LinearLayout row=settingsRowShell();row.setBackground(filterRipple(new ColorDrawable(Color.TRANSPARENT)));row.setOrientation(LinearLayout.VERTICAL);LinearLayout head=settingsRowShell();head.addView(settingsLeadingIcon(R.drawable.ic_tool_palette),settingsIconBox());TextView title=settingsRowTitle("外观");head.addView(title,new LinearLayout.LayoutParams(0,-1,1));row.addView(head,new LinearLayout.LayoutParams(-1,settingsRowHeight()));
     // 双按钮分段选择器（M3 segmented 语言）：两段 + 滑动 thumb，点击即换主题并播无缝过渡
     LinearLayout segment=new LinearLayout(this);segment.setOrientation(LinearLayout.HORIZONTAL);segment.setGravity(Gravity.CENTER);segment.setPadding(dp(4),0,dp(4),0);GradientDrawable segBg=solidShape(SURFACE,20);segBg.setStroke(dp(1),BORDER);segment.setBackground(segBg);segment.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_YES);
-    String activeId=ThemeEngine.activeId(this);FrameLayout segHost=new FrameLayout(this);TextView leftOption=text("原生安卓",13,activeId.equals("legacy")?BG:TEXT);TextView rightOption=text("高级材质",13,activeId.equals("nova")?BG:TEXT);
+    String activeId=ThemeEngine.activeId(this);
+    // 双格用 weight 各占一半（v1.3.0 曾给 cells 0 宽的 FrameLayout 固定定位导致点击死区，v1.3.1 重造）
+    LinearLayout segHost=new LinearLayout(this);segHost.setOrientation(LinearLayout.HORIZONTAL);
+    LinearLayout leftCell=new LinearLayout(this);leftCell.setGravity(Gravity.CENTER);leftCell.setClickable(true);leftCell.setFocusable(true);
+    LinearLayout rightCell=new LinearLayout(this);rightCell.setGravity(Gravity.CENTER);rightCell.setClickable(true);rightCell.setFocusable(true);
+    TextView leftOption=text("原生安卓",13,activeId.equals("legacy")?BG:TEXT);TextView rightOption=text("高级材质",13,activeId.equals("nova")?BG:TEXT);
     for(TextView option:new TextView[]{leftOption,rightOption}){option.setGravity(Gravity.CENTER);option.setTypeface(android.graphics.Typeface.DEFAULT,android.graphics.Typeface.BOLD);}
+    leftCell.addView(leftOption);rightCell.addView(rightOption);
     View thumb=new View(this);GradientDrawable thumbBg=solidShape(PRIMARY,16);thumb.setBackground(thumbBg);thumb.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
-    segHost.addView(thumb,new FrameLayout.LayoutParams(0,dp(40),Gravity.START|Gravity.CENTER_VERTICAL));
-    LinearLayout leftCell=new LinearLayout(this);leftCell.setGravity(Gravity.CENTER);leftCell.setClickable(true);leftCell.setFocusable(true);leftCell.addView(leftOption);leftCell.setContentDescription("外观：原生安卓，当前"+(activeId.equals("legacy")?"已选中":"未选中")+"，点击切换");LinearLayout rightCell=new LinearLayout(this);rightCell.setGravity(Gravity.CENTER);rightCell.setClickable(true);rightCell.setFocusable(true);rightCell.addView(rightOption);rightCell.setContentDescription("外观：高级材质，当前"+(activeId.equals("nova")?"已选中":"未选中")+"，点击切换");
-    segHost.addView(leftCell,new FrameLayout.LayoutParams(0,dp(44),Gravity.START));segHost.addView(rightCell,new FrameLayout.LayoutParams(0,dp(44),Gravity.END));segment.addView(segHost,new LinearLayout.LayoutParams(-1,dp(44)));row.addView(segment,new LinearLayout.LayoutParams(-1,dp(46)));row.setMinimumHeight(dp(96));
-    View.OnClickListener pick=v->applyThemeChoice(v==rightCell?"nova":"legacy",thumb,leftOption,rightOption,segHost);
-    leftCell.setOnClickListener(pick);rightCell.setOnClickListener(pick);segHost.post(()->placeThemeThumb(segHost,thumb,activeId.equals("nova")));
+    segHost.addView(thumb,new LinearLayout.LayoutParams(0,-1,1f));
+    segHost.addView(leftCell,new LinearLayout.LayoutParams(0,dp(44),1f));segHost.addView(rightCell,new LinearLayout.LayoutParams(0,dp(44),1f));
+    // thumb 与选中格保持贴合：格子一有布局变化就按其几何平移（仅当点击选择后 activeRef 才翻转）
+    final String[] activeRef={activeId};
+    thumb.addOnLayoutChangeListener(new View.OnLayoutChangeListener(){@Override public void onLayoutChange(View v,int l,int t,int r,int b,int ol,int ot,int or2,int ob){
+      v.setTranslationX(activeRef[0].equals("nova")?leftCell.getWidth():0);}});
+    leftCell.setContentDescription("外观：原生安卓，当前"+(activeId.equals("legacy")?"已选中":"未选中")+"，点击切换");rightCell.setContentDescription("外观：高级材质，当前"+(activeId.equals("nova")?"已选中":"未选中")+"，点击切换");
+    segment.addView(segHost,new LinearLayout.LayoutParams(-1,dp(44)));row.addView(segment,new LinearLayout.LayoutParams(-1,dp(46)));row.setMinimumHeight(dp(96));
+    View.OnClickListener pick=v->applyThemeChoice(v==rightCell?"nova":"legacy",thumb,leftOption,rightOption,activeRef);
+    leftCell.setOnClickListener(pick);rightCell.setOnClickListener(pick);
     row.setContentDescription("外观，当前 "+current.label+"，可在原生安卓与高级材质间切换");return row;}
-  /** thumb 归位（无动画，布局用） */
-  void placeThemeThumb(FrameLayout segHost,View thumb,boolean advanced){int half=segHost.getWidth()/2;int width=half-dp(6);FrameLayout.LayoutParams p=(FrameLayout.LayoutParams)thumb.getLayoutParams();p.width=width;p.leftMargin=dp(2)+(advanced?half-dp(1):0);thumb.setLayoutParams(p);}
   /** 选中另一段：thumb 滑过去（220ms emphasized），文字换色，然后播主题切换过渡 */
-  void applyThemeChoice(String id,View thumb,TextView leftOption,TextView rightOption,FrameLayout segHost){
+  void applyThemeChoice(String id,View thumb,TextView leftOption,TextView rightOption,String[] activeRef){
     String current=ThemeEngine.activeId(this);
     if(!id.equals(current)){
-      boolean toAdvanced=id.equals("nova");int half=Math.max(dp(40),segHost.getWidth()/2);
-      FrameLayout.LayoutParams p=(FrameLayout.LayoutParams)thumb.getLayoutParams();int target=dp(2)+(toAdvanced?half-dp(1):0);
-      if(motionEnabled()){thumb.animate().cancel();thumb.animate().translationX(target-p.leftMargin).setDuration(220).setInterpolator(new android.view.animation.PathInterpolator(0.2f,0f,0f,1f)).withEndAction(()->{thumb.setTranslationX(0);placeThemeThumb(segHost,thumb,toAdvanced);}).start();}
-      else placeThemeThumb(segHost,thumb,toAdvanced);
+      boolean toAdvanced=id.equals("nova");activeRef[0]=id;
+      if(motionEnabled()){thumb.animate().cancel();thumb.animate().translationX(toAdvanced?thumb.getWidth():0).setDuration(220).setInterpolator(new android.view.animation.PathInterpolator(0.2f,0f,0f,1f)).start();}
+      else thumb.setTranslationX(toAdvanced?thumb.getWidth():0);
       leftOption.setTextColor(toAdvanced?TEXT:BG);rightOption.setTextColor(toAdvanced?BG:TEXT);
       leftCellSelectState(leftOption,toAdvanced);rightCellSelectState(rightOption,!toAdvanced);
       switchThemeWithTransition(id);
