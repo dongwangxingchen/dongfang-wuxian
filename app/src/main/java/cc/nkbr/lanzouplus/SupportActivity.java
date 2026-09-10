@@ -195,7 +195,7 @@ public class SupportActivity extends Activity {
     code.setImageResource(drawableRes);
     code.setScaleType(ImageView.ScaleType.FIT_CENTER);
     code.setContentDescription(label+"，扫码支付 10 元");
-    card.addView(code,new LinearLayout.LayoutParams(-1,dp(120)));
+    card.addView(code,new LinearLayout.LayoutParams(-1,dp(150)));
     TextView name=text(label,12,Color.DKGRAY);name.setGravity(Gravity.CENTER);name.setPadding(0,dp(6),0,0);
     card.addView(name,new LinearLayout.LayoutParams(-1,dp(22)));
     return card;
