@@ -50,12 +50,20 @@ static int selectedFill(int primary){return tint(primary,30);}
 
   private static final String PREF_FILE="ui_prefs_v1";
   private static final String KEY_THEME="theme";
+  /** v1.3.1 一次性迁移标记：v1.3.0 把 nova 整体从旧紫黑换成了 Claude 陶土材质，且默认主题被误设为 nova；
+   *  老用户升级后画面整体变色（应保持「原生安卓」经典紫）——首次运行迁回 legacy 并写标记，之后用户的手动选择不再被重置 */
+  private static final String KEY_MIGRATED_131="migrated_131";
   private static volatile Design cache;
 
   static String activeId(Context c){
     Design hit=cache;
     if(hit!=null)return hit.id;
-    String id=prefs(c).getString(KEY_THEME,"nova");
+    SharedPreferences p=prefs(c);
+    String id=p.getString(KEY_THEME,"legacy");
+    if(!p.getBoolean(KEY_MIGRATED_131,false)){
+      id="legacy";
+      try{SharedPreferences.Editor e=p.edit();if(e!=null)e.putBoolean(KEY_MIGRATED_131,true).putString(KEY_THEME,id).apply();}catch(Throwable ignored){}
+    }
     cache=byId(id);
     return cache.id;
   }
