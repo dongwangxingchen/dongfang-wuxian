@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 收款码占位图（微信）：等用户提供真实收款码后，仅替换本文件（保持文件名），代码零改动。
+     占位态 = 白底 + 绿色角标框示意（非真实码，不可扫）。 -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+ android:width="160dp" android:height="160dp" android:viewportWidth="160" android:viewportHeight="160">
+ <path android:fillColor="#FFFFFFFF" android:pathData="M0,0H160V160H0Z"/>
+ <path android:strokeColor="#FF07C160" android:strokeWidth="4" android:pathData="M20,20H140V140H20Z"/>
+ <path android:strokeColor="#FF07C160" android:strokeWidth="6" android:pathData="M32,32H52M32,32V52M108,32H128M128,32V52M32,108V128H52M128,108V128H108"/>
+ <path android:fillColor="#FF07C160" android:pathData="M69,52c-15.5,0 -28,10.7 -28,24 0,7.6 4.1,14.4 10.6,18.8l-2.7,8 9.3,-4.7c3.4,0.9 7,1.4 10.8,1.4 1.5,0 3,-0.1 4.5,-0.2 -1,-2.7 -1.5,-5.5 -1.5,-8.5 0,-13.9 12.1,-25.1 27.1,-25.1 0.9,0 1.9,0.1 2.8,0.1C98.8,58.5 85.1,52 69,52Z"/>
+ <path android:fillColor="#FF07C160" android:pathData="M121,86.5c-12.7,0 -23,8.6 -23,19.2 0,10.6 10.3,19.2 23,19.2 2.9,0 5.7,-0.4 8.3,-1.2l7.6,3.8 -2.2,-6.5c5.3,-3.5 8.8,-8.9 8.8,-15.3 0,-10.6 -10.3,-19.2 -22.5,-19.2Z"/>
+</vector>
