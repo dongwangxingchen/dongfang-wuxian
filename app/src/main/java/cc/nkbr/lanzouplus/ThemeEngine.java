@@ -15,12 +15,19 @@ final class ThemeEngine {
   static final class Design {
     final String id, label, tagline;
     final int bg, surface, surface2, border, primary, primaryHi, primaryLo, secondary, text, muted, error;
+    /** 浅色 chrome 标记（v1.4.0）：true = bg 为浅色，状态栏/导航栏要走深色字（LIGHT_STATUS_BAR） */
+    final boolean bgIsLight;
     Design(String id,String label,String tagline,int bg,int surface,int surface2,int border,
            int primary,int primaryHi,int primaryLo,int secondary,int text,int muted,int error) {
+      this(id,label,tagline,bg,surface,surface2,border,primary,primaryHi,primaryLo,secondary,text,muted,error,
+          (Color.red(bg)+Color.green(bg)+Color.blue(bg))/3>127);
+    }
+    Design(String id,String label,String tagline,int bg,int surface,int surface2,int border,
+           int primary,int primaryHi,int primaryLo,int secondary,int text,int muted,int error,boolean light){
       this.id=id;this.label=label;this.tagline=tagline;
       this.bg=bg;this.surface=surface;this.surface2=surface2;this.border=border;
       this.primary=primary;this.primaryHi=primaryHi;this.primaryLo=primaryLo;
-      this.secondary=secondary;this.text=text;this.muted=muted;this.error=error;
+      this.secondary=secondary;this.text=text;this.muted=muted;this.error=error;this.bgIsLight=light;
     }
     static int rgb(String hex) {
       try {return Color.parseColor(hex);}catch(Exception e){return 0xFFA78BFA;}
@@ -41,7 +48,16 @@ static final Design LEGACY=new Design("legacy","原生安卓","系统默认 · �
     0xFFA78BFA,0xFFC494FF,0xFF8B5CF6,0xFF8FB8F0,
     0xFFF2F0F7,0xFF9A93AB,0xFFFFB4AB);
 
-static final Design[] ALL={NOVA,LEGACY};
+/** apple：v1.4.0「高级苹果」——iOS 13–15 经典质感（非 iOS 26）：分组灰底白卡 + systemBlue + 分隔线描边。
+ *  色值来源 iOS 官方资产目录（systemGroupedBackground/secondarySystemGroupedBackground/systemBlue/systemIndigo/
+ *  opaqueSeparator/secondaryLabel 白底合成/systemRed），研究依据 07-研究报告/高级苹果主题与质感动效-深度研究汇总-v1.4.0.md §1.1。
+ *  性格：浅色分组体系 + 无阴影分层 + 按压去 ripple（scale+变暗）+ 快脆弹簧。 */
+static final Design APPLE=new Design("apple","高级苹果","iOS 质感 · 系统蓝 · 分组白卡",
+    0xFFF2F2F7,0xFFFFFFFF,0xFFF2F2F7,0xFFC6C6C8,
+    0xFF007AFF,0xFF0066D6,0xFFE5F0FF,0xFF5856D6,
+    0xFF000000,0xFF8A8A8E,0xFFFF3B30);
+
+static final Design[] ALL={NOVA,LEGACY,APPLE};
 
 /** 把品牌色（或任意色）按 alpha 合成半透明底，随主题自动联动（选中底/徽标底/气泡底等） */
 static int tint(int color,int alpha){return Color.argb(alpha,Color.red(color),Color.green(color),Color.blue(color));}
@@ -73,6 +89,9 @@ static int selectedFill(int primary){return tint(primary,30);}
   }
   static String label(Context c){return byId(activeId(c)).label;}
   static String tagline(Context c){return byId(activeId(c)).tagline;}
+  /** 主题性格判断（v1.4.0 动效分支用）：apple=快脆弹簧去ripple；legacy=Material规整；nova=慢速有机 */
+  static boolean isApple(Context c){return "apple".equals(activeId(c));}
+  static boolean isLegacy(Context c){return "legacy".equals(activeId(c));}
 
   static Design byId(String id){for(Design d:ALL)if(d.id.equals(id))return d;return NOVA;}
   static Design active(Context c){return byId(activeId(c));}

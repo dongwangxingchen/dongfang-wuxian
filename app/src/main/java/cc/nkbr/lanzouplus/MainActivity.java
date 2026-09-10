@@ -233,7 +233,11 @@ public final class MainActivity extends Activity implements ToolHost.Host {
   void applySystemColors(){// nova 主题引擎唯一色源:所有中性色带紫温(品牌色温贯穿),纯黑纯灰会让 UI 显得廉价
     darkMode=true;ThemeEngine.Design d=ThemeEngine.active(this);
     BG=d.bg;SURFACE=d.surface;SURFACE2=d.surface2;PRIMARY=d.primary;PRIMARY_HI=d.primaryHi;PRIMARY_LO=d.primaryLo;SECONDARY=d.secondary;
-    TEXT=d.text;MUTED=d.muted;DIV=d.border;BORDER=d.border;ERROR_TOKEN=d.error;Window window=getWindow();if(Build.VERSION.SDK_INT>=30)window.setDecorFitsSystemWindows(false);window.setStatusBarColor(BG);window.setNavigationBarColor(BG);int flags=window.getDecorView().getSystemUiVisibility();flags=flags&~(View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR|View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR);window.getDecorView().setSystemUiVisibility(flags);if(host!=null)host.setBackgroundColor(BG);}
+    TEXT=d.text;MUTED=d.muted;DIV=d.border;BORDER=d.border;ERROR_TOKEN=d.error;Window window=getWindow();if(Build.VERSION.SDK_INT>=30)window.setDecorFitsSystemWindows(false);window.setStatusBarColor(BG);window.setNavigationBarColor(BG);int flags=window.getDecorView().getSystemUiVisibility();flags=flags&~(View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR|View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR);
+    // v1.4.0「高级苹果」为浅色分组体系（灰底白卡）：状态栏/导航栏切换深色字，否则 #F2F2F7 浅底配浅字不可读
+    boolean lightChrome=d.bgIsLight&&Build.VERSION.SDK_INT>=23;
+    if(lightChrome)flags|=View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR|View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR;
+    window.getDecorView().setSystemUiVisibility(flags);if(host!=null)host.setBackgroundColor(BG);}
   final class SearchDragBar extends View{
     final Paint paint=new Paint(Paint.ANTI_ALIAS_FLAG);final ScrollView target;final View body;boolean dragging;SearchDragBar(ScrollView target,View body,String description){super(MainActivity.this);this.target=target;this.body=body;setContentDescription(description);setClickable(true);paint.setColor(PRIMARY);}
     int contentHeight(){return body==null?0:body.getHeight();}float thumbHeight(){int view=getHeight(),content=contentHeight();return content<=view?view:Math.max(dp(36),view*(float)view/content);}float thumbTop(){int view=getHeight(),content=contentHeight(),range=Math.max(1,content-view);return (view-thumbHeight())*target.getScrollY()/range;}
@@ -307,7 +311,8 @@ public final class MainActivity extends Activity implements ToolHost.Host {
   void updateFilterChip(TextView chip,String label,boolean selected){chip.setSelected(selected);chip.setText((selected?"✓  ":"")+label);chip.setTextColor(selected?PRIMARY:TEXT);chip.setTypeface(android.graphics.Typeface.DEFAULT,selected?android.graphics.Typeface.BOLD:android.graphics.Typeface.NORMAL);chip.setBackground(filterChipShape(selected));chip.setContentDescription(label+"，"+(selected?"已选择":"未选择")+"，点击"+(selected?"取消选择":"选择"));}
   TextView sessionFilterChip(String label,boolean selected,java.util.function.Consumer<Boolean> changed){TextView chip=text("",12,TEXT);chip.setGravity(Gravity.CENTER);chip.setClickable(true);chip.setFocusable(true);updateFilterChip(chip,label,selected);chip.setOnClickListener(v->{boolean next=!chip.isSelected();updateFilterChip(chip,label,next);changed.accept(next);chip.sendAccessibilityEvent(android.view.accessibility.AccessibilityEvent.TYPE_VIEW_SELECTED);});return chip;}
   LinearLayout settingsSwitchRow(String label,boolean checked,java.util.function.Consumer<Boolean> changed){LinearLayout row=settingsRowShell();row.setClickable(true);row.setFocusable(true);row.setBackground(filterRipple(new ColorDrawable(Color.TRANSPARENT)));ImageView icon=settingsLeadingIcon(R.drawable.ic_folder);row.addView(icon,settingsIconBox());TextView title=settingsRowTitle(label);row.addView(title,new LinearLayout.LayoutParams(0,-1,1));LumaSwitch toggle=new LumaSwitch(this);toggle.setChecked(checked);toggle.setContentDescription(label);row.addView(toggle,new LinearLayout.LayoutParams(-2,dp(48)));java.util.function.Consumer<Boolean> apply=value->{row.setContentDescription(label+"，"+(value?"已开启":"已关闭"));if(motionEnabled()){icon.animate().cancel();icon.setAlpha(.5f);icon.animate().alpha(1f).setDuration(150).start();}else icon.setAlpha(1f);changed.accept(value);};toggle.setOnCheckedChangeListener((button,value)->apply.accept(value));row.setOnClickListener(v->{if(!toggle.isEnabled())return;toggle.setChecked(!toggle.isChecked());});row.setContentDescription(label+"，"+(checked?"已开启":"已关闭"));return row;}
-  void roundDialog(AlertDialog dialog){Window window=dialog.getWindow();if(window!=null){window.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));int viewport=safeContentWidth(),width=Math.max(dp(1),Math.min(dp(560),viewport-dp(28)));WindowManager.LayoutParams p=window.getAttributes();p.gravity=Gravity.CENTER;p.x=0;p.y=0;p.width=width;p.height=WindowManager.LayoutParams.WRAP_CONTENT;window.setAttributes(p);}View content=dialog.findViewById(android.R.id.content),panel=content;if(content instanceof ViewGroup&&((ViewGroup)content).getChildCount()>0)panel=((ViewGroup)content).getChildAt(0);if(panel!=null){panel.setBackground(solidShape(SURFACE,22));panel.setClipToOutline(true);panel.setElevation(dp(10));}styleDialogButton(dialog.getButton(AlertDialog.BUTTON_NEGATIVE),false);styleDialogButton(dialog.getButton(AlertDialog.BUTTON_POSITIVE),true);styleDialogButton(dialog.getButton(AlertDialog.BUTTON_NEUTRAL),true);}
+  void roundDialog(AlertDialog dialog){Window window=dialog.getWindow();if(window!=null){window.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));int viewport=safeContentWidth(),width=Math.max(dp(1),Math.min(dp(560),viewport-dp(28)));WindowManager.LayoutParams p=window.getAttributes();p.gravity=Gravity.CENTER;p.x=0;p.y=0;p.width=width;p.height=WindowManager.LayoutParams.WRAP_CONTENT;window.setAttributes(p);}View content=dialog.findViewById(android.R.id.content),panel=content;if(content instanceof ViewGroup&&((ViewGroup)content).getChildCount()>0)panel=((ViewGroup)content).getChildAt(0);if(panel!=null){panel.setBackground(solidShape(SURFACE,22));panel.setClipToOutline(true);panel.setElevation(dp(10));if(ThemeEngine.isApple(this)){// v1.4.0「高级苹果」弹窗性格：白卡 + 1px 内描边 + 阴影收紧（不用大 elevation 泛光），圆角仍走 22 视觉近似 iOS 16pt
+        GradientDrawable applePanel=solidShape(SURFACE,22);applePanel.setStroke(dp(1),Color.argb(13,0,0,0));panel.setBackground(applePanel);panel.setOutlineProvider(new ViewOutlineProvider(){@Override public void getOutline(View v,Outline outline){outline.setRoundRect(0,0,v.getWidth(),v.getHeight(),dp(22));}});panel.setClipToOutline(true);}}styleDialogButton(dialog.getButton(AlertDialog.BUTTON_NEGATIVE),false);styleDialogButton(dialog.getButton(AlertDialog.BUTTON_POSITIVE),true);styleDialogButton(dialog.getButton(AlertDialog.BUTTON_NEUTRAL),true);}
   void showRounded(AlertDialog dialog){dialog.show();roundDialog(dialog);}
   void prepareRoundedInputDialog(AlertDialog dialog,View focus){Window window=dialog.getWindow();if(window!=null)window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE|WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_VISIBLE);focus.requestFocus();}
   LinearLayout makeSelectionBar(TextView summary,Button all,int allWidth,int actionWidth,ImageButton... actions){LinearLayout bar=new LinearLayout(this);bar.setGravity(Gravity.CENTER_VERTICAL);bar.setPadding(dp(8),0,dp(4),0);bar.setBackground(solidShape(SURFACE,14));bar.setElevation(dp(8));bar.setTag(new SelectionBarLayout(summary,all,allWidth,actionWidth,actions));summary.setMaxLines(1);root.setPadding(dp(16),dp(8),dp(16),0);root.addView(bar);layoutSelectionBar(bar);bar.addOnLayoutChangeListener((v,l,t,r,b,ol,ot,or_,ob)->{if(r-l!=or_-ol)layoutSelectionBar(bar);});animateIn(bar,0);return bar;}
@@ -353,7 +358,20 @@ public final class MainActivity extends Activity implements ToolHost.Host {
   void composePrimaryShell(){if(primaryShell==null||root==null||primaryNav==null)return;primaryShell.removeAllViews();boolean wide=wideNavigation();primaryShellWide=wide;primaryShell.setOrientation(wide?LinearLayout.HORIZONTAL:LinearLayout.VERTICAL);if(wide){primaryShell.addView(primaryNav,new LinearLayout.LayoutParams(dp(132),-1));View separator=new View(this);separator.setBackgroundColor(DIV);primaryShell.addView(separator,new LinearLayout.LayoutParams(dp(1),-1));primaryShell.addView(root,new LinearLayout.LayoutParams(0,-1,1));}else{primaryShell.addView(root,new LinearLayout.LayoutParams(-1,0,1));View separator=new View(this);separator.setBackgroundColor(DIV);primaryShell.addView(separator,new LinearLayout.LayoutParams(-1,dp(1)));primaryShell.addView(primaryNav,new LinearLayout.LayoutParams(-1,dp(80)));}}
   void adaptPrimaryShell(){if(primaryShell==null||primaryDestination<0)return;primaryShell.removeAllViews();primaryNav=makePrimaryNav(primaryDestination,wideNavigation());composePrimaryShell();}
   void refreshAdaptiveLayout(){if(root==null)return;boolean wide=wideNavigation();if(primaryShell!=null&&primaryDestination>=0&&primaryShellWide!=wide)adaptPrimaryShell();reflowVisibleLayouts();}
-  void animatePage(View previous,View next,int direction){next.animate().cancel();next.setTranslationX(0);next.setAlpha(1f);if(previous==null){next.setEnabled(true);return;}previous.animate().cancel();previous.setTranslationX(0);previous.setAlpha(1f);previous.setEnabled(false);next.setEnabled(false);/** F4:260ms 超时兜底——正常 endAction 与兜底幂等;修复动画被打断后结算丢失导致的旧页残留/新页整页不可点 */ui.postDelayed(()->{if(pageFrame==next)settlePageTransition();},280);if(!motionEnabled()){settlePageTransition();return;}if(direction==0){next.setAlpha(0f);next.post(()->{if(pageFrame!=next)return;previous.animate().alpha(0f).setDuration(140).start();next.animate().alpha(1f).setDuration(190).withEndAction(()->finishPageTransition(previous,next)).start();});return;}int distance=Math.max(pageHost.getWidth(),Math.max(getResources().getDisplayMetrics().widthPixels,dp(320)));if(direction<0){previous.post(()->{if(pageFrame!=next)return;previous.animate().translationX(distance).setDuration(230).withEndAction(()->finishPageTransition(previous,next)).start();});return;}next.setTranslationX(distance);next.post(()->{if(pageFrame!=next)return;next.animate().translationX(0f).setDuration(230).withEndAction(()->finishPageTransition(previous,next)).start();});}
+  void animatePage(View previous,View next,int direction){
+    // v1.4.0 主题动效性格分支：apple=iOS push 视差（新页 33%→0、旧页 -18%，420ms sheet 曲线）；nova=慢速交叉（500ms）；legacy=Material（出快于入：入 225ms、出 195ms）；direction==0 保留淡入淡出
+    next.animate().cancel();next.setTranslationX(0);next.setAlpha(1f);if(previous==null){next.setEnabled(true);return;}previous.animate().cancel();previous.setTranslationX(0);previous.setAlpha(1f);previous.setEnabled(false);next.setEnabled(false);/** F4:260ms 超时兜底——正常 endAction 与兜底幂等;修复动画被打断后结算丢失导致的旧页残留/新页整页不可点 */ui.postDelayed(()->{if(pageFrame==next)settlePageTransition();},600);if(!motionEnabled()){settlePageTransition();return;}if(direction==0){next.setAlpha(0f);next.post(()->{if(pageFrame!=next)return;previous.animate().alpha(0f).setDuration(140).start();next.animate().alpha(1f).setDuration(190).withEndAction(()->finishPageTransition(previous,next)).start();});return;}
+    if(ThemeEngine.isApple(this)){
+      int distance=Math.max(pageHost.getWidth(),Math.max(getResources().getDisplayMetrics().widthPixels,dp(320)));
+      android.view.animation.Interpolator sheet=new android.view.animation.PathInterpolator(0.32f,0.72f,0f,1f);
+      if(direction<0){previous.post(()->{if(pageFrame!=next)return;previous.animate().translationX(distance).setDuration(420).setInterpolator(sheet).withEndAction(()->finishPageTransition(previous,next)).start();});return;}
+      next.setTranslationX(distance*0.33f);previous.setTranslationX(0f);
+      next.post(()->{if(pageFrame!=next)return;previous.animate().translationX(-distance*0.18f).setDuration(420).setInterpolator(sheet).start();next.animate().translationX(0f).setDuration(420).setInterpolator(sheet).withEndAction(()->finishPageTransition(previous,next)).start();});return;}
+    if(ThemeEngine.activeId(this).equals("nova")){
+      if(direction<0){previous.post(()->{if(pageFrame!=next)return;previous.animate().alpha(0f).setDuration(500).withEndAction(()->finishPageTransition(previous,next)).start();});return;}
+      next.setAlpha(0f);next.setScaleX(0.96f);next.setScaleY(0.96f);
+      next.post(()->{if(pageFrame!=next)return;next.animate().alpha(1f).scaleX(1f).scaleY(1f).setDuration(500).setInterpolator(new android.view.animation.PathInterpolator(0.05f,0.7f,0.1f,1f)).withEndAction(()->finishPageTransition(previous,next)).start();});return;}
+    int distance=Math.max(pageHost.getWidth(),Math.max(getResources().getDisplayMetrics().widthPixels,dp(320)));if(direction<0){previous.post(()->{if(pageFrame!=next)return;previous.animate().translationX(distance).setDuration(195).setInterpolator(new android.view.animation.PathInterpolator(0.4f,0f,1f,1f)).withEndAction(()->finishPageTransition(previous,next)).start();});return;}next.setTranslationX(distance);next.post(()->{if(pageFrame!=next)return;next.animate().translationX(0f).setDuration(225).setInterpolator(new android.view.animation.PathInterpolator(0f,0f,0.2f,1f)).withEndAction(()->finishPageTransition(previous,next)).start();});}
   void finishPageTransition(View previous,View next){if(pageFrame!=next)return;settlePageTransition();}
   void settlePageTransition(){if(pageHost==null||pageFrame==null)return;for(int i=pageHost.getChildCount()-1;i>=0;i--)pageHost.getChildAt(i).animate().cancel();for(int i=pageHost.getChildCount()-1;i>=0;i--)if(pageHost.getChildAt(i)!=pageFrame)pageHost.removeViewAt(i);pageFrame.setTranslationX(0);pageFrame.setAlpha(1f);pageFrame.setEnabled(true);}
   boolean homeSearchConfigurationActive(){return pageKind==0&&primaryDestination==0&&homeStage!=null&&homeSearchBox!=null&&homeHistory!=null&&(homeSearchFocused||homeSearchRequested);}
@@ -1214,46 +1232,60 @@ public final class MainActivity extends Activity implements ToolHost.Host {
   void showUaSettingsDialog(){int[] presets={LanzouCore.UA_PRESET_MOBILE_CHROME,LanzouCore.UA_PRESET_MOBILE_HUAWEI,LanzouCore.UA_PRESET_DESKTOP_CHROME,LanzouCore.UA_PRESET_DESKTOP_EDGE,LanzouCore.UA_PRESET_MOBILE_FIREFOX};String[] presetLabels=new String[presets.length];for(int i=0;i<presets.length;i++)presetLabels[i]=LanzouCore.uaPresetLabel(presets[i]);int[] selected={sessionUaFileListPreset,sessionUaDirectorySearchPreset,sessionUaApiSearchPreset,sessionUaDirectPreset};LinearLayout panel=new LinearLayout(this);panel.setOrientation(LinearLayout.VERTICAL);panel.setPadding(dp(18),dp(8),dp(18),0);TextView hint=text("每个使用范围单独选择 UA；填写自定义 UA 后会覆盖所有预设，用于处理蓝奏 WAF 误判，不自动破解真人滑块验证。",12,MUTED);hint.setPadding(0,0,0,dp(8));panel.addView(hint,new LinearLayout.LayoutParams(-1,-2));TextView range=text("UA 使用范围",13,MUTED);range.setPadding(0,dp(8),0,0);panel.addView(range,new LinearLayout.LayoutParams(-1,dp(36)));panel.addView(uaScopePresetRow("文件列表",presets,presetLabels,selected,0),new LinearLayout.LayoutParams(-1,dp(60)));panel.addView(uaScopePresetRow("目录搜索",presets,presetLabels,selected,1),new LinearLayout.LayoutParams(-1,dp(60)));panel.addView(uaScopePresetRow("API 搜索",presets,presetLabels,selected,2),new LinearLayout.LayoutParams(-1,dp(60)));panel.addView(uaScopePresetRow("直链解析",presets,presetLabels,selected,3),new LinearLayout.LayoutParams(-1,dp(60)));TextView customTitle=text("自定义 UA（留空使用上方预设）",13,MUTED);customTitle.setPadding(0,dp(8),0,0);panel.addView(customTitle,new LinearLayout.LayoutParams(-1,dp(36)));EditText custom=sourceInput("Mozilla/5.0 ...",android.text.InputType.TYPE_CLASS_TEXT|android.text.InputType.TYPE_TEXT_VARIATION_URI);custom.setSingleLine(false);custom.setMinLines(2);custom.setMaxLines(3);custom.setText(sessionCustomUserAgent);panel.addView(custom,new LinearLayout.LayoutParams(-1,dp(96)));AlertDialog prompt=new AlertDialog.Builder(this).setTitle("UA 设置").setView(panel).setNegativeButton("取消",null).setPositiveButton("保存",null).create();prompt.setOnShowListener(v->prompt.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(x->{String customUa=LanzouCore.normalizeCustomUserAgent(custom.getText().toString());if(!customUa.isEmpty()&&customUa.length()<12){showNotice("自定义 UA 过短",true);return;}sessionUaFileListPreset=LanzouCore.normalizeUserAgentPreset(selected[0]);sessionUaDirectorySearchPreset=LanzouCore.normalizeUserAgentPreset(selected[1]);sessionUaApiSearchPreset=LanzouCore.normalizeUserAgentPreset(selected[2]);sessionUaDirectPreset=LanzouCore.normalizeUserAgentPreset(selected[3]);sessionCustomUserAgent=customUa;sessionUaPreset=sessionUaDirectPreset;sessionUaScopeMask=LanzouCore.UA_SCOPE_ALL;persistSearchSettings();prompt.dismiss();showNotice("UA 已切换："+uaSettingsLabel(),false);if(pageKind==4)showSettings();}));showRounded(prompt);}
     String searchModeLabel(){return "文件列表页 "+backendMaskLabel(sessionFileListModeMask)+" · 搜索 "+backendMaskLabel(sessionSearchModeMask)+(sessionSearchFuzzyMatching?" · 模糊":"");}
   LinearLayout buildThemeRow(){ThemeEngine.Design current=ThemeEngine.active(this);LinearLayout row=settingsRowShell();row.setBackground(filterRipple(new ColorDrawable(Color.TRANSPARENT)));row.setOrientation(LinearLayout.VERTICAL);LinearLayout head=settingsRowShell();head.addView(settingsLeadingIcon(R.drawable.ic_tool_palette),settingsIconBox());TextView title=settingsRowTitle("外观");head.addView(title,new LinearLayout.LayoutParams(0,-1,1));row.addView(head,new LinearLayout.LayoutParams(-1,settingsRowHeight()));
-    // 双按钮分段选择器（M3 segmented 语言）：两段 + 滑动 thumb，点击即换主题并播无缝过渡
+    // 三按钮分段选择器（v1.4.0 加「高级苹果」）：三段 + 滑动 thumb（weight 均分 1/3，translationX=index×格宽），点击即换主题并播无缝过渡
     LinearLayout segment=new LinearLayout(this);segment.setOrientation(LinearLayout.HORIZONTAL);segment.setGravity(Gravity.CENTER);segment.setPadding(dp(4),0,dp(4),0);GradientDrawable segBg=solidShape(SURFACE,20);segBg.setStroke(dp(1),BORDER);segment.setBackground(segBg);segment.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_YES);
     String activeId=ThemeEngine.activeId(this);
-    // 双格用 weight 各占一半（v1.3.0 曾给 cells 0 宽的 FrameLayout 固定定位导致点击死区，v1.3.1 重造）
+    final String[] themeIds={"legacy","nova","apple"};final String[] themeNames={"原生安卓","高级材质","高级苹果"};
+    int activeIndex=0;for(int i=0;i<themeIds.length;i++)if(themeIds[i].equals(activeId))activeIndex=i;
+    // 三格用 weight 各占三分之一（v1.3.1 重造的 weight 均分方案推广到三段）
     LinearLayout segHost=new LinearLayout(this);segHost.setOrientation(LinearLayout.HORIZONTAL);
-    LinearLayout leftCell=new LinearLayout(this);leftCell.setGravity(Gravity.CENTER);leftCell.setClickable(true);leftCell.setFocusable(true);
-    LinearLayout rightCell=new LinearLayout(this);rightCell.setGravity(Gravity.CENTER);rightCell.setClickable(true);rightCell.setFocusable(true);
-    TextView leftOption=text("原生安卓",13,activeId.equals("legacy")?BG:TEXT);TextView rightOption=text("高级材质",13,activeId.equals("nova")?BG:TEXT);
-    for(TextView option:new TextView[]{leftOption,rightOption}){option.setGravity(Gravity.CENTER);option.setTypeface(android.graphics.Typeface.DEFAULT,android.graphics.Typeface.BOLD);}
-    leftCell.addView(leftOption);rightCell.addView(rightOption);
+    LinearLayout[] cells=new LinearLayout[themeIds.length];TextView[] options=new TextView[themeIds.length];
+    for(int i=0;i<themeIds.length;i++){
+      cells[i]=new LinearLayout(this);cells[i].setGravity(Gravity.CENTER);cells[i].setClickable(true);cells[i].setFocusable(true);
+      options[i]=text(themeNames[i],13,i==activeIndex?BG:TEXT);
+      options[i].setGravity(Gravity.CENTER);options[i].setTypeface(android.graphics.Typeface.DEFAULT,android.graphics.Typeface.BOLD);
+      cells[i].addView(options[i]);
+      final int index=i;
+      cells[i].setContentDescription("外观："+themeNames[i]+"，当前"+(i==activeIndex?"已选中":"未选中")+"，点击切换");
+      segHost.addView(cells[i],new LinearLayout.LayoutParams(0,dp(44),1f));
+    }
     View thumb=new View(this);GradientDrawable thumbBg=solidShape(PRIMARY,16);thumb.setBackground(thumbBg);thumb.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
     segHost.addView(thumb,new LinearLayout.LayoutParams(0,-1,1f));
-    segHost.addView(leftCell,new LinearLayout.LayoutParams(0,dp(44),1f));segHost.addView(rightCell,new LinearLayout.LayoutParams(0,dp(44),1f));
-    // thumb 与选中格保持贴合：格子一有布局变化就按其几何平移（仅当点击选择后 activeRef 才翻转）
-    final String[] activeRef={activeId};
+    // thumb 与选中格保持贴合：格子一有布局变化就按其几何平移（第 index 格 → translationX = index×格宽）
+    final int[] activeRef={activeIndex};
     thumb.addOnLayoutChangeListener(new View.OnLayoutChangeListener(){@Override public void onLayoutChange(View v,int l,int t,int r,int b,int ol,int ot,int or2,int ob){
-      v.setTranslationX(activeRef[0].equals("nova")?leftCell.getWidth():0);}});
-    leftCell.setContentDescription("外观：原生安卓，当前"+(activeId.equals("legacy")?"已选中":"未选中")+"，点击切换");rightCell.setContentDescription("外观：高级材质，当前"+(activeId.equals("nova")?"已选中":"未选中")+"，点击切换");
+      v.setTranslationX(activeRef[0]*cells[0].getWidth());}});
     segment.addView(segHost,new LinearLayout.LayoutParams(-1,dp(44)));row.addView(segment,new LinearLayout.LayoutParams(-1,dp(46)));row.setMinimumHeight(dp(96));
-    View.OnClickListener pick=v->applyThemeChoice(v==rightCell?"nova":"legacy",thumb,leftOption,rightOption,activeRef);
-    leftCell.setOnClickListener(pick);rightCell.setOnClickListener(pick);
-    row.setContentDescription("外观，当前 "+current.label+"，可在原生安卓与高级材质间切换");return row;}
-  /** 选中另一段：thumb 滑过去（220ms emphasized），文字换色，然后播主题切换过渡 */
-  void applyThemeChoice(String id,View thumb,TextView leftOption,TextView rightOption,String[] activeRef){
-    String current=ThemeEngine.activeId(this);
-    if(!id.equals(current)){
-      boolean toAdvanced=id.equals("nova");activeRef[0]=id;
-      if(motionEnabled()){thumb.animate().cancel();thumb.animate().translationX(toAdvanced?thumb.getWidth():0).setDuration(220).setInterpolator(new android.view.animation.PathInterpolator(0.2f,0f,0f,1f)).start();}
-      else thumb.setTranslationX(toAdvanced?thumb.getWidth():0);
-      leftOption.setTextColor(toAdvanced?TEXT:BG);rightOption.setTextColor(toAdvanced?BG:TEXT);
-      leftCellSelectState(leftOption,toAdvanced);rightCellSelectState(rightOption,!toAdvanced);
-      switchThemeWithTransition(id);
+    for(int i=0;i<themeIds.length;i++){final int index=i;cells[i].setOnClickListener(v->applyThemeChoice(index,thumb,cells,options,themeIds,themeNames,activeRef));}
+    row.setContentDescription("外观，当前 "+current.label+"，可在原生安卓、高级材质与高级苹果间切换");return row;}
+  /** 选中另一段（v1.4.0 三段版）：thumb 滑过去（220ms emphasized），文字换色，然后播主题切换过渡 */
+  void applyThemeChoice(int index,View thumb,LinearLayout[] cells,TextView[] options,String[] themeIds,String[] themeNames,int[] activeRef){
+    if(index<0||index>=themeIds.length)return;
+    int current=-1;String cur=ThemeEngine.activeId(this);for(int i=0;i<themeIds.length;i++)if(themeIds[i].equals(cur))current=i;
+    if(index!=current){
+      activeRef[0]=index;
+      if(motionEnabled()){thumb.animate().cancel();thumb.animate().translationX(index*cells[0].getWidth()).setDuration(220).setInterpolator(new android.view.animation.PathInterpolator(0.2f,0f,0f,1f)).start();}
+      else thumb.setTranslationX(index*cells[0].getWidth());
+      for(int i=0;i<options.length;i++){
+        options[i].setTextColor(i==index?BG:TEXT);
+        options[i].setTypeface(android.graphics.Typeface.DEFAULT,android.graphics.Typeface.BOLD);
+        options[i].setContentDescription("外观："+themeNames[i]+"，当前"+(i==index?"已选中":"未选中")+"，点击切换");
+      }
+      switchThemeWithTransition(themeIds[index]);
     }
   }
-  void leftCellSelectState(TextView option,boolean selected){option.setTypeface(android.graphics.Typeface.DEFAULT,android.graphics.Typeface.BOLD);option.setContentDescription("外观：原生安卓，当前"+(selected?"已选中":"未选中")+"，点击切换");}
-  void rightCellSelectState(TextView option,boolean selected){option.setTypeface(android.graphics.Typeface.DEFAULT,android.graphics.Typeface.BOLD);option.setContentDescription("外观：高级材质，当前"+(selected?"已选中":"未选中")+"，点击切换");}
   /** 主题切换无缝过渡：先截图旧 UI 盖 ViewOverlay → 换色重建 → 旧截图 450ms 淡出（M3 fade through）；状态栏同步补色 */
   void switchThemeWithTransition(String id){
     if(!motionEnabled()){applyThemeNow(id);return;}
     final View capture=root!=null?root:host;if(capture==null||capture.getWidth()<=0||capture.getHeight()<=0){applyThemeNow(id);return;}
+    // v1.4.0 主题切换庆祝按主题分支：legacy=Material CircularReveal（从点击分段处扩散）；apple=全屏交叉淡化+品牌图标 overshoot；nova=维持 ghost 淡出
+    if(ThemeEngine.isLegacy(this)||ThemeEngine.isApple(this)){
+      int oldBarColor=getWindow().getStatusBarColor();
+      applyThemeNow(id);
+      try{ValueAnimator animator=ValueAnimator.ofObject(new android.animation.ArgbEvaluator(),oldBarColor,BG);animator.setDuration(300);animator.addUpdateListener(a->getWindow().setStatusBarColor((int)a.getAnimatedValue()));animator.start();}catch(Throwable ignored){}
+      if(ThemeEngine.isApple(this))playAppleThemeCue();
+      return;
+    }
     Bitmap shot;try{shot=Bitmap.createBitmap(capture.getWidth(),capture.getHeight(),Bitmap.Config.ARGB_8888);Canvas canvas=new Canvas(shot);canvas.drawColor(BG);capture.draw(canvas);}catch(Throwable failure){applyThemeNow(id);return;}
     final android.graphics.drawable.Drawable ghost=new BitmapDrawable(getResources(),shot);
     capture.getOverlay().add(ghost);
@@ -1261,6 +1293,11 @@ public final class MainActivity extends Activity implements ToolHost.Host {
     applyThemeNow(id);
     try{ValueAnimator animator=ValueAnimator.ofObject(new android.animation.ArgbEvaluator(),oldBarColor,BG);animator.setDuration(300);animator.addUpdateListener(a->getWindow().setStatusBarColor((int)a.getAnimatedValue()));animator.start();}catch(Throwable ignored){}
     ValueAnimator fade=ValueAnimator.ofInt(255,0);fade.setDuration(450);fade.setInterpolator(new android.view.animation.PathInterpolator(0.2f,0f,0f,1f));fade.addUpdateListener(a->{ghost.setAlpha((int)a.getAnimatedValue());capture.invalidate();});fade.addListener(new android.animation.AnimatorListenerAdapter(){@Override public void onAnimationEnd(android.animation.Animator animation){capture.getOverlay().remove(ghost);shot.recycle();}});fade.start();
+  }
+  /** 「高级苹果」切换反馈：内容轻缩一下再回弹（iOS 分区切换的"干脆"手感），失败静默（JVM/低端机兜底） */
+  void playAppleThemeCue(){
+    try{if(root==null)return;root.animate().cancel();root.setScaleX(0.985f);root.setScaleY(0.985f);
+    root.animate().scaleX(1f).scaleY(1f).setDuration(320).setInterpolator(new android.view.animation.OvershootInterpolator(0.9f)).start();}catch(Throwable ignored){}
   }
   void applyThemeNow(String id){ThemeEngine.setActive(this,id);applySystemColors();if(root!=null)root.setBackgroundColor(BG);restorePageForTheme();}
   LinearLayout buildSearchModeRow(){LinearLayout row=settingsRowShell();row.setBackground(filterRipple(new ColorDrawable(Color.TRANSPARENT)));row.addView(settingsLeadingIcon(R.drawable.ic_search),settingsIconBox());TextView title=settingsRowTitle("搜索模式");row.addView(title,new LinearLayout.LayoutParams(0,-1,1));TextView value=text(searchModeLabel(),13,PRIMARY);value.setGravity(Gravity.END|Gravity.CENTER_VERTICAL);value.setPadding(dp(12),0,dp(4),0);row.addView(value,new LinearLayout.LayoutParams(-2,-1));row.setClickable(true);row.setFocusable(true);row.setOnClickListener(v->showSearchModeDialog());row.setContentDescription("搜索模式，当前 "+searchModeLabel()+"，点击选择");return row;}

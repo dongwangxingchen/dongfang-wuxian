@@ -26,7 +26,7 @@ import org.junit.runners.Parameterized;
 import java.util.ArrayList;
 import java.util.List;
 
-/** 全工具页截图自检：双主题（nova/legacy）每个工具各渲染一张 PNG，供人工/视觉复查布局与美观（v1.2.4）。 */
+/** 全工具页截图自检：三主题（nova/legacy/apple）每个工具各渲染一张 PNG，供人工/视觉复查布局与美观（v1.2.4 起，v1.4.0 加 apple）。 */
 @RunWith(Parameterized.class)
 public class ToolPagePreviewTest {
   @Rule public final Paparazzi paparazzi = new Paparazzi();
@@ -41,7 +41,8 @@ public class ToolPagePreviewTest {
     List<String[]> cases = new ArrayList<>();
     cases.add(new String[]{"__list__", "nova"});
     cases.add(new String[]{"__list__", "legacy"});
-    for (String id : Toolbox.allToolIds()) {cases.add(new String[]{id, "nova"});cases.add(new String[]{id, "legacy"});}
+    cases.add(new String[]{"__list__", "apple"});
+    for (String id : Toolbox.allToolIds()) {cases.add(new String[]{id, "nova"});cases.add(new String[]{id, "legacy"});cases.add(new String[]{id, "apple"});}
     return cases;
   }
 
