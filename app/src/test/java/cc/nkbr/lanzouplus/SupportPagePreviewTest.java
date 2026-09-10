@@ -28,7 +28,7 @@ public class SupportPagePreviewTest {
   @Parameterized.Parameters(name = "{0}-{1}")
   public static List<String[]> cases() {
     List<String[]> cases = new ArrayList<>();
-    for (String theme : new String[]{"nova", "legacy"}) {
+    for (String theme : new String[]{"nova", "legacy", "apple"}) {
       cases.add(new String[]{theme, "support"});
       cases.add(new String[]{theme, "thanks"});
     }

@@ -66,6 +66,8 @@ public class SupportActivity extends Activity {
     if(Build.VERSION.SDK_INT>=23){
       int flags=window.getDecorView().getSystemUiVisibility();
       flags=flags&~(View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR|View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR);
+      // v1.4.0「高级苹果」为浅色底（#F2F2F7）：状态栏/导航栏改深色字，否则浅底浅字不可读
+      if(ThemeEngine.isApple(this))flags|=View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR|View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR;
       window.getDecorView().setSystemUiVisibility(flags);
     }
   }

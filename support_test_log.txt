@@ -1,0 +1,90 @@
+﻿> Task :app:preBuild UP-TO-DATE
+> Task :app:preEmptyDebugBuild UP-TO-DATE
+> Task :app:compileEmptyDebugAidl UP-TO-DATE
+> Task :app:generateEmptyDebugBuildConfig UP-TO-DATE
+> Task :app:javaPreCompileEmptyDebug UP-TO-DATE
+> Task :app:checkEmptyDebugAarMetadata UP-TO-DATE
+> Task :app:generateEmptyDebugResValues UP-TO-DATE
+> Task :app:mapEmptyDebugSourceSetPaths UP-TO-DATE
+> Task :app:generateEmptyDebugResources UP-TO-DATE
+> Task :app:mergeEmptyDebugResources UP-TO-DATE
+> Task :app:packageEmptyDebugResources UP-TO-DATE
+> Task :app:parseEmptyDebugLocalResources UP-TO-DATE
+> Task :app:createEmptyDebugCompatibleScreenManifests UP-TO-DATE
+> Task :app:extractDeepLinksEmptyDebug UP-TO-DATE
+> Task :app:processEmptyDebugMainManifest UP-TO-DATE
+> Task :app:processEmptyDebugManifest UP-TO-DATE
+> Task :app:processEmptyDebugManifestForPackage UP-TO-DATE
+> Task :app:processEmptyDebugResources UP-TO-DATE
+> Task :app:compileEmptyDebugJavaWithJavac UP-TO-DATE
+> Task :app:bundleEmptyDebugClassesToRuntimeJar UP-TO-DATE
+> Task :app:preEmptyDebugUnitTestBuild UP-TO-DATE
+> Task :app:preparePaparazziEmptyDebugResources UP-TO-DATE
+> Task :app:processEmptyDebugJavaRes NO-SOURCE
+> Task :app:processEmptyDebugUnitTestJavaRes NO-SOURCE
+> Task :app:bundleEmptyDebugClassesToCompileJar UP-TO-DATE
+> Task :app:javaPreCompileEmptyDebugUnitTest UP-TO-DATE
+
+> Task :app:compileEmptyDebugUnitTestJavaWithJavac FAILED
+Java compiler version 21 has deprecated support for compiling with source/target version 8.
+Try one of the following options:
+    1. [Recommended] Use Java toolchain with a lower language version
+    2. Set a higher source/target version
+    3. Use a lower version of the JDK running the build (if you're not using Java toolchain)
+For more details on how to configure these settings, see https://developer.android.com/build/jdks.
+To suppress this warning, set android.javaCompile.suppressSourceTargetDeprecationWarning=true in gradle.properties.
+.\gradlew.bat : 璀﹀憡: [options] 婧愬€?8 宸茶繃鏃讹紝灏嗗湪鏈潵鍙戣鐗堜腑鍒犻櫎
+所在位置 行:1 字符: 75
++ ... heiyao\src; .\gradlew.bat :app:testEmptyDebugUnitTest --tests 'cc.nkb ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (璀﹀憡: [options] ...灏嗗湪鏈潵鍙戣鐗堜腑鍒犻櫎:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+璀﹀憡: [options] 鐩爣鍊?8 宸茶繃鏃讹紝灏嗗湪鏈潵鍙戣鐗堜腑鍒犻櫎
+璀﹀憡: [options] 瑕侀殣钘忔湁鍏冲凡杩囨椂閫夐」鐨勮鍛? 璇蜂娇鐢?-Xlint:-options銆?
+D:\heiyao\src\app\src\test\java\cc\nkbr\lanzouplus\SupportPagePreviewTest.java:59: 閿欒: SupportPreviewWindow涓嶆槸鎶借薄鐨? 骞朵
+笖鏈鐩朩indow涓殑鎶借薄鏂规硶togglePanel(int,KeyEvent)
+  static final class SupportPreviewWindow extends Window {
+               ^
+D:\heiyao\src\app\src\test\java\cc\nkbr\lanzouplus\SupportPagePreviewTest.java:63: 閿欒: SupportPreviewWindow涓殑getAttri
+butes()鏃犳硶瑕嗙洊Window涓殑getAttributes()
+    @SuppressWarnings("deprecation") @Override public android.view.WindowManager.LayoutParams getAttributes() {return n
+ew android.view.WindowManager.LayoutParams();}
+                                                                                              ^
+  琚鐩栫殑鏂规硶涓篺inal
+娉? D:\heiyao\src\app\src\test\java\cc\nkbr\lanzouplus\SupportPagePreviewTest.java浣跨敤鎴栬鐩栦簡宸茶繃鏃剁殑 API銆?
+娉? 鏈夊叧璇︾粏淇℃伅, 璇蜂娇鐢?-Xlint:deprecation 閲嶆柊缂栬瘧銆?
+2 涓敊璇?
+3 涓鍛?
+
+[Incubating] Problems report is available at: file:///D:/heiyao/src/build/reports/problems/problems-report.html
+
+FAILURE: Build failed with an exception.
+
+* What went wrong:
+Execution failed for task ':app:compileEmptyDebugUnitTestJavaWithJavac'.
+> Compilation failed; see the compiler output below.
+  娉? D:\heiyao\src\app\src\test\java\cc\nkbr\lanzouplus\SupportPagePreviewTest.java浣跨敤鎴栬鐩栦簡宸茶繃鏃剁殑 API銆?
+  D:\heiyao\src\app\src\test\java\cc\nkbr\lanzouplus\SupportPagePreviewTest.java:63: 閿欒: SupportPreviewWindow涓殑getAtt
+ributes()鏃犳硶瑕嗙洊Window涓殑getAttributes()
+      @SuppressWarnings("deprecation") @Override public android.view.WindowManager.LayoutParams getAttributes() {return
+ new android.view.WindowManager.LayoutParams();}
+                                                                                                ^
+    琚鐩栫殑鏂规硶涓篺inal
+  璀﹀憡: [options] 鐩爣鍊?8 宸茶繃鏃讹紝灏嗗湪鏈潵鍙戣鐗堜腑鍒犻櫎
+  娉? 鏈夊叧璇︾粏淇℃伅, 璇蜂娇鐢?-Xlint:deprecation 閲嶆柊缂栬瘧銆?
+  璀﹀憡: [options] 婧愬€?8 宸茶繃鏃讹紝灏嗗湪鏈潵鍙戣鐗堜腑鍒犻櫎
+  D:\heiyao\src\app\src\test\java\cc\nkbr\lanzouplus\SupportPagePreviewTest.java:59: 閿欒: SupportPreviewWindow涓嶆槸鎶借薄鐨? 
+骞朵笖鏈鐩朩indow涓殑鎶借薄鏂规硶togglePanel(int,KeyEvent)
+    static final class SupportPreviewWindow extends Window {
+                 ^
+  璀﹀憡: [options] 瑕侀殣钘忔湁鍏冲凡杩囨椂閫夐」鐨勮鍛? 璇蜂娇鐢?-Xlint:-options銆?
+  2 涓敊璇?
+  3 涓鍛?
+
+* Try:
+> Check your code and dependencies to fix the compilation error(s)
+> Run with --scan to get full insights.
+
+BUILD FAILED in 1s
+22 actionable tasks: 1 executed, 21 up-to-date
