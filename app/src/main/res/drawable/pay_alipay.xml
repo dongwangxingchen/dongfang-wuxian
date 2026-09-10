@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 收款码占位图（支付宝）：等用户提供真实收款码后，仅替换本文件（保持文件名），代码零改动。
+     占位态 = 白底 + 青色角标框示意（非真实码，不可扫）。 -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+ android:width="160dp" android:height="160dp" android:viewportWidth="160" android:viewportHeight="160">
+ <path android:fillColor="#FFFFFFFF" android:pathData="M0,0H160V160H0Z"/>
+ <path android:strokeColor="#FF1677FF" android:strokeWidth="4" android:pathData="M20,20H140V140H20Z"/>
+ <path android:strokeColor="#FF1677FF" android:strokeWidth="6" android:pathData="M32,32H52M32,32V52M108,32H128M128,32V52M32,108V128H52M128,108V128H108"/>
+ <path android:fillColor="#FF1677FF" android:pathData="M80,63c-10.5,0 -19,8.5 -19,19s8.5,19 19,19 19,-8.5 19,-19 -8.5,-19 -19,-19Zm0,30c-6.1,0 -11,-4.9 -11,-11s4.9,-11 11,-11 11,4.9 11,11 -4.9,11 -11,11Z"/>
+ <path android:fillColor="#FF1677FF" android:pathData="M56,102h48v6h-48Z"/>
+</vector>
