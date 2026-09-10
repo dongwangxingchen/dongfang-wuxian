@@ -91,12 +91,12 @@ final class ToolHost {
   TextView tabChip(String label,boolean active){
     TextView chip=new TextView(ctx);chip.setText(label);chip.setTextSize(13);chip.setGravity(Gravity.CENTER);
     chip.setTextColor(active?act.PRIMARY():act.MUTED());chip.setTypeface(android.graphics.Typeface.DEFAULT,android.graphics.Typeface.BOLD);
-    chip.setBackground(ripple(solid(active?ThemeEngine.SELECTED_FILL:Color.TRANSPARENT)));chip.setContentDescription(label+(active?"，已选中":""));
+    chip.setBackground(ripple(solid(active?ThemeEngine.selectedFill(ctx):Color.TRANSPARENT)));chip.setContentDescription(label+(active?"，已选中":""));
     return chip;
   }
   void selectTab(TextView selected,TextView other){
     selected.setTextColor(act.PRIMARY());other.setTextColor(act.MUTED());
-    selected.setBackground(ripple(solid(ThemeEngine.SELECTED_FILL)));other.setBackground(ripple(solid(Color.TRANSPARENT)));
+    selected.setBackground(ripple(solid(ThemeEngine.selectedFill(ctx))));other.setBackground(ripple(solid(Color.TRANSPARENT)));
     selected.setContentDescription(selected.getText()+"，已选中");other.setContentDescription(other.getText()+"");
   }
 
@@ -265,15 +265,65 @@ final class ToolHost {
   }
 
   void calculator(LinearLayout body){
-    EditText expr=input(body,"表达式，支持 + - * / % ( )",44);expr.setInputType(InputType.TYPE_CLASS_TEXT);expr.setSingleLine(true);
-    TextView live=text("0",26,act.TEXT());live.setTypeface(android.graphics.Typeface.DEFAULT,android.graphics.Typeface.BOLD);live.setGravity(Gravity.END|Gravity.CENTER_VERTICAL);
-    live.setBackground(solid(act.SURFACE()));live.setPadding(act.dp(14),act.dp(10),act.dp(14),act.dp(10));
+    // —— 显示区：可编辑表达式行 + 大字结果行（点结果复制）——
+    EditText expr=new EditText(ctx);expr.setSingleLine(true);expr.setTextSize(16);expr.setTextColor(act.TEXT());expr.setHintTextColor(act.MUTED());expr.setHint("点按下方按键，或直接输入");
+    expr.setGravity(Gravity.END|Gravity.CENTER_VERTICAL);expr.setBackground(solid(act.SURFACE()));expr.setPadding(act.dp(14),0,act.dp(14),0);expr.setMinHeight(act.dp(48));expr.setCursorVisible(true);
+    LinearLayout.LayoutParams exprParams=new LinearLayout.LayoutParams(-1,act.dp(48));exprParams.setMargins(0,0,0,act.dp(6));body.addView(expr,exprParams);
+    TextView live=text("0",28,act.TEXT());live.setTypeface(android.graphics.Typeface.DEFAULT,android.graphics.Typeface.BOLD);live.setGravity(Gravity.END|Gravity.CENTER_VERTICAL);
+    live.setBackground(solid(act.SURFACE()));live.setPadding(act.dp(14),0,act.dp(14),0);live.setMinHeight(act.dp(60));
     body.addView(live,new LinearLayout.LayoutParams(-1,act.dp(60)));
-    TextView hint=text("输入即出结果 · 点结果复制",11,act.MUTED());hint.setPadding(act.dp(2),act.dp(6),act.dp(2),0);body.addView(hint,new LinearLayout.LayoutParams(-1,-2));
-    live.setClickable(true);live.setFocusable(true);
+    live.setClickable(true);live.setFocusable(true);live.setContentDescription("计算结果，点按复制");
     live.setOnClickListener(v->{String value=live.getText().toString();if(value.isEmpty()||value.equals("0")||value.startsWith("表达式"))return;copy(value);act.showNotice("已复制",false);});
-    expr.addTextChangedListener(new android.text.TextWatcher(){public void beforeTextChanged(CharSequence s,int a,int b,int c){}public void onTextChanged(CharSequence s,int a,int b,int c){}
-      public void afterTextChanged(android.text.Editable s){String value=s.toString().trim();if(value.isEmpty()){live.setText("0");live.setTextColor(act.MUTED());return;}String out=Toolbox.calculate(value);live.setText(out);live.setTextColor(out.startsWith("表达式")?act.MUTED():act.TEXT());}});
+    TextView hint=text("支持 + − × ÷ 与括号 · 点结果复制",11,act.MUTED());hint.setPadding(act.dp(2),act.dp(6),act.dp(2),0);body.addView(hint,new LinearLayout.LayoutParams(-1,-2));
+    java.util.function.Consumer<String> evaluate=(String value)->{if(value.trim().isEmpty()){live.setText("0");live.setTextColor(act.MUTED());return;}String out=Toolbox.calculate(value);live.setText(out);live.setTextColor(out.startsWith("表达式")?act.MUTED():act.TEXT());};
+    expr.addTextChangedListener(new android.text.TextWatcher(){public void beforeTextChanged(CharSequence s,int a,int b,int c){}public void onTextChanged(CharSequence s,int a,int b,int c){}public void afterTextChanged(android.text.Editable s){evaluate.accept(s.toString());}});
+    // —— 实体键盘面板：5 行 × 4 列（每行恰好 4 键，M3 计算器规格：键距 8dp、圆角 12、三色分层）——
+    LinearLayout pad=new LinearLayout(ctx);pad.setOrientation(LinearLayout.VERTICAL);pad.setPadding(act.dp(2),act.dp(4),act.dp(2),act.dp(2));
+    body.addView(pad,new LinearLayout.LayoutParams(-1,-2));
+    String[] rows={"C·⌫·(·)·÷","7·8·9·×","4·5·6·−","1·2·3·+","±·0·.·="};
+    String[] descs={"清除全部·退格删除·左括号·右括号·除","数字7·数字8·数字9·乘","数字4·数字5·数字6·减","数字1·数字2·数字3·加","正负取反·数字0·小数点·等于"};
+    java.util.function.Consumer<String> append=(String piece)->{
+      int start=expr.getSelectionStart(),end=expr.getSelectionEnd();
+      if(start<0)start=expr.length();if(end<0)end=start;
+      expr.getText().replace(Math.min(start,end),Math.max(start,end),piece);
+      expr.setSelection(Math.min(start,end)+piece.length());
+    };
+    for(int r=0;r<rows.length;r++){
+      String[] labels=rows[r].split("·");String[] des=descs[r].split("·");
+      LinearLayout row=new LinearLayout(ctx);row.setOrientation(LinearLayout.HORIZONTAL);
+      pad.addView(row,new LinearLayout.LayoutParams(-1,-2));
+      for(int c=0;c<4;c++){
+        final String k=labels[c];
+        TextView key=new TextView(ctx);key.setText(k);key.setTextSize(20);key.setGravity(Gravity.CENTER);
+        key.setMinHeight(act.dp(52));key.setMinimumHeight(act.dp(52));key.setClickable(true);key.setFocusable(true);key.setContentDescription(des[c]);
+        final boolean operator=k.equals("÷")||k.equals("×")||k.equals("−")||k.equals("+");
+        final boolean soft=k.equals("C")||k.equals("⌫")||k.equals("(")||k.equals(")")||k.equals("±");
+        GradientDrawable keyBg=solid(act.SURFACE2());keyBg.setCornerRadius(act.dp(12));
+        if(k.equals("=")){key.setTextColor(act.BG());key.setBackground(ripple(keyBg));}
+        else if(operator){key.setTextColor(act.PRIMARY());key.setBackground(ripple(keyBg));}
+        else if(soft){key.setTextColor(act.MUTED());key.setBackground(ripple(keyBg));}
+        else{key.setTextColor(act.TEXT());key.setBackground(ripple(keyBg));}
+        key.setOnClickListener(v->{
+          Runnable action=()->{
+            if(k.equals("C")){expr.setText("");}
+            else if(k.equals("⌫")){int start=expr.getSelectionStart(),end=expr.getSelectionEnd();if(start<0||end<0){start=end=expr.length();}if(start==end&&start>0){expr.getText().delete(start-1,start);expr.setSelection(start-1);}else if(start!=end){expr.getText().delete(Math.min(start,end),Math.max(start,end));}}
+            else if(k.equals("=")){String result=live.getText().toString().trim();if(!result.isEmpty()&&!result.equals("0")&&!result.startsWith("表达式")){expr.setText(result);expr.setSelection(expr.length());}}
+            else if(k.equals("±")){
+              String cur=expr.getText().toString();int sel=expr.getSelectionStart();
+              int start=Math.max(0,sel<0?0:sel);while(start>0&&Character.isDigit(cur.charAt(start-1)))start--;
+              if(start<cur.length()&&cur.charAt(start)=='-'&&(start==0||!Character.isDigit(cur.charAt(start-1))&&cur.charAt(start-1)!='.')){expr.getText().delete(start,start+1);}
+              else{expr.getText().insert(start,"-");}
+              int newLen=expr.getText().length();expr.setSelection(Math.min(newLen,Math.max(0,start)+1));
+            }
+            else if(k.equals(".")){append.accept(".");}
+            else{String piece=k;if(piece.equals("÷"))piece="/";else if(piece.equals("×"))piece="*";else if(piece.equals("−"))piece="-";append.accept(piece);}
+          };
+          if(act.motionEnabled())press(v,action);else action.run();
+        });
+        LinearLayout.LayoutParams keyParams=new LinearLayout.LayoutParams(0,act.dp(52),1);keyParams.setMargins(act.dp(2),act.dp(2),act.dp(2),act.dp(2));
+        row.addView(key,keyParams);
+      }
+    }
   }
 
   void unit(LinearLayout body){
@@ -578,13 +628,14 @@ final class ToolHost {
   }
   void styleSelect(TextView chip,boolean selected){
     chip.setTextColor(selected?act.PRIMARY():act.TEXT());chip.setSelected(selected);
-    GradientDrawable bg=solid(selected?ThemeEngine.SELECTED_FILL:act.SURFACE());bg.setStroke(act.dp(1),selected?act.PRIMARY():act.DIV());
+    GradientDrawable bg=solid(selected?ThemeEngine.selectedFill(ctx):act.SURFACE());bg.setStroke(act.dp(1),selected?act.PRIMARY():act.DIV());
     chip.setBackground(ripple(bg));
   }
   LinearLayout.LayoutParams chipMargin(){LinearLayout.LayoutParams params=new LinearLayout.LayoutParams(-2,act.dp(44));params.setMargins(0,0,act.dp(8),act.dp(8));return params;}
   EditText input(LinearLayout parent,String hint,int minDp){
     EditText field=new EditText(ctx);field.setHint(hint);field.setHintTextColor(act.MUTED());field.setTextColor(act.TEXT());field.setTextSize(14);
     field.setGravity(Gravity.TOP|Gravity.START);field.setBackground(solid(act.SURFACE()));field.setPadding(act.dp(12),act.dp(10),act.dp(12),act.dp(10));field.setMinHeight(act.dp(minDp));
+    field.setOnFocusChangeListener((v,hasFocus)->{GradientDrawable bg=solid(act.SURFACE());bg.setStroke(act.dp(hasFocus?2:1),hasFocus?act.PRIMARY():act.BORDER());field.setBackground(bg);});
     field.setInputType(InputType.TYPE_CLASS_TEXT|InputType.TYPE_TEXT_FLAG_MULTI_LINE);
     LinearLayout.LayoutParams params=new LinearLayout.LayoutParams(-1,act.dp(minDp));params.setMargins(0,0,0,act.dp(8));
     parent.addView(field,params);return field;
