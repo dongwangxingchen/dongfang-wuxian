@@ -88,13 +88,13 @@ public class SupportActivity extends Activity {
     TextView title=text("支持 "+MainActivity.PRODUCT_NAME,24,TEXT);
     title.setTypeface(Typeface.DEFAULT,Typeface.BOLD);title.setIncludeFontPadding(false);
     page.addView(title,new LinearLayout.LayoutParams(-2,dp(40)));
-    TextView subtitle=text("制作软件花费了大量时间和金钱",13,MUTED);
+    TextView subtitle=text("诚信付费 ¥10 · 一次付清 · 承诺永久更新",13,MUTED);
     subtitle.setPadding(dp(2),dp(2),0,dp(12));
     page.addView(subtitle,new LinearLayout.LayoutParams(-2,-2));
-    // 开发者信（诚意区，3 行第一人称）
+    // 开发者信（诚意区，第一人称）：成本与坚持 + 学生分层（大学以下免费 / 大学及以上量力）+ 感谢
     LinearLayout letterCard=card();
     TextView letter=new TextView(this);
-    letter.setText("这个应用没有广告，也不会强制付费。\n如果你觉得它好用，愿意支持 10 元，\n它会变成我继续更新的底气。");
+    letter.setText("这个应用没有广告，也不强制付费。\n维护和更新都需要很多成本，我想高质量地一直做到最好。\n大学以下没有收入？直接免费解锁。\n大学及以上，希望你在能力范围内诚信付款，\n这会成为我继续更新下去的动力和底气。\n非常感谢你的支持。");
     letter.setTextColor(TEXT);letter.setTextSize(14);letter.setLineSpacing(dp(4),1f);
     letter.setPadding(dp(16),dp(14),dp(16),dp(14));
     letterCard.addView(letter,new LinearLayout.LayoutParams(-1,-2));
@@ -103,6 +103,20 @@ public class SupportActivity extends Activity {
     page.addView(benefitRow("🔓","全部下载权限直接开放"),new LinearLayout.LayoutParams(-1,dp(34)));
     page.addView(benefitRow("🛠","35 个本地工具永久全功能"),new LinearLayout.LayoutParams(-1,dp(34)));
     page.addView(benefitRow("🤖","AI 对话不限次 · 一次付费长期有效"),new LinearLayout.LayoutParams(-1,dp(34)));
+    // 价格大字（成熟付费页惯例：价格必须一眼可见）+ 永久更新承诺
+    LinearLayout price=new LinearLayout(this);price.setGravity(Gravity.CENTER_VERTICAL);
+    TextView amount=text("¥10",30,PRIMARY);amount.setTypeface(Typeface.DEFAULT,Typeface.BOLD);
+    price.addView(amount,new LinearLayout.LayoutParams(-2,-2));
+    LinearLayout priceCol=new LinearLayout(this);priceCol.setOrientation(LinearLayout.VERTICAL);
+    TextView priceNote1=text("诚信付费 · 一次付清",14,TEXT);priceNote1.setTypeface(Typeface.DEFAULT,Typeface.BOLD);
+    TextView priceNote2=text("承诺永久更新 · 绝不停更",11,MUTED);
+    priceCol.addView(priceNote1,new LinearLayout.LayoutParams(-2,-2));
+    LinearLayout.LayoutParams note2Lp=new LinearLayout.LayoutParams(-2,-2);note2Lp.topMargin=dp(2);
+    priceCol.addView(priceNote2,note2Lp);
+    LinearLayout.LayoutParams priceColLp=new LinearLayout.LayoutParams(-2,-2);priceColLp.leftMargin=dp(12);
+    price.addView(priceCol,priceColLp);
+    LinearLayout.LayoutParams priceLp=new LinearLayout.LayoutParams(-1,-2);priceLp.topMargin=dp(4);priceLp.bottomMargin=dp(6);
+    page.addView(price,priceLp);
     // 收款区：微信单卡全宽（用户仅收款微信；码图撑满卡宽，消除两侧留白）
     page.addView(codeCard("微信收款码",R.drawable.pay_wechat,"微信扫码 · 付 10 元"),new LinearLayout.LayoutParams(-1,-2));
     // 复制金额小按钮
@@ -120,14 +134,20 @@ public class SupportActivity extends Activity {
     page.addView(copyWrap,copyParams);
     // 主 CTA：第一人称动词句，零验证解锁
     Button confirm=new Button(this);
-    confirm.setText("我已完成支付，解锁全部下载权限");
+    confirm.setText("我已诚信付费（¥10），解锁全部权限");
     confirm.setAllCaps(false);confirm.setTextSize(15);confirm.setTypeface(Typeface.DEFAULT,Typeface.BOLD);
     confirm.setTextColor(BG);
     GradientDrawable cta=solidShape(PRIMARY,24);
     confirm.setBackground(ripple(cta));
-    confirm.setOnClickListener(v->unlockNow());
+    confirm.setOnClickListener(v->unlockNow(false));
     LinearLayout.LayoutParams ctaParams=new LinearLayout.LayoutParams(-1,dp(52));ctaParams.setMargins(0,dp(14),0,0);
     page.addView(confirm,ctaParams);
+    // 学生通道（小字链接，不抢主按钮的单选地位）：诚信原则的另一面——付不起就免费解锁，不装
+    TextView student=text("大学以下 / 暂无收入 · 直接免费解锁",13,PRIMARY);
+    student.setGravity(Gravity.CENTER);student.setClickable(true);student.setFocusable(true);
+    student.setOnClickListener(v->unlockNow(true));
+    LinearLayout.LayoutParams studentParams=new LinearLayout.LayoutParams(-1,dp(40));studentParams.setMargins(0,dp(2),0,0);
+    page.addView(student,studentParams);
     // 辅助链接：暂时不支持（降级路径永远存在）
     TextView skip=text("暂时不支持，继续使用",13,PRIMARY);
     skip.setGravity(Gravity.CENTER);skip.setPadding(0,dp(10),0,0);skip.setClickable(true);skip.setFocusable(true);
@@ -155,18 +175,26 @@ public class SupportActivity extends Activity {
     TextView heart=text("❤",56,PRIMARY);
     heart.setGravity(Gravity.CENTER);
     page.addView(heart,new LinearLayout.LayoutParams(-1,dp(96)));
-    TextView title=text("已支持 · 谢谢你",24,TEXT);
+    TextView title=text("已解锁 · 谢谢你",24,TEXT);
     title.setTypeface(Typeface.DEFAULT,Typeface.BOLD);title.setGravity(Gravity.CENTER);
     title.setPadding(0,dp(12),0,0);
     page.addView(title,new LinearLayout.LayoutParams(-1,dp(44)));
+    // 诚信徽章（研究 M3：支持后即时反馈=动效+徽章；静态徽章，无循环动画，不画蛇添足）
+    TextView badge=text("诚信支持者",12,PRIMARY);badge.setTypeface(Typeface.DEFAULT,Typeface.BOLD);
+    GradientDrawable badgeBg=solidShape(ThemeEngine.tint(PRIMARY,28),20);
+    badge.setBackground(badgeBg);badge.setPadding(dp(14),dp(5),dp(14),dp(5));
+    LinearLayout badgeWrap=new LinearLayout(this);badgeWrap.setGravity(Gravity.CENTER);
+    badgeWrap.addView(badge,new LinearLayout.LayoutParams(-2,dp(28)));
+    LinearLayout.LayoutParams badgeLp=new LinearLayout.LayoutParams(-1,-2);badgeLp.topMargin=dp(10);
+    page.addView(badgeWrap,badgeLp);
     long paidAt=Support.paidAt(this);
     String date=paidAt>0?android.text.format.DateFormat.getDateFormat(this).format(new java.util.Date(paidAt)):"";
-    TextView detail=text(date.isEmpty()?"全部下载权限已开放":"支持于 "+date+" · 全部下载权限已开放",13,MUTED);
-    detail.setGravity(Gravity.CENTER);detail.setPadding(0,dp(8),0,0);
+    TextView detail=text(date.isEmpty()?"全部下载权限已开放":"解锁于 "+date+" · 全部下载权限已开放",13,MUTED);
+    detail.setGravity(Gravity.CENTER);detail.setPadding(0,dp(10),0,0);
     page.addView(detail,new LinearLayout.LayoutParams(-1,dp(30)));
-    TextView footnote=text("这份支持会变成继续更新的底气",11,MUTED);
-    footnote.setGravity(Gravity.CENTER);footnote.setPadding(0,dp(16),0,0);
-    page.addView(footnote,new LinearLayout.LayoutParams(-1,dp(30)));
+    TextView footnote=text("本软件承诺永久更新 · 绝不停更\n这份支持会变成继续更新的底气",11,MUTED);
+    footnote.setGravity(Gravity.CENTER);footnote.setPadding(0,dp(12),0,0);
+    page.addView(footnote,new LinearLayout.LayoutParams(-1,-2));
     root.addView(page,new LinearLayout.LayoutParams(-1,-1));
     playUnlockAnimation(heart);
   }
@@ -199,10 +227,11 @@ public class SupportActivity extends Activity {
     return card;
   }
 
-  void unlockNow(){
+  /** 零验证解锁：付费通道与免费学生通道同一落点（感谢页相同），free 仅影响通知文案 */
+  void unlockNow(boolean free){
     Support.unlock(this);
     renderThankYou();
-    MainActivity.showSupportNotice(this,"已解锁全部下载权限 · 谢谢你");
+    MainActivity.showSupportNotice(this,free?"已免费解锁 · 未来有能力时再支持也不迟":"已解锁全部下载权限 · 谢谢你");
   }
 
   /** 解锁反馈：克制的单次缩放+淡入（<500ms，无循环；MotionScale 门控在系统动画关闭时跳过） */
