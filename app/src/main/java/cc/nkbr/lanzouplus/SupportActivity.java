@@ -19,7 +19,7 @@ import android.widget.ScrollView;
 import android.widget.TextView;
 
 /** 支持开发 · 独立付费窗口（用户要求"单独的一个窗口"；设计定稿见 07-研究报告/自愿付费与全App优化-深度研究汇总.md A3）。
- *  结构：开发者信 → 权益 3 条 → 收款码双卡（微信/支付宝，占位 drawable 等用户提供真码后仅换资源）→
+ *  结构：开发者信 → 权益 3 条 → 收款码微信单卡全宽（真实码 v1.3.3 嵌入；v1.4.1 起确认不收款支付宝）→
  *  「我已完成支付」零验证解锁 → 感谢页（解锁后本页变成状态页）。
  *  红线：不付费也能完整使用；本页任何位置都有"暂时不支持"退出路径。 */
 public class SupportActivity extends Activity {
@@ -103,14 +103,8 @@ public class SupportActivity extends Activity {
     page.addView(benefitRow("🔓","全部下载权限直接开放"),new LinearLayout.LayoutParams(-1,dp(34)));
     page.addView(benefitRow("🛠","35 个本地工具永久全功能"),new LinearLayout.LayoutParams(-1,dp(34)));
     page.addView(benefitRow("🤖","AI 对话不限次 · 一次付费长期有效"),new LinearLayout.LayoutParams(-1,dp(34)));
-    // 收款区：两码并排 + 中间"或"
-    LinearLayout codes=new LinearLayout(this);codes.setGravity(Gravity.CENTER);
-    codes.addView(codeCard("微信收款码",R.drawable.pay_wechat,"微信扫码 · 付 10 元"),new LinearLayout.LayoutParams(0,-2,1));
-    TextView or=text("或",12,MUTED);
-    LinearLayout.LayoutParams orParams=new LinearLayout.LayoutParams(-2,dp(120));orParams.setMargins(dp(8),0,dp(8),0);
-    codes.addView(or,orParams);
-    codes.addView(codeCard("支付宝收款码",R.drawable.pay_alipay,"支付宝扫码 · 付 10 元"),new LinearLayout.LayoutParams(0,-2,1));
-    page.addView(codes,new LinearLayout.LayoutParams(-1,-2));
+    // 收款区：微信单卡全宽（用户仅收款微信，v1.4.1 起不放支付宝）
+    page.addView(codeCard("微信收款码",R.drawable.pay_wechat,"微信扫码 · 付 10 元",200),new LinearLayout.LayoutParams(-1,-2));
     // 复制金额小按钮
     TextView copyAmount=tool("复制金额 ¥10",13);
     copyAmount.setGravity(Gravity.CENTER);
@@ -187,8 +181,8 @@ public class SupportActivity extends Activity {
     return row;
   }
 
-  /** 收款码卡片：白底浮起（深色页面上收款码必须白底才可扫），占位 drawable 等用户给码后仅替换资源 */
-  LinearLayout codeCard(String label,int drawableRes,String hint){
+  /** 收款码卡片：白底浮起（深色页面上收款码必须白底才可扫），imgDp 为码图高度 */
+  LinearLayout codeCard(String label,int drawableRes,String hint,int imgDp){
     LinearLayout card=new LinearLayout(this);card.setOrientation(LinearLayout.VERTICAL);card.setGravity(Gravity.CENTER_HORIZONTAL);
     GradientDrawable bg=solidShape(Color.WHITE,16);bg.setStroke(dp(1),BORDER);
     card.setBackground(bg);card.setElevation(dp(2));
@@ -197,7 +191,7 @@ public class SupportActivity extends Activity {
     code.setImageResource(drawableRes);
     code.setScaleType(ImageView.ScaleType.FIT_CENTER);
     code.setContentDescription(label+"，扫码支付 10 元");
-    card.addView(code,new LinearLayout.LayoutParams(-1,dp(150)));
+    card.addView(code,new LinearLayout.LayoutParams(-1,dp(imgDp)));
     TextView name=text(label,12,Color.DKGRAY);name.setGravity(Gravity.CENTER);name.setPadding(0,dp(6),0,0);
     card.addView(name,new LinearLayout.LayoutParams(-1,dp(22)));
     return card;
