@@ -44,13 +44,11 @@ final class AiChatCore {
     JSONObject toJson() {try{JSONArray a=new JSONArray();for(Message m:messages)a.put(m.toJson());return new JSONObject().put("id",id).put("title",title).put("at",createdAt).put("messages",a);}catch(Exception e){return new JSONObject();}}
     static Session from(JSONObject o) {Session s=new Session();try{s.id=o.optString("id");s.title=o.optString("title","新对话");s.createdAt=o.optLong("at");JSONArray a=o.optJSONArray("messages");if(a!=null)for(int i=0;i<a.length();i++)s.messages.add(Message.from(a.optJSONObject(i)));}catch(Exception ignored){}return s;}
   }
-  /** v1.2.2:function calling 的单次工具调用 */
-  static final class ToolCall {final String id,name,arguments;ToolCall(String id,String name,String arguments){this.id=id==null?"":id;this.name=name==null?"":name;this.arguments=arguments==null||arguments.trim().isEmpty()?"{}":arguments;}}
+  // v1.6.0：function calling 整体移除（ToolCall/onToolCalls 删除），AI 改为纯文本推荐工具
   interface StreamListener {
     void onOpen();
     void onDelta(String content,String reasoning);
     void onDone(String fullContent,String reasoning,String error);
-    default void onToolCalls(List<ToolCall> calls) {}
   }
   static final class Request implements AutoCloseable {
     volatile HttpURLConnection connection;volatile boolean cancelled;
@@ -229,6 +227,17 @@ final class AiChatCore {
       ui.post(() -> callback.onResult(outReply,outLatency,outError));
     },"ai-test").start();
   }
+  private static String catalogCache;
+  /** v1.6.0 工具推荐手册（system 提示词）：AI 不执行任何工具，只在回复末尾按严格格式推荐，界面渲染成可点按钮 */
+  static String toolCatalogPrompt() {
+    if(catalogCache!=null)return catalogCache;
+    StringBuilder sb=new StringBuilder();
+    sb.append("你是东方无限 App 的内置助手，回答要简洁友好、直接解决用户的问题。App 内置以下本地小工具（全部离线可用），格式为 工具id | 名称 | 说明：\n");
+    for(String[] t:Toolbox.TOOLS)sb.append("- ").append(t[0]).append(" | ").append(t[1]).append(" | ").append(t[2]).append('\n');
+    sb.append("\n工具推荐规则：\n1. 当用户的需求正好能用上面某个工具解决时，在回复正文的最末尾另起一行，严格按格式输出：【工具:工具id|工具名】，例如：【工具:img_compress|图片压缩】。\n2. 最多推荐 2 个，每个各占一行；确实匹配才推荐，普通问答不要输出任何推荐。\n3. 只能推荐目录里列出的工具，禁止编造。\n其他问题一律正常回答。");
+    catalogCache=sb.toString();
+    return catalogCache;
+  }
   static String normalizeBase(String url) {
     String value=url==null?"":url.trim();
     if(!value.matches("(?i)^[a-z][a-z0-9+.-]*://.*"))value="https://"+value;
@@ -255,7 +264,8 @@ final class AiChatCore {
           else if(m.toolCallId!=null&&!m.toolCallId.isEmpty())payload.put(new JSONObject().put("role","tool").put("tool_call_id",m.toolCallId).put("content",m.content==null?"":m.content));
           else payload.put(new JSONObject().put("role",m.role).put("content",m.content==null?"":m.content));}
         JSONObject body=new JSONObject().put("model",s.model).put("messages",payload).put("max_tokens",s.maxTokens).put("stream",true);
-        if(s.toolsEnabled){try{body.put("tools",AiTools.openaiToolSchemas());body.put("tool_choice","auto");}catch(Exception ignored){}}
+        // v1.6.0：工具调用整体移除（真机闪退 + 用户定调只用「推荐工具」机制），改由 system 提示词携带工具目录做纯文本推荐
+        payload.put(0,new JSONObject().put("role","system").put("content",toolCatalogPrompt()));
         HttpURLConnection c=(HttpURLConnection)new URL(normalizeBase(s.url)+"/chat/completions").openConnection();
         request.connection=c;
         c.setConnectTimeout(15000);c.setReadTimeout(120000);c.setDoOutput(true);c.setRequestMethod("POST");
@@ -268,7 +278,6 @@ final class AiChatCore {
         ui.post(listener::onOpen);
         BufferedReader reader=new BufferedReader(new InputStreamReader(c.getInputStream(),StandardCharsets.UTF_8));
         String line;
-        java.util.Map<Integer,ToolCall> acc=new java.util.LinkedHashMap<>();
         try {
         while(!request.cancelled&&(line=reader.readLine())!=null) {
           if(!line.startsWith("data:"))continue;
@@ -280,19 +289,12 @@ final class AiChatCore {
           if(choices==null||choices.length()==0)continue;
           JSONObject delta=choices.optJSONObject(0)==null?null:choices.optJSONObject(0).optJSONObject("delta");
           if(delta==null)continue;
-          JSONArray tcalls=delta.optJSONArray("tool_calls");
-          if(tcalls!=null)for(int i=0;i<tcalls.length();i++){JSONObject t=tcalls.optJSONObject(i);if(t==null)continue;int idx=t.optInt("index",i);ToolCall cur=acc.get(idx);JSONObject fn=t.optJSONObject("function");String name=fn==null?"":fn.optString("name");String args=fn==null?"":fn.optString("arguments");if(cur==null){cur=new ToolCall(t.optString("id"),name,args);acc.put(idx,cur);}else{String id=t.optString("id");if(!id.isEmpty()&&cur.id.isEmpty()){acc.put(idx,new ToolCall(id,cur.name.isEmpty()?name:cur.name,cur.arguments+args));continue;}if(!name.isEmpty()&&cur.name.isEmpty()){acc.put(idx,new ToolCall(cur.id,name,args+cur.arguments));continue;}acc.put(idx,new ToolCall(cur.id,cur.name.isEmpty()?name:cur.name,cur.arguments+args));}continue;}
           String piece=delta.optString("content","");
           String think=firstNonEmpty(delta.optString("reasoning_content"),delta.optString("reasoning"));
           if(!piece.isEmpty()) {full+=piece;ui.post(() -> listener.onDelta(piece,""));}
           else if(!think.isEmpty()) {reasoning+=think;ui.post(() -> listener.onDelta("",think));}
         }
         } finally {try{reader.close();}catch(Exception ignored){}}
-        if(!acc.isEmpty()&&!request.cancelled) {
-          java.util.List<ToolCall> calls=new ArrayList<>();
-          for(int k=0;k<acc.size();k++){ToolCall tc=acc.get(k);if(tc!=null&&!tc.name.isEmpty())calls.add(tc);}
-          if(!calls.isEmpty()){ui.post(() -> listener.onToolCalls(calls));return;}
-        }
       }catch(Exception e) {
         if(request.cancelled) {final String cancelledFull=full,cancelledThink=reasoning;ui.post(() -> listener.onDone(cancelledFull,cancelledThink,null));return;}
         error=e.getMessage()==null?"请求失败":e.getMessage();
