@@ -123,7 +123,7 @@ public final class MainActivity extends Activity implements ToolHost.Host {
   void showSupportPrompt(Runnable action){
     LinearLayout panel=new LinearLayout(this);panel.setOrientation(LinearLayout.VERTICAL);panel.setPadding(dp(22),dp(16),dp(22),dp(6));
     TextView heading=text("诚信付费 · 自愿",20,TEXT);heading.setTypeface(android.graphics.Typeface.DEFAULT,android.graphics.Typeface.BOLD);panel.addView(heading,new LinearLayout.LayoutParams(-1,dp(40)));
-    TextView body=text("制作软件花费了大量时间和金钱。\n如果你愿意支持 10 元（一次付费 · 长期有效），\n扫码即可；不付费也可以继续使用。",13,MUTED);body.setPadding(0,dp(6),0,dp(10));panel.addView(body,new LinearLayout.LayoutParams(-1,-2));
+    TextView body=text("制作软件花费了大量时间和金钱。\n诚信付费 10 元（一次付清 · 承诺永久更新），\n大学以下没有收入可免费解锁；不付费也能继续使用。",13,MUTED);body.setPadding(0,dp(6),0,dp(10));panel.addView(body,new LinearLayout.LayoutParams(-1,-2));
     TextView openPage=text("打开诚信付费页（微信收款码）",14,PRIMARY);openPage.setClickable(true);openPage.setFocusable(true);openPage.setTypeface(android.graphics.Typeface.DEFAULT,android.graphics.Typeface.BOLD);openPage.setPaintFlags(openPage.getPaintFlags()|Paint.UNDERLINE_TEXT_FLAG);openPage.setPadding(0,dp(2),0,dp(6));openPage.setOnClickListener(v->openSupportActivity());panel.addView(openPage,new LinearLayout.LayoutParams(-1,dp(40)));
     AlertDialog prompt=new AlertDialog.Builder(this).setView(panel).setNegativeButton("继续下载（不付费）",(dialog,which)->action.run()).setPositiveButton("打开诚信付费页",(dialog,which)->{openSupportActivity();action.run();}).create();showRounded(prompt);
   }
