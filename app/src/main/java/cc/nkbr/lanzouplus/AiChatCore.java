@@ -88,7 +88,10 @@ final class AiChatCore {
       Settings legacy=settingsLegacy();
       Settings first;
       if(!legacy.url.isEmpty()||!legacy.key.isEmpty()){legacy.name=legacy.name==null||legacy.name.isEmpty()?"默认渠道":legacy.name;first=legacy;}
-      else {first=new Settings();first.name="默认渠道";first.provider="custom";}
+      else {// v1.5.1：预置用户中转站为默认渠道（用户指令：以后拿这个 API 测试）
+        first=new Settings();first.name="中转站";first.provider="custom";
+        first.url="https://www.aizhongzhuan.cc/v1";first.key="REDACTED-AI-KEY-CURRENT";first.model="glm-5.3-flash";
+        first.models.add("glm-5.3-flash");}
       first.id="ch"+System.currentTimeMillis();
       out.add(first);saveChannels(out);setActiveId(first.id);
     }
@@ -163,7 +166,8 @@ final class AiChatCore {
         HttpURLConnection c=(HttpURLConnection)new URL(normalizeBase(s.url)+"/models").openConnection();
         c.setConnectTimeout(10000);c.setReadTimeout(15000);c.setRequestProperty("Authorization","Bearer "+s.key);
         int code=c.getResponseCode();String body=read(c);
-        if(code!=200)throw new java.io.IOException("HTTP "+code);
+        // v1.5.1：报错带服务端信息（此前只显示「HTTP 401」这类干巴巴的码，中转站错误提示全被吞掉）
+        if(code!=200)throw new java.io.IOException(compactError(body,code));
         JSONObject root=new JSONObject(body);JSONArray array=root.optJSONArray("data");
         if(array!=null)for(int i=0;i<array.length();i++) {String id=array.optJSONObject(i)==null?"":array.optJSONObject(i).optString("id");if(!id.isEmpty())models.add(id);}
       }catch(Exception e){error=e.getMessage()==null?"获取模型列表失败":e.getMessage();}
@@ -220,7 +224,8 @@ final class AiChatCore {
         else error=m.isEmpty()?"测试失败":m;
         latency=System.currentTimeMillis()-start;
       }
-      final String outReply=reply,outError=error;final long outLatency=latency;
+      final String outReply=reply;final long outLatency=latency;
+      final String outError=(error==null||error.isEmpty())?null:error;
       ui.post(() -> callback.onResult(outReply,outLatency,outError));
     },"ai-test").start();
   }
@@ -292,7 +297,9 @@ final class AiChatCore {
         if(request.cancelled) {final String cancelledFull=full,cancelledThink=reasoning;ui.post(() -> listener.onDone(cancelledFull,cancelledThink,null));return;}
         error=e.getMessage()==null?"请求失败":e.getMessage();
       }
-      final String outFull=full,outThink=reasoning,outError=error;
+      final String outFull=full,outThink=reasoning;
+      // v1.5.1 修复假失败通知：成功时 error 一直是 ""（非 null），界面层 error!=null 判定导致每次成功后弹「AI 请求失败:」空通知——归一化为 null
+      final String outError=(error==null||error.isEmpty())?null:error;
       ui.post(() -> listener.onDone(outFull,outThink,outError));
     },"ai-chat").start();
     return request;
