@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- v1.5.0 高级苹果：弹窗退场快速下沉淡出（iOS dismiss 380ms 的窗口动画精简版） -->
+<set xmlns:android="http://schemas.android.com/apk/res/android"
+    android:interpolator="@android:anim/accelerate_interpolator">
+    <translate android:fromYDelta="0" android:toYDelta="8%" android:duration="180"/>
+    <alpha android:fromAlpha="1.0" android:toAlpha="0.0" android:duration="180"/>
+</set>

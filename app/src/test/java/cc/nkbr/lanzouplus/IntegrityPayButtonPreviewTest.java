@@ -24,7 +24,6 @@ public class IntegrityPayButtonPreviewTest {
   @Parameterized.Parameters(name = "{0}")
   public static List<String[]> themes() {
     List<String[]> cases = new ArrayList<>();
-    cases.add(new String[]{"nova"});
     cases.add(new String[]{"legacy"});
     cases.add(new String[]{"apple"});
     return cases;

@@ -91,10 +91,10 @@ public class SupportActivity extends Activity {
     TextView subtitle=text("诚信付费 ¥10 · 一次付清 · 承诺永久更新",13,MUTED);
     subtitle.setPadding(dp(2),dp(2),0,dp(12));
     page.addView(subtitle,new LinearLayout.LayoutParams(-2,-2));
-    // 开发者信（诚意区，第一人称）：成本与坚持 + 学生分层（大学以下免费 / 大学及以上量力）+ 感谢
+    // 开发者信（诚意区，第一人称，v1.5.0 用户定调：委婉、少小字）——成本与坚持 + 学生分层委婉化 + 感谢
     LinearLayout letterCard=card();
     TextView letter=new TextView(this);
-    letter.setText("这个应用没有广告，也不强制付费。\n维护和更新都需要很多成本，我想高质量地一直做到最好。\n大学以下没有收入？直接免费解锁。\n大学及以上，希望你在能力范围内诚信付款，\n这会成为我继续更新下去的动力和底气。\n非常感谢你的支持。");
+    letter.setText("这个应用没有广告，也不强制付费。\n维护和更新都需要成本，我想高质量地一直做下去。\n还在读书、暂时没有收入的朋友，点击下方按钮直接使用即可；\n如果力所能及，这 10 元会成为我继续更新的动力和底气。\n谢谢你的支持。");
     letter.setTextColor(TEXT);letter.setTextSize(14);letter.setLineSpacing(dp(4),1f);
     letter.setPadding(dp(16),dp(14),dp(16),dp(14));
     letterCard.addView(letter,new LinearLayout.LayoutParams(-1,-2));
@@ -134,27 +134,21 @@ public class SupportActivity extends Activity {
     page.addView(copyWrap,copyParams);
     // 主 CTA：第一人称动词句，零验证解锁
     Button confirm=new Button(this);
-    confirm.setText("我已诚信付费（¥10），解锁全部权限");
+    confirm.setText("诚信付费，解锁全部权限");
     confirm.setAllCaps(false);confirm.setTextSize(15);confirm.setTypeface(Typeface.DEFAULT,Typeface.BOLD);
     confirm.setTextColor(BG);
     GradientDrawable cta=solidShape(PRIMARY,24);
     confirm.setBackground(ripple(cta));
-    confirm.setOnClickListener(v->unlockNow(false));
+    confirm.setOnClickListener(v->unlockNow());
     LinearLayout.LayoutParams ctaParams=new LinearLayout.LayoutParams(-1,dp(52));ctaParams.setMargins(0,dp(14),0,0);
     page.addView(confirm,ctaParams);
-    // 学生通道（小字链接，不抢主按钮的单选地位）：诚信原则的另一面——付不起就免费解锁，不装
-    TextView student=text("大学以下 / 暂无收入 · 直接免费解锁",13,PRIMARY);
-    student.setGravity(Gravity.CENTER);student.setClickable(true);student.setFocusable(true);
-    student.setOnClickListener(v->unlockNow(true));
-    LinearLayout.LayoutParams studentParams=new LinearLayout.LayoutParams(-1,dp(40));studentParams.setMargins(0,dp(2),0,0);
-    page.addView(student,studentParams);
     // 辅助链接：暂时不支持（降级路径永远存在）
     TextView skip=text("暂时不支持，继续使用",13,PRIMARY);
     skip.setGravity(Gravity.CENTER);skip.setPadding(0,dp(10),0,0);skip.setClickable(true);skip.setFocusable(true);
     skip.setOnClickListener(v->finish());
     page.addView(skip,new LinearLayout.LayoutParams(-1,dp(40)));
     // 底部小字：诚实说明本地标记
-    TextView footnote=text("解锁记录保存在本机 · 换机或清除数据后在本页重新点一次即可\n不付费也可以完整使用，感谢每一份支持",11,MUTED);
+    TextView footnote=text("解锁记录保存在本机 · 不付费也可以完整使用",11,MUTED);
     footnote.setGravity(Gravity.CENTER);footnote.setPadding(0,dp(8),0,0);
     page.addView(footnote,new LinearLayout.LayoutParams(-1,-2));
     ScrollView scroll=new ScrollView(this);scroll.setFillViewport(true);
@@ -227,11 +221,11 @@ public class SupportActivity extends Activity {
     return card;
   }
 
-  /** 零验证解锁：付费通道与免费学生通道同一落点（感谢页相同），free 仅影响通知文案 */
-  void unlockNow(boolean free){
+  /** 零验证解锁：唯一按钮，付费者与暂无收入者同一入口（文案已委婉分层，不再设独立免费链接） */
+  void unlockNow(){
     Support.unlock(this);
     renderThankYou();
-    MainActivity.showSupportNotice(this,free?"已免费解锁 · 未来有能力时再支持也不迟":"已解锁全部下载权限 · 谢谢你");
+    MainActivity.showSupportNotice(this,"已解锁全部下载权限 · 谢谢你");
   }
 
   /** 解锁反馈：克制的单次缩放+淡入（<500ms，无循环；MotionScale 门控在系统动画关闭时跳过） */

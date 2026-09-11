@@ -16,17 +16,17 @@ final class LumaSwitch extends CompoundButton{
   private ValueAnimator animator;
   LumaSwitch(Context context){super(context);setButtonDrawable(null);setMinWidth(dp(54));setMinHeight(dp(34));setPadding(0,0,0,0);setLayerType(LAYER_TYPE_SOFTWARE,null);progress=isChecked()?1f:0f;setClickable(true);}
   @Override public void setChecked(boolean checked){boolean changed=checked!=isChecked();super.setChecked(checked);float target=checked?1f:0f;if(changed&&getWindowToken()!=null&&Build.VERSION.SDK_INT>=11){
-    // v1.4.0 主题动效性格：apple=快脆 spring（overshoot 1.05 微弹）；nova=慢速有机（300ms）；legacy=Material 规整（190ms 线性）
+    // v1.5.0 苹果开关（研究 R2 规格表#11）：knob 250ms (0.25,0.85,0.3,1.05) ζ≈0.7 弱过冲；legacy=Material 规整（190ms 线性）
     if(animator!=null)animator.cancel();
-    boolean apple=ThemeEngine.isApple(getContext()),nova=ThemeEngine.activeId(getContext()).equals("nova");
+    boolean apple=ThemeEngine.isApple(getContext());
     animator=ValueAnimator.ofFloat(progress,target);
-    animator.setDuration(apple?230:nova?300:190);
-    if(apple)animator.setInterpolator(new OvershootInterpolator(1.05f));
-    else if(!nova)animator.setInterpolator(new LinearInterpolator());
+    animator.setDuration(apple?250:190);
+    if(apple)animator.setInterpolator(new android.view.animation.PathInterpolator(0.25f,0.85f,0.3f,1.05f));
+    else animator.setInterpolator(new LinearInterpolator());
     animator.addUpdateListener(a->{progress=(Float)a.getAnimatedValue();invalidate();});animator.start();}else{progress=target;invalidate();}}
   @Override protected void onMeasure(int widthSpec,int heightSpec){setMeasuredDimension(resolveSize(dp(54),widthSpec),resolveSize(dp(34),heightSpec));}
   @Override protected void onDraw(Canvas canvas){super.onDraw(canvas);ThemeEngine.Design d=ThemeEngine.active(getContext());
-    // v1.4.0「高级苹果」：on 轨 = iOS systemGreen #34C759（official），off 轨浅灰填充——这是苹果开关最强的身份识别；nova/legacy 维持主题主色
+    // v1.4.0「高级苹果」：on 轨 = iOS systemGreen #34C759（official），off 轨浅灰填充——这是苹果开关最强的身份识别；legacy 维持主题主色
     boolean apple=ThemeEngine.isApple(getContext());
     int on=apple?0xFF34C759:d.primary,off=apple?0xFFE9E9EB:d.border,offStroke=apple?0xFFD1D1D6:d.muted,thumbOff=apple?0xFFFFFFFF:d.muted,thumbOn=d.surface;
     float p=isEnabled()?progress:progress*.45f,alpha=isEnabled()?1f:.48f;int w=getWidth(),h=getHeight();float trackH=dp(28),trackW=Math.min(w-dp(2),dp(52)),left=(w-trackW)/2f,top=(h-trackH)/2f;rect.set(left,top,left+trackW,top+trackH);paint.setStyle(Paint.Style.FILL);paint.setColor(mix(off,on,p));paint.setAlpha((int)(255*alpha));canvas.drawRoundRect(rect,trackH/2f,trackH/2f,paint);
