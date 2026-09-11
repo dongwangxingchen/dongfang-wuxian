@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- v1.5.0 高级苹果：弹窗窗口动画（sheet 滑入/下沉），apple 主题在 showRounded 时挂载 -->
+<resources>
+    <style name="DfwxSheetDialog">
+        <item name="android:windowAnimationStyle">@style/DfwxSheetDialogAnim</item>
+    </style>
+    <style name="DfwxSheetDialogAnim">
+        <item name="android:windowEnterAnimation">@anim/dfwx_sheet_enter</item>
+        <item name="android:windowExitAnimation">@anim/dfwx_sheet_exit</item>
+    </style>
+</resources>

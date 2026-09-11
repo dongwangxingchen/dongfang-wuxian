@@ -31,7 +31,7 @@ public class IntegrityPayButton extends FrameLayout {
     this.motionEnabled = motionEnabled;
     boolean apple = "apple".equals(design.id);
     int radius = apple ? 12 : 16;
-    // 付费亮光态底色：nova/legacy 的 primaryHi 本就是亮档；apple 的 primaryHi 是 iOS 按压态深蓝，
+    // 付费亮光态底色：legacy 的 primaryHi 本就是亮档；apple 的 primaryHi 是 iOS 按压态深蓝，
     // 改为向白混合 18% 的亮蓝（#007AFF→约 #2E93FF），符合「付费后亮光」的要求
     int paidFill = design.primaryHi;
     if (apple) {

@@ -171,6 +171,59 @@ final class AiChatCore {
       ui.post(() -> callback.onResult(out,err));
     },"ai-models").start();
   }
+  interface TestChatCallback {void onResult(String reply,long latencyMs,String error);}
+  /** v1.5.0 连接测试（研究 R3 88 案例，对齐 one-api/new-api/Cherry Studio 一手做法）：
+   *  最小非流式对话（发 "Hi"，max_tokens=16——o 系/gpt-5 换 max_completion_tokens、thinking 模型提到 50、
+   *  temperature 仅非推理模型设 0）；错误三分：网络不通 / Key 无效（401/403、402 欠费、429 限流但 Key 有效）/ 模型不可用（404、503 无可用渠道） */
+  void testChat(final String urlRaw,final String keyRaw,final String modelRaw,final TestChatCallback callback) {
+    new Thread(() -> {
+      long start=System.currentTimeMillis();
+      String error="",reply="";long latency=0;
+      try {
+        Settings s=new Settings();s.url=urlRaw==null?"":urlRaw.trim();s.key=keyRaw==null?"":keyRaw.trim();s.model=modelRaw==null?"":modelRaw.trim();
+        if(s.model.isEmpty())throw new java.io.IOException("先填写或选择默认模型");
+        String invalid=validateOutboundUrl(s.url);
+        if(!invalid.isEmpty())throw new java.io.IOException(invalid);
+        String resolved=validateResolvedHost(new URL(normalizeBase(s.url)).getHost());
+        if(!resolved.isEmpty())throw new java.io.IOException(resolved);
+        boolean reasoning=s.model.matches("(?i).*(o1|o3|gpt-5).*");
+        int cap=16;String capKey="max_tokens";
+        if(reasoning)capKey="max_completion_tokens";
+        if(s.model.matches("(?i).*thinking.*"))cap=50;
+        JSONObject body=new JSONObject().put("model",s.model)
+            .put("messages",new JSONArray().put(new JSONObject().put("role","user").put("content","Hi")))
+            .put(capKey,cap).put("stream",false);
+        if(!reasoning)body.put("temperature",0);// o 系推理模型拒绝自定义 temperature
+        HttpURLConnection c=(HttpURLConnection)new URL(normalizeBase(s.url)+"/chat/completions").openConnection();
+        c.setConnectTimeout(10000);c.setReadTimeout(25000);c.setDoOutput(true);c.setRequestMethod("POST");
+        c.setRequestProperty("Authorization","Bearer "+s.key);c.setRequestProperty("Content-Type","application/json");
+        byte[] bytes=body.toString().getBytes(StandardCharsets.UTF_8);c.setFixedLengthStreamingMode(bytes.length);
+        OutputStream out=c.getOutputStream();out.write(bytes);out.close();
+        int code=c.getResponseCode();
+        String bodyText=read(c);
+        latency=System.currentTimeMillis()-start;
+        if(code==401||code==403)throw new java.io.IOException("API Key 无效（"+code+"），请检查 Key 是否正确或已过期");
+        if(code==402)throw new java.io.IOException("账户额度不足（402），请先在服务商处充值");
+        if(code==429)throw new java.io.IOException("请求过于频繁（429），Key 有效，请稍后再试");
+        if(code==404)throw new java.io.IOException("中转站没有名为 "+s.model+" 的模型（404），请检查模型名，地址通常需以 /v1 结尾");
+        if(code==503)throw new java.io.IOException("中转站当前没有可处理 "+s.model+" 的渠道（503），网络和 Key 均正常");
+        if(code!=200)throw new java.io.IOException(bodyText.isEmpty()?("HTTP "+code):compactError(bodyText,code));
+        JSONObject root=new JSONObject(bodyText);
+        JSONArray choices=root.optJSONArray("choices");
+        String text=choices==null||choices.length()==0||choices.optJSONObject(0)==null?"":choices.optJSONObject(0).optJSONObject("message")==null?"":choices.optJSONObject(0).optJSONObject("message").optString("content");
+        if(text==null||text.trim().isEmpty())throw new java.io.IOException("服务已响应但没有返回文本（模型可能不可用）");
+        reply=text.trim();
+      }catch(Exception e){
+        String m=e.getMessage()==null?"":e.getMessage();
+        if(e instanceof java.net.SocketTimeoutException)error=m.contains("Read")?"响应超时：服务器 25 秒内未返回，中转站可能拥堵":"连接超时：无法连上服务器";
+        else if(e instanceof java.net.UnknownHostException||e instanceof java.net.ConnectException)error="无法连接到服务器，请检查网络与 API 地址";
+        else error=m.isEmpty()?"测试失败":m;
+        latency=System.currentTimeMillis()-start;
+      }
+      final String outReply=reply,outError=error;final long outLatency=latency;
+      ui.post(() -> callback.onResult(outReply,outLatency,outError));
+    },"ai-test").start();
+  }
   static String normalizeBase(String url) {
     String value=url==null?"":url.trim();
     if(!value.matches("(?i)^[a-z][a-z0-9+.-]*://.*"))value="https://"+value;

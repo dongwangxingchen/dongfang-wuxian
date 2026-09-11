@@ -5,8 +5,9 @@ import android.content.SharedPreferences;
 import android.graphics.Color;
 
 /** 主题引擎：设计 token 的唯一真源（单文件、零第三方依赖）。
- *  <p>nova   = v1.3.0 「高级材质」：Claude/Anthropic 暖陶土美学（暖灰阶 + clay 唯一主色 + 纸感 1dp 描边）；
- *  <p>legacy = 「原生安卓」：v1.2.3 经典紫配色（封存保留，可在设置-外观中切换）。
+ *  <p>v1.5.0 起仅两主题（用户指令：删除「高级材质」nova）：
+ *  <p>legacy = 「原生安卓」：经典紫配色（默认主题）。
+ *  <p>apple  = 「高级苹果」：iOS 质感（分组白卡 + systemBlue + 快脆弹簧）。
  *  <p>所有色值经此表解析，MainActivity.applySystemColors() 只在启动/切换时从本引擎取值，
  *  其余 UI 组件一律通过 MainActivity 的 token 字段取色，保证一套色板贯穿全 App（含 ToolHost/AiChat）。 */
 final class ThemeEngine {
@@ -34,15 +35,7 @@ final class ThemeEngine {
     }
   }
 
-/** nova：边框驱动 + 双面浮层 + 次级强调（计划 08 定稿，对比度全部 ≥4.5:1） 
- *  v1.3.0 重做：Claude/Anthropic 官方暗色（claude.com gray 色阶 + clay 唯一主色 + 低饱和状态色，
- *  研究归档 01-研究资料/09-1-anthropic-claude美学.md R1–R22、09-2 定稿） */
-static final Design NOVA=new Design("nova","高级材质","Claude 暖灰 · 陶土橙 · 纸感描边",
-  0xFF141413,0xFF1D1C1A,0xFF26241F,0xFF2E2C28,
-  0xFFD97757,0xFFE89A86,0xFFC6613F,0xFF61AAF2,
-  0xFFEAE7DF,0xFFA9A39A,0xFFD47563);
-
-/** legacy：v1.2.3 及以前的紫温经典（原 applySystemColors 原色值），封存可切换 */
+/** legacy：经典紫温（原 applySystemColors 原色值），默认主题 */
 static final Design LEGACY=new Design("legacy","原生安卓","系统默认 · 经典紫配色",
     0xFF0B0A12,0xFF16141F,0xFF262332,0xFF262332,
     0xFFA78BFA,0xFFC494FF,0xFF8B5CF6,0xFF8FB8F0,
@@ -57,7 +50,7 @@ static final Design APPLE=new Design("apple","高级苹果","iOS 质感 · 系�
     0xFF007AFF,0xFF0066D6,0xFFE5F0FF,0xFF5856D6,
     0xFF000000,0xFF8A8A8E,0xFFFF3B30);
 
-static final Design[] ALL={NOVA,LEGACY,APPLE};
+static final Design[] ALL={LEGACY,APPLE};
 
 /** 把品牌色（或任意色）按 alpha 合成半透明底，随主题自动联动（选中底/徽标底/气泡底等） */
 static int tint(int color,int alpha){return Color.argb(alpha,Color.red(color),Color.green(color),Color.blue(color));}
@@ -80,6 +73,10 @@ static int selectedFill(int primary){return tint(primary,30);}
       id="legacy";
       try{SharedPreferences.Editor e=p.edit();if(e!=null)e.putBoolean(KEY_MIGRATED_131,true).putString(KEY_THEME,id).apply();}catch(Throwable ignored){}
     }
+    if("nova".equals(id)){// v1.5.0 删主题迁移：nova 已不存在，落回 legacy 并写盘
+      id="legacy";
+      try{SharedPreferences.Editor e=p.edit();if(e!=null)e.putString(KEY_THEME,id).apply();}catch(Throwable ignored){}
+    }
     cache=byId(id);
     return cache.id;
   }
@@ -89,11 +86,12 @@ static int selectedFill(int primary){return tint(primary,30);}
   }
   static String label(Context c){return byId(activeId(c)).label;}
   static String tagline(Context c){return byId(activeId(c)).tagline;}
-  /** 主题性格判断（v1.4.0 动效分支用）：apple=快脆弹簧去ripple；legacy=Material规整；nova=慢速有机 */
+  /** 主题性格判断（v1.4.0 动效分支用）：apple=快脆弹簧去ripple；legacy=Material规整 */
   static boolean isApple(Context c){return "apple".equals(activeId(c));}
   static boolean isLegacy(Context c){return "legacy".equals(activeId(c));}
 
-  static Design byId(String id){for(Design d:ALL)if(d.id.equals(id))return d;return NOVA;}
+  /** v1.5.0：nova「高级材质」主题整体删除，存量用户的 nova 偏好一次性迁回 legacy */
+  static Design byId(String id){for(Design d:ALL)if(d.id.equals(id))return d;return LEGACY;}
   static Design active(Context c){return byId(activeId(c));}
   /** 当前主题的选中态底色（v1.3.0 起按主色动态合成，避免硬编码紫） */
   static int selectedFill(Context c){return selectedFill(active(c).primary);}

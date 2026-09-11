@@ -10,7 +10,7 @@ public class StopwatchLayoutTest {
   @Rule public final Paparazzi paparazzi = new Paparazzi();
 
   @Test public void dumpPositions() {
-    ToolPagePreviewTest.PreviewHost host = new ToolPagePreviewTest.PreviewHost(paparazzi.getContext(), ThemeEngine.NOVA);
+    ToolPagePreviewTest.PreviewHost host = new ToolPagePreviewTest.PreviewHost(paparazzi.getContext(), ThemeEngine.LEGACY);
     host.newRoot();
     ToolHost toolHost = new ToolHost(host);
     toolHost.renderTool("stopwatch");
