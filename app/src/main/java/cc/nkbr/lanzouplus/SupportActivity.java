@@ -48,13 +48,13 @@ public class SupportActivity extends Activity {
     density=getResources().getDisplayMetrics().density;
     root=new LinearLayout(this);root.setOrientation(LinearLayout.VERTICAL);root.setBackgroundColor(BG);
     setContentView(root);
-    if(Support.unlocked(this))renderThankYou();else renderSupportPage();
+    // v1.5.1 用户定调：无论是否已解锁，进来永远先看到赞助码页；点下方解锁按钮才进爱心感谢页
+    renderSupportPage();
   }
 
   @Override protected void onResume(){
     super.onResume();
-    // 从支付 App 扫码回来时刷新解锁态（若用户在其他入口已标记）
-    if(Support.unlocked(this)&&!thankYouMode)renderThankYou();
+    // thankYouMode 时无需处理；未解锁的赞助码页保持不动（扫码回来解锁仍由解锁按钮触发）
   }
   boolean thankYouMode;
 
@@ -119,20 +119,7 @@ public class SupportActivity extends Activity {
     page.addView(price,priceLp);
     // 收款区：微信单卡全宽（用户仅收款微信；码图撑满卡宽，消除两侧留白）
     page.addView(codeCard("微信收款码",R.drawable.pay_wechat,"微信扫码 · 付 10 元"),new LinearLayout.LayoutParams(-1,-2));
-    // 复制金额小按钮
-    TextView copyAmount=tool("复制金额 ¥10",13);
-    copyAmount.setGravity(Gravity.CENTER);
-    GradientDrawable chip=solidShape(SURFACE2,20);chip.setStroke(dp(1),BORDER);
-    copyAmount.setBackground(chip);
-    copyAmount.setOnClickListener(v->{
-      ((android.content.ClipboardManager)getSystemService(CLIPBOARD_SERVICE)).setPrimaryClip(android.content.ClipData.newPlainText("支持金额","10"));
-      MainActivity.showSupportNotice(this,"金额 ¥10 已复制");
-    });
-    LinearLayout copyWrap=new LinearLayout(this);copyWrap.setGravity(Gravity.CENTER);
-    copyWrap.addView(copyAmount,new LinearLayout.LayoutParams(dp(150),dp(38)));
-    LinearLayout.LayoutParams copyParams=new LinearLayout.LayoutParams(-1,-2);copyParams.setMargins(0,dp(12),0,0);
-    page.addView(copyWrap,copyParams);
-    // 主 CTA：第一人称动词句，零验证解锁
+    // 主 CTA：第一人称动词句，零验证解锁（v1.5.1 删「复制金额」小按钮——重复无用，减小字）
     Button confirm=new Button(this);
     confirm.setText("诚信付费，解锁全部权限");
     confirm.setAllCaps(false);confirm.setTextSize(15);confirm.setTypeface(Typeface.DEFAULT,Typeface.BOLD);

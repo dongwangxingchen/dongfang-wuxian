@@ -27,10 +27,11 @@ final class Support {
     SharedPreferences p=prefs(c);
     try{SharedPreferences.Editor e=p.edit();if(e!=null)e.putLong(KEY_LAST_NAG_AT,System.currentTimeMillis()).apply();}catch(Throwable ignored){}
   }
-  /** 零验证零延迟解锁（Seal/MiXplorer 捐赠型产品的信任模式；付费页小字已说明换机后重按一次即可） */
+  /** 零验证零延迟解锁（Seal/MiXplorer 捐赠型产品的信任模式；付费页小字已说明换机后重按一次即可）。
+   *  v1.5.1 幂等：已解锁状态下重复点解锁不覆盖首次付费日期（感谢页日期 = 首次支持日） */
   static void unlock(Context c){
     SharedPreferences p=prefs(c);
-    try{SharedPreferences.Editor e=p.edit();if(e!=null)e.putBoolean(KEY_UNLOCKED,true).putLong(KEY_PAID_AT,System.currentTimeMillis()).apply();}catch(Throwable ignored){}
+    try{long first=p.getLong(KEY_PAID_AT,0L);SharedPreferences.Editor e=p.edit();if(e!=null){e.putBoolean(KEY_UNLOCKED,true);if(first<=0L)e.putLong(KEY_PAID_AT,System.currentTimeMillis());e.apply();}}catch(Throwable ignored){}
   }
   private static SharedPreferences prefs(Context c){return c.getSharedPreferences(PREF_FILE,Context.MODE_PRIVATE);}
 
