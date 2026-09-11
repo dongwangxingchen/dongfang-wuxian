@@ -1,4 +1,4 @@
-﻿plugins { id("com.android.application"); id("app.cash.paparazzi") }
+plugins { id("com.android.application"); id("app.cash.paparazzi") }
 
 tasks.withType<JavaCompile>().configureEach { options.compilerArgs.add("-g:none") }
 
@@ -7,7 +7,7 @@ android {
  compileSdk = 36
  buildFeatures { buildConfig = true; aidl = true }
  androidResources { additionalParameters += listOf("--no-xml-namespaces", "--no-compile-sdk-metadata") }
- defaultConfig { applicationId = "dfwx.dongdang"; minSdk = 24; targetSdk = 36; versionCode = 1030004; versionName = "1.4.0" }
+ defaultConfig { applicationId = "dfwx.dongdang"; minSdk = 24; targetSdk = 36; versionCode = 1030005; versionName = "1.4.1" }
  flavorDimensions += "catalog"
  productFlavors {
   create("empty") {

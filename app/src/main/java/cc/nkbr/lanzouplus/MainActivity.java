@@ -124,7 +124,7 @@ public final class MainActivity extends Activity implements ToolHost.Host {
     LinearLayout panel=new LinearLayout(this);panel.setOrientation(LinearLayout.VERTICAL);panel.setPadding(dp(22),dp(16),dp(22),dp(6));
     TextView heading=text("支持开发 · 自愿付费",20,TEXT);heading.setTypeface(android.graphics.Typeface.DEFAULT,android.graphics.Typeface.BOLD);panel.addView(heading,new LinearLayout.LayoutParams(-1,dp(40)));
     TextView body=text("制作软件花费了大量时间和金钱。\n如果你愿意支持 10 元（一次付费 · 长期有效），\n扫码即可；不付费也可以继续使用。",13,MUTED);body.setPadding(0,dp(6),0,dp(10));panel.addView(body,new LinearLayout.LayoutParams(-1,-2));
-    TextView openPage=text("打开支持页面（微信 / 支付宝收款码）",14,PRIMARY);openPage.setClickable(true);openPage.setFocusable(true);openPage.setTypeface(android.graphics.Typeface.DEFAULT,android.graphics.Typeface.BOLD);openPage.setPaintFlags(openPage.getPaintFlags()|Paint.UNDERLINE_TEXT_FLAG);openPage.setPadding(0,dp(2),0,dp(6));openPage.setOnClickListener(v->openSupportActivity());panel.addView(openPage,new LinearLayout.LayoutParams(-1,dp(40)));
+    TextView openPage=text("打开支持页面（微信收款码）",14,PRIMARY);openPage.setClickable(true);openPage.setFocusable(true);openPage.setTypeface(android.graphics.Typeface.DEFAULT,android.graphics.Typeface.BOLD);openPage.setPaintFlags(openPage.getPaintFlags()|Paint.UNDERLINE_TEXT_FLAG);openPage.setPadding(0,dp(2),0,dp(6));openPage.setOnClickListener(v->openSupportActivity());panel.addView(openPage,new LinearLayout.LayoutParams(-1,dp(40)));
     AlertDialog prompt=new AlertDialog.Builder(this).setView(panel).setNegativeButton("继续下载（不付费）",(dialog,which)->action.run()).setPositiveButton("打开支持页",(dialog,which)->{openSupportActivity();action.run();}).create();showRounded(prompt);
   }
   /** 打开独立支持窗口（单独 Activity，非弹窗——用户明确要求单独窗口） */
