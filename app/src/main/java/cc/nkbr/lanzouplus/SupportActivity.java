@@ -79,7 +79,7 @@ public class SupportActivity extends Activity {
     LinearLayout page=new LinearLayout(this);page.setOrientation(LinearLayout.VERTICAL);page.setPadding(dp(20),dp(10),dp(20),dp(16));
     // 顶栏：左上小字"支持开发者"，右上 × 永远可关（44dp 触达）
     LinearLayout top=new LinearLayout(this);top.setGravity(Gravity.CENTER_VERTICAL);
-    TextView kicker=text("支持开发者",12,MUTED);top.addView(kicker,new LinearLayout.LayoutParams(0,dp(44),1));
+    TextView kicker=text("诚信付费 · 自愿",12,MUTED);top.addView(kicker,new LinearLayout.LayoutParams(0,dp(44),1));
     TextView close=tool("✕",16);close.setContentDescription("关闭支持页面");
     close.setOnClickListener(v->finish());
     top.addView(close,new LinearLayout.LayoutParams(dp(44),dp(44)));
@@ -103,8 +103,8 @@ public class SupportActivity extends Activity {
     page.addView(benefitRow("🔓","全部下载权限直接开放"),new LinearLayout.LayoutParams(-1,dp(34)));
     page.addView(benefitRow("🛠","35 个本地工具永久全功能"),new LinearLayout.LayoutParams(-1,dp(34)));
     page.addView(benefitRow("🤖","AI 对话不限次 · 一次付费长期有效"),new LinearLayout.LayoutParams(-1,dp(34)));
-    // 收款区：微信单卡全宽（用户仅收款微信，v1.4.1 起不放支付宝）
-    page.addView(codeCard("微信收款码",R.drawable.pay_wechat,"微信扫码 · 付 10 元",200),new LinearLayout.LayoutParams(-1,-2));
+    // 收款区：微信单卡全宽（用户仅收款微信；码图撑满卡宽，消除两侧留白）
+    page.addView(codeCard("微信收款码",R.drawable.pay_wechat,"微信扫码 · 付 10 元"),new LinearLayout.LayoutParams(-1,-2));
     // 复制金额小按钮
     TextView copyAmount=tool("复制金额 ¥10",13);
     copyAmount.setGravity(Gravity.CENTER);
@@ -181,19 +181,21 @@ public class SupportActivity extends Activity {
     return row;
   }
 
-  /** 收款码卡片：白底浮起（深色页面上收款码必须白底才可扫），imgDp 为码图高度 */
-  LinearLayout codeCard(String label,int drawableRes,String hint,int imgDp){
-    LinearLayout card=new LinearLayout(this);card.setOrientation(LinearLayout.VERTICAL);card.setGravity(Gravity.CENTER_HORIZONTAL);
+  /** 收款码卡片：白底浮起（深色页面上收款码必须白底才可扫）；码图 adjustViewBounds 撑满卡宽、
+   *  高度按原图比例自适应（v1.4.2 消除 FIT_CENTER 定高造成的两侧大留白），卡片 padding 归零 +
+   *  clipToOutline 让码图边缘贴合卡片圆角 */
+  LinearLayout codeCard(String label,int drawableRes,String hint){
+    LinearLayout card=new LinearLayout(this);card.setOrientation(LinearLayout.VERTICAL);
     GradientDrawable bg=solidShape(Color.WHITE,16);bg.setStroke(dp(1),BORDER);
-    card.setBackground(bg);card.setElevation(dp(2));
-    card.setPadding(dp(10),dp(10),dp(10),dp(10));
+    card.setBackground(bg);card.setElevation(dp(2));card.setClipToOutline(true);
     ImageView code=new ImageView(this);
     code.setImageResource(drawableRes);
     code.setScaleType(ImageView.ScaleType.FIT_CENTER);
+    code.setAdjustViewBounds(true);
     code.setContentDescription(label+"，扫码支付 10 元");
-    card.addView(code,new LinearLayout.LayoutParams(-1,dp(imgDp)));
-    TextView name=text(label,12,Color.DKGRAY);name.setGravity(Gravity.CENTER);name.setPadding(0,dp(6),0,0);
-    card.addView(name,new LinearLayout.LayoutParams(-1,dp(22)));
+    card.addView(code,new LinearLayout.LayoutParams(-1,-2));
+    TextView name=text(label,12,Color.DKGRAY);name.setGravity(Gravity.CENTER);name.setPadding(dp(6),dp(10),dp(6),dp(12));
+    card.addView(name,new LinearLayout.LayoutParams(-1,-2));
     return card;
   }
 
