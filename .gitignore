@@ -33,3 +33,6 @@ verification/
 *_log.txt
 *_log2.txt
 Screenshot_*.jpg
+
+# 工具状态不入库
+.mimosa/
