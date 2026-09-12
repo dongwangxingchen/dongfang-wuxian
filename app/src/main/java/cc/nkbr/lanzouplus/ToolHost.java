@@ -474,25 +474,67 @@ final class ToolHost {
   }
 
   void scorecard(LinearLayout body){
+    // v1.7.6 记分牌重做（研究 Google Android Basics 课程标准记分牌规格）：
+    // 补齐两个功能缺失——①只有加没有减（记分牌硬伤）②步长固定为 1；并把分数字号放大到接近官方 56sp
     int[] scores={0,0};
+    final int[] step={1};
+    // 分数展示区（大字，远距离可读——官方用 56sp 细体）
     LinearLayout row=new LinearLayout(ctx);
     TextView a=bigScore("甲"),b=bigScore("乙");
     LinearLayout.LayoutParams half=new LinearLayout.LayoutParams(0,-1,1);half.setMargins(act.dp(4),0,act.dp(4),0);
-    row.addView((View)a.getTag(),half);row.addView((View)b.getTag(),half);// 外壳承载布局，内部 value TextView 才是点击目标
-    body.addView(row,new LinearLayout.LayoutParams(-1,act.dp(120)));
+    row.addView((View)a.getTag(),half);row.addView((View)b.getTag(),half);
+    body.addView(row,new LinearLayout.LayoutParams(-1,act.dp(148)));
+    // 步长选择（1/2/3/5/10，覆盖篮球/乒乓/桌游等主流场景）
+    TextView stepTitle=text("步长",11,act.MUTED());stepTitle.setPadding(0,act.dp(10),0,act.dp(2));body.addView(stepTitle,new LinearLayout.LayoutParams(-1,-2));
+    LinearLayout stepRow=chipRow(body);
+    int[] steps={1,2,3,5,10};TextView[] stepChips=new TextView[steps.length];
+    for(int i=0;i<steps.length;i++){final int v=steps[i];final int idx=i;
+      stepChips[i]=selectChip(stepRow,String.valueOf(v),i==0,()->{step[0]=v;for(int j=0;j<stepChips.length;j++)styleSelect(stepChips[j],j==idx);});
+    }
+    // 加减双向计分（v1.7.6 目检修正：原四按钮一行会分不清归属 → 改为左右分栏，每侧的 +/− 在各自列内，对齐 Google 课程的左右分栏布局）
+    LinearLayout deltaRow=new LinearLayout(ctx);deltaRow.setGravity(Gravity.CENTER_VERTICAL);
+    LinearLayout colA=new LinearLayout(ctx);colA.setOrientation(LinearLayout.VERTICAL);
+    LinearLayout colB=new LinearLayout(ctx);colB.setOrientation(LinearLayout.VERTICAL);
+    TextView minusA=scoreButton("−",act.ERROR_TOKEN());TextView plusA=scoreButton("＋",act.PRIMARY());
+    TextView minusB=scoreButton("−",act.ERROR_TOKEN());TextView plusB=scoreButton("＋",act.PRIMARY());
+    LinearLayout.LayoutParams btnLp=new LinearLayout.LayoutParams(-1,act.dp(52));btnLp.setMargins(act.dp(4),act.dp(3),act.dp(4),act.dp(3));
+    colA.addView(plusA,btnLp);
+    LinearLayout.LayoutParams btnLp2=new LinearLayout.LayoutParams(-1,act.dp(52));btnLp2.setMargins(act.dp(4),act.dp(3),act.dp(4),act.dp(3));
+    colA.addView(minusA,btnLp2);
+    LinearLayout.LayoutParams btnLp3=new LinearLayout.LayoutParams(-1,act.dp(52));btnLp3.setMargins(act.dp(4),act.dp(3),act.dp(4),act.dp(3));
+    colB.addView(plusB,btnLp3);
+    LinearLayout.LayoutParams btnLp4=new LinearLayout.LayoutParams(-1,act.dp(52));btnLp4.setMargins(act.dp(4),act.dp(3),act.dp(4),act.dp(3));
+    colB.addView(minusB,btnLp4);
+    LinearLayout.LayoutParams colLp=new LinearLayout.LayoutParams(0,-2,1);colLp.setMargins(act.dp(4),0,act.dp(4),0);
+    deltaRow.addView(colA,colLp);
+    LinearLayout.LayoutParams colLp2=new LinearLayout.LayoutParams(0,-2,1);colLp2.setMargins(act.dp(4),0,act.dp(4),0);
+    deltaRow.addView(colB,colLp2);
+    body.addView(deltaRow,new LinearLayout.LayoutParams(-1,-2));
+    // 独立重置按钮（对齐官方做法；长按分数清零保留为快捷方式）
     LinearLayout actions=actionRow(body);
-    action(actions,"重置",()->{scores[0]=0;scores[1]=0;a.setText("0");b.setText("0");});
-    TextView hint=text("点击分数加减；长按清零该侧",11,act.MUTED());hint.setPadding(0,act.dp(6),0,0);body.addView(hint,new LinearLayout.LayoutParams(-1,-2));
-    a.setOnClickListener(v->{scores[0]++;a.setText(String.valueOf(scores[0]));bump(a);});
-    a.setOnLongClickListener(v->{scores[0]=0;a.setText("0");return true;});
-    b.setOnClickListener(v->{scores[1]++;b.setText(String.valueOf(scores[1]));bump(b);});
-    b.setOnLongClickListener(v->{scores[1]=0;b.setText("0");return true;});
+    action(actions,"重置比分",()->{scores[0]=0;scores[1]=0;a.setText("0");b.setText("0");});
+    TextView hint=text("点 ＋/− 按当前步长加减；长按分数直接清零",11,act.MUTED());hint.setPadding(0,act.dp(6),0,0);body.addView(hint,new LinearLayout.LayoutParams(-1,-2));
+    Runnable refresh=()->{a.setText(String.valueOf(scores[0]));b.setText(String.valueOf(scores[1]));};
+    plusA.setOnClickListener(v->{scores[0]+=step[0];refresh.run();bump(a);});
+    minusA.setOnClickListener(v->{scores[0]-=step[0];refresh.run();bump(a);});
+    plusB.setOnClickListener(v->{scores[1]+=step[0];refresh.run();bump(b);});
+    minusB.setOnClickListener(v->{scores[1]-=step[0];refresh.run();bump(b);});
+    a.setOnLongClickListener(v->{scores[0]=0;refresh.run();return true;});
+    b.setOnLongClickListener(v->{scores[1]=0;refresh.run();return true;});
+  }
+  /** 记分牌加减按钮（大尺寸，颜色区分方向） */
+  TextView scoreButton(String label,int color){
+    TextView key=text(label,26,color);key.setGravity(Gravity.CENTER);key.setClickable(true);key.setFocusable(true);
+    key.setContentDescription(label.equals("＋")?"加分":"减分");
+    GradientDrawable bg=solid(ThemeEngine.tint(color,40));bg.setCornerRadius(act.dp(16));bg.setStroke(act.dp(1),ThemeEngine.tint(color,110));
+    key.setBackground(ripple(bg));
+    return key;
   }
   TextView bigScore(String label){
     LinearLayout wrap=new LinearLayout(ctx);wrap.setOrientation(LinearLayout.VERTICAL);wrap.setGravity(Gravity.CENTER);
     GradientDrawable bg=solid(act.SURFACE());bg.setStroke(act.dp(1),act.DIV());wrap.setBackground(ripple(bg));
     TextView name=text(label,12,act.MUTED());name.setGravity(Gravity.CENTER);wrap.addView(name,new LinearLayout.LayoutParams(-1,act.dp(24)));
-    TextView value=text("0",34,act.TEXT());value.setTypeface(android.graphics.Typeface.DEFAULT,android.graphics.Typeface.BOLD);value.setGravity(Gravity.CENTER);
+    TextView value=text("0",56,act.TEXT());value.setTypeface(android.graphics.Typeface.create("sans-serif-light",android.graphics.Typeface.NORMAL));value.setGravity(Gravity.CENTER);// v1.7.6：34->56sp 细体（对齐 Google 课程规格 56sp sans-serif-light，远距离可读）
     wrap.addView(value,new LinearLayout.LayoutParams(-1,act.dp(64)));
     // 返回内层分数 TextView；用 tag 关联外壳
     value.setTag(wrap);return value;
