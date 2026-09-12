@@ -429,13 +429,47 @@ final class ToolHost {
   }
 
   void decision(LinearLayout body){
+    // v1.7.5 随机决策重做（研究 Google 官方 dice roller 示例：结果必须是图形而非文字）
+    // 上半：图形结果区（骰子点阵 / 硬币圆形，自绘零依赖）
+    // 骰子面必须与背景有明确对比：legacy 的 surface2 偏暗、apple 的 surface2 与背景同色 → 统一用「主色淡染」保证两个主题都清晰可见
+    int diceFace=ThemeEngine.tint(act.PRIMARY(),44);
+    LinearLayout stage=new LinearLayout(ctx);stage.setGravity(Gravity.CENTER);stage.setMinimumHeight(act.dp(132));
+    DiceView dice=new DiceView(ctx,diceFace,act.TEXT(),18);
+    DiceView.CoinView coin=new DiceView.CoinView(ctx,act.PRIMARY(),act.BG(),"正","反");
+    int stageSize=act.dp(120);
+    stage.addView(dice,new LinearLayout.LayoutParams(stageSize,stageSize));
+    stage.addView(coin,new LinearLayout.LayoutParams(stageSize,stageSize));
+    coin.setVisibility(View.GONE);
+    body.addView(stage,new LinearLayout.LayoutParams(-1,-2));
+    // 结果大字（辅助文字说明，图形为主）
+    TextView bigResult=text("点按下方按钮开始",15,act.MUTED());bigResult.setGravity(Gravity.CENTER);bigResult.setPadding(0,act.dp(10),0,act.dp(6));
+    body.addView(bigResult,new LinearLayout.LayoutParams(-1,-2));
+    // 主操作按钮（加大加粗，对齐官方 24sp 大按钮的设计意图）
     LinearLayout actions=actionRow(body);
-    action(actions,"抛硬币",()->((TextView)body.findViewWithTag("tool-output")).setText(Toolbox.coinFlip()));
-    action(actions,"掷骰子",()->((TextView)body.findViewWithTag("tool-output")).setText("点数："+Toolbox.diceRoll(6)));
-    action(actions,"1-100 随机",()->((TextView)body.findViewWithTag("tool-output")).setText(String.valueOf(Toolbox.diceRoll(100))));
+    action(actions,"抛硬币",()->{
+      boolean heads=Math.random()<0.5;
+      coin.setVisibility(View.VISIBLE);dice.setVisibility(View.GONE);
+      coin.setHeads(heads);
+      bigResult.setText(heads?"正面":"反面");bigResult.setTextColor(act.PRIMARY());bigResult.setTextSize(22);
+    });
+    action(actions,"掷骰子",()->{
+      int v=Toolbox.diceRoll(6);
+      dice.setVisibility(View.VISIBLE);coin.setVisibility(View.GONE);
+      dice.setValue(v);
+      bigResult.setText("点数 "+v);bigResult.setTextColor(act.PRIMARY());bigResult.setTextSize(22);
+    });
+    action(actions,"1-100 随机",()->{
+      int v=Toolbox.diceRoll(100);
+      dice.setVisibility(View.GONE);coin.setVisibility(View.GONE);
+      bigResult.setText(String.valueOf(v));bigResult.setTextColor(act.PRIMARY());bigResult.setTextSize(28);
+    });
     EditText options=input(body,"做个决定：候选用空格分隔（如 吃面 吃饭 麻辣烫）",60);
     LinearLayout decideRow=actionRow(body);
-    action(decideRow,"帮我决定",()->((TextView)body.findViewWithTag("tool-output")).setText(Toolbox.decide(options.getText().toString().trim().split("\\s+"))));
+    action(decideRow,"帮我决定",()->{
+      String out=Toolbox.decide(options.getText().toString().trim().split("\\s+"));
+      dice.setVisibility(View.GONE);coin.setVisibility(View.GONE);
+      bigResult.setText(out);bigResult.setTextColor(act.PRIMARY());bigResult.setTextSize(20);
+    });
     result(body);
   }
 
