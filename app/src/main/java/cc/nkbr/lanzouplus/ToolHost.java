@@ -338,14 +338,51 @@ final class ToolHost {
     TextView[] catChips=new TextView[categories.length];
     final Runnable[] rebuildRef={(Runnable)null};
     for(int i=0;i<categories.length;i++){final int idx=i;catChips[i]=selectChip(catRow,categories[i],i==0,()->{catSel[0]=idx;for(int j=0;j<catChips.length;j++)styleSelect(catChips[j],j==idx);if(rebuildRef[0]!=null)rebuildRef[0].run();});}
-    final EditText value=input(body,"输入数值",44);value.setInputType(InputType.TYPE_CLASS_NUMBER|InputType.TYPE_NUMBER_FLAG_DECIMAL);value.setSingleLine(true);
-    TextView out=result(body);
-    TextView fromTitle=text("从",11,act.MUTED());fromTitle.setPadding(0,act.dp(8),0,act.dp(2));body.addView(fromTitle,new LinearLayout.LayoutParams(-1,-2));
+    // v1.7.3 单位换算重做（研究 Unitto 720★ 真实截图）：结果区改为「上下两行大数字对照」，单位符号独立小字在右下
+    LinearLayout display=new LinearLayout(ctx);display.setOrientation(LinearLayout.VERTICAL);display.setBackground(solid(act.SURFACE()));display.setPadding(act.dp(16),act.dp(14),act.dp(16),act.dp(14));
+    LinearLayout fromLine=new LinearLayout(ctx);fromLine.setOrientation(LinearLayout.VERTICAL);fromLine.setGravity(Gravity.END);
+    TextView fromValue=text("1",32,act.TEXT());fromValue.setGravity(Gravity.END);fromValue.setSingleLine(true);
+    fromLine.addView(fromValue,new LinearLayout.LayoutParams(-1,-2));
+    TextView fromUnitLabel=text("",13,act.MUTED());fromUnitLabel.setGravity(Gravity.END);LinearLayout.LayoutParams fromUnitLp=new LinearLayout.LayoutParams(-1,-2);fromUnitLp.topMargin=act.dp(2);fromLine.addView(fromUnitLabel,fromUnitLp);
+    display.addView(fromLine,new LinearLayout.LayoutParams(-1,-2));
+    LinearLayout toLine=new LinearLayout(ctx);toLine.setOrientation(LinearLayout.VERTICAL);toLine.setGravity(Gravity.END);
+    LinearLayout.LayoutParams toLineLp=new LinearLayout.LayoutParams(-1,-2);toLineLp.topMargin=act.dp(18);// v1.7.3：两行数字间距加大（Unitto 的输入/输出是明确分离的两个区块）
+    TextView toValue=text("",40,act.PRIMARY());toValue.setGravity(Gravity.END);toValue.setSingleLine(true);toValue.setTypeface(android.graphics.Typeface.DEFAULT,android.graphics.Typeface.BOLD);
+    toValue.setContentDescription("换算结果，点按复制");
+    toLine.addView(toValue,new LinearLayout.LayoutParams(-1,-2));
+    TextView toUnitLabel=text("",13,act.MUTED());toUnitLabel.setGravity(Gravity.END);LinearLayout.LayoutParams toUnitLp=new LinearLayout.LayoutParams(-1,-2);toUnitLp.topMargin=act.dp(2);toLine.addView(toUnitLabel,toUnitLp);
+    display.addView(toLine,toLineLp);
+    toValue.setClickable(true);toValue.setFocusable(true);
+    toValue.setOnClickListener(v->{String value=toValue.getText().toString().trim();if(value.isEmpty())return;copy(value);act.showNotice("已复制",false);});
+    body.addView(display,new LinearLayout.LayoutParams(-1,-2));
+    final EditText value=new EditText(ctx);value.setText("1");value.setSingleLine(true);value.setTextColor(act.TEXT());value.setHintTextColor(act.MUTED());value.setHint("输入数值");value.setTextSize(16);
+    value.setInputType(InputType.TYPE_CLASS_NUMBER|InputType.TYPE_NUMBER_FLAG_DECIMAL|InputType.TYPE_NUMBER_FLAG_SIGNED);
+    value.setBackground(solid(act.SURFACE2()));value.setPadding(act.dp(14),0,act.dp(14),0);value.setMinHeight(act.dp(52));
+    LinearLayout.LayoutParams valueLp=new LinearLayout.LayoutParams(-1,act.dp(52));valueLp.topMargin=act.dp(10);body.addView(value,valueLp);
+    TextView fromTitle=text("从",11,act.MUTED());fromTitle.setPadding(0,act.dp(10),0,act.dp(2));body.addView(fromTitle,new LinearLayout.LayoutParams(-1,-2));
     LinearLayout fromRow=chipRow(body);
-    LinearLayout swapRow=new LinearLayout(ctx);swapRow.setGravity(Gravity.CENTER);LinearLayout.LayoutParams swapParams=new LinearLayout.LayoutParams(-1,-2);swapParams.setMargins(0,act.dp(4),0,act.dp(4));body.addView(swapRow,swapParams);
+    // v1.7.3：交换按钮移到两个单位选择器之间（对齐 Unitto 的位置逻辑）
+    LinearLayout swapRow=new LinearLayout(ctx);swapRow.setGravity(Gravity.CENTER);LinearLayout.LayoutParams swapParams=new LinearLayout.LayoutParams(-1,-2);swapParams.setMargins(0,act.dp(6),0,act.dp(6));body.addView(swapRow,swapParams);
     TextView toTitle=text("到",11,act.MUTED());toTitle.setPadding(0,act.dp(2),0,act.dp(2));body.addView(toTitle,new LinearLayout.LayoutParams(-1,-2));
     LinearLayout toRow=chipRow(body);
-    Runnable convert=()->{try{double v=Double.parseDouble(value.getText().toString());out.setText(categories[catSel[0]]+"：1"+unitOf(fromRow)+" → "+Toolbox.convertUnit(categories[catSel[0]],v,unitOf(fromRow),unitOf(toRow)));}catch(Exception ignored){}};
+    Runnable convert=()->{
+      String fromU=unitOf(fromRow),toU=unitOf(toRow);
+      fromUnitLabel.setText(fromU);toUnitLabel.setText(toU);
+      String raw=value.getText().toString().trim();
+      if(raw.isEmpty()){fromValue.setText("—");toValue.setText("");return;}
+      fromValue.setText(raw);
+      try{double v=Double.parseDouble(raw);String converted=Toolbox.convertUnit(categories[catSel[0]],v,fromU,toU);
+        // Toolbox 返回的是完整句子，这里只取数值部分做大字展示
+        String num=converted;
+        int arrow=converted.indexOf("→");
+        if(arrow>=0){num=converted.substring(arrow+1).trim();
+          int sp=num.indexOf(' ');
+          if(sp>0){num=num.substring(0,sp);}else{int u=num.indexOf(categories[catSel[0]]);if(u>0)num=num.substring(0,u).trim();}
+          // 去掉单位后缀（保留纯数值）
+          num=num.replaceAll("[^0-9.\\-eE+]","");}
+        toValue.setText(num.isEmpty()?converted:num);
+      }catch(Exception e){toValue.setText("请输入数字");}
+    };
     Runnable rebuildUnits=()->{
       fromRow.removeAllViews();toRow.removeAllViews();
       String[] units=unitsOf(categories[catSel[0]]);
@@ -355,7 +392,7 @@ final class ToolHost {
     };
     rebuildRef[0]=rebuildUnits;rebuildUnits.run();
     value.addTextChangedListener(new android.text.TextWatcher(){public void beforeTextChanged(CharSequence s,int a,int b,int c){}public void onTextChanged(CharSequence s,int a,int b,int c){}public void afterTextChanged(android.text.Editable s){convert.run();}});
-    TextView swap=selectChip(swapRow,"⇅ 交换单位",false,()->{String a=unitOf(fromRow),b=unitOf(toRow);swapChips(fromRow,b);swapChips(toRow,a);convert.run();});
+    TextView swap=selectChip(swapRow,"⇄ 交换单位",false,()->{String a=unitOf(fromRow),b=unitOf(toRow);swapChips(fromRow,b);swapChips(toRow,a);convert.run();});
     ((LinearLayout.LayoutParams)swap.getLayoutParams()).gravity=Gravity.CENTER_HORIZONTAL;
   }
   String[] unitsOf(String category){
