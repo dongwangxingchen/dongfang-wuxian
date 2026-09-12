@@ -186,8 +186,19 @@ final class Toolbox {
   static String dateDiff(String a,String b){
     try{java.text.SimpleDateFormat f=new java.text.SimpleDateFormat("yyyy-MM-dd",Locale.CHINA);f.setLenient(false);
       Calendar ca=Calendar.getInstance(),cb=Calendar.getInstance();ca.setTime(f.parse(a.trim()));cb.setTime(f.parse(b.trim()));
+      boolean neg=cb.before(ca);if(neg){Calendar t=ca;ca=cb;cb=t;}
       long days=Math.round((cb.getTimeInMillis()-ca.getTimeInMillis())/86400000.0);
-      return"相差 "+days+" 天（"+Math.abs(days/365)+" 年 "+Math.abs(days%365/30)+" 个月左右）";
+      // v1.7.4 修复：旧实现用「余天数/30」估算月份（不准，文案还自认"左右"）。
+      // 标准算法：逐级借位——日为负时向前借「起始日所在月」的天数（借位基准必须是减数侧，否则会出现负天数）。
+      int y=cb.get(Calendar.YEAR)-ca.get(Calendar.YEAR),m=cb.get(Calendar.MONTH)-ca.get(Calendar.MONTH),d=cb.get(Calendar.DAY_OF_MONTH)-ca.get(Calendar.DAY_OF_MONTH);
+      if(d<0){m--;d+=ca.getActualMaximum(Calendar.DAY_OF_MONTH);}
+      if(m<0){y--;m+=12;}
+      StringBuilder sb=new StringBuilder();
+      if(neg)sb.append("反向 ");
+      sb.append(days).append(" 天");
+      if(y>0||m>0)sb.append("（").append(y).append(" 年 ").append(m).append(" 个月 ").append(d).append(" 天）");
+      sb.append(" · ").append(days/7).append(" 周").append(days%7>0?" 余 "+days%7+" 天":"");
+      return sb.toString();
     }catch(Exception e){return"格式：2026-01-31";}
   }
   static String dateOffset(String base,int offset){
@@ -207,7 +218,8 @@ final class Toolbox {
       Calendar b=Calendar.getInstance();b.setTime(f.parse(birth.trim()));Calendar now=Calendar.getInstance();
       if(b.after(now))return"出生日期在未来";
       int years=now.get(Calendar.YEAR)-b.get(Calendar.YEAR),months=now.get(Calendar.MONTH)-b.get(Calendar.MONTH),days=now.get(Calendar.DAY_OF_MONTH)-b.get(Calendar.DAY_OF_MONTH);
-      if(days<0){months--;days+=now.getActualMaximum(Calendar.DAY_OF_MONTH);}if(months<0){years--;months+=12;}
+      if(days<0){months--;Calendar prev=Calendar.getInstance();prev.setTime(now.getTime());prev.add(Calendar.MONTH,-1);days+=prev.getActualMaximum(Calendar.DAY_OF_MONTH);}// v1.7.4 修复：借「上一个月」天数（旧实现用当前月，月份边界算错）
+      if(months<0){years--;months+=12;}
       long total=Math.round((now.getTimeInMillis()-b.getTimeInMillis())/86400000.0);
       return"周岁 "+years+" 岁 "+months+" 个月 "+days+" 天\n共生活 "+total+" 天";
     }catch(Exception e){return"格式：2000-06-15";}

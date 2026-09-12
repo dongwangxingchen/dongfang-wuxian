@@ -412,10 +412,19 @@ final class ToolHost {
   void datecalc(LinearLayout body){
     EditText a=input(body,"起始日期（2026-01-01）",44),b=input(body,"结束日期（2026-12-31，算间隔时填）",44),n=input(body,"N（推算 N 天后，可负数）",44);
     n.setInputType(InputType.TYPE_CLASS_NUMBER|InputType.TYPE_NUMBER_FLAG_SIGNED);
+    // v1.7.4 快捷预设（研究结论：日期工具的高频场景高度集中，主流做法是给预设按钮）
+    TextView quickTitle=text("快捷",11,act.MUTED());quickTitle.setPadding(0,act.dp(6),0,act.dp(2));body.addView(quickTitle,new LinearLayout.LayoutParams(-1,-2));
+    LinearLayout quick=chipRow(body);
+    java.text.SimpleDateFormat fmt=new java.text.SimpleDateFormat("yyyy-MM-dd",java.util.Locale.CHINA);
+    selectChip(quick,"今天",false,()->{a.setText(fmt.format(new java.util.Date()));});
+    selectChip(quick,"+7 天",false,()->{n.setText("7");});
+    selectChip(quick,"+30 天",false,()->{n.setText("30");});
+    selectChip(quick,"+90 天",false,()->{n.setText("90");});
+    selectChip(quick,"今年还剩",false,()->{a.setText(fmt.format(new java.util.Date()));b.setText(java.util.Calendar.getInstance().get(java.util.Calendar.YEAR)+"-12-31");});
     LinearLayout actions=actionRow(body);
     action(actions,"算间隔",()->output(body,Toolbox.dateDiff(a.getText().toString(),b.getText().toString())));
     action(actions,"N 天后",()->{try{output(body,Toolbox.dateOffset(a.getText().toString(),Integer.parseInt(n.getText().toString().trim())));}catch(Exception e){output(body,Toolbox.dateOffset(a.getText().toString(),0));}});
-    action(actions,"今天日期",()->{java.text.SimpleDateFormat f=new java.text.SimpleDateFormat("yyyy-MM-dd",java.util.Locale.CHINA);a.setText(f.format(new java.util.Date()));});
+    action(actions,"今天日期",()->{a.setText(fmt.format(new java.util.Date()));});
     result(body);
   }
 
