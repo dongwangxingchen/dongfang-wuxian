@@ -266,12 +266,12 @@ final class ToolHost {
 
   void calculator(LinearLayout body){
     // —— 显示区：可编辑表达式行 + 大字结果行（点结果复制）——
-    EditText expr=new EditText(ctx);expr.setSingleLine(true);expr.setTextSize(16);expr.setTextColor(act.TEXT());expr.setHintTextColor(act.MUTED());expr.setHint("点按下方按键，或直接输入");
-    expr.setGravity(Gravity.END|Gravity.CENTER_VERTICAL);expr.setBackground(solid(act.SURFACE()));expr.setPadding(act.dp(14),0,act.dp(14),0);expr.setMinHeight(act.dp(48));expr.setCursorVisible(true);
-    LinearLayout.LayoutParams exprParams=new LinearLayout.LayoutParams(-1,act.dp(48));exprParams.setMargins(0,0,0,act.dp(6));body.addView(expr,exprParams);
-    TextView live=text("0",28,act.TEXT());live.setTypeface(android.graphics.Typeface.DEFAULT,android.graphics.Typeface.BOLD);live.setGravity(Gravity.END|Gravity.CENTER_VERTICAL);
-    live.setBackground(solid(act.SURFACE()));live.setPadding(act.dp(14),0,act.dp(14),0);live.setMinHeight(act.dp(60));
-    body.addView(live,new LinearLayout.LayoutParams(-1,act.dp(60)));
+    EditText expr=new EditText(ctx);expr.setSingleLine(true);expr.setTextSize(18);expr.setTextColor(act.TEXT());expr.setHintTextColor(act.MUTED());expr.setHint("点按下方按键，或直接输入");
+    expr.setGravity(Gravity.END|Gravity.CENTER_VERTICAL);expr.setBackground(solid(act.SURFACE()));expr.setPadding(act.dp(16),0,act.dp(16),0);expr.setMinHeight(act.dp(60));expr.setCursorVisible(true);
+    LinearLayout.LayoutParams exprParams=new LinearLayout.LayoutParams(-1,act.dp(60));exprParams.setMargins(0,0,0,act.dp(8));body.addView(expr,exprParams);
+    TextView live=text("0",36,act.TEXT());live.setTypeface(android.graphics.Typeface.DEFAULT,android.graphics.Typeface.BOLD);live.setGravity(Gravity.END|Gravity.CENTER_VERTICAL);
+    live.setBackground(solid(act.SURFACE()));live.setPadding(act.dp(16),0,act.dp(16),0);live.setMinHeight(act.dp(92));
+    body.addView(live,new LinearLayout.LayoutParams(-1,act.dp(92)));// v1.6.2：显示区放大（真机反馈「像手表界面」：48/60dp→60/92dp）
     live.setClickable(true);live.setFocusable(true);live.setContentDescription("计算结果，点按复制");
     live.setOnClickListener(v->{String value=live.getText().toString();if(value.isEmpty()||value.equals("0")||value.startsWith("表达式"))return;copy(value);act.showNotice("已复制",false);});
     TextView hint=text("支持 + − × ÷ 与括号 · 点结果复制",11,act.MUTED());hint.setPadding(act.dp(2),act.dp(6),act.dp(2),0);body.addView(hint,new LinearLayout.LayoutParams(-1,-2));
@@ -294,11 +294,11 @@ final class ToolHost {
       pad.addView(row,new LinearLayout.LayoutParams(-1,-2));
       for(int c=0;c<4;c++){
         final String k=labels[c];
-        TextView key=new TextView(ctx);key.setText(k);key.setTextSize(20);key.setGravity(Gravity.CENTER);
-        key.setMinHeight(act.dp(52));key.setMinimumHeight(act.dp(52));key.setClickable(true);key.setFocusable(true);key.setContentDescription(des[c]);
+        TextView key=new TextView(ctx);key.setText(k);key.setTextSize(23);key.setGravity(Gravity.CENTER);
+        key.setMinHeight(act.dp(68));key.setMinimumHeight(act.dp(68));key.setClickable(true);key.setFocusable(true);key.setContentDescription(des[c]);
         final boolean operator=k.equals("÷")||k.equals("×")||k.equals("−")||k.equals("+");
         final boolean soft=k.equals("C")||k.equals("⌫")||k.equals("(")||k.equals(")")||k.equals("±");
-        GradientDrawable keyBg=solid(act.SURFACE2());keyBg.setCornerRadius(act.dp(12));
+        GradientDrawable keyBg=solid(act.SURFACE2());keyBg.setCornerRadius(act.dp(14));
         if(k.equals("=")){key.setTextColor(act.BG());key.setBackground(ripple(keyBg));}
         else if(operator){key.setTextColor(act.PRIMARY());key.setBackground(ripple(keyBg));}
         else if(soft){key.setTextColor(act.MUTED());key.setBackground(ripple(keyBg));}
@@ -320,7 +320,7 @@ final class ToolHost {
           };
           if(act.motionEnabled())press(v,action);else action.run();
         });
-        LinearLayout.LayoutParams keyParams=new LinearLayout.LayoutParams(0,act.dp(52),1);keyParams.setMargins(act.dp(2),act.dp(2),act.dp(2),act.dp(2));
+        LinearLayout.LayoutParams keyParams=new LinearLayout.LayoutParams(0,act.dp(68),1);keyParams.setMargins(act.dp(3),act.dp(3),act.dp(3),act.dp(3));// v1.6.2：按键 52→68dp（真机反馈过小）
         row.addView(key,keyParams);
       }
     }
