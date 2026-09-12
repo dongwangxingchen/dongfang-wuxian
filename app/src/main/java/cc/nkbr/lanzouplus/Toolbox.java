@@ -201,6 +201,38 @@ final class Toolbox {
       return sb.toString();
     }catch(Exception e){return"格式：2026-01-31";}
   }
+  /** v1.7.7 万年历：二十四节气 + 主要公历节日标记（返回空串表示该日无标记）。
+   *  节气 = 寿星通用公式 D=[Y*0.2422+C]-L（Y=年份后2位，L=Y/4 闰年数），21 世纪 C 值表；
+   *  适用 2001~2099，绝大多数年份精确（个别年份可能差一天）。完整农历（月日/干支）为后续阶段。 */
+  static String solarTermOrFestival(int year,int month,int day){
+    String festival=fixedFestival(month,day);
+    if(!festival.isEmpty())return festival;
+    if(year>=2001&&year<=2099){
+      String[] terms={"小寒","大寒","立春","雨水","惊蛰","春分","清明","谷雨","立夏","小满","芒种","夏至","小暑","大暑","立秋","处暑","白露","秋分","寒露","霜降","立冬","小雪","大雪","冬至"};
+      double[] c={5.4055,20.12,3.87,18.73,5.63,20.646,4.81,20.1,5.52,21.04,5.678,21.37,7.108,22.83,7.5,23.13,7.646,23.042,8.318,23.438,7.438,22.36,7.18,21.94};
+      int y2=year%100;
+      int idx=(month-1)*2;
+      if(day==(int)(y2*0.2422+c[idx])-(int)((y2-1)/4))return terms[idx];
+      if(day==(int)(y2*0.2422+c[idx+1])-(int)((y2-1)/4))return terms[idx+1];
+    }
+    return "";
+  }
+  private static String fixedFestival(int month,int day){
+    switch(month){
+      case 1:if(day==1)return"元旦";break;
+      case 2:if(day==14)return"情人节";break;
+      case 3:if(day==8)return"妇女节";if(day==12)return"植树节";break;
+      case 4:if(day==1)return"愚人节";break;
+      case 5:if(day==1)return"劳动节";if(day==4)return"青年节";break;
+      case 6:if(day==1)return"儿童节";break;
+      case 7:if(day==1)return"建党节";break;
+      case 8:if(day==1)return"建军节";break;
+      case 9:if(day==10)return"教师节";break;
+      case 10:if(day==1)return"国庆节";break;
+      case 12:if(day==25)return"圣诞节";break;
+    }
+    return "";
+  }
   static String dateOffset(String base,int offset){
     try{java.text.SimpleDateFormat f=new java.text.SimpleDateFormat("yyyy-MM-dd",Locale.CHINA);f.setLenient(false);
       Calendar c=Calendar.getInstance();c.setTime(f.parse(base.trim()));c.add(Calendar.DAY_OF_MONTH,offset);

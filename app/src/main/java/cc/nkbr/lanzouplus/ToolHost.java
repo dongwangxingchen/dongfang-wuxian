@@ -542,10 +542,14 @@ final class ToolHost {
   void bump(View v){if(!act.motionEnabled())return;v.animate().cancel();v.setScaleX(1f);v.animate().scaleX(1.12f).scaleY(1.12f).setDuration(90).withEndAction(()->v.animate().scaleX(1f).scaleY(1f).setDuration(120).start()).start();}
 
   void calendarGrid(LinearLayout body){
+    // v1.7.7 万年历重做（研究 myjoybar/android-calendar-view 434★ + kizitonwose/Calendar 5595★）：
+    // 补齐三个交互缺失——①点击日期无反馈 ②无「回到今天」③无年月快速跳转；并加节气/节日标记
     java.util.Calendar today=java.util.Calendar.getInstance();
-    int[] cursor={today.get(java.util.Calendar.YEAR),today.get(java.util.Calendar.MONTH)};
+    final int[] cursor={today.get(java.util.Calendar.YEAR),today.get(java.util.Calendar.MONTH)};
     TextView title=text("",16,act.TEXT());title.setTypeface(android.graphics.Typeface.DEFAULT,android.graphics.Typeface.BOLD);title.setGravity(Gravity.CENTER);
+    TextView detail=text("点按日期查看详情",12,act.MUTED());detail.setGravity(Gravity.CENTER);detail.setPadding(act.dp(8),act.dp(8),act.dp(8),act.dp(4));
     GridLayout grid=new GridLayout(ctx);grid.setColumnCount(7);
+    final Runnable[] renderRef={(Runnable)null};
     Runnable render=()->{
       grid.removeAllViews();
       int year=cursor[0],month=cursor[1];// month 0-based
@@ -556,21 +560,69 @@ final class ToolHost {
       int todayY=today.get(java.util.Calendar.YEAR),todayM=today.get(java.util.Calendar.MONTH);
       boolean isThis=todayY==year&&todayM==month;
       int todayD=today.get(java.util.Calendar.DAY_OF_MONTH);
-      for(int d:cells){TextView cell=gridCell();
+      for(final int d:cells){TextView cell=gridCell();
         if(d==0){cell.setText("");grid.addView(cell,new GridLayout.LayoutParams(GridLayout.spec(GridLayout.UNDEFINED,1f),GridLayout.spec(GridLayout.UNDEFINED,1f)));continue;}
-        cell.setText(String.valueOf(d));cell.setGravity(Gravity.CENTER);
+        // 每格两行：上排日期数字 + 下排节气/节日标记（对齐国内日历的标准做法）
+        String mark=Toolbox.solarTermOrFestival(year,month+1,d);
+        if(mark.isEmpty()){cell.setText(String.valueOf(d));cell.setTextSize(13);}
+        else{cell.setText(d+"\n"+mark);cell.setTextSize(11);cell.setLineSpacing(0,0.9f);}
+        cell.setGravity(Gravity.CENTER);
         if(isThis&&d==todayD){cell.setTextColor(act.BG());GradientDrawable dot=solid(act.PRIMARY());dot.setCornerRadius(act.dp(18));cell.setBackground(dot);}
+        // v1.7.7：格子可点，显示该日详情（研究结论：主流日历点击必须有反馈）
+        final int fy=year,fm=month+1;
+        cell.setClickable(true);cell.setFocusable(true);
+        cell.setOnClickListener(v->{
+          java.util.Calendar c=java.util.Calendar.getInstance();c.set(fy,fm-1,d);
+          int dow=c.get(java.util.Calendar.DAY_OF_WEEK);
+          int doy=c.get(java.util.Calendar.DAY_OF_YEAR);
+          int total=c.getActualMaximum(java.util.Calendar.DAY_OF_YEAR);
+          String term=Toolbox.solarTermOrFestival(fy,fm,d);
+          StringBuilder sb=new StringBuilder();
+          sb.append(fy).append("-").append(fm<10?"0":"").append(fm).append("-").append(d<10?"0":"").append(d);
+          sb.append(" · 星期").append("日一二三四五六".charAt(dow-1));
+          sb.append(" · 今年第 ").append(doy).append(" 天");
+          sb.append(" · 距年末 ").append(total-doy).append(" 天");
+          if(!term.isEmpty())sb.append("\n").append(term);
+          detail.setText(sb.toString());detail.setTextColor(act.TEXT());
+        });
         grid.addView(cell,new GridLayout.LayoutParams(GridLayout.spec(GridLayout.UNDEFINED,1f),GridLayout.spec(GridLayout.UNDEFINED,1f)));
       }
     };
+    renderRef[0]=render;
     LinearLayout header=new LinearLayout(ctx);header.setGravity(Gravity.CENTER_VERTICAL);
     ImageButton prev=act.iconButton(R.drawable.ic_back,"上一个月");prev.setOnClickListener(v->{cursor[1]--;if(cursor[1]<0){cursor[1]=11;cursor[0]--;}render.run();});
     ImageButton next=act.iconButton(R.drawable.ic_refresh,"下一个月");next.setRotation(180f);next.setOnClickListener(v->{cursor[1]++;if(cursor[1]>11){cursor[1]=0;cursor[0]++;}render.run();});
     header.addView(prev,new LinearLayout.LayoutParams(act.dp(44),act.dp(44)));
     header.addView(title,new LinearLayout.LayoutParams(0,act.dp(44),1));
     header.addView(next,new LinearLayout.LayoutParams(act.dp(44),act.dp(44)));
+    // v1.7.7：点标题弹年月选择（对齐主流做法，避免逐月翻）
+    title.setClickable(true);title.setFocusable(true);title.setBackground(ripple(new ColorDrawable(Color.TRANSPARENT)));
+    title.setOnClickListener(v->{
+      EditText input=new EditText(ctx);input.setSingleLine(true);input.setTextColor(act.TEXT());input.setHintTextColor(act.MUTED());input.setHint("如 2026-9");input.setTextSize(16);
+      input.setText(cursor[0]+"-"+(cursor[1]+1));
+      LinearLayout panel=new LinearLayout(ctx);panel.setOrientation(LinearLayout.VERTICAL);panel.setPadding(act.dp(22),act.dp(8),act.dp(22),0);
+      TextView hint=text("输入 年-月 快速跳转，例如 2026-9",12,act.MUTED());hint.setPadding(0,0,0,act.dp(8));panel.addView(hint,new LinearLayout.LayoutParams(-1,-2));
+      panel.addView(input,new LinearLayout.LayoutParams(-1,act.dp(56)));
+      android.app.AlertDialog dialog=new android.app.AlertDialog.Builder(ctx).setTitle("跳转到").setView(panel).setNegativeButton("取消",null).setPositiveButton("跳转",null).create();
+      dialog.setOnShowListener(w->dialog.getButton(android.app.AlertDialog.BUTTON_POSITIVE).setOnClickListener(x->{
+        try{String[] parts=input.getText().toString().trim().split("-");int y=Integer.parseInt(parts[0].trim()),m=Integer.parseInt(parts[1].trim());
+          if(m<1||m>12||y<1900||y>2200){input.setError("范围：1900-2200 年，1-12 月");return;}
+          cursor[0]=y;cursor[1]=m-1;render.run();dialog.dismiss();
+        }catch(Exception e){input.setError("格式：2026-9");}
+      }));
+      dialog.show();
+    });
     LinearLayout card=listCard();card.addView(header,new LinearLayout.LayoutParams(-1,act.dp(52)));card.addView(grid,new LinearLayout.LayoutParams(-1,-2));
     body.addView(card,new LinearLayout.LayoutParams(-1,-2));
+    body.addView(detail,new LinearLayout.LayoutParams(-1,-2));
+    // v1.7.7：回到今天（翻走后一键返回当前月）
+    LinearLayout actions=actionRow(body);
+    action(actions,"回到今天",()->{
+      cursor[0]=today.get(java.util.Calendar.YEAR);cursor[1]=today.get(java.util.Calendar.MONTH);render.run();
+      int dow=today.get(java.util.Calendar.DAY_OF_WEEK),doy=today.get(java.util.Calendar.DAY_OF_YEAR),total=today.getActualMaximum(java.util.Calendar.DAY_OF_YEAR);
+      detail.setText("今天 · "+cursor[0]+"-"+(cursor[1]+1)+"-"+today.get(java.util.Calendar.DAY_OF_MONTH)+" · 星期"+"日一二三四五六".charAt(dow-1)+" · 今年第 "+doy+" 天");
+      detail.setTextColor(act.PRIMARY());
+    });
     render.run();
   }
   TextView gridCell(){TextView cell=text("",13,act.TEXT());cell.setGravity(Gravity.CENTER);cell.setHeight(act.dp(42));return cell;}
