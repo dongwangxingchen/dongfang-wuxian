@@ -783,9 +783,26 @@ indicator.setScaleX(.45f);indicator.setAlpha(.55f);indicator.post(()->indicator.
     holder.content=new TextView(this);holder.content.setTextColor(TEXT);holder.content.setTextSize(15);holder.content.setLineSpacing(dp(3),1.15f);
     if(toolCallMsg){holder.content.setText("🔧 调用了工具箱工具（旧版会话）");holder.content.setTextColor(MUTED);}else if(toolResultMsg){holder.content.setText(AiMarkdown.render(message.content));holder.content.setTextColor(MUTED);holder.content.setTextSize(12);}else if(!user){holder.content.setText(AiMarkdown.render(shownContent));holder.content.setTextIsSelectable(true);holder.content.setOnLongClickListener(v->{copyText(shownContent);showNotice("已复制全文",false);return true;});}else{holder.content.setText(message.content);}bubble.addView(holder.content,new LinearLayout.LayoutParams(-1,-2));
     if(!user&&!live&&!msgChips.isEmpty())addToolChips(bubble,msgChips);
-    if(!user&&!live){boolean isLast=aiCurrent!=null&&aiCurrent.messages.lastIndexOf(message)==aiCurrent.messages.size()-1;
+    if(!user&&!live){int nodeIndex=aiCurrent==null?-1:aiCurrent.messages.indexOf(message);boolean isLast=aiCurrent!=null&&nodeIndex==aiCurrent.messages.size()-1;
       LinearLayout foot=new LinearLayout(this);foot.setGravity(Gravity.START);
+      // v1.7.0 分支切换器（移植自 RikkaHub）：多候选时显示 "‹ 2/3 ›"，可来回切换
+      if(nodeIndex>=0&&aiCurrent.hasBranches(nodeIndex)){
+        final int node=nodeIndex;final List<AiChatCore.Message> cands=aiCurrent.branches.get(node);final int sel=cands.indexOf(message);
+        TextView prev=text("‹",14,MUTED);prev.setPadding(dp(2),dp(4),dp(6),0);prev.setClickable(true);prev.setFocusable(true);prev.setBackground(filterRipple(new ColorDrawable(Color.TRANSPARENT)));prev.setContentDescription("上一个候选回复");
+        final int target=sel<=0?cands.size()-1:sel-1;prev.setOnClickListener(v->switchAiBranch(node,target));foot.addView(prev);
+        TextView counter=text((sel+1)+"/"+cands.size(),12,PRIMARY);counter.setPadding(dp(0),dp(6),dp(0),0);counter.setTypeface(android.graphics.Typeface.DEFAULT,android.graphics.Typeface.BOLD);counter.setContentDescription("第 "+(sel+1)+" 个候选，共 "+cands.size()+" 个");foot.addView(counter);
+        TextView next=text("›",14,MUTED);next.setPadding(dp(6),dp(4),dp(16),0);next.setClickable(true);next.setFocusable(true);next.setBackground(filterRipple(new ColorDrawable(Color.TRANSPARENT)));next.setContentDescription("下一个候选回复");
+        final int targetNext=sel>=cands.size()-1?0:sel+1;next.setOnClickListener(v->switchAiBranch(node,targetNext));foot.addView(next);
+      }
       TextView cp=text("复制",12,MUTED);cp.setPadding(dp(2),dp(6),dp(16),0);cp.setClickable(true);cp.setFocusable(true);cp.setBackground(filterRipple(new ColorDrawable(Color.TRANSPARENT)));cp.setOnClickListener(v->{copyText(shownContent);showNotice("已复制",false);});foot.addView(cp);
+      // v1.7.0 NERD 用量行（移植自 RikkaHub）：显示 token 统计，含缓存命中数
+      if(message.totalTokens>0){
+        StringBuilder nerd=new StringBuilder();
+        nerd.append("↑").append(message.promptTokens).append(" ↓").append(message.completionTokens);
+        if(message.cachedTokens>0)nerd.append(" · 缓存 ").append(message.cachedTokens);
+        nerd.append(" · 共 ").append(message.totalTokens);
+        TextView usage=text(nerd.toString(),11,MUTED);usage.setPadding(dp(2),dp(6),dp(2),0);usage.setContentDescription("本次用量：输入 "+message.promptTokens+" tokens，输出 "+message.completionTokens+" tokens，合计 "+message.totalTokens);foot.addView(usage);
+      }
       if(isLast){TextView rg=text("重新生成",12,MUTED);rg.setPadding(dp(2),dp(6),dp(2),0);rg.setClickable(true);rg.setFocusable(true);rg.setBackground(filterRipple(new ColorDrawable(Color.TRANSPARENT)));rg.setOnClickListener(v->regenerateAiLast());foot.addView(rg);}
       bubble.addView(foot,new LinearLayout.LayoutParams(-1,-2));}
     if(user){int w=Math.round(getResources().getDisplayMetrics().widthPixels*0.82f);row.addView(bubble,new LinearLayout.LayoutParams(w,-2));}
@@ -794,14 +811,58 @@ indicator.setScaleX(.45f);indicator.setAlpha(.55f);indicator.post(()->indicator.
   /** v1.6.0 跨角色 16dp / 同角色 8dp 消息间距（R-A 规格表） */
   String lastAiRole;
   void addAiRow(View row,String role){LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2);lp.topMargin=dp(lastAiRole==null?2:(lastAiRole.equals(role)?8:16));lastAiRole=role;aiMessageList.addView(row,lp);}
-  /** 重新生成最后一条 AI 回复（R-A 完成态操作行） */
+  /**
+   * v1.7.0 重新生成（移植自 RikkaHub 分支语义）：<b>不删除旧回复</b>，而是为同一位置追加一条候选并选中。
+   * 用户可通过消息下方的分支切换器在多条候选间来回切换（ChatGPT 式体验）。
+   */
   void regenerateAiLast(){
     if(aiCurrent==null||aiCurrent.messages.size()<2||aiStreaming)return;
-    AiChatCore.Message last=aiCurrent.messages.get(aiCurrent.messages.size()-1);
+    int lastIndex=aiCurrent.messages.size()-1;
+    AiChatCore.Message last=aiCurrent.messages.get(lastIndex);
     if(!"assistant".equals(last.role))return;
-    aiCurrent.messages.remove(aiCurrent.messages.size()-1);
-    aiPersist();renderAiMessages();startAiReply();
+    // 新候选：先插入一个占位消息，流式填充后它会成为该位置的新候选
+    aiRegenerateTargetIndex=lastIndex;
+    aiRegenerateExistingCount=aiCurrent.branches.size()>lastIndex?aiCurrent.branches.get(lastIndex).size():1;
+    startAiReplyForBranch(lastIndex);
   }
+  /** 为指定位置生成新候选（不新增节点） */
+  void startAiReplyForBranch(final int nodeIndex){
+    ensureAiSession();
+    AiChatCore.Message assistant=new AiChatCore.Message("assistant","");assistant.id="m"+System.currentTimeMillis()+"-b"+nodeIndex;
+    aiCurrent.addBranch(nodeIndex,assistant);
+    aiPersist();renderAiMessages();
+    aiStreaming=true;syncAiSendButton();setAiStatus("正在思考…");startDots();
+    final StringBuilder live=new StringBuilder(),liveThink=new StringBuilder();
+    final long startAt=System.currentTimeMillis();
+    // 上下文 = 该位置之前的消息（不含被替换的候选）
+    final java.util.List<AiChatCore.Message> context=new ArrayList<>(aiCurrent.messages.subList(0,nodeIndex));
+    aiRequest=aiCore.chat(aiCore.settings(),context,aiCore.activeAssistant(),new AiChatCore.StreamListener(){
+      public void onOpen(){setAiStatus("正在思考…");}
+      public void onDelta(String content,String think){
+        if(!content.isEmpty()){live.append(content);if(aiStatusText!=null)aiStatusText.setText("生成中 · "+(System.currentTimeMillis()-startAt)/1000+"s");}
+        else if(!think.isEmpty())liveThink.append(think);
+      }
+      public void onDone(String fullContent,String reasoning,String error){
+        aiStreaming=false;aiRequest=null;syncAiSendButton();stopDots();
+        assistant.content=fullContent==null?"":fullContent;assistant.reasoning=reasoning==null?"":reasoning;
+        java.util.ArrayList<String[]> chips=new java.util.ArrayList<>();
+        String stripped=stripToolMarks(assistant.content,chips);
+        if(!chips.isEmpty())assistant.content=stripped;
+        if(assistant.content.isEmpty()&&error!=null)assistant.content="请求失败："+error;
+        else if(assistant.content.isEmpty()&&!assistant.reasoning.isEmpty())assistant.content="（仅返回了思考过程）";
+        else if(assistant.content.isEmpty())assistant.content="（服务没有返回内容，请重试）";
+        aiPersist();renderAiMessages();setAiStatus(error==null?"":"失败："+error);
+        if(error!=null)showNotice("AI 请求失败："+error,true);
+      }
+    });
+  }
+  /** 分支切换：切换某位置选中的候选（对齐上游 selectBranch） */
+  void switchAiBranch(int nodeIndex,int candidateIndex){
+    if(aiCurrent==null||aiStreaming)return;
+    aiCurrent.selectBranch(nodeIndex,candidateIndex);
+    aiPersist();renderAiMessages();
+  }
+  int aiRegenerateTargetIndex=-1;int aiRegenerateExistingCount=1;
   int aiDotCount;Runnable aiDotsRun;
   void startDots(){stopDots();if(aiStatusText==null||!motionEnabled())return;
     aiDotsRun=new Runnable(){public void run(){if(!aiStreaming||aiStatusText==null)return;
@@ -824,7 +885,7 @@ indicator.setScaleX(.45f);indicator.setAlpha(.55f);indicator.post(()->indicator.
     if(!aiCore.configured()){showAiChannelsPage();return;}
     if(value.isEmpty()){aiInput.setError("先输入内容");return;}
     stopAiRequest(false);ensureAiSession();
-    AiChatCore.Message user=new AiChatCore.Message("user",value);aiCurrent.messages.add(user);
+    AiChatCore.Message user=new AiChatCore.Message("user",value);aiCurrent.appendMessage(user);// v1.7.0：同步维护分支节点
     if(aiCurrent.title.equals("新对话"))aiCurrent.title=value.length()>12?value.substring(0,12)+"…":value;
     aiInput.setText("");addAiRow(aiBubble(user,false),"user");
     startAiReply();
@@ -832,7 +893,7 @@ indicator.setScaleX(.45f);indicator.setAlpha(.55f);indicator.post(()->indicator.
   /** v1.6.0：发起一轮补全（function calling 已整体移除，工具改为 system 手册 + 纯文本推荐） */
   void startAiReply(){
     ensureAiSession();
-    AiChatCore.Message assistant=new AiChatCore.Message("assistant","");aiCurrent.messages.add(assistant);
+    AiChatCore.Message assistant=new AiChatCore.Message("assistant","");aiCurrent.appendMessage(assistant);// v1.7.0：同步维护分支节点
     View rowView=aiBubble(assistant,true);addAiRow(rowView,"assistant");
     final AiBubbleHolder holder=(AiBubbleHolder)rowView.getTag();aiStreaming=true;syncAiSendButton();setAiStatus("正在思考…");startDots();
     ui.post(()->{if(aiScroll!=null)aiScroll.fullScroll(View.FOCUS_DOWN);});
@@ -845,6 +906,10 @@ indicator.setScaleX(.45f);indicator.setAlpha(.55f);indicator.post(()->indicator.
         if(!content.isEmpty()){live.append(content);if(aiStatusText!=null)aiStatusText.setText("生成中 · "+(System.currentTimeMillis()-startAt)/1000+"s");if(holder.thinkBlock!=null&&liveThink.length()>0&&holder.think.getVisibility()==View.VISIBLE)holder.think.setText(liveThink.toString());holder.content.setText(live+" ▌");}// v1.6.0 流式光标（R-A 规格表#7）
         else if(!think.isEmpty()){liveThink.append(think);if(holder.think!=null)holder.think.setText(liveThink.toString());}
         if(aiScroll!=null){View last=aiMessageList.getChildAt(aiMessageList.getChildCount()-1);if(last!=null)aiScroll.smoothScrollTo(0,Math.max(0,aiMessageList.getHeight()));}
+      }
+      public void onUsage(int promptTokens,int completionTokens,int cachedTokens,int totalTokens){
+        // v1.7.0 NERD 用量行（移植自 RikkaHub）：服务端返回 usage 时记录到消息，渲染时显示
+        assistant.promptTokens=promptTokens;assistant.completionTokens=completionTokens;assistant.cachedTokens=cachedTokens;assistant.totalTokens=totalTokens;
       }
       public void onDone(String fullContent,String reasoning,String error){
         aiStreaming=false;aiRequest=null;syncAiSendButton();stopDots();
