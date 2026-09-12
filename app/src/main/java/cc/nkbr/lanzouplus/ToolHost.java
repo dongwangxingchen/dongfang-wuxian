@@ -298,9 +298,14 @@ final class ToolHost {
         key.setMinHeight(act.dp(68));key.setMinimumHeight(act.dp(68));key.setClickable(true);key.setFocusable(true);key.setContentDescription(des[c]);
         final boolean operator=k.equals("÷")||k.equals("×")||k.equals("−")||k.equals("+");
         final boolean soft=k.equals("C")||k.equals("⌫")||k.equals("(")||k.equals(")")||k.equals("±");
-        GradientDrawable keyBg=solid(act.SURFACE2());keyBg.setCornerRadius(act.dp(14));
-        if(k.equals("=")){key.setTextColor(act.BG());key.setBackground(ripple(keyBg));}
-        else if(operator){key.setTextColor(act.PRIMARY());key.setBackground(ripple(keyBg));}
+        // v1.7.2 计算器视觉对齐（研究 OpenCalc 1534★ 真实截图 + 快照目检修正）：
+        // 四色分层，但运算符用「浅色底 + 主色字」而非实心大色块（实心块过重、与 OpenCalc 精致感不符）；
+        // 数字键必须有可见底色（apple 主题 surface2 与背景同色 → 改用 border 色系保证可见）
+        int keyBase=act.SURFACE2();
+        if(keyBase==act.BG())keyBase=act.BORDER();// apple 主题 surface2==bg，按键会隐形 → 换 border 色（浅灰，可见）
+        GradientDrawable keyBg=solid(keyBase);keyBg.setCornerRadius(act.dp(24));// 24dp 圆角 ≈ 胶囊（68dp 高时接近正圆）
+        if(k.equals("=")){key.setTextColor(0xFFFFFFFF);keyBg.setColor(act.SECONDARY());key.setBackground(ripple(keyBg));}
+        else if(operator){key.setTextColor(act.PRIMARY());keyBg.setColor(ThemeEngine.tint(act.PRIMARY(),56));keyBg.setStroke(act.dp(1),ThemeEngine.tint(act.PRIMARY(),120));key.setBackground(ripple(keyBg));}
         else if(soft){key.setTextColor(act.MUTED());key.setBackground(ripple(keyBg));}
         else{key.setTextColor(act.TEXT());key.setBackground(ripple(keyBg));}
         key.setOnClickListener(v->{
