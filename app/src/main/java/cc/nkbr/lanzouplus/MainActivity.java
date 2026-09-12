@@ -745,6 +745,8 @@ indicator.setScaleX(.45f);indicator.setAlpha(.55f);indicator.post(()->indicator.
     ImageButton history=iconButton(R.drawable.ic_sources,"聊天记录");history.setOnClickListener(v->showAiHistoryDrawer());header.addView(history,new LinearLayout.LayoutParams(dp(46),dp(48)));
     LinearLayout titleBox=new LinearLayout(this);titleBox.setOrientation(LinearLayout.VERTICAL);titleBox.setPadding(dp(10),0,0,0);TextView title=text("AI 对话",18,TEXT);title.setTypeface(android.graphics.Typeface.DEFAULT,android.graphics.Typeface.BOLD);aiModelBadge=text("",10,MUTED);aiModelBadge.setSingleLine(true);aiModelBadge.setEllipsize(android.text.TextUtils.TruncateAt.END);titleBox.addView(title,new LinearLayout.LayoutParams(-1,dp(28)));titleBox.addView(aiModelBadge,new LinearLayout.LayoutParams(-1,dp(18)));titleBox.setClickable(true);titleBox.setOnClickListener(v->showAiChannelsPage());// v1.6.0（R-A#6）：顶栏中间模型名可点直达渠道页
     header.addView(titleBox,new LinearLayout.LayoutParams(0,dp(48),1));
+    // v1.7.0 助手选择器（移植自 RikkaHub 三级递进第一级：收起态=当前助手名，点击进管理页）
+    TextView assistantChip=text("",12,PRIMARY);assistantChip.setSingleLine(true);assistantChip.setEllipsize(android.text.TextUtils.TruncateAt.END);assistantChip.setMaxWidth(dp(96));assistantChip.setGravity(Gravity.CENTER);assistantChip.setPadding(dp(10),0,dp(10),0);GradientDrawable acBg=solidShape(ThemeEngine.tint(PRIMARY,28),14);acBg.setStroke(dp(1),ThemeEngine.tint(PRIMARY,70));assistantChip.setBackground(acBg);assistantChip.setClickable(true);assistantChip.setFocusable(true);aiAssistantChip=assistantChip;assistantChip.setOnClickListener(v->showAiAssistantsPage());header.addView(assistantChip,new LinearLayout.LayoutParams(-2,dp(32)));
     ImageButton add=iconButton(R.drawable.ic_add,"新建对话");add.setOnClickListener(v->{stopAiRequest(false);aiCurrent=null;renderAiMessages();});header.addView(add,new LinearLayout.LayoutParams(dp(46),dp(48)));
     ImageButton config=iconButton(R.drawable.ic_settings,"AI 接口设置");config.setOnClickListener(v->showAiChannelsPage());header.addView(config,new LinearLayout.LayoutParams(dp(46),dp(48)));
     root.addView(header,new LinearLayout.LayoutParams(-1,dp(52)));
@@ -837,7 +839,7 @@ indicator.setScaleX(.45f);indicator.setAlpha(.55f);indicator.post(()->indicator.
     final StringBuilder live=new StringBuilder(),liveThink=new StringBuilder();
     final long startAt=System.currentTimeMillis();
     final java.util.List<AiChatCore.Message> context=new ArrayList<>(aiCurrent.messages.subList(0,aiCurrent.messages.size()-1));
-    aiRequest=aiCore.chat(aiCore.settings(),context,new AiChatCore.StreamListener(){
+    aiRequest=aiCore.chat(aiCore.settings(),context,aiCore.activeAssistant(),new AiChatCore.StreamListener(){
       public void onOpen(){setAiStatus("正在思考…");}
       public void onDelta(String content,String think){
         if(!content.isEmpty()){live.append(content);if(aiStatusText!=null)aiStatusText.setText("生成中 · "+(System.currentTimeMillis()-startAt)/1000+"s");if(holder.thinkBlock!=null&&liveThink.length()>0&&holder.think.getVisibility()==View.VISIBLE)holder.think.setText(liveThink.toString());holder.content.setText(live+" ▌");}// v1.6.0 流式光标（R-A 规格表#7）
@@ -896,7 +898,7 @@ indicator.setScaleX(.45f);indicator.setAlpha(.55f);indicator.post(()->indicator.
       ImageButton del=iconButton(R.drawable.ic_delete_record,"删除对话 "+session.title);del.setOnClickListener(v->{aiSessions.remove(session);if(session==aiCurrent)aiCurrent=null;aiPersist();ui.post(this::showAiHistoryDrawer);});row.addView(del,new LinearLayout.LayoutParams(dp(44),dp(44)));
       row.setOnClickListener(v->{aiCurrent=session;aiPersist();renderAiMessages();});panel.addView(row,new LinearLayout.LayoutParams(-1,dp(52)));}
     AlertDialog dialog=new AlertDialog.Builder(this).setTitle("聊天记录").setView(limitedDialogScroll(panel,380)).setNegativeButton("关闭",null).create();showRounded(dialog);}
-  TextView aiModelBadge;
+  TextView aiModelBadge;TextView aiAssistantChip;
   /** v1.2.2 重做:服务商预设 chips + 推荐模型 + Key 可见切换 + 自定义自由输入 */
   void showAiSettingsDialog(){
     final AiChatCore.Settings current=aiCore.settings();
@@ -945,7 +947,93 @@ indicator.setScaleX(.45f);indicator.setAlpha(.55f);indicator.post(()->indicator.
       aiCore.saveSettings(draft);showNotice("AI 配置已保存",false);syncAiModelBadge();renderAiMessages();
     }).create();prepareRoundedInputDialog(dialog,url);showRounded(dialog);}
   /** v1.2.2:AI 页头部当前服务商·模型徽标 */
-  void syncAiModelBadge(){if(aiModelBadge==null)return;AiChatCore.Settings s=aiCore.settings();if(!aiCore.configured()){aiModelBadge.setVisibility(View.GONE);return;}aiModelBadge.setVisibility(View.VISIBLE);aiModelBadge.setText(AiProviders.nameOf(s.provider)+" · "+s.model);aiModelBadge.setTextColor(PRIMARY);}
+  void syncAiModelBadge(){if(aiModelBadge==null)return;AiChatCore.Settings s=aiCore.settings();if(!aiCore.configured()){aiModelBadge.setVisibility(View.GONE);}else{aiModelBadge.setVisibility(View.VISIBLE);aiModelBadge.setText(AiProviders.nameOf(s.provider)+" · "+s.model);aiModelBadge.setTextColor(PRIMARY);}if(aiAssistantChip!=null)aiAssistantChip.setText(aiCore.activeAssistant().displayName());}
+
+  /** v1.7.0 助手管理页（移植自 RikkaHub：列表卡片 + 新建/复制/删除 + 详情分组） */
+  void showAiAssistantsPage(){
+    primaryBase(4);pageKind=5;activeSource=null;clearFolderTrail();systemBackAction=null;
+    LinearLayout header=new LinearLayout(this);header.setGravity(Gravity.CENTER_VERTICAL);header.setPadding(0,dp(2),0,dp(6));
+    ImageButton back=iconButton(R.drawable.ic_back,"返回对话");back.setOnClickListener(v->showAi());header.addView(back,new LinearLayout.LayoutParams(dp(46),dp(48)));
+    TextView title=text("助手",20,TEXT);title.setTypeface(android.graphics.Typeface.DEFAULT,android.graphics.Typeface.BOLD);title.setPadding(dp(10),0,0,0);header.addView(title,new LinearLayout.LayoutParams(0,dp(48),1));
+    ImageButton add=iconButton(R.drawable.ic_add,"新建助手");add.setOnClickListener(v->editAssistantPage(null));header.addView(add,new LinearLayout.LayoutParams(dp(46),dp(48)));
+    root.addView(header,new LinearLayout.LayoutParams(-1,dp(52)));
+    TextView hint=text("助手 = 人格提示词 + 生成参数覆盖。参数留空表示跟随渠道默认。",11,MUTED);hint.setPadding(dp(10),0,dp(10),dp(6));root.addView(hint,new LinearLayout.LayoutParams(-1,-2));
+    ScrollView scroll=new ScrollView(this);scroll.setFillViewport(true);
+    LinearLayout body=new LinearLayout(this);body.setOrientation(LinearLayout.VERTICAL);body.setPadding(dp(8),dp(2),dp(8),dp(18));
+    scroll.addView(body,new ScrollView.LayoutParams(-1,-2));root.addView(scroll,new LinearLayout.LayoutParams(-1,0,1));
+    List<cc.nkbr.lanzouplus.ai.AiAssistant> all=aiCore.assistants();final String active=aiCore.activeAssistant().id;
+    for(final cc.nkbr.lanzouplus.ai.AiAssistant a:all){
+      LinearLayout card=new LinearLayout(this);card.setOrientation(LinearLayout.VERTICAL);card.setClickable(true);card.setFocusable(true);
+      GradientDrawable bg=solidShape(SURFACE,14);bg.setStroke(dp(1),a.id.equals(active)?PRIMARY:DIV);card.setBackground(filterRipple(bg));card.setPadding(dp(14),dp(12),dp(14),dp(12));
+      LinearLayout topRow=new LinearLayout(this);topRow.setGravity(Gravity.CENTER_VERTICAL);
+      TextView name=text(a.displayName(),15,TEXT);name.setTypeface(android.graphics.Typeface.DEFAULT,android.graphics.Typeface.BOLD);topRow.addView(name,new LinearLayout.LayoutParams(0,-2,1));
+      if(a.id.equals(active)){TextView using=text("使用中",11,PRIMARY);using.setPadding(dp(8),dp(3),dp(8),dp(3));using.setBackground(solidShape(ThemeEngine.tint(PRIMARY,36),10));topRow.addView(using,new LinearLayout.LayoutParams(-2,-2));}
+      card.addView(topRow,new LinearLayout.LayoutParams(-1,-2));
+      String prompt=a.systemPrompt==null||a.systemPrompt.trim().isEmpty()?"（未设置人格提示词）":a.systemPrompt.trim();
+      TextView desc=text(prompt.length()>60?prompt.substring(0,60)+"…":prompt,12,MUTED);desc.setMaxLines(2);desc.setPadding(0,dp(6),0,dp(4));card.addView(desc,new LinearLayout.LayoutParams(-1,-2));
+      StringBuilder params=new StringBuilder();
+      params.append("上下文 ").append(a.contextMessageLimit>0?a.contextMessageLimit+" 条":"不限");
+      if(a.temperature!=null)params.append(" · 温度 ").append(a.temperature);
+      if(a.topP!=null)params.append(" · topP ").append(a.topP);
+      if(a.maxTokens!=null)params.append(" · 输出 ").append(a.maxTokens);
+      if(a.chatModelId!=null&&!a.chatModelId.isEmpty())params.append(" · 指定模型");
+      TextView meta=text(params.toString(),11,MUTED);card.addView(meta,new LinearLayout.LayoutParams(-1,-2));
+      card.setOnClickListener(v->editAssistantPage(a.id));
+      LinearLayout.LayoutParams cardLp=new LinearLayout.LayoutParams(-1,-2);cardLp.bottomMargin=dp(8);body.addView(card,cardLp);
+    }
+  }
+
+  /** v1.7.0 助手详情/编辑页（对齐上游"详情页分组卡片：基础 / 模型参数 / 提示词"） */
+  void editAssistantPage(final String editId){
+    primaryBase(4);pageKind=5;activeSource=null;clearFolderTrail();systemBackAction=null;
+    final boolean isNew=editId==null||editId.isEmpty();
+    cc.nkbr.lanzouplus.ai.AiAssistant current;
+    if(isNew){current=new cc.nkbr.lanzouplus.ai.AiAssistant();}
+    else{
+      current=aiCore.activeAssistant();
+      for(cc.nkbr.lanzouplus.ai.AiAssistant a:aiCore.assistants())if(a.id.equals(editId))current=a;
+    }
+    final cc.nkbr.lanzouplus.ai.AiAssistant draft=current.copy();
+    LinearLayout header=new LinearLayout(this);header.setGravity(Gravity.CENTER_VERTICAL);header.setPadding(0,dp(2),0,dp(6));
+    ImageButton back=iconButton(R.drawable.ic_back,"返回助手列表");back.setOnClickListener(v->showAiAssistantsPage());header.addView(back,new LinearLayout.LayoutParams(dp(46),dp(48)));
+    TextView title=text(isNew?"新建助手":"编辑助手",20,TEXT);title.setTypeface(android.graphics.Typeface.DEFAULT,android.graphics.Typeface.BOLD);title.setPadding(dp(10),0,0,0);header.addView(title,new LinearLayout.LayoutParams(0,dp(48),1));
+    root.addView(header,new LinearLayout.LayoutParams(-1,dp(52)));
+    ScrollView scroll=new ScrollView(this);scroll.setFillViewport(true);
+    LinearLayout panel=new LinearLayout(this);panel.setOrientation(LinearLayout.VERTICAL);panel.setPadding(dp(10),dp(2),dp(10),dp(20));
+    scroll.addView(panel,new ScrollView.LayoutParams(-1,-2));root.addView(scroll,new LinearLayout.LayoutParams(-1,0,1));
+
+    // —— 分组一：基础 ——
+    panel.addView(settingsSectionLabel("基础"),new LinearLayout.LayoutParams(-1,-2));
+    final EditText name=aiField(panel,"助手名称",draft.name,false);
+    final EditText prompt=aiField(panel,"人格提示词（system prompt）",draft.systemPrompt,false);prompt.setMinLines(3);prompt.setMaxLines(6);
+    // —— 分组二：模型参数（留空=跟随渠道默认，"可空=跟随"语义）——
+    panel.addView(settingsSectionLabel("模型参数（留空 = 跟随渠道默认）"),new LinearLayout.LayoutParams(-1,-2));
+    final EditText temp=aiField(panel,"温度 temperature（0~2，留空不覆盖）",draft.temperature==null?"":String.valueOf(draft.temperature),false);temp.setInputType(android.text.InputType.TYPE_CLASS_NUMBER|android.text.InputType.TYPE_NUMBER_FLAG_DECIMAL);
+    final EditText topP=aiField(panel,"topP（0~1，留空不覆盖）",draft.topP==null?"":String.valueOf(draft.topP),false);topP.setInputType(android.text.InputType.TYPE_CLASS_NUMBER|android.text.InputType.TYPE_NUMBER_FLAG_DECIMAL);
+    final EditText maxTok=aiField(panel,"最大输出 tokens（留空不覆盖）",draft.maxTokens==null?"":String.valueOf(draft.maxTokens),false);maxTok.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
+    final EditText ctx=aiField(panel,"上下文条数上限（0 = 不限）",String.valueOf(draft.contextMessageLimit),false);ctx.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
+    final boolean[] streamOn={draft.streamOutput};
+    panel.addView(settingsSwitchRow("流式输出",draft.streamOutput,checked->streamOn[0]=checked));
+    TextView note=text("阶梯式上下文截断：超出上限时按滞回策略一次性回落到一半，使请求前缀保持稳定、命中提示词缓存。",11,MUTED);note.setPadding(0,dp(10),0,dp(6));panel.addView(note,new LinearLayout.LayoutParams(-1,-2));
+    LinearLayout actions=actionRow(panel);
+    primaryAction(actions,"保存助手",()->{
+      draft.name=name.getText().toString().trim();
+      if(draft.name.isEmpty()){name.setError("填写助手名称");name.requestFocus();return;}
+      draft.systemPrompt=prompt.getText().toString();
+      draft.temperature=parseDoubleOrNull(temp.getText().toString());
+      draft.topP=parseDoubleOrNull(topP.getText().toString());
+      draft.maxTokens=parseIntOrNull(maxTok.getText().toString());
+      try{draft.contextMessageLimit=Math.max(0,Integer.parseInt(ctx.getText().toString().trim()));}catch(Exception e){draft.contextMessageLimit=0;}
+      draft.streamOutput=streamOn[0];
+      aiCore.saveAssistant(draft);showNotice("助手已保存",false);syncAiModelBadge();showAiAssistantsPage();
+    });
+    if(!isNew)action(actions,"删除助手",()->roundDialogConfirm("删除助手","删除后不可恢复，确定删除「"+draft.displayName()+"」？",()->{aiCore.deleteAssistant(draft.id);showNotice("已删除",false);syncAiModelBadge();showAiAssistantsPage();}));
+  }
+  Double parseDoubleOrNull(String raw){try{String v=raw==null?"":raw.trim();return v.isEmpty()?null:Double.valueOf(v);}catch(Exception e){return null;}}
+  Integer parseIntOrNull(String raw){try{String v=raw==null?"":raw.trim();return v.isEmpty()?null:Integer.valueOf(v);}catch(Exception e){return null;}}
+  TextView settingsSectionLabel(String label){TextView t=text(label,12,PRIMARY);t.setTypeface(android.graphics.Typeface.DEFAULT,android.graphics.Typeface.BOLD);t.setPadding(dp(4),dp(12),dp(4),dp(6));return t;}
+
+
   /** v1.2.2:MainActivity 侧剪贴板复制（ToolHost.copy 的等价物，静默） */
   void copyText(String value){try{android.content.ClipboardManager cm=(android.content.ClipboardManager)getSystemService(android.content.Context.CLIPBOARD_SERVICE);if(cm!=null)cm.setPrimaryClip(android.content.ClipData.newPlainText("text",value==null?"":value));}catch(Exception ignored){}}
   AiChatCore.Settings draftAiSettings(EditText name,EditText url,EditText key,EditText model,EditText ctx,EditText maxOut){
