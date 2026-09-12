@@ -86,9 +86,9 @@ final class AiChatCore {
       Settings legacy=settingsLegacy();
       Settings first;
       if(!legacy.url.isEmpty()||!legacy.key.isEmpty()){legacy.name=legacy.name==null||legacy.name.isEmpty()?"默认渠道":legacy.name;first=legacy;}
-      else {// v1.5.1：预置用户中转站为默认渠道（用户指令：以后拿这个 API 测试）
+      else {// v1.7.0：预置中转站默认渠道（Key 从 local.properties 构建注入，源码不携带凭据——开源合规；未注入时留空由用户自行填写）
         first=new Settings();first.name="中转站";first.provider="custom";
-        first.url="https://www.aizhongzhuan.cc/v1";first.key="REDACTED-AI-KEY-CURRENT";first.model="glm-5.3-flash";
+        first.url="https://www.aizhongzhuan.cc/v1";first.key=BuildConfig.DEFAULT_AI_KEY;first.model="glm-5.3-flash";
         first.models.add("glm-5.3-flash");}
       first.id="ch"+System.currentTimeMillis();
       out.add(first);saveChannels(out);setActiveId(first.id);

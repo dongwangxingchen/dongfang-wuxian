@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="cc.nkbr.lanzouplus.StopwatchLayoutTest" tests="1" skipped="0" failures="0" errors="0" timestamp="2026-09-10T23:19:44.231Z" hostname="DESKTOP-75F7671" time="0.055">
+  <properties/>
+  <testcase name="dumpPositions" classname="cc.nkbr.lanzouplus.StopwatchLayoutTest" time="0.055"/>
+  <system-out><![CDATA[DFWX body w=1080 h=2238
+DFWX child 0 TextView y=24.0 w=1056 h=273 vis=0
+DFWX child 1 View y=297.0 w=1056 h=36 vis=0
+DFWX child 2 EditText y=333.0 w=1056 h=132 vis=0
+DFWX child 3 View y=489.0 w=1056 h=12 vis=0
+DFWX child 4 LinearLayout y=501.0 w=1056 h=132 vis=0
+DFWX child 5 LinearLayout y=0.0 w=0 h=0 vis=8
+DFWX scroll=android.widget.ScrollView scrollH=2238
+]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

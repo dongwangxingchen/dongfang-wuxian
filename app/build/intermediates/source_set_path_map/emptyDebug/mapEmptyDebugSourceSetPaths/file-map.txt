@@ -1,0 +1,9 @@
+cc.nkbr.lanzouplus.app-empty-0 D:\heiyao\src\app\build\generated\res\pngs\empty\debug
+cc.nkbr.lanzouplus.app-empty-1 D:\heiyao\src\app\build\generated\res\resValues\empty\debug
+cc.nkbr.lanzouplus.app-packageEmptyDebugResources-2 D:\heiyao\src\app\build\intermediates\incremental\emptyDebug\packageEmptyDebugResources\merged.dir
+cc.nkbr.lanzouplus.app-packageEmptyDebugResources-3 D:\heiyao\src\app\build\intermediates\incremental\emptyDebug\packageEmptyDebugResources\stripped.dir
+cc.nkbr.lanzouplus.app-emptyDebug-4 D:\heiyao\src\app\build\intermediates\merged_res\emptyDebug\mergeEmptyDebugResources
+cc.nkbr.lanzouplus.app-debug-5 D:\heiyao\src\app\src\debug\res
+cc.nkbr.lanzouplus.app-empty-6 D:\heiyao\src\app\src\empty\res
+cc.nkbr.lanzouplus.app-emptyDebug-7 D:\heiyao\src\app\src\emptyDebug\res
+cc.nkbr.lanzouplus.app-main-8 D:\heiyao\src\app\src\main\res

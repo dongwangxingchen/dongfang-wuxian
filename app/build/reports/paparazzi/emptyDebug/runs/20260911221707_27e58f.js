@@ -1,0 +1,9 @@
+window.runs["20260911221707_27e58f"] = [
+  {
+    "name": "scorecard-legacy",
+    "testName": "cc.nkbr.lanzouplus.ToolPagePreviewTest#renderToolPage[scorecard-legacy]",
+    "timestamp": "2026-09-11T14:17:07.593Z",
+    "tags": [],
+    "file": "images/63f3b05a79f8faab87b6284ff77993d03364ee72.png"
+  }
+];

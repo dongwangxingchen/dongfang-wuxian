@@ -1,0 +1,27 @@
+cc.nkbr.lanzouplus.AdbShellService
+cc.nkbr.lanzouplus.LanzouWebActivity
+rikka.shizuku.ShizukuProvider
+androidx.annotation.Keep
+cc.nkbr.lanzouplus.SupportActivity
+moe.shizuku.api.BinderContainer
+cc.nkbr.lanzouplus.MainActivity
+cc.nkbr.lanzouplus.DownloadFileProvider
+cc.nkbr.lanzouplus.IAdbShellService$Stub: int TRANSACTION_installApk
+cc.nkbr.lanzouplus.IAdbShellService$Stub: int TRANSACTION_destroy
+cc.nkbr.lanzouplus.AdbShellService: long INSTALL_TIMEOUT_MS
+moe.shizuku.api.BinderContainer: android.os.Parcelable$Creator CREATOR
+cc.nkbr.lanzouplus.AdbShellService: void destroy()
+cc.nkbr.lanzouplus.AdbShellManager$State: cc.nkbr.lanzouplus.AdbShellManager$State[] values()
+cc.nkbr.lanzouplus.SupportActivity: SupportActivity()
+cc.nkbr.lanzouplus.MainActivity: void applePressScale(android.view.View)
+cc.nkbr.lanzouplus.IAdbShellService$Stub: cc.nkbr.lanzouplus.IAdbShellService asInterface(android.os.IBinder)
+cc.nkbr.lanzouplus.AdbShellService: AdbShellService(android.content.Context)
+cc.nkbr.lanzouplus.MainActivity: MainActivity()
+cc.nkbr.lanzouplus.DownloadFileProvider: DownloadFileProvider()
+cc.nkbr.lanzouplus.AdbShellService: java.lang.String installApk(android.os.ParcelFileDescriptor,long)
+cc.nkbr.lanzouplus.AdbShellService: AdbShellService()
+cc.nkbr.lanzouplus.LanzouWebActivity: LanzouWebActivity()
+rikka.shizuku.ShizukuProvider: ShizukuProvider()
+cc.nkbr.lanzouplus.IAdbShellService$Stub: boolean onTransact(int,android.os.Parcel,android.os.Parcel,int)
+cc.nkbr.lanzouplus.IAdbShellService$Stub: android.os.IBinder asBinder()
+cc.nkbr.lanzouplus.AdbShellManager$State: cc.nkbr.lanzouplus.AdbShellManager$State valueOf(java.lang.String)

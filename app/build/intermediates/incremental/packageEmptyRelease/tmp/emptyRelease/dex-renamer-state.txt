@@ -1,0 +1,4 @@
+#Sat Sep 12 17:08:08 CST 2026
+base.0=D\:\\heiyao\\src\\app\\build\\intermediates\\dex\\emptyRelease\\minifyEmptyReleaseWithR8\\classes.dex
+path.0=classes.dex
+renamed.0=classes.dex

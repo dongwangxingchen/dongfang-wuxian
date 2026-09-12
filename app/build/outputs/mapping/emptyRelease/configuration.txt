@@ -1,0 +1,149 @@
+# The proguard configuration file for the following section is D:\heiyao\src\app\build\intermediates\aapt_proguard_file\emptyRelease\processEmptyReleaseResources\aapt_rules.txt
+-keep class cc.nkbr.lanzouplus.DownloadFileProvider { <init>(); }
+-keep class cc.nkbr.lanzouplus.LanzouWebActivity { <init>(); }
+-keep class cc.nkbr.lanzouplus.MainActivity { <init>(); }
+-keep class cc.nkbr.lanzouplus.SupportActivity { <init>(); }
+-keep class rikka.shizuku.ShizukuProvider { <init>(); }
+
+# End of content from D:\heiyao\src\app\build\intermediates\aapt_proguard_file\emptyRelease\processEmptyReleaseResources\aapt_rules.txt
+# The proguard configuration file for the following section is D:\heiyao\src\app\build\intermediates\default_proguard_files\global\proguard-android-optimize.txt-8.11.0
+# This is a configuration file for ProGuard.
+# http://proguard.sourceforge.net/index.html#manual/usage.html
+#
+# Starting with version 2.2 of the Android plugin for Gradle, this file is distributed together with
+# the plugin and unpacked at build-time. The files in $ANDROID_HOME are no longer maintained and
+# will be ignored by new version of the Android plugin for Gradle.
+
+# Optimizations: If you don't want to optimize, use the proguard-android.txt configuration file
+# instead of this one, which turns off the optimization flags.
+-allowaccessmodification
+
+# Preserve some attributes that may be required for reflection.
+-keepattributes AnnotationDefault,
+                EnclosingMethod,
+                InnerClasses,
+                RuntimeVisibleAnnotations,
+                RuntimeVisibleParameterAnnotations,
+                RuntimeVisibleTypeAnnotations,
+                Signature
+
+-keep public class com.google.vending.licensing.ILicensingService
+-keep public class com.android.vending.licensing.ILicensingService
+-keep public class com.google.android.vending.licensing.ILicensingService
+-dontnote com.android.vending.licensing.ILicensingService
+-dontnote com.google.vending.licensing.ILicensingService
+-dontnote com.google.android.vending.licensing.ILicensingService
+
+# For native methods, see https://www.guardsquare.com/manual/configuration/examples#native
+-keepclasseswithmembernames,includedescriptorclasses class * {
+    native <methods>;
+}
+
+# Keep setters in Views so that animations can still work.
+-keepclassmembers public class * extends android.view.View {
+    void set*(***);
+    *** get*();
+}
+
+# We want to keep methods in Activity that could be used in the XML attribute onClick.
+-keepclassmembers class * extends android.app.Activity {
+    public void *(android.view.View);
+}
+
+# For enumeration classes, see https://www.guardsquare.com/manual/configuration/examples#enumerations
+-keepclassmembers enum * {
+    public static **[] values();
+    public static ** valueOf(java.lang.String);
+}
+
+-keepclassmembers class * implements android.os.Parcelable {
+    public static final ** CREATOR;
+}
+
+# Preserve annotated Javascript interface methods.
+-keepclassmembers class * {
+    @android.webkit.JavascriptInterface <methods>;
+}
+
+# The support libraries contains references to newer platform versions.
+# Don't warn about those in case this app is linking against an older
+# platform version. We know about them, and they are safe.
+-dontnote android.support.**
+-dontnote androidx.**
+-dontwarn android.support.**
+-dontwarn androidx.**
+
+# Understand the @Keep support annotation.
+-keep class android.support.annotation.Keep
+
+-keep @android.support.annotation.Keep class * {*;}
+
+-keepclasseswithmembers class * {
+    @android.support.annotation.Keep <methods>;
+}
+
+-keepclasseswithmembers class * {
+    @android.support.annotation.Keep <fields>;
+}
+
+-keepclasseswithmembers class * {
+    @android.support.annotation.Keep <init>(...);
+}
+
+# These classes are duplicated between android.jar and org.apache.http.legacy.jar.
+-dontnote org.apache.http.**
+-dontnote android.net.http.**
+
+# These classes are duplicated between android.jar and core-lambda-stubs.jar.
+-dontnote java.lang.invoke.**
+
+# End of content from D:\heiyao\src\app\build\intermediates\default_proguard_files\global\proguard-android-optimize.txt-8.11.0
+# The proguard configuration file for the following section is D:\heiyao\src\app\proguard-rules.pro
+# Activity/Provider entry points are retained by the manifest-generated rules.
+# Repackage and relax internal access so full-mode R8 can merge the remaining code.
+-allowaccessmodification
+-repackageclasses x
+
+# Shizuku instantiates this UserService by class name in a shell/root process.
+-keep class cc.nkbr.lanzouplus.AdbShellService { public <init>(); public <init>(android.content.Context); *; }
+
+# End of content from D:\heiyao\src\app\proguard-rules.pro
+# The proguard configuration file for the following section is C:\Users\Admin\.gradle\caches\8.14.3\transforms\c41dbe51a3a73ebbd4837565d23c251d\transformed\provider-13.1.5\proguard.txt
+-keepnames class moe.shizuku.api.BinderContainer
+-keepclassmembers class moe.shizuku.api.BinderContainer {
+   public static final android.os.Parcelable$Creator CREATOR;
+}
+# End of content from C:\Users\Admin\.gradle\caches\8.14.3\transforms\c41dbe51a3a73ebbd4837565d23c251d\transformed\provider-13.1.5\proguard.txt
+# The proguard configuration file for the following section is C:\Users\Admin\.gradle\caches\8.14.3\transforms\e1d46904b2dcc48ad9a202f9de438220\transformed\api-13.1.5\proguard.txt
+
+# End of content from C:\Users\Admin\.gradle\caches\8.14.3\transforms\e1d46904b2dcc48ad9a202f9de438220\transformed\api-13.1.5\proguard.txt
+# The proguard configuration file for the following section is C:\Users\Admin\.gradle\caches\8.14.3\transforms\b9dac763fe073dbd0715c3bea17910bf\transformed\shared-13.1.5\proguard.txt
+
+# End of content from C:\Users\Admin\.gradle\caches\8.14.3\transforms\b9dac763fe073dbd0715c3bea17910bf\transformed\shared-13.1.5\proguard.txt
+# The proguard configuration file for the following section is C:\Users\Admin\.gradle\caches\8.14.3\transforms\3f27bfafa978c1953ca4e446cf4ccb25\transformed\rules\lib\META-INF\proguard\androidx-annotations.pro
+-keep,allowobfuscation @interface androidx.annotation.Keep
+-keep @androidx.annotation.Keep class * {*;}
+
+-keepclasseswithmembers class * {
+    @androidx.annotation.Keep <methods>;
+}
+
+-keepclasseswithmembers class * {
+    @androidx.annotation.Keep <fields>;
+}
+
+-keepclasseswithmembers class * {
+    @androidx.annotation.Keep <init>(...);
+}
+
+-keepclassmembers,allowobfuscation class * {
+  @androidx.annotation.DoNotInline <methods>;
+}
+
+# End of content from C:\Users\Admin\.gradle\caches\8.14.3\transforms\3f27bfafa978c1953ca4e446cf4ccb25\transformed\rules\lib\META-INF\proguard\androidx-annotations.pro
+# The proguard configuration file for the following section is C:\Users\Admin\.gradle\caches\8.14.3\transforms\704269d2ade4d626e89b5ea6b5dcd6fc\transformed\aidl-13.1.5\proguard.txt
+
+# End of content from C:\Users\Admin\.gradle\caches\8.14.3\transforms\704269d2ade4d626e89b5ea6b5dcd6fc\transformed\aidl-13.1.5\proguard.txt
+# The proguard configuration file for the following section is <unknown>
+
+# End of content from <unknown>

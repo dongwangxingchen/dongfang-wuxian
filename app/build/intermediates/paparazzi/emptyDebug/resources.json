@@ -1,0 +1,27 @@
+{
+  "mainPackage": "cc.nkbr.lanzouplus",
+  "targetSdkVersion": "36",
+  "resourcePackageNames": [
+    "cc.nkbr.lanzouplus",
+    "rikka.shizuku.provider",
+    "rikka.shizuku.api",
+    "rikka.shizuku.shared",
+    "rikka.shizuku.aidl"
+  ],
+  "projectResourceDirs": [
+    "src/main/res",
+    "src/empty/res",
+    "src/debug/res",
+    "build/generated/res/resValues/empty/debug",
+    "src/emptyDebug/res"
+  ],
+  "moduleResourceDirs": [],
+  "aarExplodedDirs": [],
+  "projectAssetDirs": [
+    "src/main/assets",
+    "src/empty/assets",
+    "src/debug/assets",
+    "src/emptyDebug/assets"
+  ],
+  "aarAssetDirs": []
+}

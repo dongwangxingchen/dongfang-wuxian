@@ -1,0 +1,132 @@
+1<?xml version="1.0" encoding="utf-8"?>
+2<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+3    package="dfwx.dongdang"
+4    android:versionCode="1030014"
+5    android:versionName="1.6.3" >
+6
+7    <uses-sdk
+8        android:minSdkVersion="24"
+9        android:targetSdkVersion="36" />
+10
+11    <queries>
+11-->D:\heiyao\src\app\src\main\AndroidManifest.xml:2:2-73
+12        <package android:name="moe.shizuku.privileged.api" />
+12-->D:\heiyao\src\app\src\main\AndroidManifest.xml:2:11-63
+12-->D:\heiyao\src\app\src\main\AndroidManifest.xml:2:20-61
+13    </queries>
+14
+15    <uses-permission android:name="android.permission.INTERNET" />
+15-->D:\heiyao\src\app\src\main\AndroidManifest.xml:3:2-63
+15-->D:\heiyao\src\app\src\main\AndroidManifest.xml:3:19-61
+16    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+16-->D:\heiyao\src\app\src\main\AndroidManifest.xml:4:2-91
+16-->D:\heiyao\src\app\src\main\AndroidManifest.xml:4:19-89
+17    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+17-->D:\heiyao\src\app\src\main\AndroidManifest.xml:5:2-79
+17-->D:\heiyao\src\app\src\main\AndroidManifest.xml:5:19-77
+18    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" />
+18-->D:\heiyao\src\app\src\main\AndroidManifest.xml:6:4-80
+18-->D:\heiyao\src\app\src\main\AndroidManifest.xml:6:21-78
+19    <uses-permission
+19-->D:\heiyao\src\app\src\main\AndroidManifest.xml:7:3-104
+20        android:name="android.permission.READ_EXTERNAL_STORAGE"
+20-->D:\heiyao\src\app\src\main\AndroidManifest.xml:7:20-75
+21        android:maxSdkVersion="29" />
+21-->D:\heiyao\src\app\src\main\AndroidManifest.xml:7:76-102
+22    <uses-permission
+22-->D:\heiyao\src\app\src\main\AndroidManifest.xml:8:3-105
+23        android:name="android.permission.WRITE_EXTERNAL_STORAGE"
+23-->D:\heiyao\src\app\src\main\AndroidManifest.xml:8:20-76
+24        android:maxSdkVersion="29" />
+24-->D:\heiyao\src\app\src\main\AndroidManifest.xml:8:77-103
+25    <uses-permission android:name="moe.shizuku.manager.permission.API_V23" />
+25-->[dev.rikka.shizuku:provider:13.1.5] C:\Users\Admin\.gradle\caches\8.14.3\transforms\c41dbe51a3a73ebbd4837565d23c251d\transformed\provider-13.1.5\AndroidManifest.xml:8:5-78
+25-->[dev.rikka.shizuku:provider:13.1.5] C:\Users\Admin\.gradle\caches\8.14.3\transforms\c41dbe51a3a73ebbd4837565d23c251d\transformed\provider-13.1.5\AndroidManifest.xml:8:22-75
+26
+27    <application
+27-->D:\heiyao\src\app\src\main\AndroidManifest.xml:9:4-17:16
+28        android:allowBackup="false"
+28-->D:\heiyao\src\app\src\main\AndroidManifest.xml:9:195-222
+29        android:extractNativeLibs="false"
+30        android:icon="@mipmap/app_icon"
+30-->D:\heiyao\src\app\src\main\AndroidManifest.xml:9:126-157
+31        android:label="@string/app_name"
+31-->D:\heiyao\src\app\src\main\AndroidManifest.xml:9:93-125
+32        android:requestLegacyExternalStorage="true"
+32-->D:\heiyao\src\app\src\main\AndroidManifest.xml:9:49-92
+33        android:theme="@style/AppTheme"
+33-->D:\heiyao\src\app\src\main\AndroidManifest.xml:9:17-48
+34        android:usesCleartextTraffic="false" >
+34-->D:\heiyao\src\app\src\main\AndroidManifest.xml:9:158-194
+35        <provider
+36            android:name="cc.nkbr.lanzouplus.DownloadFileProvider"
+36-->D:\heiyao\src\app\src\main\AndroidManifest.xml:10:12-48
+37            android:authorities="dfwx.dongdang.downloads"
+37-->D:\heiyao\src\app\src\main\AndroidManifest.xml:10:49-97
+38            android:exported="false"
+38-->D:\heiyao\src\app\src\main\AndroidManifest.xml:10:98-122
+39            android:grantUriPermissions="true" />
+39-->D:\heiyao\src\app\src\main\AndroidManifest.xml:10:123-157
+40        <provider
+41            android:name="rikka.shizuku.ShizukuProvider"
+41-->D:\heiyao\src\app\src\main\AndroidManifest.xml:11:13-57
+42            android:authorities="dfwx.dongdang.shizuku"
+42-->D:\heiyao\src\app\src\main\AndroidManifest.xml:11:58-104
+43            android:enabled="true"
+43-->D:\heiyao\src\app\src\main\AndroidManifest.xml:11:134-156
+44            android:exported="true"
+44-->D:\heiyao\src\app\src\main\AndroidManifest.xml:11:157-180
+45            android:multiprocess="false"
+45-->D:\heiyao\src\app\src\main\AndroidManifest.xml:11:105-133
+46            android:permission="android.permission.INTERACT_ACROSS_USERS_FULL" />
+46-->D:\heiyao\src\app\src\main\AndroidManifest.xml:11:181-247
+47
+48        <activity
+48-->D:\heiyao\src\app\src\main\AndroidManifest.xml:12:3-142
+49            android:name="cc.nkbr.lanzouplus.LanzouWebActivity"
+49-->D:\heiyao\src\app\src\main\AndroidManifest.xml:12:13-46
+50            android:configChanges="orientation|screenSize|keyboardHidden|uiMode"
+50-->D:\heiyao\src\app\src\main\AndroidManifest.xml:12:72-140
+51            android:exported="false" />
+51-->D:\heiyao\src\app\src\main\AndroidManifest.xml:12:47-71
+52        <activity
+52-->D:\heiyao\src\app\src\main\AndroidManifest.xml:13:3-140
+53            android:name="cc.nkbr.lanzouplus.SupportActivity"
+53-->D:\heiyao\src\app\src\main\AndroidManifest.xml:13:13-44
+54            android:configChanges="orientation|screenSize|keyboardHidden|uiMode"
+54-->D:\heiyao\src\app\src\main\AndroidManifest.xml:13:70-138
+55            android:exported="false" />
+55-->D:\heiyao\src\app\src\main\AndroidManifest.xml:13:45-69
+56        <activity
+56-->D:\heiyao\src\app\src\main\AndroidManifest.xml:14:4-16:14
+57            android:name="cc.nkbr.lanzouplus.MainActivity"
+57-->D:\heiyao\src\app\src\main\AndroidManifest.xml:14:14-42
+58            android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboardHidden|density|uiMode"
+58-->D:\heiyao\src\app\src\main\AndroidManifest.xml:14:141-249
+59            android:enableOnBackInvokedCallback="true"
+59-->D:\heiyao\src\app\src\main\AndroidManifest.xml:14:98-140
+60            android:exported="true"
+60-->D:\heiyao\src\app\src\main\AndroidManifest.xml:14:74-97
+61            android:launchMode="singleTop" >
+61-->D:\heiyao\src\app\src\main\AndroidManifest.xml:14:43-73
+62            <intent-filter>
+62-->D:\heiyao\src\app\src\main\AndroidManifest.xml:15:4-145
+63                <action android:name="android.intent.action.MAIN" />
+63-->D:\heiyao\src\app\src\main\AndroidManifest.xml:15:19-70
+63-->D:\heiyao\src\app\src\main\AndroidManifest.xml:15:27-68
+64
+65                <category android:name="android.intent.category.LAUNCHER" />
+65-->D:\heiyao\src\app\src\main\AndroidManifest.xml:15:70-129
+65-->D:\heiyao\src\app\src\main\AndroidManifest.xml:15:80-127
+66            </intent-filter>
+67        </activity>
+68
+69        <meta-data
+69-->[dev.rikka.shizuku:provider:13.1.5] C:\Users\Admin\.gradle\caches\8.14.3\transforms\c41dbe51a3a73ebbd4837565d23c251d\transformed\provider-13.1.5\AndroidManifest.xml:11:9-13:36
+70            android:name="moe.shizuku.client.V3_SUPPORT"
+70-->[dev.rikka.shizuku:provider:13.1.5] C:\Users\Admin\.gradle\caches\8.14.3\transforms\c41dbe51a3a73ebbd4837565d23c251d\transformed\provider-13.1.5\AndroidManifest.xml:12:13-57
+71            android:value="true" />
+71-->[dev.rikka.shizuku:provider:13.1.5] C:\Users\Admin\.gradle\caches\8.14.3\transforms\c41dbe51a3a73ebbd4837565d23c251d\transformed\provider-13.1.5\AndroidManifest.xml:13:13-33
+72    </application>
+73
+74</manifest>

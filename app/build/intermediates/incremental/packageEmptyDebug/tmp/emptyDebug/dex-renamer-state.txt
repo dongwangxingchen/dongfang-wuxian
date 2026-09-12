@@ -1,0 +1,10 @@
+#Sat Sep 05 15:22:44 CST 2026
+base.2=D\:\\heiyao\\src\\app\\build\\intermediates\\dex\\emptyDebug\\mergeProjectDexEmptyDebug\\12\\classes.dex
+path.2=12/classes.dex
+base.1=D\:\\heiyao\\src\\app\\build\\intermediates\\dex\\emptyDebug\\mergeProjectDexEmptyDebug\\0\\classes.dex
+path.1=0/classes.dex
+base.0=D\:\\heiyao\\src\\app\\build\\intermediates\\dex\\emptyDebug\\mergeExtDexEmptyDebug\\classes.dex
+renamed.2=classes3.dex
+renamed.1=classes2.dex
+renamed.0=classes.dex
+path.0=classes.dex

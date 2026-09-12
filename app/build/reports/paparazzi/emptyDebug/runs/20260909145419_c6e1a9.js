@@ -1,0 +1,9 @@
+window.runs["20260909145419_c6e1a9"] = [
+  {
+    "name": "calendar",
+    "testName": "cc.nkbr.lanzouplus.ToolPagePreviewTest#renderToolPage[calendar]",
+    "timestamp": "2026-09-09T06:54:20.052Z",
+    "tags": [],
+    "file": "images/1cfef0563780376bc4783550f795e176bd90a012.png"
+  }
+];

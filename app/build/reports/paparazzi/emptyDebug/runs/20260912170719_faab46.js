@@ -1,0 +1,9 @@
+window.runs["20260912170719_faab46"] = [
+  {
+    "name": "json-apple",
+    "testName": "cc.nkbr.lanzouplus.ToolPagePreviewTest#renderToolPage[json-apple]",
+    "timestamp": "2026-09-12T09:07:19.484Z",
+    "tags": [],
+    "file": "images/ad7fb8b10a0c8868b3adc54d3b52258e2bde5943.png"
+  }
+];

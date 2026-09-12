@@ -1,0 +1,1706 @@
+androidx.annotation.AnimRes
+androidx.annotation.AnimatorRes
+androidx.annotation.AnyRes
+androidx.annotation.AnyThread
+androidx.annotation.ArrayRes
+androidx.annotation.AttrRes
+androidx.annotation.BinderThread
+androidx.annotation.BoolRes
+androidx.annotation.CallSuper
+androidx.annotation.CheckResult
+androidx.annotation.ChecksSdkIntAtLeast
+androidx.annotation.ColorInt
+androidx.annotation.ColorLong
+androidx.annotation.ColorRes
+androidx.annotation.ContentView
+androidx.annotation.DimenRes
+androidx.annotation.Dimension
+androidx.annotation.Discouraged
+androidx.annotation.DisplayContext
+androidx.annotation.DoNotInline
+androidx.annotation.DrawableRes
+androidx.annotation.FloatRange
+androidx.annotation.FontRes
+androidx.annotation.FractionRes
+androidx.annotation.GravityInt
+androidx.annotation.GuardedBy
+androidx.annotation.HalfFloat
+androidx.annotation.IdRes
+androidx.annotation.InspectableProperty$EnumEntry
+androidx.annotation.InspectableProperty$FlagEntry
+androidx.annotation.InspectableProperty$ValueType
+androidx.annotation.InspectableProperty
+androidx.annotation.IntDef
+androidx.annotation.IntRange
+androidx.annotation.IntegerRes
+androidx.annotation.InterpolatorRes
+androidx.annotation.LayoutRes
+androidx.annotation.LongDef
+androidx.annotation.MainThread
+androidx.annotation.MenuRes
+androidx.annotation.NavigationRes
+androidx.annotation.NonNull
+androidx.annotation.NonUiContext
+androidx.annotation.Nullable
+androidx.annotation.PluralsRes
+androidx.annotation.Px
+androidx.annotation.RawRes
+androidx.annotation.RequiresApi
+androidx.annotation.RequiresFeature
+androidx.annotation.RequiresPermission$Read
+androidx.annotation.RequiresPermission$Write
+androidx.annotation.RequiresPermission
+androidx.annotation.RestrictTo$Scope
+androidx.annotation.RestrictTo
+androidx.annotation.Size
+androidx.annotation.StringDef
+androidx.annotation.StringRes
+androidx.annotation.StyleRes
+androidx.annotation.StyleableRes
+androidx.annotation.TransitionRes
+androidx.annotation.UiContext
+androidx.annotation.UiThread
+androidx.annotation.VisibleForTesting
+androidx.annotation.WorkerThread
+androidx.annotation.XmlRes
+cc.nkbr.lanzouplus.AdbShellManager:
+    static final int PERMISSION_REQUEST
+cc.nkbr.lanzouplus.AiChatCore$Message:
+    void <init>()
+cc.nkbr.lanzouplus.AiChatCore:
+    void fetchModels(cc.nkbr.lanzouplus.AiChatCore$ModelsCallback)
+cc.nkbr.lanzouplus.AiMarkdown:
+    private static final int VIOLET
+    void <init>()
+cc.nkbr.lanzouplus.AiProviders:
+    void <init>()
+cc.nkbr.lanzouplus.BuildConfig
+cc.nkbr.lanzouplus.DirectCookiePool:
+    private static final java.lang.String ENTRY
+    static final int HOURLY_DIRECT_LIMIT
+    private static final java.lang.String LEGACY_ENTRIES
+    private static final java.lang.String PREFS
+    static final int PROFILE_UNSPECIFIED
+    static final long WINDOW_MS
+    cc.nkbr.lanzouplus.DirectCookiePool$Lease acquire(java.util.Set,long)
+    private cc.nkbr.lanzouplus.DirectCookiePool$Entry newEntry(long)
+    int size()
+cc.nkbr.lanzouplus.DirectLinkResolver:
+    private static final int CACHE_SCHEMA
+    private static final java.lang.String DIRECT
+    private static final java.lang.String PASS
+    private static final java.lang.String PREFS
+    private static final java.lang.String SCHEMA
+    private static final java.lang.String TIME
+    static final long TTL_MS
+    private static final long WORKER_STACK_BYTES
+    int effectiveParallelism()
+    int parallelism()
+    void prewarm(java.lang.String,cc.nkbr.lanzouplus.DirectLinkResolver$Callback)
+    void prewarmAll(java.util.Collection)
+cc.nkbr.lanzouplus.HeiYaoSkeleton:
+    void setRows(int)
+cc.nkbr.lanzouplus.IAdbShellService$Default
+cc.nkbr.lanzouplus.IAdbShellService$Stub$Proxy:
+    public void destroy()
+    public java.lang.String getInterfaceDescriptor()
+cc.nkbr.lanzouplus.IAdbShellService$_Parcel:
+    public void <init>()
+cc.nkbr.lanzouplus.IAdbShellService:
+    public static final java.lang.String DESCRIPTOR
+cc.nkbr.lanzouplus.LanzouCore$NetSession:
+    void <init>(java.util.Map,byte)
+cc.nkbr.lanzouplus.LanzouCore$SourceProfile:
+    void <init>()
+cc.nkbr.lanzouplus.LanzouCore:
+    private static final java.lang.String ANDROID_UA
+    private static final java.lang.String CANONICAL_SOURCE_ORIGIN
+    private static final int CLASSIC_ANDROID_INITIAL_PAGE_INTERVAL_MS
+    private static final int CLASSIC_ANDROID_NEXT_PAGE_INTERVAL_MS
+    private static final int CLASSIC_DESKTOP_INITIAL_PAGE_INTERVAL_MS
+    private static final int CLASSIC_DESKTOP_NEXT_PAGE_INTERVAL_MS
+    private static final int CLASSIC_REFLOW_ANDROID_INITIAL_PAGE_INTERVAL_MS
+    private static final int CLASSIC_REFLOW_ANDROID_NEXT_PAGE_INTERVAL_MS
+    private static final java.lang.String COMPOSITE_MEMBER_PREFS
+    private static final java.lang.String DESKTOP_EDGE_UA
+    private static final java.lang.String DESKTOP_SEARCH_UA
+    private static final java.lang.String DIRECTORY_INDEX_PREFS
+    private static final int DIRECT_INITIAL_WAIT_MS
+    private static final long DIRECT_RESOLVE_TIMEOUT_MS
+    private static final int DIRECT_RETRY_WAIT_MS
+    private static final int DIRECT_VERIFY_WAIT_MS
+    private static final long EXECUTOR_KEEP_ALIVE_SECONDS
+    private static final java.lang.String FOLDER_MARKER
+    private static final long FOREGROUND_BROWSE_TIMEOUT_MS
+    private static final java.lang.String LOCAL_NODE_MARKER
+    private static final java.lang.String MASK
+    private static final int MAX_PAGE_INTERVAL_MS
+    private static final int MAX_SEARCH_INDEX_ITEMS
+    private static final long METADATA_BROWSE_TIMEOUT_MS
+    private static final int MINIMAL_ANDROID_INITIAL_PAGE_INTERVAL_MS
+    private static final int MINIMAL_ANDROID_NEXT_PAGE_INTERVAL_MS
+    private static final int MINIMAL_DESKTOP_INITIAL_PAGE_INTERVAL_MS
+    private static final int MINIMAL_DESKTOP_NEXT_PAGE_INTERVAL_MS
+    private static final java.lang.String MOBILE_FIREFOX_UA
+    private static final java.lang.String MOBILE_HUAWEI_UA
+    private static final long NETWORK_WORKER_STACK_BYTES
+    private static final int NEXT_PAGE_FLOOR_MS
+    private static final long NO_DEADLINE
+    private static final int ORIGIN_PAGE_SLOT_MS
+    private static final int PAGE_SIZE
+    private static final java.lang.String REMOVED_SOURCE_KEY
+    private static final int RULE_LIMIT
+    private static final java.lang.String SEARCH_INDEX_FILE
+    private static final int SEARCH_INDEX_FLUSH_ITEMS
+    private static final long SESSION_TTL_MS
+    private static final long SOURCE_PROBE_TIMEOUT_MS
+    private static final long STARTUP_BASE_ORIGIN_TIMEOUT_MS
+    private static final byte TEMPLATE_CLASSIC
+    private static final byte TEMPLATE_MINIMAL
+    private static final byte TEMPLATE_UNKNOWN
+    private static final byte UA_ANDROID
+    private static final byte UA_CUSTOM
+    private static final byte UA_DESKTOP
+    private static final byte UA_DESKTOP_CHROME
+    private static final byte UA_DESKTOP_EDGE
+    private static final byte UA_MOBILE_CHROME
+    private static final byte UA_MOBILE_FIREFOX
+    private static final byte UA_MOBILE_HUAWEI
+    static final int UA_PRESET_DESKTOP_CHROME
+    static final int UA_PRESET_DESKTOP_EDGE
+    static final int UA_PRESET_MOBILE_CHROME
+    static final int UA_PRESET_MOBILE_FIREFOX
+    static final int UA_PRESET_MOBILE_HUAWEI
+    static final int UA_SCOPE_ALL
+    static final int UA_SCOPE_API_SEARCH
+    static final int UA_SCOPE_DIRECT
+    static final int UA_SCOPE_DIRECTORY_SEARCH
+    static final int UA_SCOPE_FILE_LIST
+    private static final int UA_SLOT_COUNT
+    private static final byte UA_UNKNOWN
+    private static final int UNKNOWN_INITIAL_PAGE_INTERVAL_MS
+    private static final int UNKNOWN_NEXT_PAGE_INTERVAL_MS
+    private static final java.lang.String USER_SOURCE_KEY
+    private static final java.lang.String USER_SOURCE_PREFS
+    cc.nkbr.lanzouplus.LanzouCore$AddBatchResult addUserSourcesBatch(java.lang.String)
+    cc.nkbr.lanzouplus.LanzouCore$AddBatchResult addUserSourcesBatch(java.lang.String,int)
+    cc.nkbr.lanzouplus.LanzouCore$AddBatchResult addUserSourcesBatch(java.lang.String,int,boolean)
+    cc.nkbr.lanzouplus.LanzouCore$AddBatchResult addUserSourcesBatch(java.lang.String,boolean)
+    private static void awaitSearchDelay(long,cc.nkbr.lanzouplus.LanzouCore$BatchBudget,java.util.function.BooleanSupplier)
+    cc.nkbr.lanzouplus.Models$Folder browseAll(java.lang.String,java.lang.String,boolean)
+    private cc.nkbr.lanzouplus.Models$Folder browseAll(java.lang.String,java.lang.String,boolean,long)
+    cc.nkbr.lanzouplus.Models$Folder browseFreshPage(java.lang.String,java.lang.String,int)
+    private cc.nkbr.lanzouplus.Models$Folder browseMetadataRoute(java.lang.String,java.lang.String,long,cc.nkbr.lanzouplus.LanzouCore$RouteCandidate)
+    private cc.nkbr.lanzouplus.Models$Folder browseSearchPage(cc.nkbr.lanzouplus.Models$Item,int,java.util.Set,cc.nkbr.lanzouplus.LanzouCore$BatchBudget,java.util.function.BooleanSupplier)
+    cc.nkbr.lanzouplus.Models$Folder browseSourceMetadata(cc.nkbr.lanzouplus.Models$Source)
+    void buildDirectoryIndex(int,long,boolean,cc.nkbr.lanzouplus.LanzouCore$IndexProgress)
+    void buildDirectoryIndex(int,long,boolean,boolean,cc.nkbr.lanzouplus.LanzouCore$IndexProgress)
+    private static cc.nkbr.lanzouplus.Models$SourceMember cachedCompositeMember(cc.nkbr.lanzouplus.Models$SourceMember)
+    java.util.List cachedDirectoryMatches(java.lang.String,java.util.Set,boolean,int)
+    java.util.List cachedDirectoryMatches(java.lang.String,java.util.Set,boolean,int,boolean)
+    java.util.List cachedDirectoryMatchesWarm(java.lang.String,java.util.Set,boolean,int)
+    private java.util.List cachedMatchesFromIndex(java.lang.String,java.util.Set,cc.nkbr.lanzouplus.LanzouCore$DirectorySearchIndex)
+    java.util.List cachedPartialIndexMatches(java.lang.String,java.util.Set)
+    java.util.List cachedSearchIndexMatches(java.lang.String,java.util.Set)
+    private static java.lang.String capMulti(java.lang.String,java.lang.String)
+    private static void checkSearchBudget(cc.nkbr.lanzouplus.LanzouCore$BatchBudget)
+    java.util.List collectFiles(java.util.Collection,cc.nkbr.lanzouplus.Models$FolderProgress)
+    private static boolean compositeMemberMatches(cc.nkbr.lanzouplus.Models$SourceMember,java.lang.String)
+    private static java.lang.String configuredUserAgent(int)
+    private static java.lang.String defaultUserAgent(byte)
+    private static boolean directShareNeedsLanzouxMirror(java.lang.String)
+    boolean directoryCachingEnabled()
+    private cc.nkbr.lanzouplus.LanzouCore$DirectorySearchIndex directorySearchIndexForSearch()
+    private static byte firstUaCandidate(int,byte)
+    private static int firstWhitespace(java.lang.String)
+    private static cc.nkbr.lanzouplus.LanzouCore$DirectLink getGuarded(java.lang.String,long)
+    private cc.nkbr.lanzouplus.Models$SourceMember hydrateCompositeMetadata(cc.nkbr.lanzouplus.Models$SourceMember)
+    private synthetic cc.nkbr.lanzouplus.Models$Folder lambda$browseSourceMetadata$23(cc.nkbr.lanzouplus.Models$Source,java.lang.String,long,cc.nkbr.lanzouplus.LanzouCore$RouteCandidate)
+    private static synthetic boolean lambda$browseSourceMetadata$24(cc.nkbr.lanzouplus.Models$Folder)
+    private static java.util.List lanzouxDirectMirrors(java.lang.String)
+    private static boolean matches(cc.nkbr.lanzouplus.Models$Item,java.lang.String)
+    private static java.lang.String post(java.lang.String,java.util.Map,cc.nkbr.lanzouplus.LanzouCore$DirectLink,long)
+    private void prepareSearchReplay(cc.nkbr.lanzouplus.Models$Item,int,cc.nkbr.lanzouplus.LanzouCore$BatchBudget,java.util.function.BooleanSupplier)
+    cc.nkbr.lanzouplus.LanzouCore$BaseOriginProbe probeStartupBaseOrigin(java.lang.String,java.lang.String)
+    cc.nkbr.lanzouplus.LanzouCore$DirectLink resolveDirect(java.lang.String)
+    java.util.List restoreOfficialSources()
+    java.util.List retestSources(java.util.Collection,cc.nkbr.lanzouplus.Models$SourceTestProgress)
+    private static java.lang.String scopedUserAgent(byte,int)
+    java.util.List search(java.lang.String,cc.nkbr.lanzouplus.Models$Progress)
+    java.util.List search(java.lang.String,cc.nkbr.lanzouplus.Models$Source,java.util.List,cc.nkbr.lanzouplus.Models$Progress)
+    java.util.List search(java.lang.String,cc.nkbr.lanzouplus.Models$Source,java.util.List,cc.nkbr.lanzouplus.Models$SearchOptions,cc.nkbr.lanzouplus.Models$Progress)
+    private void searchDirectoryTree(cc.nkbr.lanzouplus.Models$Source,java.lang.String,java.util.LinkedHashMap,cc.nkbr.lanzouplus.LanzouCore$SearchPageBatch,cc.nkbr.lanzouplus.Models$SearchOptions,cc.nkbr.lanzouplus.LanzouCore$BatchBudget,java.util.function.BooleanSupplier)
+    cc.nkbr.lanzouplus.Models$SourceSearch searchSource(cc.nkbr.lanzouplus.Models$Source,java.lang.String,java.util.List)
+    cc.nkbr.lanzouplus.Models$SourceSearch searchSource(cc.nkbr.lanzouplus.Models$Source,java.lang.String,java.util.List,cc.nkbr.lanzouplus.LanzouCore$BatchBudget,cc.nkbr.lanzouplus.LanzouCore$ItemBatch,cc.nkbr.lanzouplus.LanzouCore$SearchPageBatch,cc.nkbr.lanzouplus.Models$SearchOptions,java.util.function.BooleanSupplier)
+    private void searchSourceDirectory(cc.nkbr.lanzouplus.LanzouCore$SourceSearchState,cc.nkbr.lanzouplus.LanzouCore$BatchBudget,cc.nkbr.lanzouplus.LanzouCore$ItemBatch,cc.nkbr.lanzouplus.LanzouCore$SearchPageBatch,cc.nkbr.lanzouplus.Models$SearchOptions,java.util.function.BooleanSupplier)
+    int searchableSourceCount(cc.nkbr.lanzouplus.Models$Source)
+    private java.util.LinkedHashMap searchableSources(cc.nkbr.lanzouplus.Models$Source)
+    static void setUserAgentPolicy(int,int)
+    static void setUserAgentPolicy(int,int,int,int)
+    private static java.lang.String startupProbeBody(java.net.HttpURLConnection,int)
+    static java.lang.String uaScopeLabel(int)
+cc.nkbr.lanzouplus.LanzouWebActivity:
+    static final java.lang.String EXTRA_URL
+cc.nkbr.lanzouplus.MainActivity$SearchCategoryPicker:
+    java.lang.String selected()
+cc.nkbr.lanzouplus.MainActivity:
+    static final java.lang.String ACTION_OPEN_DOWNLOADS
+    static final java.lang.String ACTION_WEB_DOWNLOAD
+    static final int DEFAULT_INSTALL_PARALLELISM
+    static final int DEFAULT_PREMIUM_SAVE_PARALLELISM
+    static final int DEFAULT_SOURCE_PROBE_PARALLELISM
+    static final int DEFAULT_TRANSFER_PARALLELISM
+    static final int DELETE_FAILED
+    static final int DELETE_MISSING
+    static final int DELETE_OK
+    static final int DELETE_PERMISSION
+    static final java.lang.String DIRECTORY_INDEX_LAST_ATTEMPT_AT
+    static final java.lang.String DIRECTORY_INDEX_LAST_SUCCESS_AT
+    static final java.lang.String DIRECTORY_INDEX_SCHEDULE_PREFS
+    static final int DIRECT_STORAGE_PERMISSION
+    static final java.lang.String DOWNLOAD_CANCELLED
+    static final java.lang.String DOWNLOAD_COMPLETED
+    static final java.lang.String DOWNLOAD_FAILED
+    static final java.lang.String DOWNLOAD_PAUSED
+    static final long DOWNLOAD_PERSIST_DEBOUNCE_MS
+    static final long DOWNLOAD_PERSIST_INTERVAL_MS
+    static final java.lang.String DOWNLOAD_RESOLVING
+    static final java.lang.String DOWNLOAD_RUNNING
+    static final long DOWNLOAD_UI_INTERVAL_MS
+    static final java.lang.String DOWNLOAD_WAITING
+    static final java.lang.String ENTRY_DOWNLOAD
+    static final java.lang.String ENTRY_PREMIUM_SAVE
+    static final int EXPORT_RULES
+    static final int FOLDER_PULL_MAX_DP
+    static final int FOLDER_PULL_SETTLE_DP
+    static final int FOLDER_PULL_THRESHOLD_DP
+    static final int FUZZY_ALL
+    static final int FUZZY_DIRECTORY
+    static final int FUZZY_FILE_LIST
+    static final int FUZZY_INDEX
+    static final int IMAGE_UI_CHUNK
+    static final int IMPORT_RULES
+    static final java.lang.String LANZOU_PLUS_REPOSITORY
+    static final java.lang.String PRODUCT_NAME
+    static final java.lang.String SAVE_CANCELLED
+    static final java.lang.String SAVE_COMPLETED
+    static final java.lang.String SAVE_FAILED
+    static final java.lang.String SAVE_INTERRUPTED
+    static final java.lang.String SAVE_PAUSED
+    static final java.lang.String SAVE_RUNNING
+    static final java.lang.String SAVE_WAITING
+    static final int SEARCH_RENDER_CHUNK
+    static final int SEARCH_WINDOW
+    static final int SOURCE_LIST_MIN_DISPLAY
+    static final int SOURCE_SELECT_CHILD
+    static final int SOURCE_SELECT_CUSTOM
+    static final int SOURCE_SELECT_LIST
+    static final int SOURCE_SELECT_SOFTWARE
+    static final int STARTUP_STORAGE_PERMISSION
+    static final int STORAGE_PERMISSION
+    static final int TOOL_PICK_IMAGE
+    android.widget.LinearLayout aiInputBar
+    public int ERROR_TOKEN()
+    public int PRIMARY_HI()
+    public int PRIMARY_LO()
+    public int SECONDARY()
+    void addCurrentSourceToCategory(cc.nkbr.lanzouplus.Models$Source,java.lang.String)
+    void addItemSelectionToCategory(java.util.List,java.lang.String)
+    void appendPremiumSaveFailure(cc.nkbr.lanzouplus.MainActivity$PremiumSaveReport,cc.nkbr.lanzouplus.Models$Source,java.lang.String,java.util.List,java.lang.String)
+    void appendPremiumSaveResults(cc.nkbr.lanzouplus.MainActivity$PremiumSaveReport,cc.nkbr.lanzouplus.Models$Source,java.lang.String,java.util.List)
+    void beginDownload(cc.nkbr.lanzouplus.Models$Item)
+    void beginDownload(cc.nkbr.lanzouplus.Models$Item,boolean,java.lang.Runnable)
+    android.widget.LinearLayout buildSearchTogglePanel()
+    varargs android.widget.LinearLayout buildUnifiedSliderPanel(android.view.View[])
+    android.widget.Button button(java.lang.String)
+    void checkForUpdates(boolean)
+    void checkLanzouPlusUpdate(boolean)
+    void checkStartupLanzouBaseOrigin()
+    void confirmRemovePremiumAccount(java.lang.String)
+    void confirmRestoreOfficialSources()
+    void downloadMenu(cc.nkbr.lanzouplus.MainActivity$DownloadEntry)
+    java.lang.String downloadTargetMime(java.lang.String)
+    cc.nkbr.lanzouplus.AiChatCore$Settings draftAiSettings(android.widget.EditText,android.widget.EditText,android.widget.EditText,android.widget.EditText,android.widget.EditText,android.widget.EditText)
+    void enterPlaceholderMotion(android.view.View)
+    boolean fileListApiSelected()
+    boolean fileListDirectorySelected()
+    android.graphics.drawable.Drawable filterChipShape(boolean)
+    void finishUpdateCheck(boolean,java.lang.Runnable,java.lang.Exception)
+    private synthetic void lambda$addCurrentSourceToCategory$347(java.lang.String,java.lang.String)
+    private synthetic void lambda$addCurrentSourceToCategory$348(java.lang.Exception)
+    private synthetic void lambda$addCurrentSourceToCategory$349(cc.nkbr.lanzouplus.Models$Source,java.lang.String)
+    private synthetic void lambda$addItemSelectionToCategory$176(java.lang.String,java.util.LinkedHashSet,int)
+    private synthetic void lambda$addItemSelectionToCategory$177(boolean,java.lang.StringBuilder,java.util.List,java.lang.String)
+    private synthetic void lambda$checkLanzouPlusUpdate$110(cc.nkbr.lanzouplus.UpdateClient$UpdateInfo)
+    private synthetic void lambda$checkLanzouPlusUpdate$111(boolean)
+    private synthetic void lambda$checkStartupLanzouBaseOrigin$317(java.lang.String,android.content.DialogInterface,int)
+    private synthetic void lambda$checkStartupLanzouBaseOrigin$318(java.lang.String,cc.nkbr.lanzouplus.LanzouCore$BaseOriginProbe,java.lang.String)
+    private synthetic void lambda$checkStartupLanzouBaseOrigin$319(java.lang.String,java.lang.String)
+    private synthetic void lambda$confirmRemovePremiumAccount$498()
+    private synthetic void lambda$confirmRemovePremiumAccount$499(java.lang.String)
+    private synthetic void lambda$confirmRemovePremiumAccount$500(java.lang.String,android.content.DialogInterface,int)
+    private synthetic void lambda$confirmRestoreOfficialSources$507(android.content.DialogInterface,int)
+    private synthetic void lambda$downloadMenu$537(cc.nkbr.lanzouplus.MainActivity$DownloadEntry,android.content.DialogInterface,int)
+    private synthetic void lambda$finishUpdateCheck$109(boolean,java.lang.Exception,java.lang.Runnable)
+    private synthetic void lambda$premiumAccountCard$487(android.view.View)
+    private synthetic void lambda$premiumAccountCard$488(android.widget.TextView,android.widget.Button,android.view.View)
+    private synthetic void lambda$premiumAccountCard$489()
+    private synthetic void lambda$premiumAccountCard$490(android.view.View)
+    private synthetic void lambda$premiumAccountCard$491(java.util.List,android.view.View)
+    private synthetic void lambda$premiumAccountCard$492(cc.nkbr.lanzouplus.PremiumCloudClient$LoginState,android.widget.EditText,android.widget.EditText,android.widget.Button)
+    private synthetic void lambda$premiumAccountCard$493(android.widget.EditText,android.widget.EditText,android.widget.Button)
+    private synthetic void lambda$premiumAccountCard$494(java.lang.String,java.lang.String,android.widget.EditText,android.widget.EditText,android.widget.Button)
+    private synthetic void lambda$premiumAccountCard$495(android.widget.EditText,android.widget.EditText,android.widget.Button,android.view.View)
+    private synthetic void lambda$refreshSourcesAfterCategoryChange$350(android.widget.HorizontalScrollView,cc.nkbr.lanzouplus.Models$Source)
+    private synthetic void lambda$restoreOfficialSources$508(java.util.List)
+    private synthetic void lambda$restoreOfficialSources$509()
+    private synthetic void lambda$sessionFilterChip$37(android.widget.TextView,java.lang.String,java.util.function.Consumer,android.view.View)
+    private static synthetic void lambda$showAiSettingsDialog$223(java.lang.String[],cc.nkbr.lanzouplus.AiProviders$Provider,android.widget.EditText,android.widget.EditText,android.widget.TextView,java.lang.Runnable[],android.view.View)
+    private static synthetic void lambda$showAiSettingsDialog$224(android.widget.EditText,java.lang.String,android.view.View)
+    private synthetic void lambda$showAiSettingsDialog$225(android.widget.TextView[],java.lang.String[],android.widget.LinearLayout,android.widget.EditText)
+    private static synthetic void lambda$showAiSettingsDialog$226(android.widget.EditText,java.util.List,android.content.DialogInterface,int)
+    private synthetic void lambda$showAiSettingsDialog$227(android.widget.Button,android.widget.EditText,java.util.List,java.lang.String)
+    private synthetic void lambda$showAiSettingsDialog$228(android.widget.EditText,android.widget.EditText,android.widget.EditText,android.widget.EditText,android.widget.Button,android.view.View)
+    private synthetic void lambda$showAiSettingsDialog$230(android.widget.Button,android.widget.EditText,android.widget.EditText,android.widget.EditText,android.view.View)
+    private synthetic void lambda$showAiSettingsDialog$231(android.widget.EditText,android.widget.EditText,android.widget.EditText,android.widget.EditText,android.widget.EditText,android.widget.EditText,java.lang.String[],android.content.DialogInterface,int)
+    private synthetic void lambda$showDirectoryParseRecoveryDialog$127(cc.nkbr.lanzouplus.Models$Source,android.content.DialogInterface,int)
+    private synthetic void lambda$showDirectoryParseRecoveryDialog$128(android.content.DialogInterface,int)
+    private synthetic void lambda$showDirectoryParseRecoveryDialog$129(android.widget.CheckBox,android.content.DialogInterface)
+    private synthetic void lambda$showLanzouPlusUpdate$112(cc.nkbr.lanzouplus.UpdateClient$UpdateInfo,android.content.DialogInterface,int)
+    private synthetic void lambda$showPremiumRemoveAccountPicker$497(java.util.List,android.content.DialogInterface,int)
+    private synthetic void lambda$startLanzouPlusUpdate$113(cc.nkbr.lanzouplus.UpdateClient$UpdateInfo)
+    private synthetic void lambda$verifyPremiumAccounts$501(android.widget.Button,android.widget.TextView,int,int,int)
+    private synthetic void lambda$verifyPremiumAccounts$502(android.widget.Button,android.widget.TextView,cc.nkbr.lanzouplus.PremiumCloudClient$CloudException)
+    private synthetic void lambda$verifyPremiumAccounts$503(android.widget.Button,android.widget.TextView)
+    void maybeCheckForUpdates()
+    void maybeRequestStartupStorageAccess()
+    public int pageDirection()
+    android.view.View placeholderPanel(int,java.lang.String,java.lang.String)
+    android.widget.LinearLayout premiumAccountCard()
+    android.widget.TextView premiumAccountLabel(java.lang.String)
+    java.lang.String premiumSaveFailureReason(cc.nkbr.lanzouplus.PremiumCloudClient$AccountSaveResult)
+    void prepareRoundedInputDialog(android.app.AlertDialog,android.view.View)
+    void rebuildSearchGrid(android.widget.GridLayout,java.util.List)
+    void rebuildToolStackTop()
+    void refreshSettingsFade(java.lang.String)
+    void refreshSourcesAfterCategoryChange(java.util.Collection)
+    void replaceSourceCategoryTags(android.widget.HorizontalScrollView,cc.nkbr.lanzouplus.Models$Source)
+    void requestVerifiedUpdateDownload(cc.nkbr.lanzouplus.Models$Item,java.lang.String)
+    boolean requiresPremiumLogin(cc.nkbr.lanzouplus.PremiumCloudClient$CloudException)
+    void restoreOfficialSources()
+    void retryDownload(cc.nkbr.lanzouplus.MainActivity$DownloadEntry)
+    void scheduleInitialFolderAutoExpand()
+    void scheduleSearchWindow(int)
+    boolean searchApiSelected()
+    boolean searchDirectorySelected()
+    int searchableSourceTotal()
+    int searchableSourceTotal(java.lang.String)
+    android.widget.TextView sessionFilterChip(java.lang.String,boolean,java.util.function.Consumer)
+    public void setToolImageInfoText(java.lang.String)
+    public void setToolImageUri(android.net.Uri)
+    void shareDownloadLink(cc.nkbr.lanzouplus.MainActivity$DownloadEntry)
+    void shareDownloadedFile(cc.nkbr.lanzouplus.MainActivity$DownloadEntry)
+    void showAiSettingsDialog()
+    void showDirectoryParseRecoveryDialog(cc.nkbr.lanzouplus.Models$Source,java.lang.String)
+    void showLanzouAccessPrompt(java.lang.String,boolean,java.util.function.Consumer,java.lang.Runnable)
+    void showLanzouPlusUpdate(cc.nkbr.lanzouplus.UpdateClient$UpdateInfo)
+    void showPremiumRemoveAccountPicker(java.util.List)
+    static boolean showWebNotice(java.lang.String,boolean)
+    java.lang.String sourceShareText(cc.nkbr.lanzouplus.Models$Source)
+    void startLanzouPlusUpdate(cc.nkbr.lanzouplus.UpdateClient$UpdateInfo)
+    void updateFilterChip(android.widget.TextView,java.lang.String,boolean)
+    void verifyPremiumAccounts(android.widget.TextView,android.widget.Button)
+cc.nkbr.lanzouplus.Models$SearchOptions:
+    static final int MASK_ALL
+    static final int MASK_API
+    static final int MASK_DIRECTORY
+    static final int MASK_INDEX
+    static final int MODE_API
+    static final int MODE_DIRECTORY
+    static final int MODE_INDEX
+    static final int MODE_MIXED
+    void <init>(int,long,boolean)
+    boolean directoryOnly()
+    cc.nkbr.lanzouplus.Models$SearchOptions withMode(int)
+cc.nkbr.lanzouplus.Models$SourceSearch
+cc.nkbr.lanzouplus.Models
+cc.nkbr.lanzouplus.PremiumCloudClient$AccountLoginState
+cc.nkbr.lanzouplus.PremiumCloudClient$AccountSaveResult
+cc.nkbr.lanzouplus.PremiumCloudClient$AccountWork
+cc.nkbr.lanzouplus.PremiumCloudClient$CancelToken:
+    boolean isCancelled()
+cc.nkbr.lanzouplus.PremiumCloudClient$CloudException:
+    boolean needsCredentials()
+cc.nkbr.lanzouplus.PremiumCloudClient:
+    private static final java.lang.String API_ORIGIN
+    static final int ERROR_CREDENTIALS_REQUIRED
+    static final int ERROR_CREDENTIALS_UNREADABLE
+    static final int ERROR_NETWORK
+    static final int ERROR_PROTOCOL
+    private static final java.lang.String GET_UUID
+    private static final java.lang.String KEY_ALIAS
+    private static final java.lang.String LOGIN
+    private static final int MAX_JSON_BYTES
+    private static final int MAX_REDIRECTS
+    private static final int MAX_REDIRECT_BODY_BYTES
+    private static final java.lang.String PREFS
+    private static final java.lang.String PREF_IV
+    private static final java.lang.String PREF_SECRET
+    private static final java.lang.String PREF_UUID
+    private static final long SESSION_CACHE_MS
+    private static final java.lang.String TRANSFER
+    private static final java.lang.String USER_INFO
+    private static final java.lang.String WEB_CIPHER_KEY
+    private static final java.lang.String WEB_ORIGIN
+    void clearLogin()
+    java.util.List ensureAllLoggedIn(boolean)
+    cc.nkbr.lanzouplus.PremiumCloudClient$LoginState ensureLoggedIn()
+    private synthetic cc.nkbr.lanzouplus.PremiumCloudClient$AccountLoginState lambda$queryAllLoginStates$0(java.lang.String)
+    private static synthetic java.lang.Object lambda$runAccounts$2(cc.nkbr.lanzouplus.PremiumCloudClient$AccountWork,java.lang.String)
+    private synthetic cc.nkbr.lanzouplus.PremiumCloudClient$AccountSaveResult lambda$saveFromShareAccounts$1(java.lang.String,java.lang.String)
+    java.util.List queryAllLoginStates(boolean)
+    cc.nkbr.lanzouplus.PremiumCloudClient$LoginState queryLoginState()
+    cc.nkbr.lanzouplus.PremiumCloudClient$LoginState queryLoginState(java.lang.String)
+    boolean removeAccount(java.lang.String)
+    private java.lang.String requiredCurrentAccount()
+    private java.lang.String resolveTransferAuth(java.lang.String)
+    private java.util.List runAccounts(java.util.List,boolean,cc.nkbr.lanzouplus.PremiumCloudClient$AccountWork)
+    private cc.nkbr.lanzouplus.PremiumCloudClient$SaveResult saveAuth(java.lang.String,java.lang.String)
+    cc.nkbr.lanzouplus.PremiumCloudClient$SaveResult saveFromShare(java.lang.String)
+    cc.nkbr.lanzouplus.PremiumCloudClient$SaveResult saveFromShare(java.lang.String,java.lang.String)
+    java.util.List saveFromShareAccounts(java.lang.String,java.util.List,boolean)
+    java.util.List saveFromShareAll(java.lang.String,boolean)
+    private cc.nkbr.lanzouplus.PremiumCloudClient$ApiReply transfer(java.lang.String,java.lang.String)
+cc.nkbr.lanzouplus.PremiumSaveCoordinator$Snapshot:
+    int percent()
+cc.nkbr.lanzouplus.PremiumSaveCoordinator$Task:
+    java.util.Set capacityAccounts()
+    boolean switchCapacityTo(java.lang.String)
+cc.nkbr.lanzouplus.PremiumSaveCoordinator:
+    static final int MIN_PARALLELISM
+    static final java.lang.String STATE_CANCELLED
+    static final java.lang.String STATE_COMPLETED
+    static final java.lang.String STATE_FAILED
+    static final java.lang.String STATE_PAUSED
+    static final java.lang.String STATE_RUNNING
+    static final java.lang.String STATE_WAITING
+    private void <init>()
+    static cc.nkbr.lanzouplus.PremiumSaveCoordinator$Task start(java.util.List,java.util.List,int,cc.nkbr.lanzouplus.PremiumSaveCoordinator$Operation,cc.nkbr.lanzouplus.PremiumSaveCoordinator$Listener)
+    static cc.nkbr.lanzouplus.PremiumSaveCoordinator$Task start(java.util.List,java.util.List,java.util.Set,int,cc.nkbr.lanzouplus.PremiumSaveCoordinator$Operation,cc.nkbr.lanzouplus.PremiumSaveCoordinator$Listener)
+cc.nkbr.lanzouplus.R$anim
+cc.nkbr.lanzouplus.R$drawable:
+    private void <init>()
+cc.nkbr.lanzouplus.R$mipmap:
+    private void <init>()
+cc.nkbr.lanzouplus.R$string
+cc.nkbr.lanzouplus.R$style:
+    public static int AppTheme
+    public static int DfwxSheetDialogAnim
+    public static int HeiYaoDialog
+    private void <init>()
+cc.nkbr.lanzouplus.R
+cc.nkbr.lanzouplus.SegmentDownloader:
+    private static final java.lang.String UA
+    private static final long WORKER_STACK_BYTES
+cc.nkbr.lanzouplus.Support:
+    private static final java.lang.String KEY_ASK_ON_DOWNLOAD
+    private static final java.lang.String KEY_LAST_NAG_AT
+    private static final java.lang.String KEY_PAID_AT
+    private static final java.lang.String KEY_UNLOCKED
+    static final long NAG_INTERVAL_MS
+    private static final java.lang.String PREF_FILE
+    private void <init>()
+    static long lastNagAt(android.content.Context)
+cc.nkbr.lanzouplus.ThemeEngine$Design:
+    static int rgb(java.lang.String)
+cc.nkbr.lanzouplus.ThemeEngine:
+    private static final java.lang.String KEY_MIGRATED_131
+    private static final java.lang.String KEY_THEME
+    private static final java.lang.String PREF_FILE
+    private void <init>()
+    static java.lang.String label(android.content.Context)
+    static java.lang.String tagline(android.content.Context)
+cc.nkbr.lanzouplus.ToolHost$Host:
+    public abstract int ERROR_TOKEN()
+    public abstract int PRIMARY_HI()
+    public abstract int PRIMARY_LO()
+    public abstract int SECONDARY()
+    public abstract int pageDirection()
+    public abstract void setToolImageInfoText(java.lang.String)
+    public abstract void setToolImageUri(android.net.Uri)
+cc.nkbr.lanzouplus.ToolHost:
+    java.lang.String collectDeviceInfo()
+cc.nkbr.lanzouplus.Toolbox:
+    static final java.lang.String AUDIO
+    static final java.lang.String CALC
+    static final java.lang.String CALENDAR
+    static final java.lang.String CAT_ALL
+    static final java.lang.String CHECK
+    static final java.lang.String COPY
+    static final java.lang.String DICE
+    static final java.lang.String EDIT
+    static final java.lang.String HEART
+    static final java.lang.String IDCARD
+    static final java.lang.String IMAGE
+    static final java.lang.String INFO
+    static final java.lang.String OPEN_WITH
+    static final java.lang.String PALETTE
+    static final java.lang.String QR
+    static final java.lang.String REFRESH
+    static final java.lang.String RULER
+    static final java.lang.String SEARCH
+    static final java.lang.String STAR
+    static final java.lang.String TEXT
+    static final java.lang.String TORCH
+    static final java.lang.String VOICE
+    void <init>()
+    static java.util.List allToolIds()
+    static int categoryCount()
+    static int categoryIndex(java.lang.String)
+    static java.lang.String toolCatalogJson()
+    static java.lang.String toolCategory(java.lang.String)
+    static int toolHeat(java.lang.String)
+    static java.lang.String toolId(int)
+    static java.lang.String toolKeywords(java.lang.String)
+    static java.util.List toolsInCategory(int)
+    static java.lang.String weekdayOf(java.lang.String)
+cc.nkbr.lanzouplus.TransferCoordinator:
+    private static final long MIB
+    private static final int MIN_ADAPTIVE
+    synchronized int activeCount()
+    synchronized int pendingCount()
+cc.nkbr.lanzouplus.UpdateClient$UpdateInfo:
+    final java.lang.String body
+    final java.lang.String browserDownloadUrl
+    final java.lang.String mirrorUrl
+    final boolean preferMirror
+    final java.lang.String version
+    void <init>(java.lang.String,java.lang.String,java.lang.String,java.lang.String,java.lang.String,long,boolean)
+cc.nkbr.lanzouplus.UpdateClient:
+    static final java.lang.String ASSET_NAME
+    private static final java.lang.String GITHUB_LATEST
+    private static final int JSON_LIMIT
+    private static final java.lang.String SITE_APK
+    private static final java.lang.String SITE_LATEST
+    void <init>()
+    static cc.nkbr.lanzouplus.UpdateClient$UpdateInfo check(java.lang.String)
+    private static int compare(long[],long[])
+    private static org.json.JSONObject fetch(java.lang.String)
+    private static boolean isRedirect(int)
+    private static java.lang.String normalizeVersion(java.lang.String)
+    private static cc.nkbr.lanzouplus.UpdateClient$UpdateInfo parse(org.json.JSONObject,long[],boolean)
+    private static long[] parseVersion(java.lang.String)
+    private static void requireGithubAsset(java.lang.String,java.lang.String)
+    private static void requireMirrorAsset(java.lang.String)
+moe.shizuku.server.IRemoteProcess$Default
+moe.shizuku.server.IRemoteProcess$Stub$Proxy
+moe.shizuku.server.IRemoteProcess$Stub
+moe.shizuku.server.IRemoteProcess
+moe.shizuku.server.IShizukuApplication$Default
+moe.shizuku.server.IShizukuApplication$Stub$Proxy
+moe.shizuku.server.IShizukuApplication$Stub:
+    private static final java.lang.String DESCRIPTOR
+    static final int TRANSACTION_bindApplication
+    static final int TRANSACTION_dispatchRequestPermissionResult
+    static final int TRANSACTION_showPermissionConfirmation
+    public static moe.shizuku.server.IShizukuApplication asInterface(android.os.IBinder)
+    public static moe.shizuku.server.IShizukuApplication getDefaultImpl()
+    public static boolean setDefaultImpl(moe.shizuku.server.IShizukuApplication)
+moe.shizuku.server.IShizukuService$Default
+moe.shizuku.server.IShizukuService$Stub$Proxy:
+    public void attachApplication(moe.shizuku.server.IShizukuApplication,android.os.Bundle)
+    public void attachUserService(android.os.IBinder,android.os.Bundle)
+    public int checkPermission(java.lang.String)
+    public void dispatchPackageChanged(android.content.Intent)
+    public void dispatchPermissionConfirmationResult(int,int,int,android.os.Bundle)
+    public void exit()
+    public int getFlagsForUid(int,int)
+    public java.lang.String getInterfaceDescriptor()
+    public java.lang.String getSELinuxContext()
+    public java.lang.String getSystemProperty(java.lang.String,java.lang.String)
+    public boolean isHidden(int)
+    public moe.shizuku.server.IRemoteProcess newProcess(java.lang.String[],java.lang.String[],java.lang.String)
+    public void setSystemProperty(java.lang.String,java.lang.String)
+    public void updateFlagsForUid(int,int,int)
+moe.shizuku.server.IShizukuService$Stub:
+    private static final java.lang.String DESCRIPTOR
+    static final int TRANSACTION_addUserService
+    static final int TRANSACTION_attachApplication
+    static final int TRANSACTION_attachUserService
+    static final int TRANSACTION_checkPermission
+    static final int TRANSACTION_checkSelfPermission
+    static final int TRANSACTION_dispatchPackageChanged
+    static final int TRANSACTION_dispatchPermissionConfirmationResult
+    static final int TRANSACTION_exit
+    static final int TRANSACTION_getFlagsForUid
+    static final int TRANSACTION_getSELinuxContext
+    static final int TRANSACTION_getSystemProperty
+    static final int TRANSACTION_getUid
+    static final int TRANSACTION_getVersion
+    static final int TRANSACTION_isHidden
+    static final int TRANSACTION_newProcess
+    static final int TRANSACTION_removeUserService
+    static final int TRANSACTION_requestPermission
+    static final int TRANSACTION_setSystemProperty
+    static final int TRANSACTION_shouldShowRequestPermissionRationale
+    static final int TRANSACTION_updateFlagsForUid
+    public void <init>()
+    public android.os.IBinder asBinder()
+    public boolean onTransact(int,android.os.Parcel,android.os.Parcel,int)
+    public static boolean setDefaultImpl(moe.shizuku.server.IShizukuService)
+moe.shizuku.server.IShizukuService:
+    public abstract void attachApplication(moe.shizuku.server.IShizukuApplication,android.os.Bundle)
+    public abstract void attachUserService(android.os.IBinder,android.os.Bundle)
+    public abstract int checkPermission(java.lang.String)
+    public abstract void dispatchPackageChanged(android.content.Intent)
+    public abstract void dispatchPermissionConfirmationResult(int,int,int,android.os.Bundle)
+    public abstract void exit()
+    public abstract int getFlagsForUid(int,int)
+    public abstract java.lang.String getSELinuxContext()
+    public abstract java.lang.String getSystemProperty(java.lang.String,java.lang.String)
+    public abstract boolean isHidden(int)
+    public abstract moe.shizuku.server.IRemoteProcess newProcess(java.lang.String[],java.lang.String[],java.lang.String)
+    public abstract void setSystemProperty(java.lang.String,java.lang.String)
+    public abstract void updateFlagsForUid(int,int,int)
+moe.shizuku.server.IShizukuServiceConnection$Default
+moe.shizuku.server.IShizukuServiceConnection$Stub$Proxy
+moe.shizuku.server.IShizukuServiceConnection$Stub:
+    private static final java.lang.String DESCRIPTOR
+    static final int TRANSACTION_connected
+    static final int TRANSACTION_died
+    public static moe.shizuku.server.IShizukuServiceConnection asInterface(android.os.IBinder)
+    public static moe.shizuku.server.IShizukuServiceConnection getDefaultImpl()
+    public static boolean setDefaultImpl(moe.shizuku.server.IShizukuServiceConnection)
+rikka.shizuku.Shizuku$UserServiceArgs:
+    public rikka.shizuku.Shizuku$UserServiceArgs tag(java.lang.String)
+    private rikka.shizuku.Shizuku$UserServiceArgs use32BitAppProcess(boolean)
+rikka.shizuku.Shizuku:
+    public void <init>()
+    public static void addBinderReceivedListener(rikka.shizuku.Shizuku$OnBinderReceivedListener)
+    public static void addBinderReceivedListener(rikka.shizuku.Shizuku$OnBinderReceivedListener,android.os.Handler)
+    public static void attachUserService(android.os.IBinder,android.os.Bundle)
+    public static int checkRemotePermission(java.lang.String)
+    public static void dispatchPermissionConfirmationResult(int,int,int,android.os.Bundle)
+    public static void exit()
+    public static int getFlagsForUid(int,int)
+    public static int getLatestServiceVersion()
+    public static java.lang.String getSELinuxContext()
+    private static rikka.shizuku.ShizukuRemoteProcess newProcess(java.lang.String[],java.lang.String[],java.lang.String)
+    public static int peekUserService(rikka.shizuku.Shizuku$UserServiceArgs,android.content.ServiceConnection)
+    public static void transactRemote(android.os.Parcel,android.os.Parcel,int)
+    public static void updateFlagsForUid(int,int,int)
+rikka.shizuku.ShizukuApiConstants
+rikka.shizuku.ShizukuBinderWrapper
+rikka.shizuku.ShizukuProvider$1
+rikka.shizuku.ShizukuProvider:
+    public static final java.lang.String ACTION_BINDER_RECEIVED
+    private static final java.lang.String EXTRA_BINDER
+    public static final java.lang.String MANAGER_APPLICATION_ID
+    public static final java.lang.String METHOD_GET_BINDER
+    public static final java.lang.String METHOD_SEND_BINDER
+    public static final java.lang.String PERMISSION
+    private static final java.lang.String TAG
+    public static void disableAutomaticSuiInitialization()
+    public static void enableMultiProcessSupport(boolean)
+    public static void requestBinderForNonProviderProcess(android.content.Context)
+    public static void setIsProviderProcess(boolean)
+rikka.shizuku.ShizukuRemoteProcess$1
+rikka.shizuku.ShizukuRemoteProcess
+rikka.shizuku.ShizukuServiceConnection:
+    public void removeConnection(android.content.ServiceConnection)
+rikka.shizuku.ShizukuServiceConnections:
+    void <init>()
+rikka.shizuku.ShizukuSystemProperties
+rikka.shizuku.SystemServiceHelper:
+    public void <init>()
+    public static java.lang.Integer getTransactionCode(java.lang.String,java.lang.String)
+    public static android.os.Parcel obtainParcel(java.lang.String,java.lang.String,java.lang.String)
+    public static android.os.Parcel obtainParcel(java.lang.String,java.lang.String,java.lang.String,java.lang.String)
+rikka.shizuku.aidl.R
+rikka.shizuku.api.R
+rikka.shizuku.provider.R
+rikka.shizuku.shared.BuildConfig
+rikka.shizuku.shared.R
+rikka.sui.Sui:
+    private static final int BRIDGE_ACTION_GET_BINDER
+    private static final java.lang.String BRIDGE_SERVICE_DESCRIPTOR
+    private static final java.lang.String BRIDGE_SERVICE_NAME
+    private static final int BRIDGE_TRANSACTION_CODE
+    public void <init>()
+cc.nkbr.lanzouplus.AdbShellManager$$InternalSyntheticLambda$2$58f7339a05a6f2f230d6734050cac582d6ab07d824138ad11a906108f4344323$1:
+    public final void onBinderDead()
+cc.nkbr.lanzouplus.AdbShellManager$$InternalSyntheticLambda$2$58f7339a05a6f2f230d6734050cac582d6ab07d824138ad11a906108f4344323$2:
+    public final void onRequestPermissionResult(int)
+cc.nkbr.lanzouplus.AdbShellManager$Listener
+cc.nkbr.lanzouplus.AdbShellManager$Snapshot:
+    public final int uid
+cc.nkbr.lanzouplus.AdbShellManager$State$EnumUnboxingLocalUtility
+cc.nkbr.lanzouplus.AdbShellManager$State$EnumUnboxingSharedUtility
+cc.nkbr.lanzouplus.AdbShellManager$State
+cc.nkbr.lanzouplus.AdbShellManager:
+    public static cc.nkbr.lanzouplus.AdbShellManager$InstallResult install()
+    public static boolean requestPermission()
+    public static cc.nkbr.lanzouplus.AdbShellManager$Snapshot snapshot()
+    public static void start()
+cc.nkbr.lanzouplus.AiChatCore$ModelsCallback
+cc.nkbr.lanzouplus.AiChatCore$StreamListener
+cc.nkbr.lanzouplus.AiChatCore$TestChatCallback
+cc.nkbr.lanzouplus.AiChatCore:
+    public final java.lang.String activeId()
+    public static cc.nkbr.lanzouplus.AiChatCore$Request chat()
+    public static void deleteChannel()
+    public static void fetchModels()
+    public static java.lang.String firstNonEmpty(java.lang.String,java.lang.String)
+    public static void saveSessions()
+    public static void saveSettings()
+    public static java.util.List sessions()
+    public static cc.nkbr.lanzouplus.AiChatCore$Settings settingsActive()
+    public static void testChat()
+cc.nkbr.lanzouplus.DirectCookiePool$1
+cc.nkbr.lanzouplus.DirectCookiePool$Lease:
+    public final java.util.HashMap jar
+    public final int profile
+cc.nkbr.lanzouplus.DirectCookiePool:
+    public static cc.nkbr.lanzouplus.DirectCookiePool$Lease acquire()
+cc.nkbr.lanzouplus.DirectLinkResolver$$InternalSyntheticLambda$2$8a63f9d88d23aad273a6ba6d27185d45d8d04bebc39aee8ad23b66146e724b23$0:
+    public static long now()
+cc.nkbr.lanzouplus.DirectLinkResolver$Callback
+cc.nkbr.lanzouplus.DirectLinkResolver$Clock
+cc.nkbr.lanzouplus.DirectLinkResolver:
+    public static synthetic boolean $r8$lambda$bd33UWulfF5orwwDhR0FdQh0Bcc()
+    public final int effectiveLimitLocked()
+    public final boolean hasFresh(java.lang.String)
+    public static synthetic boolean lambda$resolve$3()
+    public static void prewarm()
+    public static void setParallelism()
+cc.nkbr.lanzouplus.GlassNavBar$Go
+cc.nkbr.lanzouplus.GlassNavBar:
+    public final android.graphics.RectF capsule
+    public final android.graphics.Paint shadow
+    public final void cancelLp()
+    public static float dp()
+    public final int hoverIndexOf(float)
+    public static void invalidateOverlay()
+cc.nkbr.lanzouplus.HeiYaoSkeleton:
+    public static void startShine()
+    public static void stopShine()
+cc.nkbr.lanzouplus.IAdbShellService$_Parcel
+cc.nkbr.lanzouplus.LanzouCore$$InternalSyntheticLambda$6$721ddebc6f341c6694585c05ade29e4de5a40d6e4ff607864b196b30a7e4b821$0:
+    public final synthetic boolean f$2
+cc.nkbr.lanzouplus.LanzouCore$$InternalSyntheticLambda$7$c966b86695686ab096d34b5fe5ac5def9e7ccc27f9e230f13ecad23cdcb608e1$0:
+    public final synthetic cc.nkbr.lanzouplus.LanzouCore f$0
+cc.nkbr.lanzouplus.LanzouCore$1
+cc.nkbr.lanzouplus.LanzouCore$AddProgress
+cc.nkbr.lanzouplus.LanzouCore$BaseOriginProbeProgress
+cc.nkbr.lanzouplus.LanzouCore$BatchBudget:
+    public static long deadline()
+cc.nkbr.lanzouplus.LanzouCore$CachedDirectoryEntry:
+    public final int depth
+    public final int page
+cc.nkbr.lanzouplus.LanzouCore$ConnectionTracker
+cc.nkbr.lanzouplus.LanzouCore$DirectLink:
+    public java.lang.String fileName
+    public java.lang.String routeOrigin
+    public byte template
+cc.nkbr.lanzouplus.LanzouCore$IndexProgress
+cc.nkbr.lanzouplus.LanzouCore$IndexSnapshot:
+    public final boolean complete()
+cc.nkbr.lanzouplus.LanzouCore$ItemBatch
+cc.nkbr.lanzouplus.LanzouCore$NetSession:
+    public final java.util.LinkedHashMap bucket(java.lang.String)
+    public final void capture(java.net.HttpURLConnection)
+    public static cc.nkbr.lanzouplus.LanzouCore$DirectLink getBootstrap()
+    public final void put(java.lang.String,java.lang.String)
+cc.nkbr.lanzouplus.LanzouCore$RouteCandidate:
+    public final int scope
+cc.nkbr.lanzouplus.LanzouCore$SearchApiPage:
+    public cc.nkbr.lanzouplus.LanzouCore$DirectLink page
+    public int total
+    public boolean used
+cc.nkbr.lanzouplus.LanzouCore$SearchCoordinator$$InternalSyntheticLambda$7$cce72a11c081d7cee4e44f03db76dc82196e8b80ebfb922e7f383193081ac70c$0:
+    public static void accept()
+cc.nkbr.lanzouplus.LanzouCore$SearchCoordinator$$InternalSyntheticLambda$7$cce72a11c081d7cee4e44f03db76dc82196e8b80ebfb922e7f383193081ac70c$1:
+    public final void accept(java.util.List,int,int)
+cc.nkbr.lanzouplus.LanzouCore$SearchCoordinator$SearchHttpTask:
+    public static void rejectLocked()
+cc.nkbr.lanzouplus.LanzouCore$SearchCoordinator:
+    public final int activeLimitLocked()
+    public static void cancelPageTimerLocked(cc.nkbr.lanzouplus.LanzouCore$SourceSearchState)
+    public static void closed()
+    public final void completeFolderLocked(cc.nkbr.lanzouplus.LanzouCore$SourceSearchState)
+    public static int mergedSize(cc.nkbr.lanzouplus.LanzouCore$SourceSearchState)
+    public static void opened()
+    public final int pageLimit()
+    public static java.util.List run()
+cc.nkbr.lanzouplus.LanzouCore$SearchPageBatch
+cc.nkbr.lanzouplus.LanzouCore$SourceProfile:
+    public static int uaSlot(byte)
+cc.nkbr.lanzouplus.LanzouCore$SourceRetestUnitResult:
+    public final cc.nkbr.lanzouplus.LanzouCore$SourceRetestUnit unit
+    public static boolean success()
+cc.nkbr.lanzouplus.LanzouCore$SourceSearchState:
+    public boolean remoteAvailable
+    public boolean remoteUsed
+cc.nkbr.lanzouplus.LanzouCore:
+    public static final java.util.regex.Pattern LANZOU_TYPO_HOST
+    public static final java.util.concurrent.atomic.AtomicInteger SOURCE_UA_THREAD_SEQUENCE
+    public static volatile int configuredUaPreset
+    public static volatile int configuredUaScopeMask
+    public volatile boolean directoryCachingEnabled
+    public static synthetic cc.nkbr.lanzouplus.LanzouCore$RouteOutcome $r8$lambda$IjLHTqb8kosa8nW42taqKqyC7VE(cc.nkbr.lanzouplus.LanzouCore$RouteCandidate,cc.nkbr.lanzouplus.LanzouCore$RouteAttempt)
+    public static synthetic boolean $r8$lambda$Mr-4te8UAjje0paB9k6Vj-eL-7M()
+    public static synthetic boolean $r8$lambda$UaIVcUzeZMdWyQ9EwGoiRvSDIl4()
+    public static synthetic boolean $r8$lambda$yWZ_FyP5ZcTgQ9KrgN96V-DIqYU()
+    public static int access$400(byte,byte,byte)
+    public static int access$500(byte,byte,byte)
+    public static java.lang.String access$700(java.lang.String)
+    public final cc.nkbr.lanzouplus.Models$Source addUserSource(java.lang.String,java.lang.String)
+    public static java.lang.String[] baseOrigins()
+    public static cc.nkbr.lanzouplus.Models$Folder browsePage()
+    public static cc.nkbr.lanzouplus.Models$Folder browsePage$1()
+    public final java.util.ArrayList cachedDirectoryMatchesWarm(java.lang.String,java.util.Set,boolean)
+    public final void cancelBackgroundIndex()
+    public static java.lang.String captureCookies(java.lang.String,java.net.HttpURLConnection)
+    public static void close()
+    public static java.util.List collectFiles()
+    public static java.lang.String compositeMemberPreferenceKey(cc.nkbr.lanzouplus.Models$SourceMember)
+    public static java.lang.String decode(java.lang.String)
+    public static cc.nkbr.lanzouplus.LanzouCore$DirectLink direct(java.lang.String,java.lang.String)
+    public final void directoryCacheChanged()
+    public static long elapsedMillis(long)
+    public static java.lang.String exportSourceRules()
+    public static java.lang.String foldDirectorySearch(java.lang.String)
+    public static boolean hasFolderCache()
+    public static boolean hasSearchCapability(cc.nkbr.lanzouplus.LanzouCore$DirectLink)
+    public static boolean inCompositeScope(cc.nkbr.lanzouplus.Models$SourceMember,java.util.HashSet)
+    public final void invalidateRetest(cc.nkbr.lanzouplus.LanzouCore$SourceRetestPlan)
+    public final void invalidateSourceNameIndex()
+    public static boolean isSearchCancelled(cc.nkbr.lanzouplus.Models$Progress)
+    public static synthetic boolean lambda$fileDescription$35()
+    public static synthetic boolean lambda$resolveDirect$4()
+    public static cc.nkbr.lanzouplus.LanzouCore$BaseOriginProbe probeBaseOrigin()
+    public static int pushUaScope(int)
+    public static java.util.List recommendations()
+    public static java.lang.String searchEndpoint(cc.nkbr.lanzouplus.LanzouCore$DirectLink)
+    public static long searchNetworkDeadline(cc.nkbr.lanzouplus.LanzouCore$BatchBudget)
+    public static int searchableSourceCount()
+    public static void setDirectoryCachingEnabled()
+    public static void setIndexPauseSupplier()
+    public static boolean sourceRevisionMatchesLocked(cc.nkbr.lanzouplus.LanzouCore$SourceRetestPlan)
+    public final java.util.concurrent.Future submitCompositeVisibleProbe(java.util.concurrent.ExecutorCompletionService,cc.nkbr.lanzouplus.Models$SourceMember)
+    public static boolean terminalDirectFailure(java.lang.Exception)
+    public static byte uaBit(byte)
+    public static java.lang.String withoutFragment(java.lang.String)
+    public final void writeDirectoryCache(java.io.File,java.lang.String)
+cc.nkbr.lanzouplus.LanzouWebActivity$$InternalSyntheticLambda$2$88c27486ff657d84cc5b8849a8ed29f6529136999232ad7dd25b57ecf5973f39$0:
+    public final synthetic boolean f$2
+cc.nkbr.lanzouplus.LanzouWebActivity:
+    public static void applyPalette()
+    public static java.lang.String cleanFileName()
+    public static java.lang.String contentDispositionName()
+    public static java.lang.String decodeName(java.lang.String)
+    public static void download()
+    public static java.lang.String fileName()
+    public static void load()
+    public static void menu()
+    public static android.widget.TextView menuRow()
+    public static java.lang.String norm()
+    public final android.graphics.drawable.RippleDrawable ripple(android.graphics.drawable.ColorDrawable)
+    public static void sanitizeExternalIntent()
+    public static void showStandaloneDownloadHistoryDialog()
+    public static java.lang.String webFallback()
+cc.nkbr.lanzouplus.MainActivity$$InternalSyntheticBackport$4$488f9d195cf11dcc1d275a27b25ee00fee1f7845073f6017462b36284fcbe990$0
+cc.nkbr.lanzouplus.MainActivity$$InternalSyntheticBackport$4$d5053840c59e49bd84f6a880d52fbcd9d7a0dbe017b182811ad96a35e37a3cd7$0
+cc.nkbr.lanzouplus.MainActivity$$InternalSyntheticBackport$5$b41f3689a65a9bfcb7c9543354da93da398d5a137c05d3e355adab98372cc9cb$0
+cc.nkbr.lanzouplus.MainActivity$$InternalSyntheticBackport$7$3256b9ece1e8371e7b4d4647141af7f68f5cbb12d71d792de4456c7ba1c4bf89$0
+cc.nkbr.lanzouplus.MainActivity$$InternalSyntheticLambda$1$49da4704bfff72b211e10894102f4d318605bb6c658e2a4536e65ea232ef67bd$0:
+    public final synthetic java.lang.Runnable f$3
+    public final synthetic boolean f$4
+cc.nkbr.lanzouplus.MainActivity$$InternalSyntheticLambda$1$70d1b3d2c23af50ef783f9841829c152b1e8a53ef04674f1fc35fde5e7dd7641$4:
+    public static void changed()
+cc.nkbr.lanzouplus.MainActivity$$InternalSyntheticLambda$1$7f45918d7d5e0091d732c455886d5fe8aff5309260cc82d6bbba3287f05f4ee8$1
+cc.nkbr.lanzouplus.MainActivity$$InternalSyntheticLambda$10$1397d7d0d27fb0ededbc6f9be03869f4915f7660b4af2a24a58f08fda1ce9991$1:
+    public final synthetic cc.nkbr.lanzouplus.MainActivity f$0
+cc.nkbr.lanzouplus.MainActivity$$InternalSyntheticLambda$10$472f480be17b37c676cb759b5dff1f1c1e6e1b260664b7b045b46a34d2f64d4e$1:
+    public final synthetic cc.nkbr.lanzouplus.MainActivity f$0
+cc.nkbr.lanzouplus.MainActivity$$InternalSyntheticLambda$2$2b1c5d702bc1cc475b9578f2a6d9ae9e5b78c4963a047ebf656b44d266eb8236$0
+cc.nkbr.lanzouplus.MainActivity$$InternalSyntheticLambda$2$8f8bbc78b27f1c39842498e29d1623dc9ef76659e333a663a471212591404b98$0:
+    public final synthetic java.lang.Runnable f$3
+    public final synthetic boolean f$4
+cc.nkbr.lanzouplus.MainActivity$$InternalSyntheticLambda$2$8f8bbc78b27f1c39842498e29d1623dc9ef76659e333a663a471212591404b98$1:
+    public final synthetic java.lang.Runnable f$3
+    public final synthetic boolean f$4
+cc.nkbr.lanzouplus.MainActivity$$InternalSyntheticLambda$2$b1cff4dc69c16c0ab4579b674684627afc02c3ea6038059e5b09ea2847257386$0:
+    public final void to(int)
+cc.nkbr.lanzouplus.MainActivity$$InternalSyntheticLambda$3$44e8a4a9f3db7a12838ab336d332842845263345633425ca6ac503c57bf19d01$0:
+    public final synthetic android.view.View f$1
+cc.nkbr.lanzouplus.MainActivity$$InternalSyntheticLambda$3$775d50af17a861099318802b623da4e759ca7d0206aab293d226b31d0df1ebc3$0:
+    public final synthetic android.view.View f$1
+cc.nkbr.lanzouplus.MainActivity$$InternalSyntheticLambda$3$93fc9f7c20e91de7400ef4127a6d4687dd213470576e194b4e5602d21aae39b3$0:
+    public final synthetic android.view.View f$1
+cc.nkbr.lanzouplus.MainActivity$$InternalSyntheticLambda$3$ba821c9d916e937455ccb806f5cb33b06fd979208436984e31b6858cbe2617fe$1:
+    public static void start()
+cc.nkbr.lanzouplus.MainActivity$$InternalSyntheticLambda$3$cc94f822eb895de220781164e86dddce5dc9cfd1d9b5a7de942f09490a9f12ae$0:
+    public final synthetic cc.nkbr.lanzouplus.MainActivity f$0
+    public final synthetic boolean f$1
+cc.nkbr.lanzouplus.MainActivity$$InternalSyntheticLambda$3$cc94f822eb895de220781164e86dddce5dc9cfd1d9b5a7de942f09490a9f12ae$1
+cc.nkbr.lanzouplus.MainActivity$$InternalSyntheticLambda$3$d3bba8a78459d6a5e715c51aaead00111eda608458b2675f41e38d3122f9b10d$0
+cc.nkbr.lanzouplus.MainActivity$$InternalSyntheticLambda$3$d3bba8a78459d6a5e715c51aaead00111eda608458b2675f41e38d3122f9b10d$1
+cc.nkbr.lanzouplus.MainActivity$$InternalSyntheticLambda$3$e215542d50099d17f7e5697ad364160ba82806623129b69e861d265bca3a7e64$0:
+    public final synthetic android.view.View f$1
+cc.nkbr.lanzouplus.MainActivity$$InternalSyntheticLambda$3$e2185f0f9dfdc0bd553b37ebbbaf8f7206f30ddf6d34d24f8652861df144cce9$0:
+    public final synthetic android.view.View f$1
+cc.nkbr.lanzouplus.MainActivity$$InternalSyntheticLambda$3$fac3ccd4027eb9771bcf7fe9f4db995d578fdfeac3fbb887679449ccfdd8b89f$0:
+    public final synthetic boolean f$2
+cc.nkbr.lanzouplus.MainActivity$$InternalSyntheticLambda$4$4522c9b36d38cbe1f0802124fd3d38ccde649c60811320a788f8600e5705cf34$0
+cc.nkbr.lanzouplus.MainActivity$$InternalSyntheticLambda$4$4522c9b36d38cbe1f0802124fd3d38ccde649c60811320a788f8600e5705cf34$1:
+    public final synthetic boolean f$1
+cc.nkbr.lanzouplus.MainActivity$$InternalSyntheticLambda$4$4522c9b36d38cbe1f0802124fd3d38ccde649c60811320a788f8600e5705cf34$2:
+    public final synthetic boolean f$1
+cc.nkbr.lanzouplus.MainActivity$$InternalSyntheticLambda$4$4522c9b36d38cbe1f0802124fd3d38ccde649c60811320a788f8600e5705cf34$3:
+    public final synthetic boolean f$1
+cc.nkbr.lanzouplus.MainActivity$$InternalSyntheticLambda$4$5765c8518fa88ef7093e9b4d5aee3f2a1e40113f2c4b0ee77a6a159f91822e44$0
+cc.nkbr.lanzouplus.MainActivity$$InternalSyntheticLambda$4$6dcb7749800bf83f3f5f2d24c7ccb88fac1fec737317216857505ce634911672$0:
+    public final void onProgress(int,int,java.lang.String,boolean)
+cc.nkbr.lanzouplus.MainActivity$$InternalSyntheticLambda$4$adddf882a034e1904dd316664e00d293b728cee1b28f4ffcf35228a999b4c693$0:
+    public final synthetic int f$1
+cc.nkbr.lanzouplus.MainActivity$$InternalSyntheticLambda$5$32c1454571aa67e6cfec3a4eba3e805bb0295888b5b3dc255e626450ef2f5efd$0
+cc.nkbr.lanzouplus.MainActivity$$InternalSyntheticLambda$5$4b53e5f7b601edcc586e3c45b92d3d0bebfb54af8452c54bd881ae313d3ea146$0:
+    public final synthetic int f$1
+cc.nkbr.lanzouplus.MainActivity$$InternalSyntheticLambda$5$5117fd0d2663dac8c25ce839b445cb37370ca449b479f4ce1b996a1ec3c30e18$0:
+    public final synthetic int f$1
+cc.nkbr.lanzouplus.MainActivity$$InternalSyntheticLambda$5$5117fd0d2663dac8c25ce839b445cb37370ca449b479f4ce1b996a1ec3c30e18$1:
+    public final synthetic int f$1
+cc.nkbr.lanzouplus.MainActivity$$InternalSyntheticLambda$5$5117fd0d2663dac8c25ce839b445cb37370ca449b479f4ce1b996a1ec3c30e18$2:
+    public final synthetic int f$1
+cc.nkbr.lanzouplus.MainActivity$$InternalSyntheticLambda$5$650f7c243dc55838cef0467ad1e4e2bfb6f48519a2f7b2e7fc61cb9840c4ec27$0:
+    public final synthetic cc.nkbr.lanzouplus.MainActivity f$0
+cc.nkbr.lanzouplus.MainActivity$$InternalSyntheticLambda$5$76166f4330a1dbe2c0d0e0b5e597c4a775a0272d471d27276579642ca2fafdbe$0:
+    public final synthetic int f$3
+cc.nkbr.lanzouplus.MainActivity$$InternalSyntheticLambda$5$c1038031e44f09375426792d78bda64976b78d8d58d1a85bc456819a4fe28c13$0
+cc.nkbr.lanzouplus.MainActivity$$InternalSyntheticLambda$5$d5b396c9aa829a28aafd41b40fbdde07a2562e15f21f2d57a39f2243f606da88$0
+cc.nkbr.lanzouplus.MainActivity$$InternalSyntheticLambda$6$0491965650efc5598cf9e973173a8a015e15b69f1b228d59936ae7f24d3403b8$0:
+    public static void onResult()
+cc.nkbr.lanzouplus.MainActivity$$InternalSyntheticLambda$6$3ad816d93c6201e11b4b98e7e4c5412895c5d31bcfb37edf125905c0703ff17a$0:
+    public final synthetic int f$1
+cc.nkbr.lanzouplus.MainActivity$$InternalSyntheticLambda$6$3ad816d93c6201e11b4b98e7e4c5412895c5d31bcfb37edf125905c0703ff17a$1:
+    public final synthetic int f$1
+cc.nkbr.lanzouplus.MainActivity$$InternalSyntheticLambda$6$3ad816d93c6201e11b4b98e7e4c5412895c5d31bcfb37edf125905c0703ff17a$2:
+    public final synthetic int f$1
+cc.nkbr.lanzouplus.MainActivity$$InternalSyntheticLambda$6$4a16e11672976f9c860f6a61b5e1f6366d06113d644e0d4971abfe4ada079a1b$0:
+    public final synthetic int f$1
+cc.nkbr.lanzouplus.MainActivity$$InternalSyntheticLambda$6$f44aa0b731cd25c2deae88154b4e041a0e48715793f923019e53f6531fef7b0d$0:
+    public final synthetic int f$1
+cc.nkbr.lanzouplus.MainActivity$$InternalSyntheticLambda$6$f44aa0b731cd25c2deae88154b4e041a0e48715793f923019e53f6531fef7b0d$1:
+    public final synthetic int f$1
+cc.nkbr.lanzouplus.MainActivity$$InternalSyntheticLambda$6$f44aa0b731cd25c2deae88154b4e041a0e48715793f923019e53f6531fef7b0d$2:
+    public final synthetic int f$1
+cc.nkbr.lanzouplus.MainActivity$$InternalSyntheticLambda$7$3da2a9f16982969a3ad65cbccaccc0e35b33ae044dbbd1e5fe3a2b0df5854969$2:
+    public final synthetic cc.nkbr.lanzouplus.MainActivity f$0
+cc.nkbr.lanzouplus.MainActivity$$InternalSyntheticLambda$8$ab0cf1527f47d88a4a929416a996c943ba5935e569fe1fc102e613e3ce062b43$1:
+    public final synthetic cc.nkbr.lanzouplus.MainActivity f$0
+cc.nkbr.lanzouplus.MainActivity$$InternalSyntheticLambda$8$bc5c22a8e72f5c9cc38b1afdbccc0d025e99e78f77e283a4ec427af63017bb20$1:
+    public final synthetic cc.nkbr.lanzouplus.MainActivity f$0
+cc.nkbr.lanzouplus.MainActivity$$InternalSyntheticLambda$8$bde03400f82044e878eb00d1902ca8dad0f1b029f6ddc83323b7bcf2e7427e4f$1:
+    public final synthetic cc.nkbr.lanzouplus.MainActivity f$0
+cc.nkbr.lanzouplus.MainActivity$$InternalSyntheticLambda$8$deba59d29ba344672c38f4118c4a0ea1373137d5b13b063981731d908c8ac95b$1:
+    public final synthetic cc.nkbr.lanzouplus.MainActivity f$0
+cc.nkbr.lanzouplus.MainActivity$$InternalSyntheticLambda$9$eecb37b902e0c9d6c9c7ef725f3cbf7d5ba071ca1d1405fed19e488ab17942a7$0:
+    public final synthetic cc.nkbr.lanzouplus.PremiumCloudClient$LoginState f$1
+    public final synthetic android.widget.EditText f$2
+    public final synthetic android.widget.EditText f$3
+    public final synthetic android.widget.Button f$4
+cc.nkbr.lanzouplus.MainActivity$10:
+    public final synthetic cc.nkbr.lanzouplus.MainActivity this$0
+cc.nkbr.lanzouplus.MainActivity$11$$InternalSyntheticLambda$6$7a4f3641982776b129858adebb89305a8568c30099b83064e102d94aa38ef4b8$0:
+    public final synthetic int f$1
+cc.nkbr.lanzouplus.MainActivity$1:
+    public final synthetic cc.nkbr.lanzouplus.MainActivity this$0
+    public static int sizeOf()
+cc.nkbr.lanzouplus.MainActivity$21:
+    public static void onOpen()
+cc.nkbr.lanzouplus.MainActivity$22:
+    public final synthetic cc.nkbr.lanzouplus.MainActivity this$0
+cc.nkbr.lanzouplus.MainActivity$23:
+    public final synthetic cc.nkbr.lanzouplus.MainActivity this$0
+cc.nkbr.lanzouplus.MainActivity$28:
+    public final synthetic cc.nkbr.lanzouplus.MainActivity this$0
+cc.nkbr.lanzouplus.MainActivity$29:
+    public final synthetic cc.nkbr.lanzouplus.MainActivity this$0
+cc.nkbr.lanzouplus.MainActivity$2:
+    public final synthetic cc.nkbr.lanzouplus.MainActivity this$0
+cc.nkbr.lanzouplus.MainActivity$31:
+    public final synthetic cc.nkbr.lanzouplus.MainActivity this$0
+cc.nkbr.lanzouplus.MainActivity$32:
+    public final void onMember(java.lang.String,java.lang.String,int,int,boolean)
+    public static void onResult()
+cc.nkbr.lanzouplus.MainActivity$33:
+    public final synthetic cc.nkbr.lanzouplus.MainActivity this$0
+cc.nkbr.lanzouplus.MainActivity$45:
+    public final synthetic java.lang.Runnable val$hold
+    public final synthetic android.widget.LinearLayout val$panel
+cc.nkbr.lanzouplus.MainActivity$46:
+    public static void capacityBlocked()
+    public static void changed()
+cc.nkbr.lanzouplus.MainActivity$5:
+    public final synthetic cc.nkbr.lanzouplus.MainActivity this$0
+cc.nkbr.lanzouplus.MainActivity$7:
+    public final synthetic cc.nkbr.lanzouplus.MainActivity this$0
+cc.nkbr.lanzouplus.MainActivity$9$$InternalSyntheticLambda$5$f79233c7948150e04aaf77ed22e16841b8554d3b6b159084117523d015b5e3c7$0
+cc.nkbr.lanzouplus.MainActivity$9$$InternalSyntheticLambda$6$2e054031489ac20b53a80fea239e56c5e56b4be4b99e23e057e11f180234e32f$0
+cc.nkbr.lanzouplus.MainActivity$9
+cc.nkbr.lanzouplus.MainActivity$BatchToastState:
+    public int total
+cc.nkbr.lanzouplus.MainActivity$DownloadEntry:
+    public int savedPercent
+    public cc.nkbr.lanzouplus.UpdateClient$UpdateInfo updateInfo
+cc.nkbr.lanzouplus.MainActivity$FolderPullScrollView:
+    public static void animatePullTo()
+    public static void animateRefreshTo()
+cc.nkbr.lanzouplus.MainActivity$LevelView:
+    public static float clamp(float)
+    public static void setBubble()
+cc.nkbr.lanzouplus.MainActivity$RulerView:
+    public static void invert()
+cc.nkbr.lanzouplus.MainActivity$SearchCategoryPicker:
+    public static android.graphics.drawable.GradientDrawable categoryShape()
+    public static void dismiss()
+    public static void fitWidth()
+    public static void select()
+    public static void show()
+    public static void toggle()
+    public static android.view.View view()
+cc.nkbr.lanzouplus.MainActivity$SearchDragBar:
+    public static synthetic void $r8$lambda$Ul8WWp2Qtq3lUiPbSH_6CWxx7PI(cc.nkbr.lanzouplus.MainActivity$SearchDragBar)
+    public final int contentHeight()
+    public static float thumbTop()
+cc.nkbr.lanzouplus.MainActivity$SearchState:
+    public int pages
+cc.nkbr.lanzouplus.MainActivity$SketchView:
+    public static void clear()
+    public static byte[] exportPng()
+    public static void setFixedSize()
+cc.nkbr.lanzouplus.MainActivity$SourceListPageState:
+    public final synthetic cc.nkbr.lanzouplus.MainActivity this$0
+cc.nkbr.lanzouplus.MainActivity:
+    public int SECONDARY
+    public static final java.util.concurrent.atomic.AtomicBoolean STARTUP_UPDATE_CHECKED_IN_PROCESS
+    public android.widget.LinearLayout aiSetupCard
+    public android.widget.FrameLayout folderPullFrame
+    public boolean homeSpacerAnimating
+    public java.lang.ref.WeakReference levelViewRef
+    public boolean manageAllFilesStartupFlow
+    public final java.util.concurrent.atomic.AtomicBoolean manualUpdateFeedbackRequested
+    public boolean ownsStartupUpdateCheck
+    public boolean pendingPermissionAutoInstall
+    public java.util.List pendingPermissionBatch
+    public cc.nkbr.lanzouplus.Models$Item pendingPermissionDownload
+    public java.lang.String pendingPermissionUpdateVersion
+    public android.widget.FrameLayout searchScrollFrame
+    public android.widget.ImageButton selectionCopyDescription
+    public int sessionUaScopeMask
+    public final java.util.concurrent.atomic.AtomicBoolean updateCheckRunning
+    public static void $r8$lambda$-JYPyAwAyqjmsCZLR6DW6_uHEnI(cc.nkbr.lanzouplus.MainActivity,android.view.View)
+    public static synthetic void $r8$lambda$0GPODVBd0_c4fup4rHVSqRLyCO0(cc.nkbr.lanzouplus.MainActivity,android.widget.EditText)
+    public static void $r8$lambda$1U69WSqi9kQH_JaYd_ZMpKhH-8U(cc.nkbr.lanzouplus.MainActivity)
+    public static synthetic void $r8$lambda$9sXpIWa-SG5U2w0Wr0RpN4m_We0(cc.nkbr.lanzouplus.MainActivity,android.animation.ValueAnimator)
+    public static synthetic void $r8$lambda$EW0uuKFZS6VxxiTylkfnia3-YPk(cc.nkbr.lanzouplus.MainActivity,android.widget.Button,android.widget.EditText,java.lang.Exception)
+    public static synthetic boolean $r8$lambda$O5229t7HCqNFPZNUYQNKdHvGHlE()
+    public static synthetic void $r8$lambda$Paec_CNEKXs2VzRLX1YWi6_70ls(cc.nkbr.lanzouplus.MainActivity)
+    public static void $r8$lambda$RAuV_1r_KESr22VJ4ENqI3rnuMc(cc.nkbr.lanzouplus.MainActivity,java.lang.String)
+    public static synthetic void $r8$lambda$SsvMbMJNjonI2pp6rnw76ddhoBE(java.lang.String[],java.lang.String,java.lang.Runnable[])
+    public static synthetic void $r8$lambda$Z8poTYHR4RWChE0vSqgQ3mKM18Q(cc.nkbr.lanzouplus.MainActivity,android.widget.LinearLayout)
+    public static synthetic void $r8$lambda$i3iJ6X9AKmuYYxNO4vx9VIOu28g(cc.nkbr.lanzouplus.MainActivity)
+    public static synthetic void $r8$lambda$nbYCwPCKelNYmMWn2Q_D-VUkMEE(cc.nkbr.lanzouplus.MainActivity)
+    public final int BG()
+    public final int BORDER()
+    public final int DIV()
+    public final int MUTED()
+    public final int PRIMARY()
+    public final int SURFACE()
+    public final int SURFACE2()
+    public final int TEXT()
+    public static void acceptCompositeFolderUpdate()
+    public static void acceptCurrentSourceSearchUpdate()
+    public static void acceptSearchItemUpdate()
+    public static void action()
+    public static android.widget.LinearLayout actionRow()
+    public static int adaptiveFolderUiChunk()
+    public static void addBatchDownloadRow()
+    public static java.lang.String addBatchSummary()
+    public static void addDownloadRow()
+    public static void addPremiumSaveRow()
+    public static void addSourceCategoryBar()
+    public static void addSourceDialog()
+    public static void addStaticPathPart()
+    public static void addToolChips()
+    public static android.view.View aiSetupCard()
+    public static android.view.View aiSuggestionsCard()
+    public static boolean allChosen(java.util.Collection,java.util.LinkedHashSet)
+    public static void animateIn()
+    public static boolean anyChecked()
+    public static void appendFolderPage()
+    public static void appendSearchResultsUi()
+    public static void appendSourceInputLines()
+    public final void applyDownloadProgress(cc.nkbr.lanzouplus.MainActivity$DownloadEntry,long,long)
+    public final void applyLanzouRoutingSettings()
+    public static void applyResolvedLanzouDirectory()
+    public static void applyResolvedLanzouList()
+    public static void applySelectedDestinations()
+    public static void applySystemNavigationInsets()
+    public static void applyThemeChoice()
+    public static android.graphics.drawable.Drawable arrowUp()
+    public static java.lang.String autoInstallDownloadsDescription()
+    public final boolean automaticInstallDownloadsPreference()
+    public static void base()
+    public static android.view.View batchDownloadPreview()
+    public static java.lang.String batchTimeoutDescription(int)
+    public static int batchTimeoutProgress()
+    public static int batchTimeoutSeconds()
+    public final void beginDownload(cc.nkbr.lanzouplus.Models$Item,boolean)
+    public static void beginDownloadGated()
+    public static void beginVerifiedUpdateDownload()
+    public static void beginVerifiedUpdateDownloadGated()
+    public final android.widget.LinearLayout buildAdbInstallThreadSettings()
+    public static android.widget.LinearLayout buildAdbPermissionCard()
+    public static void buildAiPage()
+    public static android.widget.LinearLayout buildAutoExpandPageSettings()
+    public static android.widget.LinearLayout buildAutoInstallDownloadsRow()
+    public static android.widget.LinearLayout buildDownloadPathPanel()
+    public static android.widget.LinearLayout buildDownloadSettingsPanel()
+    public static android.widget.LinearLayout buildIndexProgressCard()
+    public static android.widget.LinearLayout buildIndexSliderSettings()
+    public final android.widget.LinearLayout buildLanzouBaseOriginRow()
+    public static android.widget.LinearLayout buildListDisplaySettings()
+    public static android.widget.LinearLayout buildPrivacyPolicyPanel()
+    public static android.widget.LinearLayout buildSearchModeRow()
+    public static android.widget.LinearLayout buildSearchSettingsPanel()
+    public static java.util.LinkedHashMap buildSourceSearchCorpora()
+    public static android.widget.LinearLayout buildThemeRow()
+    public final android.widget.LinearLayout buildUaSettingsRow()
+    public static android.view.View bulkDownloadPreview()
+    public static java.lang.String cachedSourceSearchCorpus()
+    public static void cancelAllActive()
+    public static void cancelPremiumSave()
+    public static void cancelSelectedDownloads()
+    public static java.util.List categorySources()
+    public static int checkMask(android.widget.CheckBox[],int[])
+    public static void chooseCurrentSourceCategory()
+    public static void chooseItemSelectionCategory()
+    public static void chooseSourceCategory()
+    public final synchronized boolean claimAutomaticDirectoryIndexAttempt()
+    public final void clearFolderPullCallbacks()
+    public final void clearFolderPullRequest()
+    public static void clearSearchRuntimeCachesForNewIndex()
+    public static java.lang.String concurrencyDescription(int,int)
+    public static void confirmBulkDownload()
+    public static void confirmClearSearchHistory()
+    public static void confirmDeleteAllDownloadRecords()
+    public static void confirmDeleteAllDownloadedFiles()
+    public static void confirmDeleteFile()
+    public static void confirmDeleteSelectedFiles()
+    public static void confirmDeleteSelectedRecords()
+    public static void confirmDeleteSourceCategories()
+    public static void confirmRemovePremiumSaveRecord()
+    public static void confirmRemoveSelectedSources()
+    public static void confirmResetAllSources()
+    public static void confirmRetestSelectedSources()
+    public static void confirmSaveSelectedSources()
+    public static void confirmUnknownInstallPermission()
+    public final android.content.Context context()
+    public static void copySelectedDescriptions()
+    public static void copySelectedSources()
+    public static void copySelection()
+    public static cc.nkbr.lanzouplus.MainActivity$BatchToastState createBatchParsingToast()
+    public static android.widget.LinearLayout createDownloadToast()
+    public static android.widget.LinearLayout createMergedDownloadToast()
+    public final android.net.Uri currentDownloadParentReferenceUri()
+    public static android.net.Uri currentDownloadParentUri()
+    public static java.lang.String dailySearchCacheKey(java.lang.String)
+    public static int dailySearchDay()
+    public static void deleteDownloadRecordNow()
+    public static boolean destinationAlreadyContainsSources()
+    public static void detachMergedDownloadToast()
+    public final void detachToastNow(android.widget.LinearLayout)
+    public static int directResolveParallelism()
+    public static java.lang.String directoryDisplayPath()
+    public static java.io.File directoryFileForEntry()
+    public final boolean directoryIndexPaused()
+    public static java.lang.String directoryParseFailureReason()
+    public static android.net.Uri directoryUriForEntry()
+    public static void dismissDownloadToast()
+    public final java.lang.String downloadDisplayPath()
+    public static java.lang.String downloadExtension()
+    public static java.lang.String downloadExtensionCategory()
+    public static android.widget.LinearLayout downloadFilterRow()
+    public static java.lang.String downloadHistoryJson()
+    public static void downloadLanzouPlusUpdate()
+    public static android.widget.HorizontalScrollView downloadStateFilterRow()
+    public final int downloadTransferParallelism()
+    public static long downloadUiIntervalMs()
+    public static android.widget.FrameLayout draggableFolderList()
+    public static void drainDownloadUi()
+    public static void drainSearchUi()
+    public static void drainSearchWindow()
+    public static void enqueueBatchTransfer()
+    public static void ensureDefaultDownloadFolder()
+    public static void ensureFolderSearchIndex()
+    public static void enterHomeSearchFocus()
+    public static void error()
+    public static void exportSourceRules()
+    public final void failDownload(cc.nkbr.lanzouplus.MainActivity$DownloadEntry,java.lang.String)
+    public static boolean fileListIndexSelected()
+    public static void fillSourceViewport()
+    public static cc.nkbr.lanzouplus.AiChatCore$Settings findChannelDraft()
+    public static void finishBatchParsing()
+    public final void finishFolderRefreshUi()
+    public static void finishPageTransition()
+    public final void finishRetestFailure(java.util.ArrayList,java.lang.String)
+    public static android.view.View folderCategoryAction()
+    public static android.widget.LinearLayout folderOriginalLink()
+    public static java.lang.String folderPath()
+    public static android.view.View folderPathView()
+    public static android.view.View folderSourceSearchBox()
+    public static java.lang.String formatMegabytes(long)
+    public static java.lang.String formatSpeed(long)
+    public static boolean fuzzyDirectoryEnabled()
+    public static boolean fuzzyFolderListEnabled()
+    public static boolean fuzzyIndexEnabled()
+    public static void guardModeColumn()
+    public static void handleDownloadHistoryClick()
+    public static void holdDownloadToast()
+    public static int homeBrandBlockH()
+    public final int homeSearchCategoryWidth(int)
+    public static boolean homeSearchConfigurationActive()
+    public static int homeShiftH()
+    public static void importSourceRules()
+    public static int[] indexThreadChoices()
+    public final int installParallelism()
+    public final void installSystemNavigationInsets()
+    public final void invalidateRetainedSourceListPage()
+    public static boolean isDownloadPausable()
+    public static boolean isProductReleaseHost()
+    public static java.lang.String legacyDownloadTreePath()
+    public final java.lang.Runnable levelCleanup()
+    public final int listAppendEnd(int,int)
+    public static void loadAiSessions()
+    public static void loadCachedFolderImage()
+    public static void loadDownloadHistory()
+    public static java.lang.String loadLanzouBaseOrigin()
+    public static void loadNextFolderPage()
+    public static void loadRecommendations()
+    public static void loadSearchSettings()
+    public final void loadSourcePageSnapshot(int,java.util.ArrayList,android.widget.GridLayout,android.widget.EditText,android.widget.TextView)
+    public final void loading(java.lang.String)
+    public static java.lang.String maskLabel()
+    public static boolean matchesDownloadExtension()
+    public static boolean matchesDownloadState()
+    public static void maybeAppendSearchWindow()
+    public static void maybeLoadMoreSources()
+    public static void navigateToOriginSourceList()
+    public final android.widget.GridLayout newItemGrid(int)
+    public static int normalizeSourceListDisplayCount(int)
+    public static void onAdbShellStateChanged()
+    public final void openDownloadDirectory()
+    public static void openPremiumRegistration()
+    public static void openRecommendedHome()
+    public static void openSearchResultSource()
+    public final void openSearchSourcePage(cc.nkbr.lanzouplus.Models$Source)
+    public final boolean openShizukuManager()
+    public static void openSourceSearchResult()
+    public final void openSupportActivity()
+    public final void openWebLink(java.lang.String,java.lang.String)
+    public static void openWithMore()
+    public static void performPremiumSave()
+    public static void performPremiumSourceBatch()
+    public static void performSettingsDefaults()
+    public static void pickSourceRulesFile()
+    public final void pickToolImage()
+    public static void playAppleThemeCue()
+    public static void playHomeBrandCiallo()
+    public static void postFolderIconPrefetch()
+    public static void prefetchHome()
+    public static int premiumArchivedCompletedCount()
+    public static java.lang.String premiumCompletedPair()
+    public static java.util.Set premiumCompletedRawKeys()
+    public static java.lang.String premiumMessage()
+    public static java.util.List premiumMissingPendingAccountKeys()
+    public static java.lang.String premiumPairRequestKey()
+    public static java.util.LinkedHashSet premiumPendingPairs(cc.nkbr.lanzouplus.MainActivity$DownloadEntry)
+    public static java.util.Set premiumPendingRequestKeysForAccountKey()
+    public static java.util.Set premiumPlanAccountKeys()
+    public static java.util.Set premiumPlannedRawKeys()
+    public static java.util.List premiumResumeAccounts()
+    public final int premiumSaveParallelism()
+    public static java.lang.String premiumSavePayload()
+    public static cc.nkbr.lanzouplus.PremiumSaveCoordinator$Request premiumSaveRequest()
+    public static java.util.List premiumSaveRequests()
+    public static cc.nkbr.lanzouplus.Models$Source premiumSaveSource(cc.nkbr.lanzouplus.PremiumSaveCoordinator$Request)
+    public static void prepareBulkDownloads()
+    public static void primaryAction()
+    public static void publishNewDownloadEntries()
+    public static void queueImageDelivery()
+    public static void queueSearchRefresh()
+    public static void queueSourceListFilter()
+    public static void recordDirectoryFailure()
+    public static android.view.View recoveryGroup()
+    public static android.widget.TextView recoveryOption()
+    public static void reflowHistoryGrid()
+    public static void regenerateAiLast()
+    public static void removeDownloadRecord()
+    public static void removeSearchHistory()
+    public static void removeSelectedSources()
+    public static void renameSelectedCompositeFolder()
+    public static void renameSelectedCompositeSource()
+    public static void renderSkeletonRows()
+    public static void reopenUnrenderedFolderForTheme()
+    public static void replaceFolderCard()
+    public static void replacePremiumSaveUnits()
+    public static void replacePremiumSaveUnitsByKey()
+    public static void requestDownloadStorageRecovery()
+    public static void requestItemDownload()
+    public static void requestRetryDownload()
+    public static void requestRetryDownloadGated()
+    public static void resolveBulkEntry()
+    public static void restoreFolderScrollBeforeDraw()
+    public static void restoreHomeSearchForConfiguration()
+    public final void restorePremiumInputs(android.widget.EditText,android.widget.EditText,android.widget.Button,java.lang.String)
+    public static void restoreSettingsDefaults()
+    public static void resumeAllPaused()
+    public static boolean resumeTargetAvailable()
+    public static void retestSelectedSources()
+    public static void retryDownload()
+    public static void retryFinalizeDownload()
+    public static void retryLanzouPlusUpdate()
+    public final android.widget.LinearLayout root()
+    public static void roundDialog()
+    public static void roundDialogConfirm()
+    public final void runImageCompressPending()
+    public static int safeContentHeight()
+    public static void saveDialog()
+    public static void saveSearchHistory()
+    public static java.lang.String saveToolImage()
+    public static boolean searchIndexSelected()
+    public static boolean searchUiCurrent()
+    public static int searchViewAllowance()
+    public static int searchableSourceTotal()
+    public final int searchableSourceTotal(java.util.Set)
+    public static void selectRoundedDownloadFilter()
+    public static java.util.List selectedReadyDownloads()
+    public static void sendAiMessage()
+    public final void setAutomaticInstallDownloadsPreference(boolean)
+    public final void setDownloadTransferParallelism(int)
+    public final void setInstallParallelism(int)
+    public final void setLevelCleanup()
+    public final void setPageDirection()
+    public static void setPremiumInputsEnabled(android.widget.EditText,android.widget.EditText,android.widget.Button,boolean)
+    public final void setSelectableLinks(android.widget.TextView,java.lang.String)
+    public final void setSilentInstallPreference(boolean)
+    public final void setSourceProbeParallelism(int)
+    public final void setToolQuality()
+    public static int settingsRowHeight()
+    public static void shareCurrentSource()
+    public static void shareImportableSources()
+    public static void shareRulesJson()
+    public static void shareSelectedSources()
+    public static void shareSelection()
+    public static void showAcknowledgementsDialog()
+    public static void showAdbDebugMethods()
+    public static void showAddCompositeFolderDialog()
+    public static void showAddCompositeNodeDialog()
+    public static void showBatchDownloadActions()
+    public static void showCreateDestinationFolderDialog()
+    public static void showCurrentSourceDestinationPicker()
+    public static void showCustomLanzouBaseOriginDialog()
+    public static void showDownloadToastHistory()
+    public static void showFolderEndNoticeOnce()
+    public static void showImportRulesLinkDialog()
+    public static void showImportRulesMenu()
+    public static void showLanzouBaseOriginDialog()
+    public static void showLanzouBaseOriginDialog$1()
+    public static void showLanzouOpenDialog()
+    public static void showModelMultiSelect()
+    public static void showPremiumMissingAccountPrompt()
+    public static void showPremiumSaveConfirm()
+    public static void showPremiumSaveParallelismDialog()
+    public static void showPremiumSourceConfirm()
+    public static void showRenameSourceCategory()
+    public static void showScreenTestOverlay()
+    public static void showSearchModeDialog()
+    public static void showSelectionCopyOptions()
+    public static void showSilentInstallReport()
+    public static void showSoftwareDetailsDialog()
+    public static void showSourceAddFailures()
+    public static void showSourceCategorySelection()
+    public static void showSourceTypeSelectionDialog()
+    public static void showSources$1()
+    public static void showSupportPrompt()
+    public static void showUaPresetPicker()
+    public static void showUaSettingsDialog()
+    public static void showWebDownloadHistoryDialogNow()
+    public static java.lang.String softwareIntroductionText()
+    public static java.util.List sourceCategoryMemberships()
+    public static java.lang.String sourceCategoryTagKey()
+    public static android.view.View sourceDestinationRow()
+    public final int sourceListColorSignature()
+    public static int sourceListDisplayCount()
+    public static boolean sourceListPageStateValid()
+    public final int sourceProbeParallelism()
+    public static android.view.View sourceRow()
+    public final void speakTts()
+    public final void startBrownNoise()
+    public final void startBulkDownloads(java.util.List)
+    public static void startBulkDownloadsGated()
+    public static cc.nkbr.lanzouplus.MainActivity$BulkPreparation startBulkPreparation()
+    public static void startDots()
+    public static void startEntryDownload()
+    public static void startFolderRefreshUi()
+    public static void startMoreWaiting()
+    public final boolean startTorch()
+    public final void stopDots()
+    public final void stopTorch()
+    public final void stopTts()
+    public static void swipePanel()
+    public static void switchBreadcrumbChild()
+    public static void switchThemeWithTransition()
+    public final void syncIndexControlButton()
+    public static void tapDownloadToast()
+    public static int toastContentHeight()
+    public static void toggleCurrentSourceSearchPaused()
+    public static void toggleDirectoryIndexPaused()
+    public final void toggleDownloadSelection(cc.nkbr.lanzouplus.MainActivity$DownloadEntry)
+    public static void togglePauseAllActive()
+    public static void togglePauseSelectedDownloads()
+    public static void toggleSearchPaused()
+    public static void toggleSelectAllDownloads()
+    public static void toggleSelectAllItems()
+    public final void toggleSelection(cc.nkbr.lanzouplus.Models$Item)
+    public final void toggleSourceSelection(cc.nkbr.lanzouplus.Models$Source)
+    public final void toolHostLevel()
+    public final void toolHostRuler()
+    public final void toolHostSketch(android.widget.LinearLayout)
+    public final java.lang.String toolImageInfoText()
+    public final android.net.Uri toolImageUri()
+    public final int toolQuality()
+    public static void transferUnderline()
+    public static void transitionSourceFilter()
+    public static android.widget.TextView uaDropdownView()
+    public static int uaPresetPosition()
+    public static void updateBatchDownloadRow()
+    public static void updateFolderPull()
+    public static void updateFolderRefreshPull()
+    public static void updateHomeTopSpacer()
+    public static void updateSearchConcurrencyLimit()
+    public static boolean validLanzouAccess()
+    public final void verifyUpdateApk(android.net.Uri)
+    public static int webUrlEnd(java.lang.CharSequence,int,int)
+    public static void writeTextUri()
+cc.nkbr.lanzouplus.Models$FolderProgress
+cc.nkbr.lanzouplus.Models$SearchOptions:
+    public int mode
+    public final boolean apiEnabled()
+    public final boolean apiOnly()
+    public final boolean directoryEnabled()
+    public final boolean indexOnly()
+    public static cc.nkbr.lanzouplus.Models$SearchOptions normalized()
+    public static cc.nkbr.lanzouplus.Models$SearchOptions withFuzzyMatching()
+    public static cc.nkbr.lanzouplus.Models$SearchOptions withModeMask()
+    public static cc.nkbr.lanzouplus.Models$SearchOptions withRecursiveFolders()
+cc.nkbr.lanzouplus.Models$SourceTestProgress
+cc.nkbr.lanzouplus.Models$SourceTestResult:
+    public final boolean userSource
+cc.nkbr.lanzouplus.PremiumCloudClient$1
+cc.nkbr.lanzouplus.PremiumCloudClient$ApiReply:
+    public final boolean expired()
+cc.nkbr.lanzouplus.PremiumCloudClient$CloudException:
+    public static int code()
+    public static boolean sessionExpired()
+cc.nkbr.lanzouplus.PremiumCloudClient$LoginState:
+    public final boolean configured
+    public final boolean loggedIn
+    public final boolean premium
+cc.nkbr.lanzouplus.PremiumCloudClient$SaveResult:
+    public final boolean saved
+cc.nkbr.lanzouplus.PremiumCloudClient$SessionEntry:
+    public final cc.nkbr.lanzouplus.PremiumCloudClient$LoginState state
+cc.nkbr.lanzouplus.PremiumCloudClient:
+    public final android.content.Context context
+    public static java.lang.String currentAccountName()
+    public final boolean hasStoredLogin()
+    public static cc.nkbr.lanzouplus.PremiumCloudClient$ApiReply request()
+cc.nkbr.lanzouplus.PremiumSaveCoordinator$1
+cc.nkbr.lanzouplus.PremiumSaveCoordinator$Listener
+cc.nkbr.lanzouplus.PremiumSaveCoordinator$Operation
+cc.nkbr.lanzouplus.PremiumSaveCoordinator$Outcome:
+    public static cc.nkbr.lanzouplus.PremiumSaveCoordinator$Outcome capacity(int,java.lang.String)
+    public static cc.nkbr.lanzouplus.PremiumSaveCoordinator$Outcome failure(int,java.lang.String)
+cc.nkbr.lanzouplus.PremiumSaveCoordinator$Request:
+    public final synchronized void rememberResolvedSaveUrl(java.lang.String)
+    public final synchronized java.lang.String resolvedSaveUrl()
+cc.nkbr.lanzouplus.PremiumSaveCoordinator$Snapshot:
+    public final int active
+    public final int pending
+    public final java.lang.String state
+cc.nkbr.lanzouplus.PremiumSaveCoordinator$Task:
+    public java.lang.String state
+    public static boolean cancel()
+    public static java.util.Set capacityRequestKeys()
+    public static boolean pause()
+    public static boolean resume()
+    public static boolean retryCapacity()
+    public static boolean setParallelism()
+    public static boolean switchCapacityTo()
+    public static java.util.Set usedAccounts()
+cc.nkbr.lanzouplus.R$drawable
+cc.nkbr.lanzouplus.R$mipmap
+cc.nkbr.lanzouplus.R$style
+cc.nkbr.lanzouplus.SegmentDownloader$1
+cc.nkbr.lanzouplus.SegmentDownloader:
+    public static final int WORKER_COUNT
+    public static boolean cancel()
+    public static boolean pause()
+    public static void startDirect()
+    public static void startResolved()
+cc.nkbr.lanzouplus.Support
+cc.nkbr.lanzouplus.SupportActivity:
+    public int PRIMARY_HI
+    public int PRIMARY_LO
+    public int SURFACE2
+    public boolean thankYouMode
+    public static void applyPalette()
+    public static android.widget.LinearLayout card()
+    public static android.widget.LinearLayout codeCard()
+    public static boolean motionEnabled()
+    public static void playUnlockAnimation()
+    public static void renderSupportPage()
+    public static void renderThankYou()
+    public final android.graphics.drawable.RippleDrawable ripple(android.graphics.drawable.Drawable)
+    public static void unlockNow()
+cc.nkbr.lanzouplus.ThemeEngine$Design:
+    public final int secondary
+    public final java.lang.String tagline
+cc.nkbr.lanzouplus.ThemeEngine:
+    public static final cc.nkbr.lanzouplus.ThemeEngine$Design APPLE
+    public static android.content.SharedPreferences prefs(android.content.Context)
+    public static int selectedFill(android.content.Context)
+cc.nkbr.lanzouplus.ToolHost$2:
+    public final synthetic cc.nkbr.lanzouplus.ToolHost this$0
+cc.nkbr.lanzouplus.ToolHost$3:
+    public final synthetic cc.nkbr.lanzouplus.ToolHost this$0
+cc.nkbr.lanzouplus.ToolHost$5:
+    public final synthetic cc.nkbr.lanzouplus.ToolHost this$0
+cc.nkbr.lanzouplus.ToolHost$Host
+cc.nkbr.lanzouplus.ToolHost:
+    public static void bmi()
+    public static void calendarGrid()
+    public static android.widget.LinearLayout checkRow()
+    public static void compass()
+    public static void crossFade()
+    public static void datecalc()
+    public static void decision()
+    public static void deviceinfo()
+    public static void freqgen()
+    public final android.view.View gap(int)
+    public static java.lang.String[][] groupedTools()
+    public static void morse()
+    public static void noise()
+    public static void password()
+    public static void picker()
+    public static void radix()
+    public final void randomnum(android.widget.LinearLayout)
+    public static void renderHotBoard()
+    public static void renderList()
+    public static void renderSearchResults()
+    public static void renderTool()
+    public final android.graphics.drawable.Drawable ripple(android.graphics.drawable.Drawable)
+    public static void scorecard()
+    public static void selectTab()
+    public static android.view.View sensorCard()
+    public static void stopwatch()
+    public static void timestamp()
+    public static android.widget.LinearLayout toolGroup()
+    public static android.widget.EditText toolSearchInput()
+    public static java.util.List toolsOf()
+    public static void torch()
+    public static void tts()
+    public static void unit()
+    public static java.lang.String[] unitsOf()
+cc.nkbr.lanzouplus.Toolbox$$InternalSyntheticBackport$2$af0c4d9c9126735e5e482c708d933cf161bbd1848a1200239d2300408ea02ee5$0
+cc.nkbr.lanzouplus.Toolbox$$InternalSyntheticBackport$2$af0c4d9c9126735e5e482c708d933cf161bbd1848a1200239d2300408ea02ee5$1
+cc.nkbr.lanzouplus.Toolbox$$InternalSyntheticBackportWithForwarding$3$2dc42cda242590e070abc5450bce47d91c9f92c92fd5ce8f6a4b9deecd193a8a$0
+cc.nkbr.lanzouplus.Toolbox$Parser:
+    public static double parse()
+    public static double primary()
+cc.nkbr.lanzouplus.Toolbox:
+    public static int diceRoll(int)
+    public static java.lang.String toolDesc(java.lang.String)
+    public static java.lang.String toolIcon(java.lang.String)
+cc.nkbr.lanzouplus.TransferCoordinator$Starter
+cc.nkbr.lanzouplus.TransferCoordinator:
+    public static void enqueue()
+    public static boolean remove()
+cc.nkbr.lanzouplus.TransferTerminal:
+    public final synchronized int claim()
+    public final synchronized boolean request()
+    public static int stopMode()
+cc.nkbr.lanzouplus.UpdateClient$UpdateInfo
+cc.nkbr.lanzouplus.UpdateClient
+moe.shizuku.api.BinderContainer$1:
+    public static moe.shizuku.api.BinderContainer createFromParcel()
+    public static moe.shizuku.api.BinderContainer[] newArray()
+moe.shizuku.server.IShizukuApplication$Stub
+moe.shizuku.server.IShizukuApplication
+moe.shizuku.server.IShizukuService$Stub$Proxy:
+    public static moe.shizuku.server.IShizukuService sDefaultImpl
+moe.shizuku.server.IShizukuService$Stub:
+    public static moe.shizuku.server.IShizukuService getDefaultImpl()
+moe.shizuku.server.IShizukuService:
+    public abstract int addUserService(rikka.shizuku.ShizukuServiceConnection,android.os.Bundle)
+    public abstract boolean checkSelfPermission()
+    public abstract int getUid()
+    public abstract int getVersion()
+    public abstract int removeUserService(rikka.shizuku.ShizukuServiceConnection,android.os.Bundle)
+    public abstract void requestPermission()
+    public abstract boolean shouldShowRequestPermissionRationale()
+moe.shizuku.server.IShizukuServiceConnection
+rikka.shizuku.Shizuku$$InternalSyntheticLambda$1$02b6fa8dfeb480e55205f237b3817bcf8e52aba80def69a2ddd02eae9713e13a$0
+rikka.shizuku.Shizuku$$InternalSyntheticLambda$1$9854da9276b0ad05f43be233cbdd5d745fcd855b5f0b3dceb155967a4c233c47$0
+rikka.shizuku.Shizuku$$InternalSyntheticLambda$2$161dee8d15d835a039be9a42a7ab69f797f846001396c05ab6f67133b4f897e1$0
+rikka.shizuku.Shizuku$$InternalSyntheticLambda$2$161dee8d15d835a039be9a42a7ab69f797f846001396c05ab6f67133b4f897e1$1:
+    public final synthetic int f$2
+rikka.shizuku.Shizuku$$InternalSyntheticLambda$2$1c5512c2ba44a3503db67df43ab86ad87525a3ae30bfa111774ab3b7e39e6390$0
+rikka.shizuku.Shizuku$1:
+    public final void bindApplication()
+    public final void dispatchRequestPermissionResult()
+    public final void showPermissionConfirmation()
+rikka.shizuku.Shizuku$ListenerHolder:
+    public final android.os.Handler handler
+rikka.shizuku.Shizuku$OnBinderDeadListener
+rikka.shizuku.Shizuku$OnBinderReceivedListener
+rikka.shizuku.Shizuku$OnRequestPermissionResultListener
+rikka.shizuku.Shizuku$UserServiceArgs:
+    public boolean debuggable
+    public java.lang.String tag
+    public boolean use32BitAppProcess
+    public static android.os.Bundle access$1200(rikka.shizuku.Shizuku$UserServiceArgs,boolean)
+    public static rikka.shizuku.Shizuku$UserServiceArgs daemon()
+    public static rikka.shizuku.Shizuku$UserServiceArgs debuggable()
+    public static rikka.shizuku.Shizuku$UserServiceArgs processNameSuffix()
+    public static rikka.shizuku.Shizuku$UserServiceArgs version()
+rikka.shizuku.Shizuku:
+    public static java.lang.String serverContext
+rikka.shizuku.ShizukuProvider:
+    public static boolean enableMultiProcess
+    public static boolean enableSuiInitialization
+    public static boolean isProviderProcess
+    static void <clinit>()
+rikka.shizuku.ShizukuServiceConnection:
+    public android.os.IBinder binder
+    public static void addConnection()
+    public static void clearConnections()
+    public final void connected()
+    public final void died()
+rikka.shizuku.ShizukuServiceConnections:
+    public static rikka.shizuku.ShizukuServiceConnection get(rikka.shizuku.Shizuku$UserServiceArgs)
+rikka.shizuku.SystemServiceHelper:
+    public static final java.util.Map TRANSACT_CODE_CACHE

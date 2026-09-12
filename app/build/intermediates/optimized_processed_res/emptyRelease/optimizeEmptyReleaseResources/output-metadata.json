@@ -1,0 +1,20 @@
+{
+  "version": 3,
+  "artifactType": {
+    "type": "OPTIMIZED_PROCESSED_RES",
+    "kind": "Directory"
+  },
+  "applicationId": "dfwx.dongdang",
+  "variantName": "emptyRelease",
+  "elements": [
+    {
+      "type": "SINGLE",
+      "filters": [],
+      "attributes": [],
+      "versionCode": 1030014,
+      "versionName": "1.6.3",
+      "outputFile": "resources-empty-release-optimize.ap_"
+    }
+  ],
+  "elementType": "File"
+}

@@ -1,0 +1,97 @@
+# List of SDK dependencies of this app, this information is also included in an encrypted form in the APK.
+# For more information visit: https://d.android.com/r/tools/dependency-metadata
+
+library {
+  maven_library {
+    groupId: "dev.rikka.shizuku"
+    artifactId: "api"
+    version: "13.1.5"
+  }
+  digests {
+    sha256: "M\357\233\336I\216\370bf\024\302\374]\271\257GI\310o\026\366\303>?VX\323^p\272\265\233"
+  }
+  repo_index {
+    value: 1
+  }
+}
+library {
+  maven_library {
+    groupId: "androidx.annotation"
+    artifactId: "annotation"
+    version: "1.3.0"
+  }
+  digests {
+    sha256: "\227\334E\257\357\343\241\344!\332B\270\266\351\371\004\221G|E\374ax >:^\212\005\356\205S"
+  }
+  repo_index {
+  }
+}
+library {
+  maven_library {
+    groupId: "dev.rikka.shizuku"
+    artifactId: "aidl"
+    version: "13.1.5"
+  }
+  digests {
+    sha256: "3\376q\221\315\326\237\313f\326I&O;\fG\254\262\363\3264:\374\005\271\215\273\377o\"\031c"
+  }
+  repo_index {
+    value: 1
+  }
+}
+library {
+  maven_library {
+    groupId: "dev.rikka.shizuku"
+    artifactId: "shared"
+    version: "13.1.5"
+  }
+  digests {
+    sha256: "FYd,\2239\276\n&\351\306[\270d\217z\326\330\364\244e\365W\231<\313\307\210\0028\0265"
+  }
+  repo_index {
+    value: 1
+  }
+}
+library {
+  maven_library {
+    groupId: "dev.rikka.shizuku"
+    artifactId: "provider"
+    version: "13.1.5"
+  }
+  digests {
+    sha256: "\260\361\214\331\201$d\354\027\034S\312\311:\201\237\344\021q\2129e\303\021\360\036\264\336&S\201\263"
+  }
+  repo_index {
+    value: 1
+  }
+}
+library_dependencies {
+  library_dep_index: 1
+  library_dep_index: 2
+  library_dep_index: 3
+}
+library_dependencies {
+  library_index: 3
+  library_dep_index: 2
+  library_dep_index: 1
+}
+library_dependencies {
+  library_index: 4
+  library_dep_index: 0
+  library_dep_index: 1
+}
+module_dependencies {
+  module_name: "base"
+  dependency_index: 0
+  dependency_index: 4
+}
+repositories {
+  maven_repo {
+    url: "https://dl.google.com/dl/android/maven2/"
+  }
+}
+repositories {
+  maven_repo {
+    url: "https://repo.maven.apache.org/maven2/"
+  }
+}
