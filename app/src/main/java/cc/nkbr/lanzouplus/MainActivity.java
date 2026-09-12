@@ -274,7 +274,8 @@ public final class MainActivity extends Activity implements ToolHost.Host {
     SearchCategoryPicker(List<String> categories,String current,java.util.function.Consumer<String> changed,Runnable searchAction){this.categories=new ArrayList<>(categories);this.selected=this.categories.contains(current)?current:this.categories.get(0);this.changed=changed;this.searchAction=searchAction;trigger=new LinearLayout(MainActivity.this);trigger.setGravity(Gravity.CENTER_VERTICAL);trigger.setPadding(dp(12),0,dp(3),0);trigger.setClickable(true);trigger.setFocusable(true);trigger.setMinimumHeight(dp(54));trigger.setBackground(categoryRipple(triggerShape(false)));value=text(this.selected,14,TEXT);value.setSingleLine(true);value.setEllipsize(android.text.TextUtils.TruncateAt.END);value.setGravity(Gravity.END|Gravity.CENTER_VERTICAL);value.setPadding(0,0,dp(2),0);// v1.6.1（R-B2）：分类文字贴右，紧挨 ▾ 与 🔍
 trigger.addView(value,new LinearLayout.LayoutParams(0,dp(54),1));arrow=new ImageView(MainActivity.this);arrow.setImageResource(R.drawable.ic_expand);arrow.setColorFilter(PRIMARY);arrow.setPadding(dp(8),dp(8),dp(8),dp(8));arrow.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);trigger.addView(arrow,new LinearLayout.LayoutParams(dp(36),dp(48)));go=iconButton(R.drawable.ic_search,"搜索");go.setOnClickListener(v->{if(this.searchAction!=null)this.searchAction.run();});trigger.addView(go,new LinearLayout.LayoutParams(dp(48),dp(48)));trigger.setOnClickListener(v->toggle());updateTriggerSemantics(false);}
     View view(){return trigger;}
-    void fitWidth(int width){int available=Math.max(dp(2),width-dp(12)),goWidth=Math.min(dp(44),Math.max(dp(28),available-dp(90))),arrowWidth=Math.min(dp(30),Math.max(dp(20),available-goWidth-dp(4)));ViewGroup.LayoutParams arrowParams=arrow.getLayoutParams(),goParams=go.getLayoutParams();arrowParams.width=arrowWidth;goParams.width=goWidth;arrow.setLayoutParams(arrowParams);go.setLayoutParams(goParams);}
+    void fitWidth(int width){// v1.6.3 修「搜索钮变小/全部消失」：文字区优先保底 40dp（「全部」两字约 30dp），箭头 28dp、搜索钮恒 44dp 不再压缩
+      int available=Math.max(dp(2),width-dp(12));int goWidth=Math.min(dp(44),Math.max(dp(40),available-dp(76)));int arrowWidth=Math.min(dp(28),Math.max(dp(22),available-goWidth-dp(40)));ViewGroup.LayoutParams arrowParams=arrow.getLayoutParams(),goParams=go.getLayoutParams();arrowParams.width=arrowWidth;goParams.width=goWidth;arrow.setLayoutParams(arrowParams);go.setLayoutParams(goParams);}
     String selected(){return selected;}
     Drawable categoryRipple(Drawable content){return new RippleDrawable(android.content.res.ColorStateList.valueOf(ThemeEngine.tint(PRIMARY,36)),content,null);}
     GradientDrawable categoryShape(int color,int topRadius,int bottomRadius,boolean stroke){GradientDrawable surface=new GradientDrawable();surface.setColor(color);float top=dp(topRadius),bottom=dp(bottomRadius);surface.setCornerRadii(new float[]{top,top,top,top,bottom,bottom,bottom,bottom});if(stroke)surface.setStroke(dp(1),DIV);return surface;}
@@ -379,7 +380,7 @@ trigger.addView(value,new LinearLayout.LayoutParams(0,dp(54),1));arrow=new Image
   int safeContentHeight(){int padding=host==null?0:host.getPaddingTop()+host.getPaddingBottom(),measured=host==null?0:host.getHeight();if(measured>padding)return measured-padding;int configured=dp(Math.max(1,getResources().getConfiguration().screenHeightDp));return Math.max(dp(1),configured-padding);}
   boolean wideNavigation(){int width=safeContentWidth();return width>=dp(600)&&width>safeContentHeight();}
   int homeSearchWidth(){int available=homeStage!=null&&homeStage.getWidth()>0?homeStage.getWidth():root!=null&&root.getWidth()>0?root.getWidth()-root.getPaddingLeft()-root.getPaddingRight():Math.max(dp(1),safeContentWidth()-dp(32));return Math.max(dp(1),Math.min(available,dp(640)));}
-  int homeSearchCategoryWidth(int searchWidth){return Math.max(dp(1),Math.min(searchWidth,Math.min(dp(96),Math.max(dp(72),searchWidth-dp(200)))));// v1.6.1（R-B2）：分类选择器上限 96dp——根治「全部」与放大镜之间的大段空白，文字区保底 96dp
+  int homeSearchCategoryWidth(int searchWidth){return Math.max(dp(120),Math.min(searchWidth,Math.min(dp(136),searchWidth-dp(140))));// v1.6.3 修「全部消失/搜索钮变小」：内部预算=文字30+箭头28+钮44+内边距15≈117dp，下限必须≥120dp；上限 136dp 仍比原始 150 紧凑
   }
   void fitHomeSearchControls(int searchWidth){if(search==null||homeSearchCategory==null)return;int trailing=homeSearchCategoryWidth(searchWidth);search.setPadding(homeSearchFocused?dp(50):dp(16),0,trailing+dp(6),0);ViewGroup.LayoutParams raw=homeSearchCategory.getLayoutParams();if(raw instanceof FrameLayout.LayoutParams){FrameLayout.LayoutParams p=(FrameLayout.LayoutParams)raw;p.width=trailing;homeSearchCategory.setLayoutParams(p);}if(homeCategoryPicker!=null)homeCategoryPicker.fitWidth(trailing);}
   LinearLayout makePrimaryNav(int selected,boolean wide){LinearLayout nav=!wide&&ThemeEngine.isApple(this)?new GlassNavBar(this,getResources().getDisplayMetrics().density,dest->goToDestination(dest),selected,motionEnabled()):new LinearLayout(this);nav.setOrientation(wide?LinearLayout.VERTICAL:LinearLayout.HORIZONTAL);nav.setGravity(wide?Gravity.TOP|Gravity.CENTER_HORIZONTAL:Gravity.CENTER);nav.setPadding(dp(6),wide?dp(10):dp(5),dp(6),wide?dp(6):dp(5));nav.setBackgroundColor(SURFACE);if(wide)nav.addView(new Space(this),new LinearLayout.LayoutParams(1,dp(42)));nav.addView(navItem(R.drawable.ic_home,"软件库",0,selected,wide),wide?new LinearLayout.LayoutParams(-1,dp(56)):new LinearLayout.LayoutParams(0,-1,1));nav.addView(navItem(R.drawable.ic_ai,"AI 对话",4,selected,wide),wide?new LinearLayout.LayoutParams(-1,dp(56)):new LinearLayout.LayoutParams(0,-1,1));nav.addView(navItem(R.drawable.ic_download,"下载",2,selected,wide),wide?new LinearLayout.LayoutParams(-1,dp(56)):new LinearLayout.LayoutParams(0,-1,1));nav.addView(navItem(R.drawable.ic_tools,"工具箱",5,selected,wide),wide?new LinearLayout.LayoutParams(-1,dp(56)):new LinearLayout.LayoutParams(0,-1,1));nav.addView(navItem(R.drawable.ic_settings,"设置",3,selected,wide),wide?new LinearLayout.LayoutParams(-1,dp(56)):new LinearLayout.LayoutParams(0,-1,1));return nav;}
@@ -438,28 +439,48 @@ indicator.setScaleX(.45f);indicator.setAlpha(.55f);indicator.post(()->indicator.
   }
   int landingSpacerH(){int vh=homeScroll!=null?homeScroll.getHeight():0;if(vh<=0)return dp(16);return Math.max(dp(16),(int)(vh*0.42f-dp(135)));// v1.6.2：留白=42%屏高-(品牌72+底距36+搜索框半高27)，品牌中心≈29%、搜索框中心≈42%（R-B1 黄金带）
   }
-  void animateHomeSpacer(boolean toTop){
-    if(homeTopSpacer==null||homeScroll==null)return;
-    int from=homeTopSpacer.getHeight(),to=toTop?dp(8):landingSpacerH();
-    homeSpacerAnimating=true;
-    android.animation.ValueAnimator a=android.animation.ValueAnimator.ofInt(from,to);
-    a.setDuration(toTop?280:200);// R-B1：280ms emphasized-decelerate 吸顶 / 200ms Accelerate 返回
-    a.setInterpolator(toTop?new android.view.animation.PathInterpolator(0.05f,0.7f,0.1f,1f):new android.view.animation.AccelerateInterpolator());
-    a.addUpdateListener(x->{if(homeTopSpacer==null)return;homeTopSpacer.getLayoutParams().height=(int)x.getAnimatedValue();homeTopSpacer.requestLayout();});
-    a.addListener(new android.animation.AnimatorListenerAdapter(){@Override public void onAnimationEnd(android.animation.Animator x){homeSpacerAnimating=false;if(homeTopSpacer!=null)updateHomeTopSpacer();}});
-    a.start();
+  int homeBrandBlockH(){return dp(108);}// 品牌 72 + 底距 36
+  int homeShiftH(){return landingSpacerH()+homeBrandBlockH()-dp(8);}// 吸顶位移量：搜索框从落位滑到距顶 8dp
+  /** v1.6.3 搜索吸顶重写（用户反馈「不丝滑」根因：旧实现每帧改 spacer 高度 + requestLayout → 每帧全量测量）。
+   *  现在改为纯 translationY 合成动画：布局完全不动，只有位移层在动画，零测量零抖动。
+   *  铁律：动画期间品牌/推荐卡只能 alpha→0 + INVISIBLE（保留占位），绝不能 GONE（改变占位会让布局回流、位移算错）。 */
+  void applyHomeSearchTransforms(boolean focused,boolean animate){
+    if(homeSearchBox==null||homeBrand==null)return;
+    final int shift=homeShiftH();
+    homeBrand.animate().cancel();homeSearchBox.animate().cancel();
+    if(homeHistory!=null)homeHistory.animate().cancel();
+    if(homeRecommendationsScroll!=null)homeRecommendationsScroll.animate().cancel();
+    if(!animate||!motionEnabled()){
+      homeBrand.setVisibility(focused?View.INVISIBLE:View.VISIBLE);homeBrand.setAlpha(focused?0f:1f);homeBrand.setTranslationY(focused?-shift:0f);
+      homeSearchBox.setTranslationY(focused?-shift:0f);
+      if(homeHistory!=null)homeHistory.setTranslationY(focused?-shift:0f);
+      if(homeRecommendationsScroll!=null){homeRecommendationsScroll.setVisibility(focused?View.INVISIBLE:View.VISIBLE);homeRecommendationsScroll.setAlpha(focused?0f:1f);homeRecommendationsScroll.setTranslationY(focused?-shift:0f);}
+      return;
+    }
+    android.view.animation.Interpolator emphasized=new android.view.animation.PathInterpolator(0.05f,0.7f,0.1f,1f);
+    if(focused){
+      homeBrand.animate().translationY(-shift).alpha(0f).setDuration(150).withEndAction(()->{if(homeSearchFocused&&homeBrand!=null)homeBrand.setVisibility(View.INVISIBLE);}).start();
+      homeSearchBox.animate().translationY(-shift).setDuration(280).setInterpolator(emphasized).start();
+      if(homeHistory!=null)homeHistory.animate().translationY(-shift).setDuration(280).setInterpolator(emphasized).start();
+      if(homeRecommendationsScroll!=null)homeRecommendationsScroll.animate().translationY(-shift).alpha(0f).setDuration(150).withEndAction(()->{if(homeSearchFocused&&homeRecommendationsScroll!=null)homeRecommendationsScroll.setVisibility(View.INVISIBLE);}).start();
+    }else{
+      homeBrand.setVisibility(View.VISIBLE);homeBrand.setTranslationY(-shift);homeBrand.setAlpha(0f);
+      if(homeRecommendationsScroll!=null){homeRecommendationsScroll.setVisibility(View.VISIBLE);homeRecommendationsScroll.setTranslationY(-shift);homeRecommendationsScroll.setAlpha(0f);}
+      homeBrand.animate().translationY(0f).alpha(1f).setDuration(230).start();
+      homeSearchBox.animate().translationY(0f).setDuration(200).setInterpolator(new android.view.animation.AccelerateInterpolator()).start();
+      if(homeHistory!=null)homeHistory.animate().translationY(0f).setDuration(200).setInterpolator(new android.view.animation.AccelerateInterpolator()).start();
+      if(homeRecommendationsScroll!=null)homeRecommendationsScroll.animate().translationY(0f).alpha(1f).setDuration(230).start();
+    }
   }
-  void settleHomeSearchPosition(boolean focused){if(homeStage==null||homeSearchBox==null||homeBrand==null)return;clearHomeBrandCiallo();homeBrand.setVisibility(focused?View.GONE:View.VISIBLE);homeBrand.setAlpha(focused?0f:1f);homeBrand.setTranslationY(focused?dp(8):0f);if(homeRecommendationsScroll!=null){homeRecommendationsScroll.setVisibility(focused?View.GONE:View.VISIBLE);homeRecommendationsScroll.setAlpha(focused?0f:1f);}if(homeTopSpacer!=null){homeTopSpacer.getLayoutParams().height=focused?dp(8):landingSpacerH();homeTopSpacer.requestLayout();}if(homeHistory!=null){homeHistory.setVisibility(focused?View.VISIBLE:View.GONE);if(focused)homeHistory.setLayoutParams(new LinearLayout.LayoutParams(homeSearchWidth(),Math.max(dp(240),(homeScroll!=null&&homeScroll.getHeight()>0?homeScroll.getHeight():dp(500))-dp(96))));}}
+  void settleHomeSearchPosition(boolean focused){if(homeStage==null||homeSearchBox==null||homeBrand==null)return;clearHomeBrandCiallo();applyHomeSearchTransforms(focused,false);if(homeHistory!=null){homeHistory.setVisibility(focused?View.VISIBLE:View.GONE);if(focused)homeHistory.setLayoutParams(new LinearLayout.LayoutParams(homeSearchWidth(),Math.max(dp(240),(homeScroll!=null&&homeScroll.getHeight()>0?homeScroll.getHeight():dp(500))-dp(138))));}}
   void showHomeSearchMode(boolean focusInput){if(homeStage==null)return;homeSearchRequested=true;if(homeSearchFocused){if(focusInput&&search!=null)search.requestFocus();return;}homeSearchFocused=true;systemBackAction=this::exitHomeSearchFocus;searchBack.setVisibility(View.VISIBLE);fitHomeSearchControls(homeSearchWidth());if(homeSearchBox!=null)homeSearchBox.setBackground(searchBoxShape(true));String query; synchronized(globalSearch){query=globalSearch.query;}if(!homeSearchHistoryOnly&&!query.isEmpty()&&query.equals(search.getText().toString().trim()))renderSearchResults();else renderSearchHistory();homeHistory.setVisibility(View.VISIBLE);if(homeScroll!=null)homeHistory.setLayoutParams(new LinearLayout.LayoutParams(homeSearchWidth(),Math.max(dp(240),(homeScroll.getHeight()>0?homeScroll.getHeight():dp(500))-dp(96))));if(focusInput)search.requestFocus();if(!motionEnabled()||!focusInput){settleHomeSearchPosition(true);return;}clearHomeBrandCiallo();homeBrand.animate().cancel();if(homeRecommendationsScroll!=null)homeRecommendationsScroll.animate().cancel();
-  // v1.6.1（R-B1）：品牌 150ms 淡出+下移 8dp；顶留白 280ms emphasized-decelerate 收拢→搜索框真吸顶；历史列表延迟 100ms 淡入+上移 12dp
-  homeBrand.animate().alpha(0f).translationY(dp(8)).setDuration(150).withEndAction(()->{if(!homeSearchFocused||homeBrand==null)return;homeBrand.setVisibility(View.GONE);}).start();
-  if(homeRecommendationsScroll!=null)homeRecommendationsScroll.animate().alpha(0f).setDuration(150).withEndAction(()->{if(!homeSearchFocused||homeRecommendationsScroll==null)return;homeRecommendationsScroll.setVisibility(View.GONE);}).start();
-  animateHomeSpacer(true);
-  if(homeHistory!=null){homeHistory.setAlpha(0f);homeHistory.setTranslationY(dp(12));homeHistory.postDelayed(()->{if(homeHistory!=null&&homeSearchFocused)homeHistory.animate().alpha(1f).translationY(0f).setDuration(120).start();},100);}
+  // v1.6.3（修「不丝滑」）：品牌与搜索框同一组纯 translationY 位移（280ms emphasized），零布局开销
+  applyHomeSearchTransforms(true,true);
+  if(homeHistory!=null){homeHistory.setAlpha(0f);homeHistory.postDelayed(()->{if(homeHistory!=null&&homeSearchFocused)homeHistory.animate().alpha(1f).setDuration(120).start();},100);}
   if(homeScroll!=null)homeScroll.post(()->{if(homeSearchFocused&&homeScroll!=null)homeScroll.smoothScrollTo(0,0);});}
   void exitHomeSearchFocus(){if(!homeSearchFocused){navigateHome();return;}invalidateSearchRenderSurface();homeSearchRequested=false;homeSearchHistoryOnly=true;homeSearchFocused=false;systemBackAction=null;pageDirection=1;searchBack.setVisibility(View.GONE);fitHomeSearchControls(homeSearchWidth());if(homeSearchBox!=null)homeSearchBox.setBackground(searchBoxShape(false));if(homeHistory!=null)homeHistory.setVisibility(View.GONE);search.clearFocus();((android.view.inputmethod.InputMethodManager)getSystemService(INPUT_METHOD_SERVICE)).hideSoftInputFromWindow(search.getWindowToken(),0);homeBrand.animate().cancel();if(homeRecommendationsScroll!=null)homeRecommendationsScroll.animate().cancel();if(!motionEnabled()){settleHomeSearchPosition(false);return;}homeColumn.post(()->{if(homeSearchFocused||homeBrand==null)return;
-  // v1.6.1（R-B1）：返回 200ms Accelerate——顶留白展开、品牌自下 8dp 淡入
-  animateHomeSpacer(false);homeBrand.setVisibility(View.VISIBLE);homeBrand.setAlpha(0f);homeBrand.setTranslationY(dp(8));homeBrand.animate().alpha(1f).translationY(0f).setDuration(230).start();if(homeRecommendationsScroll!=null){homeRecommendationsScroll.setVisibility(View.VISIBLE);homeRecommendationsScroll.setAlpha(0f);homeRecommendationsScroll.animate().alpha(1f).setDuration(230).start();}});}
+  // v1.6.3：返回——同一组 translationY 反向，200ms Accelerate
+  applyHomeSearchTransforms(false,true);});}
   List<String> searchHistory(){LinkedHashSet<String> unique=new LinkedHashSet<>();try{org.json.JSONArray values=new org.json.JSONArray(getSharedPreferences("search_history",MODE_PRIVATE).getString("items","[]"));for(int i=0;i<values.length();i++){String value=values.optString(i).trim();if(!value.isEmpty())unique.add(value);}}catch(Exception ignored){}return new ArrayList<>(unique);}
   void writeSearchHistory(List<String> history){try{org.json.JSONArray values=new org.json.JSONArray();for(int i=0;i<Math.min(12,history.size());i++)values.put(history.get(i));getSharedPreferences("search_history",MODE_PRIVATE).edit().putString("items",values.toString()).apply();}catch(Exception ignored){}}
   void saveSearchHistory(String query){List<String> history=searchHistory();history.remove(query);history.add(0,query);writeSearchHistory(history);}
