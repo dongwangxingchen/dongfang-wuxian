@@ -108,6 +108,58 @@ final class AiChatCore {
   String activeId() {return prefs().getString("active","");}
   void setActiveId(String id) {prefs().edit().putString("active",id==null?"":id).apply();}
   boolean configured() {Settings s=settings();return !s.url.isEmpty()&&!s.key.isEmpty()&&!s.model.isEmpty();}
+
+  //—— v1.7.0 助手系统（移植自 RikkaHub Assistant 体系，见 ai/AiAssistant.java）——
+
+  /** 助手列表；为空时补回预置助手（对齐上游"启动自动补回内置项"） */
+  List<cc.nkbr.lanzouplus.ai.AiAssistant> assistants() {
+    List<cc.nkbr.lanzouplus.ai.AiAssistant> out = new ArrayList<>();
+    try {
+      out = cc.nkbr.lanzouplus.ai.AiAssistant.listFromJson(new JSONArray(prefs().getString("assistants", "[]")));
+    } catch (Exception ignored) {}
+    if (out.isEmpty()) {
+      out = cc.nkbr.lanzouplus.ai.AiAssistant.defaults();
+      saveAssistants(out);
+    }
+    return out;
+  }
+
+  void saveAssistants(List<cc.nkbr.lanzouplus.ai.AiAssistant> list) {
+    try {
+      prefs().edit().putString("assistants", cc.nkbr.lanzouplus.ai.AiAssistant.listToJson(list).toString()).apply();
+    } catch (Exception ignored) {}
+  }
+
+  String activeAssistantId() {return prefs().getString("active_assistant", "");}
+  void setActiveAssistantId(String id) {prefs().edit().putString("active_assistant", id == null ? "" : id).apply();}
+
+  /** 当前助手；无匹配时回退第一个（对齐上游 settings 快照 + 失效引用清理） */
+  cc.nkbr.lanzouplus.ai.AiAssistant activeAssistant() {
+    List<cc.nkbr.lanzouplus.ai.AiAssistant> all = assistants();
+    String id = activeAssistantId();
+    for (cc.nkbr.lanzouplus.ai.AiAssistant a : all) if (a.id.equals(id)) return a;
+    cc.nkbr.lanzouplus.ai.AiAssistant first = all.get(0);
+    setActiveAssistantId(first.id);
+    return first;
+  }
+
+  void saveAssistant(cc.nkbr.lanzouplus.ai.AiAssistant target) {
+    List<cc.nkbr.lanzouplus.ai.AiAssistant> all = assistants();
+    boolean replaced = false;
+    for (int i = 0; i < all.size(); i++) if (all.get(i).id.equals(target.id)) {all.set(i, target);replaced = true;}
+    if (!replaced) all.add(target);
+    saveAssistants(all);
+    setActiveAssistantId(target.id);
+  }
+
+  void deleteAssistant(String id) {
+    List<cc.nkbr.lanzouplus.ai.AiAssistant> all = assistants();
+    for (int i = 0; i < all.size(); i++) if (all.get(i).id.equals(id)) {all.remove(i);break;}
+    if (all.isEmpty()) all = cc.nkbr.lanzouplus.ai.AiAssistant.defaults();
+    saveAssistants(all);
+    if (id.equals(activeAssistantId())) setActiveAssistantId(all.get(0).id);
+  }
+
   List<Session> sessions() {
     List<Session> out=new ArrayList<>();
     try {JSONArray a=new JSONArray(prefs().getString("sessions","[]"));for(int i=0;i<a.length();i++)out.add(Session.from(a.getJSONObject(i)));}catch(Exception ignored){}
@@ -248,6 +300,21 @@ final class AiChatCore {
   }
   /** 流式对话。返回 Request 用于取消;回调全部回主线程。 */
   Request chat(final Settings s,final List<Message> context,final StreamListener listener) {
+    return chat(s, context, null, listener);
+  }
+
+  /**
+   * 流式对话（v1.7.0 助手增强版，移植自 RikkaHub 生成管线的装配逻辑）。
+   *
+   * <p>与旧版的差别：
+   * <ul>
+   *   <li>system 提示词 = 助手人格提示词 + 工具推荐手册（上游"人格在前、能力在后"的顺序）</li>
+   *   <li>上下文截断改用上游的<b>阶梯式（滞回）算法</b>（{@link cc.nkbr.lanzouplus.ai.ContextLimiter}），
+   *       使请求前缀在多轮内保持稳定、命中提示词缓存</li>
+   *   <li>助手的 temperature / topP / maxTokens 生效（"可空=跟随"：null 则用渠道默认）</li>
+   * </ul>
+   */
+  Request chat(final Settings s,final List<Message> context,final cc.nkbr.lanzouplus.ai.AiAssistant assistant,final StreamListener listener) {
     final Request request=new Request();
     new Thread(() -> {
       String full="",reasoning="",error="";
@@ -257,15 +324,31 @@ final class AiChatCore {
         String host=new URL(normalizeBase(s.url)).getHost();
         String resolved=validateResolvedHost(host);
         if(!resolved.isEmpty())throw new java.io.IOException(resolved);
+        // —— 上下文装配（v1.7.0）：助手优先的阶梯式截断 ——
+        int limit=assistant!=null&&assistant.contextMessageLimit>0?assistant.contextMessageLimit:Math.max(1,s.contextMessages);
+        java.util.List<cc.nkbr.lanzouplus.ai.AiMessage> rich=new ArrayList<>();
+        for(Message m:context){
+          cc.nkbr.lanzouplus.ai.AiMessage am=new cc.nkbr.lanzouplus.ai.AiMessage();
+          am.role=m.role;
+          if(m.content!=null&&!m.content.isEmpty())am.parts.add(cc.nkbr.lanzouplus.ai.AiMessage.Part.text(m.content));
+          if(m.reasoning!=null&&!m.reasoning.isEmpty())am.parts.add(cc.nkbr.lanzouplus.ai.AiMessage.Part.reasoning(m.reasoning));
+          if(m.toolCallId!=null&&!m.toolCallId.isEmpty())am.parts.add(cc.nkbr.lanzouplus.ai.AiMessage.Part.tool(m.toolCallId,m.toolName,m.content));
+          rich.add(am);
+        }
+        java.util.List<cc.nkbr.lanzouplus.ai.AiMessage> trimmed=cc.nkbr.lanzouplus.ai.ContextLimiter.limitContext(rich,limit);
         JSONArray payload=new JSONArray();
-        int from=Math.max(0,context.size()-Math.max(1,s.contextMessages));
-        for(int i=from;i<context.size();i++) {Message m=context.get(i);
-          if(m.toolCallsJson!=null&&!m.toolCallsJson.isEmpty()){JSONObject o=new JSONObject().put("role","assistant").put("content",m.content==null?"":m.content);try{o.put("tool_calls",new JSONArray(m.toolCallsJson));}catch(Exception ignored){}payload.put(o);}
-          else if(m.toolCallId!=null&&!m.toolCallId.isEmpty())payload.put(new JSONObject().put("role","tool").put("tool_call_id",m.toolCallId).put("content",m.content==null?"":m.content));
-          else payload.put(new JSONObject().put("role",m.role).put("content",m.content==null?"":m.content));}
-        JSONObject body=new JSONObject().put("model",s.model).put("messages",payload).put("max_tokens",s.maxTokens).put("stream",true);
-        // v1.6.0：工具调用整体移除（真机闪退 + 用户定调只用「推荐工具」机制），改由 system 提示词携带工具目录做纯文本推荐
-        payload.put(0,new JSONObject().put("role","system").put("content",toolCatalogPrompt()));
+        String systemPrompt=cc.nkbr.lanzouplus.ai.GenerationPipeline.buildSystemPrompt(assistant,toolCatalogPrompt());
+        if(!systemPrompt.isEmpty())payload.put(new JSONObject().put("role","system").put("content",systemPrompt));
+        for(cc.nkbr.lanzouplus.ai.AiMessage m:trimmed){
+          JSONObject o=new JSONObject().put("role",m.role).put("content",m.text());
+          payload.put(o);
+        }
+        JSONObject body=new JSONObject().put("model",s.model).put("messages",payload).put("stream",true);
+        int maxOut=assistant!=null&&assistant.maxTokens!=null?assistant.maxTokens:s.maxTokens;
+        body.put("max_tokens",maxOut);
+        // "可空=跟随"：助手未设则不写该字段（对齐上游语义）
+        if(assistant!=null&&assistant.temperature!=null)body.put("temperature",assistant.temperature.doubleValue());
+        if(assistant!=null&&assistant.topP!=null)body.put("top_p",assistant.topP.doubleValue());
         HttpURLConnection c=(HttpURLConnection)new URL(normalizeBase(s.url)+"/chat/completions").openConnection();
         request.connection=c;
         c.setConnectTimeout(15000);c.setReadTimeout(120000);c.setDoOutput(true);c.setRequestMethod("POST");
