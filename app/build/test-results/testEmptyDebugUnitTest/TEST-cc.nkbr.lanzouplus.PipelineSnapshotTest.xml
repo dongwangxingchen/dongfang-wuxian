@@ -1,8 +1,0 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<testsuite name="cc.nkbr.lanzouplus.PipelineSnapshotTest" tests="2" skipped="0" failures="0" errors="0" timestamp="2026-09-12T09:07:35.978Z" hostname="DESKTOP-75F7671" time="0.169">
-  <properties/>
-  <testcase name="appleGroupedSectionRenders" classname="cc.nkbr.lanzouplus.PipelineSnapshotTest" time="0.092"/>
-  <testcase name="programmaticViewRenders" classname="cc.nkbr.lanzouplus.PipelineSnapshotTest" time="0.077"/>
-  <system-out><![CDATA[]]></system-out>
-  <system-err><![CDATA[]]></system-err>
-</testsuite>

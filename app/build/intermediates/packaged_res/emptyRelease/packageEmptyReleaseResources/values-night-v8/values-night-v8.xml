@@ -1,5 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<resources>
-    <style name="AppTheme" parent="android:style/Theme.Material.NoActionBar"><item name="android:fontFamily">sans</item><item name="android:windowActionModeOverlay">true</item><item name="android:colorAccent">#A78BFA</item><item name="android:navigationBarColor">#0B0A12</item><item name="android:statusBarColor">#0B0A12</item><item name="android:windowBackground">#0B0A12</item><item name="android:windowLightStatusBar">false</item><item name="android:alertDialogTheme">@style/HeiYaoDialog</item></style>
-    <style name="HeiYaoDialog" parent="android:style/Theme.Material.Dialog.Alert"><item name="android:colorAccent">#A78BFA</item><item name="android:windowBackground">#16141F</item><item name="android:textColorPrimary">#F2F0F7</item><item name="android:textColorSecondary">#9A93AB</item><item name="android:colorControlNormal">#9A93AB</item><item name="android:colorControlActivated">#A78BFA</item></style>
-</resources>

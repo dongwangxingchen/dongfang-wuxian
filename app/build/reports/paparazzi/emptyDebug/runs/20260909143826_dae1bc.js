@@ -1,9 +1,0 @@
-window.runs["20260909143826_dae1bc"] = [
-  {
-    "name": "json",
-    "testName": "cc.nkbr.lanzouplus.ToolPagePreviewTest#renderToolPage[json]",
-    "timestamp": "2026-09-09T06:38:26.780Z",
-    "tags": [],
-    "file": "images/378e00a97083fc752235997fb66c4680a497fa9a.png"
-  }
-];

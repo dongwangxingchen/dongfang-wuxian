@@ -1,5 +1,0 @@
--keep class cc.nkbr.lanzouplus.DownloadFileProvider { <init>(); }
--keep class cc.nkbr.lanzouplus.LanzouWebActivity { <init>(); }
--keep class cc.nkbr.lanzouplus.MainActivity { <init>(); }
--keep class cc.nkbr.lanzouplus.SupportActivity { <init>(); }
--keep class rikka.shizuku.ShizukuProvider { <init>(); }

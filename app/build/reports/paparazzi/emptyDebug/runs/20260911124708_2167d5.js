@@ -1,9 +1,0 @@
-window.runs["20260911124708_2167d5"] = [
-  {
-    "name": "base64-apple",
-    "testName": "cc.nkbr.lanzouplus.ToolPagePreviewTest#renderToolPage[base64-apple]",
-    "timestamp": "2026-09-11T04:47:08.487Z",
-    "tags": [],
-    "file": "images/ab438140d8d62273cccd9c2f10f219d81647ab78.png"
-  }
-];
