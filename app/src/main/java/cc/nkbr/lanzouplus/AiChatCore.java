@@ -32,23 +32,93 @@ final class AiChatCore {
   static final class Message {
     String role = "user", content = "", reasoning = "";
     String toolCallsJson = "", toolCallId = "", toolName = "";
+    /** v1.7.0 稳定消息 id（对齐上游 UIMessage.id）：流式重试/分支候选按 id 定位 */
+    String id = "m" + System.currentTimeMillis() + "-" + Integer.toHexString((int)(Math.random()*0xFFFF));
+    /** v1.7.0 token 用量（对齐上游 TokenUsage；0 = 未返回） */
+    int promptTokens = 0, completionTokens = 0, cachedTokens = 0, totalTokens = 0;
     Message() {}
     Message(String role,String content) {this.role=role;this.content=content==null?"":content;}
-    JSONObject toJson() {try{JSONObject o=new JSONObject().put("role",role).put("content",content);if(!reasoning.isEmpty())o.put("reasoning",reasoning);if(!toolCallsJson.isEmpty())o.put("tcalls",toolCallsJson);if(!toolCallId.isEmpty())o.put("tcid",toolCallId);if(!toolName.isEmpty())o.put("tname",toolName);return o;}catch(Exception e){return new JSONObject();}}
-    static Message from(JSONObject o) {Message m=new Message(o.optString("role","user"),o.optString("content"));try{m.reasoning=o.optString("reasoning");m.toolCallsJson=o.optString("tcalls");m.toolCallId=o.optString("tcid");m.toolName=o.optString("tname");}catch(Exception ignored){}return m;}
+    JSONObject toJson() {try{JSONObject o=new JSONObject().put("role",role).put("content",content);if(!id.isEmpty())o.put("id",id);if(!reasoning.isEmpty())o.put("reasoning",reasoning);if(!toolCallsJson.isEmpty())o.put("tcalls",toolCallsJson);if(!toolCallId.isEmpty())o.put("tcid",toolCallId);if(!toolName.isEmpty())o.put("tname",toolName);if(totalTokens>0){o.put("pt",promptTokens).put("ct",completionTokens).put("cat",cachedTokens).put("tt",totalTokens);}return o;}catch(Exception e){return new JSONObject();}}
+    static Message from(JSONObject o) {Message m=new Message(o.optString("role","user"),o.optString("content"));try{m.reasoning=o.optString("reasoning");m.toolCallsJson=o.optString("tcalls");m.toolCallId=o.optString("tcid");m.toolName=o.optString("tname");String idv=o.optString("id","");if(!idv.isEmpty())m.id=idv;m.promptTokens=o.optInt("pt",0);m.completionTokens=o.optInt("ct",0);m.cachedTokens=o.optInt("cat",0);m.totalTokens=o.optInt("tt",0);}catch(Exception ignored){}return m;}
   }
   static final class Session {
     String id, title = "新对话";
     long createdAt;
+    /** 线性视图（= 每个节点的选中候选，供现有渲染/持久化代码无缝使用） */
     final List<Message> messages = new ArrayList<>();
-    JSONObject toJson() {try{JSONArray a=new JSONArray();for(Message m:messages)a.put(m.toJson());return new JSONObject().put("id",id).put("title",title).put("at",createdAt).put("messages",a);}catch(Exception e){return new JSONObject();}}
-    static Session from(JSONObject o) {Session s=new Session();try{s.id=o.optString("id");s.title=o.optString("title","新对话");s.createdAt=o.optLong("at");JSONArray a=o.optJSONArray("messages");if(a!=null)for(int i=0;i<a.length();i++)s.messages.add(Message.from(a.optJSONObject(i)));}catch(Exception ignored){}return s;}
+    /** v1.7.0 分支候选（移植自 RikkaHub MessageNode）：nodeIndex → 该位置的全部候选；messages 恒为各节点选中项 */
+    final List<List<Message>> branches = new ArrayList<>();
+    JSONObject toJson() {
+      try{
+        JSONArray a=new JSONArray();for(Message m:messages)a.put(m.toJson());
+        JSONObject o=new JSONObject().put("id",id).put("title",title).put("at",createdAt).put("messages",a);
+        // 仅在有分支时写 branches，保持旧版本兼容
+        boolean anyBranch=false;for(List<Message> b:branches)if(b!=null&&b.size()>1){anyBranch=true;break;}
+        if(anyBranch){
+          JSONArray nodes=new JSONArray();
+          for(int i=0;i<branches.size();i++){
+            List<Message> b=branches.get(i);
+            JSONObject node=new JSONObject();
+            JSONArray cands=new JSONArray();int sel=0;
+            for(int j=0;j<b.size();j++){cands.put(b.get(j).toJson());if(i<messages.size()&&b.get(j)==messages.get(i))sel=j;}
+            node.put("messages",cands);node.put("selectIndex",sel);nodes.put(node);
+          }
+          o.put("nodes",nodes);
+        }
+        return o;
+      }catch(Exception e){return new JSONObject();}
+    }
+    static Session from(JSONObject o) {
+      Session s=new Session();
+      try{
+        s.id=o.optString("id");s.title=o.optString("title","新对话");s.createdAt=o.optLong("at");
+        JSONArray nodes=o.optJSONArray("nodes");
+        if(nodes!=null&&nodes.length()>0){
+          for(int i=0;i<nodes.length();i++){
+            JSONObject node=nodes.optJSONObject(i);if(node==null)continue;
+            List<Message> cands=new ArrayList<>();
+            JSONArray arr=node.optJSONArray("messages");
+            if(arr!=null)for(int j=0;j<arr.length();j++)cands.add(Message.from(arr.optJSONObject(j)));
+            if(cands.isEmpty())continue;
+            int sel=Math.max(0,Math.min(cands.size()-1,node.optInt("selectIndex",0)));
+            s.branches.add(cands);
+            s.messages.add(cands.get(sel));
+          }
+        }else{
+          JSONArray a=o.optJSONArray("messages");
+          if(a!=null)for(int i=0;i<a.length();i++)s.messages.add(Message.from(a.optJSONObject(i)));
+          for(Message m:s.messages){List<Message> one=new ArrayList<>();one.add(m);s.branches.add(one);}
+        }
+      }catch(Exception ignored){}
+      return s;
+    }
+    /** 追加消息：同步维护 branches（每个位置一个节点，初始单候选） */
+    void appendMessage(Message m){messages.add(m);List<Message> one=new ArrayList<>();one.add(m);branches.add(one);}
+    /** 移除末尾消息：同步维护 branches */
+    void removeLastMessage(){if(!messages.isEmpty())messages.remove(messages.size()-1);if(!branches.isEmpty())branches.remove(branches.size()-1);}
+    /** 该位置是否有多个候选 */
+    boolean hasBranches(int nodeIndex){return nodeIndex>=0&&nodeIndex<branches.size()&&branches.get(nodeIndex).size()>1;}
+    /** 切换某位置的选中候选（对齐上游 selectBranch） */
+    void selectBranch(int nodeIndex,int candidateIndex){
+      if(nodeIndex<0||nodeIndex>=branches.size())return;
+      List<Message> b=branches.get(nodeIndex);
+      if(candidateIndex<0||candidateIndex>=b.size())return;
+      if(nodeIndex<messages.size())messages.set(nodeIndex,b.get(candidateIndex));
+    }
+    /** 为某位置追加候选并选中（对齐上游 addBranch：重新生成不删旧回复） */
+    void addBranch(int nodeIndex,Message m){
+      if(nodeIndex<0||nodeIndex>=branches.size()){appendMessage(m);return;}
+      List<Message> b=branches.get(nodeIndex);b.add(m);
+      if(nodeIndex<messages.size())messages.set(nodeIndex,m);
+    }
   }
   // v1.6.0：function calling 整体移除（ToolCall/onToolCalls 删除），AI 改为纯文本推荐工具
   interface StreamListener {
     void onOpen();
     void onDelta(String content,String reasoning);
     void onDone(String fullContent,String reasoning,String error);
+    /** v1.7.0 token 用量回调（对齐上游 NERD 行）：仅在服务端返回 usage 时触发，默认空实现保持兼容 */
+    default void onUsage(int promptTokens,int completionTokens,int cachedTokens,int totalTokens) {}
   }
   static final class Request implements AutoCloseable {
     volatile HttpURLConnection connection;volatile boolean cancelled;
@@ -318,6 +388,7 @@ final class AiChatCore {
     final Request request=new Request();
     new Thread(() -> {
       String full="",reasoning="",error="";
+      int usagePrompt=0,usageCompletion=0,usageCached=0,usageTotal=0;
       try {
         String invalid=validateOutboundUrl(s.url);
         if(!invalid.isEmpty())throw new java.io.IOException(invalid);
@@ -368,6 +439,15 @@ final class AiChatCore {
           if(data.equals("[DONE]"))break;
           JSONObject chunk;
           try {chunk=new JSONObject(data);}catch(Exception ignored){continue;}
+          // v1.7.0 token 用量（对齐上游 TokenUsage）：OpenAI 兼容接口在最后一个 chunk 或独立 usage chunk 返回
+          JSONObject usageObj=chunk.optJSONObject("usage");
+          if(usageObj!=null){
+            usagePrompt=usageObj.optInt("prompt_tokens",usagePrompt);
+            usageCompletion=usageObj.optInt("completion_tokens",usageCompletion);
+            usageTotal=usageObj.optInt("total_tokens",usageTotal);
+            JSONObject details=usageObj.optJSONObject("prompt_tokens_details");
+            if(details!=null)usageCached=details.optInt("cached_tokens",usageCached);
+          }
           JSONArray choices=chunk.optJSONArray("choices");
           if(choices==null||choices.length()==0)continue;
           JSONObject delta=choices.optJSONObject(0)==null?null:choices.optJSONObject(0).optJSONObject("delta");
@@ -385,6 +465,8 @@ final class AiChatCore {
       final String outFull=full,outThink=reasoning;
       // v1.5.1 修复假失败通知：成功时 error 一直是 ""（非 null），界面层 error!=null 判定导致每次成功后弹「AI 请求失败:」空通知——归一化为 null
       final String outError=(error==null||error.isEmpty())?null:error;
+      final int uPrompt=usagePrompt,uCompletion=usageCompletion,uCached=usageCached,uTotal=usageTotal;
+      if(uTotal>0)ui.post(() -> listener.onUsage(uPrompt,uCompletion,uCached,uTotal));
       ui.post(() -> listener.onDone(outFull,outThink,outError));
     },"ai-chat").start();
     return request;
