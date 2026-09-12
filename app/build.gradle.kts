@@ -2,6 +2,13 @@ plugins { id("com.android.application"); id("app.cash.paparazzi") }
 
 tasks.withType<JavaCompile>().configureEach { options.compilerArgs.add("-g:none") }
 
+// v1.7.0 开源合规：默认 AI 渠道的 Key 不进源码。优先读 local.properties 的 ai.default.key（该文件不入 git）；
+// 未配置时注入空串，App 首启该渠道留空、由用户自行填写。
+val defaultAiKey: String = run {
+ val f = rootProject.file("local.properties")
+ if (f.exists()) f.readLines().firstOrNull { it.trim().startsWith("ai.default.key=") }?.substringAfter('=')?.trim() ?: "" else ""
+}
+
 android {
  namespace = "cc.nkbr.lanzouplus"
  compileSdk = 36
@@ -16,6 +23,7 @@ android {
    applicationId = "dfwx.dongdang"
    buildConfigField("boolean", "IS_FULL", "false")
    buildConfigField("String", "OFFICIAL_URL", "\"https://github.com/nekobyran/lanzouplus\"")
+   buildConfigField("String", "DEFAULT_AI_KEY", "\"$defaultAiKey\"")
    resValue("string", "app_name", "东方无限")
   }
  }
