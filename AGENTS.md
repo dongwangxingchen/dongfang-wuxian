@@ -62,6 +62,16 @@
 
 ## 五、新规范
 
+### 2026-09-13 规范化迭代（依据 07-研究报告/规范化迭代研究报告-2026-09-13.md）
+
+- **双区边界**：`rikkahub/` 为 vendor 区（上游源码，路径一一对应），任何改动必须同步记入 `rikkahub/PATCHES.md`；蓝奏云/工具为主机区（纯 Java）。禁止把主机区代码写进 vendor 区，禁止直接改 vendor 区而不留补丁记录。
+- **发版三件套**：每版发布附"用户视角更新说明"（≤10 条，少用技术名词）；vendor 大改动可先发预览版灰度（学 kelivo prerelease 模式）；发版节奏优先于功能堆量——发版断档=项目死亡（OpenCalc 反例）。
+- **提交信息 Conventional Commits 化**：v1.8.1 起 commit 前缀用 feat/fix/chore/docs（保留中文描述），为将来接入 release-please 自动 changelog 铺路。
+- **大功能 spec 先行**：预计超过一轮会话的功能，先写 `specs/<slug>.md`（需求+验收标准）再动手；小改直接做。
+- **issue 闭环**（待 GitHub 写权限恢复）：仓库 issue 当 roadmap（bug/enhancement 两标签起步），修 bug 的 commit 带 `close #xxxx`；每版 release notes 由 git log 蒸馏。
+- **踩坑蒸馏**：被复现的 bug 修完后，根因一句话追加进本文件踩坑记录（CrossPaste 模式）。
+- **已有 skill 化流程**：工具精修用 `tool-refine` skill（搜证→计划→实施→快照目检）；上游更新用 `upstream-sync` skill（拉 diff→PATCHES.md 重放→构建验收）。
+
 ### 2026-09-12 RikkaHub 整搬决策（用户拍板，铁律第 3 条据此豁免）
 
 - 用户明确裁决：AI 对话部分**整体搬运 RikkaHub**——上游的 UI、交互、设置页全部原样进来（如聊天历史为左侧抽屉展开），本项目自写的 Java AI 实现（ai/ 包 918 行）不再作为交付物冒充移植。
