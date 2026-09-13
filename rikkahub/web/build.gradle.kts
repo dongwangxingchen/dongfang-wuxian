@@ -6,17 +6,23 @@ plugins {
 
 val webUiDir = rootProject.layout.projectDirectory.dir("web-ui")
 val webStaticResourcesDir = layout.projectDirectory.dir("src/main/resources/static")
+// [DFWX PATCH] configuration cache 兼容：把脚本级对象在配置期收敛为可序列化的普通值，
+// 任务闭包（onlyIf）不再捕获 Gradle 脚本引用。同步上游时需重放。
+val webUiDirFile: java.io.File = webUiDir.asFile
+val hasWebUiSources: Boolean = webUiDirFile.exists()
 
 val buildWebUi = tasks.register<Exec>("buildWebUi") {
     group = "build"
     description = "Build web-ui and copy its static output into the web module resources."
 
     // [DFWX PATCH] 本工程未 vendor web-ui 前端（无 Node/pnpm 工具链）：目录不存在时跳过
-    // 前端构建，Web 局域网控制台降级为无静态资源（聊天主功能不受影响）。装好
-    // Node22+pnpm11 并放回 web-ui 后自动恢复完整构建。同步上游时需重放本改动。
-    onlyIf { webUiDir.asFile.exists() }
+    // 前端构建，Web 局域网控制台降级为占位页（聊天主功能不受影响）。装好 Node22+pnpm11
+    // 并放回 web-ui 后自动恢复完整构建。同步上游时需重放本改动。
+    // 注意用 enabled= 而非 onlyIf{}：.kts 顶层 val 属脚本对象属性，闭包引用它会被
+    // configuration cache 判为"脚本对象引用"（2026-09-14 实测）；enabled 是纯布尔字段可序列化。
+    enabled = webUiDirFile.exists()
 
-    workingDir = webUiDir.asFile
+    workingDir = webUiDirFile
     when {
         Os.isFamily(Os.FAMILY_MAC) -> commandLine("zsh", "-ic", "pnpm run build")
         Os.isFamily(Os.FAMILY_WINDOWS) -> commandLine("cmd", "/c", "pnpm run build")
