@@ -1,11 +1,11 @@
 # 东方无限 (DongFangWuXian)
 
-一个轻量、零第三方运行时依赖的原生 Android 工具箱：蓝奏云目录浏览 / 全源搜索 / 下载管理，内置 35 个本地小工具，以及可接入任意 OpenAI 兼容中转站的 AI 对话。
+一个轻量的原生 Android 工具箱：蓝奏云目录浏览 / 全源搜索 / 下载管理，内置 35 个本地小工具，以及**完整内嵌开源 AI 聊天应用 RikkaHub**（多渠道 / 助手系统 / 联网搜索 / MCP / 语音 / 工作区全功能）。
 
 - **包名**：`dfwx.dongdang`（Java namespace `cc.nkbr.lanzouplus`，上游遗留，未改动）
-- **当前版本**：1.6.3（versionCode 1030014）
-- **最低系统**：Android 7.0（API 24） / targetSdk 36
-- **技术栈**：纯 Java、单 Activity、程序化 View（无 XML 布局）、`HttpURLConnection` 直连、零第三方 UI/网络库
+- **当前版本**：1.8.0（versionCode 1030023）
+- **最低系统**：Android 8.0（API 26） / targetSdk 37
+- **技术栈**：蓝奏云/工具部分为纯 Java + 程序化 View（零第三方依赖）；AI 对话部分自 v1.8.0 起整体 vendor [RikkaHub](https://github.com/re-ovo/rikkahub)（Kotlin + Jetpack Compose 全家桶，见 `rikkahub/` 目录与 [rikkahub/PATCHES.md](rikkahub/PATCHES.md)）
 - **许可证**：AGPL-3.0（见 [LICENSE](LICENSE)）
 
 ## 功能
@@ -18,11 +18,10 @@
 ### 35 个本地小工具
 计算器、单位换算、日期计算、随机决策、记分牌、万年历、随机数、文本统计、Base64、URL 编解码、哈希、JSON、正则、密码生成、UUID、图片压缩、画板、设备信息、屏幕检测、直尺、手电筒、白噪音、文字朗读、生肖星座、身份证解析、年龄计算、BMI、水平仪、秒表、时间戳、进制转换、指南针、频率发生器、随机抽取、摩斯电码。
 
-### AI 对话
-- 支持任意 OpenAI 兼容中转站（多渠道管理、`/models` 拉取、连接测试）
-- SSE 流式输出、思考过程展示、Markdown 渲染、Token 用量、复制 / 重新生成
-- 工具推荐：AI 在回复末尾推荐合适的本地工具，点按钮直达对应工具页
-- 助手系统、对话数据模型、生成管线正在按 RikkaHub 的架构逐步完善
+### AI 对话（v1.8.0 起为完整内嵌的 RikkaHub）
+- 主界面点「AI」进入 RikkaHub 全功能界面：聊天历史左侧抽屉、模型底部弹窗切换、完整设置页体系（渠道管理 / 助手管理 / 联网搜索 / TTS·ASR / MCP / 数据备份 WebDAV·S3 / 主题 / Web 局域网控制台等）
+- 支持 OpenAI 兼容 / Claude / Google 多协议，SSE 流式、思考过程、消息分叉、Token 用量、联网搜索、提示词模板、Skills、工作区终端
+- 首次使用：抽屉底部「设置 → 渠道」填入你的 API 地址与 Key（本应用不内置任何 Key）
 
 ## 主题
 
@@ -32,7 +31,7 @@
 
 ## 构建
 
-需要 JDK 17+ 与 Android SDK（build-tools 36.0.0）。
+需要 JDK 21、Android SDK（platform 37 + build-tools 37.0.0）、Gradle 9.6（wrapper 已配置；`services.gradle.org` 不可达的环境可改用镜像源，见 `gradle/wrapper/gradle-wrapper.properties`）。
 
 ```bash
 # 1. 配置 SDK 路径与默认 AI Key（此文件不入库）
@@ -41,13 +40,13 @@ sdk.dir=/path/to/android-sdk
 ai.default.key=sk-your-own-key
 EOF
 
-# 2. 构建 release APK
+# 2. 构建 release APK（约 35MB，arm64-v8a）
 ./gradlew assembleEmptyRelease
 ```
 
 产物：`app/build/outputs/apk/empty/release/app-empty-release.apk`
 
-> `local.properties`、keystore、`assets/{s,r,c}`（内置源）均已在 `.gitignore` 中排除，不会进入公开仓库。
+> `local.properties`、keystore、`assets/{s,r,c}`（内置源）均已在 `.gitignore` 中排除，不会进入公开仓库。AI 部分上游代码在 `rikkahub/` 目录，与上游 re-ovo/rikkahub 保持路径一一对应，定制全部记录在 [rikkahub/PATCHES.md](rikkahub/PATCHES.md) 以便跟随上游更新。
 
 ## 致谢与第三方参考
 

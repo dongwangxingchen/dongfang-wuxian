@@ -1,1 +1,45 @@
+pluginManagement {
+    includeBuild("rikkahub/build-logic")
+    repositories {
+        google {
+            content {
+                includeGroupByRegex("com\\.android.*")
+                includeGroupByRegex("com\\.google.*")
+                includeGroupByRegex("androidx.*")
+            }
+        }
+        mavenCentral()
+        gradlePluginPortal()
+    }
+}
+
+dependencyResolutionManagement {
+    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+    repositories {
+        google()
+        mavenCentral()
+        maven { url "https://jitpack.io" }
+    }
+    versionCatalogs {
+        create("libs") { from(files("rikkahub/gradle/libs.versions.toml")) }
+    }
+}
+
+rootProject.name = "dongfangwuxian"
+
 include ':app'
+
+// ---- RikkaHub vendor（re-ovo/rikkahub tag 2.5.1）----
+// 模块名与上游完全一致（:ai/:common/...），上游模块间 project(":x") 引用零改动，便于按目录 diff 跟随上游更新。
+// 上游 :app 在本工程转为库模块 :rikkahub-app（applicationId/签名/ABI 由我们的 :app 统一管辖）。
+include ':ai';           project(':ai').projectDir           = file('rikkahub/ai')
+include ':common';       project(':common').projectDir       = file('rikkahub/common')
+include ':highlight';    project(':highlight').projectDir    = file('rikkahub/highlight')
+include ':material3';    project(':material3').projectDir    = file('rikkahub/material3')
+include ':search';       project(':search').projectDir       = file('rikkahub/search')
+include ':speech';       project(':speech').projectDir       = file('rikkahub/speech')
+include ':document';     project(':document').projectDir     = file('rikkahub/document')
+include ':oauth';        project(':oauth').projectDir        = file('rikkahub/oauth')
+include ':web';          project(':web').projectDir          = file('rikkahub/web')
+include ':workspace';    project(':workspace').projectDir    = file('rikkahub/workspace')
+include ':rikkahub-app'; project(':rikkahub-app').projectDir = file('rikkahub/app')
