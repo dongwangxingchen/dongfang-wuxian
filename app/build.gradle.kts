@@ -1,4 +1,4 @@
-plugins { id("com.android.application"); id("app.cash.paparazzi") }
+plugins { alias(libs.plugins.android.application); id("app.cash.paparazzi") }
 
 tasks.withType<JavaCompile>().configureEach { options.compilerArgs.add("-g:none") }
 
@@ -11,10 +11,21 @@ val defaultAiKey: String = run {
 
 android {
  namespace = "cc.nkbr.lanzouplus"
- compileSdk = 36
- buildFeatures { buildConfig = true; aidl = true }
+ compileSdk = 37
+ buildFeatures { buildConfig = true; aidl = true; resValues = true }  // AGP 9 起 resValues 默认关闭，flavor 的 resValue(app_name) 需要
  androidResources { additionalParameters += listOf("--no-xml-namespaces", "--no-compile-sdk-metadata") }
- defaultConfig { applicationId = "dfwx.dongdang"; minSdk = 24; targetSdk = 36; versionCode = 1030022; versionName = "1.7.7" }
+ defaultConfig {
+  applicationId = "dfwx.dongdang"
+  minSdk = 26      // v1.8.0：24→26，RikkaHub 模块（convention minSdk 26）清单合并要求
+  targetSdk = 37   // v1.8.0：对齐上游 RikkaHub 2.5.1
+  versionCode = 1030023
+  versionName = "1.8.0"
+  ndk { abiFilters += listOf("arm64-v8a") }  // RikkaHub native（quickjs/sqlite/termux）只出 arm64：真机 arm64，x86_64 会使体积翻倍
+ }
+ compileOptions { sourceCompatibility = JavaVersion.VERSION_17; targetCompatibility = JavaVersion.VERSION_17 }
+ packaging {
+  jniLibs { useLegacyPackaging = true; pickFirsts += "lib/*/libtermux.so" }  // 对齐上游：workspace/termux 双处提供同名 so
+ }
  flavorDimensions += "catalog"
  productFlavors {
   create("empty") {
@@ -45,6 +56,7 @@ android {
 }
 
 dependencies {
+ implementation(project(":rikkahub-app"))   // v1.8.0 整搬 RikkaHub（UI/数据/网络全量，见 rikkahub/ 目录）
  implementation("dev.rikka.shizuku:api:13.1.5")
  implementation("dev.rikka.shizuku:provider:13.1.5")
  compileOnly("androidx.annotation:annotation:1.3.0")
