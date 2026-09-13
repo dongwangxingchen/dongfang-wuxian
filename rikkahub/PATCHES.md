@@ -18,12 +18,16 @@
 | P9 | `app/src/main/keepRules/` → `dfwxKeepRules/`（目录更名） | AGP 9 库模块自动把 `src/main/keepRules/` 当 consumer 规则，其中 `-dontobfuscate` 是全局项被禁止；宿主 :app 的 proguard-rules.pro 已并入同样内容，等效 | app→library 连带适配 |
 | P10 | `app/src/main/java/.../RikkaHubApp.kt` | `class` → `open class` | 宿主 Application（cc.nkbr.lanzouplus.App）需继承它做进程级初始化；Kotlin 类默认 final |
 | P11 | 新增 `app/src/main/java/.../dfwx/BuiltinProviderSeeder.kt` + RikkaHubApp.onCreate 在 startKoin 后调 `BuiltinProviderSeeder.seedIfNeeded(...)` | 东方无限"开箱即用"需求：首启把宿主 resValue 注入的中转站（dfwx_default_ai_url/key/model，Key 走 local.properties 不进源码）种成默认渠道+默认模型 glm-5.3（maxTokens=128000 对齐官方 128K 最大输出）；SharedPreferences 幂等只播一次，用户删除不复活 | 宿主功能定制；同步上游时需重放 |
+| P12 | `app/src/main/java/.../utils/UpdateChecker.kt` | checkUpdate() 发出 Loading 后 `return@flow` 短路（代码保留不可达原逻辑） | 禁用上游更新检查：原会请求 updates.rikka-ai.com 并在抽屉引导用户下载 RikkaHub 官方 APK（签名不同成并存应用，问题表单#1）；UpdateCard 因无 Success 数据不展示 | 宿主功能定制；同步上游时需重放 |
+| P14 | `app/src/main/res/values/themes.xml` | Theme.Rikkahub 增加 `android:windowBackground`=#0B0A12 | 冷启动窗口底色对齐宿主深色，防浅色系统下进 AI 页白闪（问题表单#14） | 宿主体验定制；同步上游时需重放 |
+| P6b | 新增 `web/src/main/resources/static/index.html` + `web/src/main/resources/.gitignore` 加 `!static/index.html` 例外 | web-ui 未打包时控制台显示占位说明页而非裸 404（问题表单#16）；装好前端构建后被真实产物覆盖 | 宿主体验定制；同步上游时需重放 |
 
 ## 宿主侧配套（不在 vendor 内，随宿主版本走）
 
 - `settings.gradle`：includeBuild("rikkahub/build-logic") + versionCatalogs 导入上游 toml + 模块名对齐上游（:ai/:common/...），上游 :app → `:rikkahub-app`。
 - 根 `build.gradle.kts`/`gradle.properties`/wrapper：AGP 9.3.1 + Gradle 9.6（腾讯镜像）+ 上游 JVM/并发参数；wrapper 原因：services.gradle.org 本机不可达。
 - `:app`（cc.nkbr.lanzouplus）：minSdk 24→26、targetSdk/compileSdk 37、abiFilters=arm64-v8a、packaging pickFirsts libtermux、proguard 并入上游 keepRules 原文、依赖 `:rikkahub-app`、Application 换 `.App extends RikkaHubApp`（上游 application 节点属性合并时宿主优先，name 必须宿主显式声明）、usesCleartextTraffic=true（支持 http 中转站，对齐上游行为）。
+- 宿主侧 `App.onCreate` 对 `super.onCreate()` 全链 try-catch + `App.DEGRADED` 标志（2026-09-14 问题表单#2）：RikkaHub 启动链任一环抛非受控异常（备份 journal 损坏/QuickJS 原生库失败）时降级保住蓝奏云主功能，MainActivity 的 AI 入口按 DEGRADED 拦截提示；同步上游无需动作（纯宿主文件）。
 
 ## 未搬入的上游内容（有意）
 
