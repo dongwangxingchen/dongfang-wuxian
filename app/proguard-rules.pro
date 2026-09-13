@@ -1,7 +1,7 @@
 # Activity/Provider entry points are retained by the manifest-generated rules.
-# Repackage and relax internal access so full-mode R8 can merge the remaining code.
+# 放宽访问修饰以便 R8 合并类（v1.9.0 问题表单#18：原 -repackageclasses 在 -dontobfuscate 下
+# 为死指令已删——混淆关闭时不存在重命名打包；勿在保留 -dontobfuscate 的情况下加回）。
 -allowaccessmodification
--repackageclasses x
 
 # Shizuku instantiates this UserService by class name in a shell/root process.
 -keep class cc.nkbr.lanzouplus.AdbShellService { public <init>(); public <init>(android.content.Context); *; }

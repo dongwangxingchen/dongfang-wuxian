@@ -62,6 +62,15 @@
 
 ## 五、新规范
 
+### 2026-09-14 v1.8.x 项目事实覆盖声明（问题表单#7）
+
+第二节"项目事实"中以下条目已随 RikkaHub 整搬过期，**以本节为准**（遵守"只追加"规则不改写原文）：
+- 技术栈：AI 对话部分 = Kotlin + Jetpack Compose 全家桶（vendor 目录 `rikkahub/`，12 模块）；蓝奏云/工具部分维持纯 Java 程序化 View。
+- SDK/工具链：**AGP 9.4.0 / Gradle 9.6（wrapper 走腾讯镜像）/ compileSdk 37 / targetSdk 37 / minSdk 26**；构建 JDK 用 **D:\DevTools\jdk-21.0.12.1+1**（JDK17 仅能过配置阶段）。
+- 依赖与体积："零第三方依赖、APK<1MiB"仅适用于宿主模块；vendor 区依赖上游 catalog（`rikkahub/gradle/libs.versions.toml`），release APK 约 35MB（arm64-v8a）。
+- 快照测试：paparazzi 与 AGP9 不兼容已停用，测试停泊 `tools/parked-tests/`，快照目检暂以真机截图代替。
+- 命令速查：`set JAVA_HOME=D:\DevTools\jdk-21.0.12.1+1 && gradlew.bat :app:assembleEmptyRelease`；本地 android-37 平台为手动安装（package.xml 伪造自 36），勿用老 sdkmanager 重装。
+
 ### 2026-09-13 规范化迭代（依据 07-研究报告/规范化迭代研究报告-2026-09-13.md）
 
 - **双区边界**：`rikkahub/` 为 vendor 区（上游源码，路径一一对应），任何改动必须同步记入 `rikkahub/PATCHES.md`；蓝奏云/工具为主机区（纯 Java）。禁止把主机区代码写进 vendor 区，禁止直接改 vendor 区而不留补丁记录。

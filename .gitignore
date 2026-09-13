@@ -17,6 +17,7 @@ local.properties
 *.key
 .env
 .env.*
+# 内置源随 empty flavor 有意入库（app/src/empty/assets/，含一条默认源）；full flavor 的整包源不入库
 app/src/full/
 app/src/main/assets/s
 app/src/main/assets/r

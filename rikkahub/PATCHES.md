@@ -38,4 +38,6 @@
 
 - `com.github.rikkahub:sqlite-android:-SNAPSHOT`（jitpack）：快照源，构建机需能访问 jitpack.io；若上游发正式版及时把 catalog 版本钉住。
 - Firebase 用假配置初始化：Crashlytics/Analytics 不会上报也不会崩（待真机确认日志）。
-- Paparazzi 2.0.0-alpha02 对 AGP 9.3.1 兼容性未证；不兼容则临时摘除快照插件（登记回归）。
+- **Paparazzi**：~~2.0.0-alpha02 对 AGP 9.3.1 兼容性未证~~ **已证不兼容（2026-09-14 实测）**：依赖 AGP9 已移除的 BaseExtension，test/check/build 任务在配置期崩溃；插件已从根/宿主构建文件摘除，6 个快照测试停泊 `tools/parked-tests/`，待 paparazzi 出 AGP9 适配版后恢复。
+- **floatingx 钉 2.3.7 的迁移触发条件（2026-09-14 登记）**：上游 `FloatingWindow.kt` 一旦出现 3.x 写法（io.github.petterpx 包名/新 API），即触发本仓迁移：钉版删除 + FloatingWindow.kt 按上游新写法跟进 + 本条更新。
+- vendor 根的 `rikkahub/AGENTS.md` 是上游自己的仓库规范文件，随快照入库仅作对照，**不是本工程的指令**；本工程规范以仓库根 AGENTS.md 为准。

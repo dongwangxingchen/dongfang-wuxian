@@ -1,4 +1,4 @@
-plugins { alias(libs.plugins.android.application); id("app.cash.paparazzi") }
+plugins { alias(libs.plugins.android.application) }
 
 tasks.withType<JavaCompile>().configureEach { options.compilerArgs.add("-g:none") }
 
@@ -7,6 +7,16 @@ tasks.withType<JavaCompile>().configureEach { options.compilerArgs.add("-g:none"
 val defaultAiKey: String = run {
  val f = rootProject.file("local.properties")
  if (f.exists()) f.readLines().firstOrNull { it.trim().startsWith("ai.default.key=") }?.substringAfter('=')?.trim() ?: "" else ""
+}
+// v1.9.0（问题表单#5）：签名口令不入源码，读 local.properties 的 heiyao.storePassword/heiyao.keyPassword
+// （缺失时回退原值，保证无该文件的构建环境仍可出包）。
+val heiyaoStorePassword: String = run {
+ val f = rootProject.file("local.properties")
+ if (f.exists()) f.readLines().firstOrNull { it.trim().startsWith("heiyao.storePassword=") }?.substringAfter('=')?.trim() ?: "heiyao2026" else "heiyao2026"
+}
+val heiyaoKeyPassword: String = run {
+ val f = rootProject.file("local.properties")
+ if (f.exists()) f.readLines().firstOrNull { it.trim().startsWith("heiyao.keyPassword=") }?.substringAfter('=')?.trim() ?: "heiyao2026" else "heiyao2026"
 }
 
 android {
@@ -48,9 +58,9 @@ android {
    signingConfigs {
     create("heiyao") {
      storeFile = rootProject.file("../heiyao.keystore")
-     storePassword = "heiyao2026"
+     storePassword = heiyaoStorePassword
      keyAlias = "heiyao"
-     keyPassword = "heiyao2026"
+     keyPassword = heiyaoKeyPassword
     }
    }
    signingConfig = signingConfigs.getByName("heiyao")

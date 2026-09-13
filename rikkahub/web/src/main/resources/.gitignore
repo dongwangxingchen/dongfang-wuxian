@@ -1,1 +1,2 @@
-static/
+static/*
+!static/index.html
