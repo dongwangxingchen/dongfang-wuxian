@@ -637,13 +637,91 @@ final class ToolHost {
   }
 
   void password(LinearLayout body){
-    EditText length=input(body,"密码长度（6-64，默认 16）",44);length.setInputType(InputType.TYPE_CLASS_NUMBER);
-    LinearLayout checks=new LinearLayout(ctx);checks.setGravity(Gravity.CENTER_VERTICAL);checks.setPadding(0,act.dp(8),0,0);
-    CheckBox upper=checkInline(checks,"大写",true),lower=checkInline(checks,"小写",true),digits=checkInline(checks,"数字",true),symbols=checkInline(checks,"符号",false);
+    // v1.7.8 工具精修07：对齐 Bitwarden/KeePassDX 规格（见 07-研究报告）——滑杆长度/类别开关/形近排除/
+    // 熵值五档强度条/按类别着色等宽结果/重新生成与复制/最近5条；SecureRandom 在 Toolbox 层。
+    final int[] len={16};
+    TextView hint=text("加密级安全随机生成；强度按字符池熵值估算。",12,act.MUTED());hint.setPadding(0,0,0,act.dp(8));body.addView(hint,new LinearLayout.LayoutParams(-1,-2));
+    LinearLayout lenRow=new LinearLayout(ctx);lenRow.setGravity(Gravity.CENTER_VERTICAL);
+    TextView lenLabel=text("长度",13,act.TEXT());lenRow.addView(lenLabel,new LinearLayout.LayoutParams(-2,-2));
+    TextView lenValue=text("16",15,act.PRIMARY());lenValue.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
+    LinearLayout.LayoutParams lvLp=new LinearLayout.LayoutParams(-2,-2);lvLp.leftMargin=act.dp(10);lenRow.addView(lenValue,lvLp);
+    TextView lenRange=text("（8-64）",11,act.MUTED());
+    LinearLayout.LayoutParams lrLp=new LinearLayout.LayoutParams(-2,-2);lrLp.leftMargin=act.dp(6);lenRow.addView(lenRange,lrLp);
+    body.addView(lenRow,new LinearLayout.LayoutParams(-1,act.dp(36)));
+    android.widget.SeekBar slider=new android.widget.SeekBar(ctx);slider.setMax(56);slider.setProgress(8);
+    slider.setProgressTintList(android.content.res.ColorStateList.valueOf(act.PRIMARY()));
+    slider.setThumbTintList(android.content.res.ColorStateList.valueOf(act.PRIMARY()));
+    body.addView(slider,new LinearLayout.LayoutParams(-1,act.dp(36)));
+    LinearLayout checks=new LinearLayout(ctx);checks.setGravity(Gravity.CENTER_VERTICAL);
+    CheckBox upper=checkInline(checks,"大写",true),lower=checkInline(checks,"小写",true),digits=checkInline(checks,"数字",true),symbols=checkInline(checks,"符号",true);
     body.addView(checks,new LinearLayout.LayoutParams(-1,act.dp(44)));
+    LinearLayout checks2=new LinearLayout(ctx);checks2.setGravity(Gravity.CENTER_VERTICAL);
+    CheckBox avoid=checkInline(checks2,"排除形近字符（l I 1 O 0）",true);
+    body.addView(checks2,new LinearLayout.LayoutParams(-1,act.dp(40)));
+    LinearLayout strengthBar=new LinearLayout(ctx);strengthBar.setPadding(0,act.dp(6),0,0);
+    final View[] segs=new View[5];final int[] segColors={0xFFE5484D,0xFFE08A00,0xFFD4A72C,0xFF46A758,0xFF2BA672};
+    for(int i=0;i<5;i++){segs[i]=new View(ctx);android.graphics.drawable.GradientDrawable sg=solid(act.DIV());
+      LinearLayout.LayoutParams sp=new LinearLayout.LayoutParams(0,act.dp(6),1f);sp.setMargins(i==0?0:act.dp(3),0,i==4?0:act.dp(3),0);
+      strengthBar.addView(segs[i],sp);segs[i].setBackground(sg);}
+    body.addView(strengthBar,new LinearLayout.LayoutParams(-1,-2));
+    LinearLayout gradeRow=new LinearLayout(ctx);gradeRow.setGravity(Gravity.CENTER_VERTICAL);
+    TextView grade=text("—",13,act.MUTED());grade.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
+    gradeRow.addView(grade,new LinearLayout.LayoutParams(-2,-2));
+    TextView bits=text("",11,act.MUTED());
+    LinearLayout.LayoutParams bitsLp=new LinearLayout.LayoutParams(-2,-2);bitsLp.leftMargin=act.dp(10);gradeRow.addView(bits,bitsLp);
+    body.addView(gradeRow,new LinearLayout.LayoutParams(-1,act.dp(30)));
+    TextView out=text("",22,act.TEXT());out.setTypeface(android.graphics.Typeface.MONOSPACE);out.setGravity(Gravity.CENTER);
+    out.setPadding(act.dp(12),act.dp(14),act.dp(12),act.dp(14));out.setMinHeight(act.dp(72));out.setBackground(solid(act.SURFACE()));
+    out.setTextIsSelectable(false);
+    body.addView(out,new LinearLayout.LayoutParams(-1,-2));
     LinearLayout actions=actionRow(body);
-    primaryAction(actions,"生成密码",()->{output(body,Toolbox.generatePassword(parseInt(length,16),upper.isChecked(),lower.isChecked(),digits.isChecked(),symbols.isChecked()));});
-    result(body);
+    TextView histTitle=text("最近生成（点击复制）",12,act.MUTED());histTitle.setPadding(0,act.dp(12),0,act.dp(4));body.addView(histTitle,new LinearLayout.LayoutParams(-1,-2));
+    LinearLayout hist=new LinearLayout(ctx);hist.setOrientation(LinearLayout.VERTICAL);
+    body.addView(hist,new LinearLayout.LayoutParams(-1,-2));
+    final java.util.ArrayList<String> history=new java.util.ArrayList<>();
+    final String[] current={null};
+    final CheckBox uF=upper,lF=lower,dF=digits,sF=symbols,aF=avoid;
+    Runnable regen=()->{
+      String p=Toolbox.generatePassword(len[0],uF.isChecked(),lF.isChecked(),dF.isChecked(),sF.isChecked(),aF.isChecked());
+      current[0]=p;
+      if(p==null){
+        out.setText("至少选择一种字符");out.setTextColor(act.MUTED());
+        grade.setText("—");grade.setTextColor(act.MUTED());bits.setText("");
+        for(View s:segs)s.setBackgroundColor(act.DIV());
+        return;
+      }
+      out.setTextColor(act.TEXT());
+      android.text.SpannableString span=new android.text.SpannableString(p);
+      for(int i=0;i<p.length();i++){char c=p.charAt(i);int color;
+        if(c>='0'&&c<='9')color=0xFFF64F3E;else if(c=='!'||c=='@'||c=='#'||c=='$'||c=='%'||c=='^'||c=='&'||c=='*')color=0xFF27A6E4;else color=act.TEXT();
+        span.setSpan(new android.text.style.ForegroundColorSpan(color),i,i+1,android.text.Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);}
+      out.setText(span);
+      int poolSize=Toolbox.passwordPoolSize(uF.isChecked(),lF.isChecked(),dF.isChecked(),sF.isChecked(),aF.isChecked());
+      double eb=Toolbox.passwordEntropyBits(len[0],poolSize);
+      int level=eb>=128?5:eb>=60?4:eb>=36?3:eb>=28?2:1;
+      String gradeText=level==5?"极强":level==4?"强":level==3?"一般":level==2?"弱":"非常弱";
+      grade.setText(gradeText);grade.setTextColor(segColors[level-1]);
+      bits.setText(String.format(java.util.Locale.US,"%.0f bits",eb));
+      for(int i=0;i<5;i++)segs[i].setBackgroundColor(i<level?segColors[i]:act.DIV());
+      if(history.isEmpty()||!history.get(0).equals(p)){history.add(0,p);if(history.size()>5)history.remove(history.size()-1);
+        hist.removeAllViews();
+        for(final String h:history){TextView row=text(h,13,act.TEXT());row.setTypeface(android.graphics.Typeface.MONOSPACE);
+          row.setPadding(act.dp(10),act.dp(8),act.dp(10),act.dp(8));row.setBackground(solid(act.SURFACE()));row.setClickable(true);row.setFocusable(true);
+          row.setOnClickListener(v->copy(h));
+          LinearLayout.LayoutParams hp=new LinearLayout.LayoutParams(-1,-2);hp.topMargin=act.dp(6);hist.addView(row,hp);}
+      }
+    };
+    android.widget.SeekBar.OnSeekBarChangeListener sliderListener=new android.widget.SeekBar.OnSeekBarChangeListener(){
+      @Override public void onProgressChanged(android.widget.SeekBar bar,int progress,boolean fromUser){len[0]=progress+8;lenValue.setText(String.valueOf(len[0]));}
+      @Override public void onStartTrackingTouch(android.widget.SeekBar bar){}
+      @Override public void onStopTrackingTouch(android.widget.SeekBar bar){regen.run();}
+    };
+    slider.setOnSeekBarChangeListener(sliderListener);
+    android.view.View.OnClickListener recheck=v->regen.run();
+    upper.setOnClickListener(recheck);lower.setOnClickListener(recheck);digits.setOnClickListener(recheck);symbols.setOnClickListener(recheck);avoid.setOnClickListener(recheck);
+    action(actions,"重新生成",()->regen.run());
+    primaryAction(actions,"复制",()->{if(current[0]!=null)copy(current[0]);});
+    regen.run();
   }
 
   void imageCompress(LinearLayout body){

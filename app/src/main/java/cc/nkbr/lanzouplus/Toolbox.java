@@ -328,14 +328,34 @@ final class Toolbox {
     for(int i=0;i<Math.max(1,Math.min(50,count));i++)out.append(UUID.randomUUID().toString()).append('\n');
     return out.toString().trim();
   }
-  static String generatePassword(int length,boolean upper,boolean lower,boolean digits,boolean symbols){
-    String pool=(upper?"ABCDEFGHJKLMNPQRSTUVWXYZ":"")+(lower?"abcdefghijkmnpqrstuvwxyz":"")+(digits?"23456789":"")+(symbols?"!@#$%^&*_-+=?":"");
-    if(pool.isEmpty())return"至少选择一种字符";
+  /** v1.7.8 工具精修07：SecureRandom + 每类至少一个 + Fisher-Yates 洗牌；形近字符(lI|O01)可排除（Bitwarden/KeePassDX 默认集，见 07-研究报告） */
+  static String generatePassword(int length,boolean upper,boolean lower,boolean digits,boolean symbols,boolean avoidAmbiguous){
+    String pu=avoidAmbiguous?"ABCDEFGHJKLMNPQRSTUVWXYZ":"ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+    String pl=avoidAmbiguous?"abcdefghijkmnopqrstuvwxyz":"abcdefghijklmnopqrstuvwxyz";
+    String pd=avoidAmbiguous?"23456789":"0123456789";
+    String ps="!@#$%^&*";
+    String[] classes=new String[4];int n=0;
+    if(upper)classes[n++]=pu;if(lower)classes[n++]=pl;if(digits)classes[n++]=pd;if(symbols)classes[n++]=ps;
+    if(n==0)return null;
+    int size=Math.max(4,Math.min(128,length));
     SecureRandom random=new SecureRandom();
-    int size=Math.max(6,Math.min(64,length));
+    StringBuilder pool=new StringBuilder();for(int i=0;i<n;i++)pool.append(classes[i]);
     StringBuilder out=new StringBuilder();
-    for(int i=0;i<size;i++)out.append(pool.charAt(random.nextInt(pool.length())));
-    return out.toString();
+    for(int i=0;i<n&&out.length()<size;i++)out.append(classes[i].charAt(random.nextInt(classes[i].length())));
+    while(out.length()<size)out.append(pool.charAt(random.nextInt(pool.length())));
+    char[] sh=out.toString().toCharArray();
+    for(int i=sh.length-1;i>0;i--){int j=random.nextInt(i+1);char t=sh[i];sh[i]=sh[j];sh[j]=t;}
+    return new String(sh);
+  }
+  /** 熵 bits = 长度 × log2(字符池大小)；分级阈值见 07-研究报告（<28 非常弱 / 28-35 弱 / 36-59 一般 / 60-127 强 / ≥128 极强） */
+  static double passwordEntropyBits(int length,int poolSize){return poolSize<=1?0:length*(Math.log(poolSize)/Math.log(2));}
+  static int passwordPoolSize(boolean upper,boolean lower,boolean digits,boolean symbols,boolean avoidAmbiguous){
+    int size=0;
+    if(upper)size+=avoidAmbiguous?24:26;
+    if(lower)size+=avoidAmbiguous?25:26;
+    if(digits)size+=avoidAmbiguous?8:10;
+    if(symbols)size+=8;
+    return size;
   }
 
   //——— 生活查询 ———
