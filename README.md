@@ -46,7 +46,7 @@ EOF
 
 产物：`app/build/outputs/apk/empty/release/app-empty-release.apk`
 
-> `local.properties`、keystore、`assets/{s,r,c}`（内置源）均已在 `.gitignore` 中排除，不会进入公开仓库。AI 部分上游代码在 `rikkahub/` 目录，与上游 re-ovo/rikkahub 保持路径一一对应，定制全部记录在 [rikkahub/PATCHES.md](rikkahub/PATCHES.md) 以便跟随上游更新。
+> `local.properties`、keystore 与签名口令不入库；`app/src/empty/assets/`（内置源清单，含一条默认源）为有意入库。AI 部分上游代码在 `rikkahub/` 目录，与上游 re-ovo/rikkahub 保持路径一一对应，定制全部记录在 [rikkahub/PATCHES.md](rikkahub/PATCHES.md) 以便跟随上游更新。内置默认 AI 渠道的 Key 来自构建机 `local.properties`（打包进 APK 的资源，可被提取——服务端已限额，介意者可删除该渠道自填）。
 
 ## 致谢与第三方参考
 

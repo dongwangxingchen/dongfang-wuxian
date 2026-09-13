@@ -2,8 +2,8 @@
 // [DFWX PATCH] 本文件基于上游 re-ovo/rikkahub tag 2.5.1 的 app/build.gradle.kts
 // 做了 application→library 转换（东方无限 v1.8.0 整搬）。相对上游的全部改动：
 //  1. plugins：android.application → android.library；移除 firebase-crashlytics、
-//     baselineprofile 插件（Firebase SDK 依赖与源码零改动，仅去映射上传；占位
-//     google-services.json 与本文件同目录）。
+//     baselineprofile 插件（Firebase SDK 依赖与源码零改动，仅去映射上传；Firebase 占位
+//     res 值在 defaultConfig 注入，见 P5）。
 //  2. defaultConfig：移除 applicationId/versionCode/versionName/targetSdk/ndk
 //     abiFilters（由宿主 :app 即 cc.nkbr.lanzouplus 统一管辖，本模块为库）。
 //  3. 移除 splits、signingConfigs、buildAll 任务、debug.applicationIdSuffix。
