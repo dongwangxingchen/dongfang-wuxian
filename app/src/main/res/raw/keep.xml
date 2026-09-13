@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- v1.8.1：资源收缩器看不见 getIdentifier 式运行时引用（dfwx/BuiltinProviderSeeder 读取内置渠道配置），
+     必须显式 keep，否则 shrinkResources 会把这三个字符串裁掉导致内置渠道播种失效。 -->
+<resources xmlns:tools="http://schemas.android.com/tools"
+    tools:keep="@string/dfwx_default_ai_url,@string/dfwx_default_ai_key,@string/dfwx_default_ai_model" />
