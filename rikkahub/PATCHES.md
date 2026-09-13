@@ -12,7 +12,7 @@
 | P3 | `app/build.gradle.kts` | dependencies 删 `baselineProfile(project(":app:baselineprofile"))` 与 `implementation(project(":videogen"))` | baselineprofile 模块未搬；videogen 在 app 源码 0 引用（已证） |
 | P4 | `app/src/main/AndroidManifest.xml` | RouteActivity 移除 MAIN/LAUNCHER intent-filter（SEND/PROCESS_TEXT/TRANSLATE/shortcuts 保留） | 宿主桌面入口是 cc.nkbr.lanzouplus.MainActivity，避免双图标 |
 | P5 | `app/build.gradle.kts` | 手动注入 Firebase 占位 res 值（google_app_id/google_api_key/google_crash_reporting_api_key/gcm_defaultSenderId/project_id，全假值）+ buildFeatures.resValues=true；**不**套用 google-services 插件（插件对 library 模块 no-op，会导致运行期 Firebase 取不到 google_app_id 崩溃） | 保 Firebase 源码（di/AppModule.kt、ChatVM.kt 硬引用）零改动可编译；运行期静默失败不崩 |
-| P6 | `web/build.gradle.kts` | buildWebUi 任务加 `onlyIf { webUiDir.asFile.exists() }` | 本工程未 vendor web-ui 前端（无 Node/pnpm）；装好后自动恢复完整构建 |
+| P6 | `web/build.gradle.kts` | buildWebUi 任务用 `enabled = webUiDirFile.exists()` 控制（web-ui 目录不存在→跳过前端构建，控制台降级为占位页）；配套把脚本级对象预收敛为 java.io.File/Boolean 并避免 onlyIf 闭包（.kts 顶层 val 是脚本属性，闭包引用=configuration cache 脚本引用污染，2026-09-14 实测） | 本工程未 vendor web-ui 前端（无 Node/pnpm）；装好后自动恢复完整构建；configuration cache 需要 |
 | P7 | `app/src/main/java/.../ui/activity/ShortcutHandlerActivity.kt` | `BuildConfig.APPLICATION_ID` → `packageName` | APPLICATION_ID 是 application 模块专属字段，app 转 library 后不存在（P1 的连带适配） |
 | P8 | `app/build.gradle.kts` | 删 `androidResources.generateLocaleConfig`（library 无此 API）；`srcDirs`→`srcDir`（AGP9 弃用且脚本编译按错误处理） | AGP 9.4 库模块 DSL 限制 |
 | P9 | `app/src/main/keepRules/` → `dfwxKeepRules/`（目录更名） | AGP 9 库模块自动把 `src/main/keepRules/` 当 consumer 规则，其中 `-dontobfuscate` 是全局项被禁止；宿主 :app 的 proguard-rules.pro 已并入同样内容，等效 | app→library 连带适配 |

@@ -43,3 +43,4 @@ Screenshot_*.jpg
 # 快照由 Paparazzi 生成，不入库
 app/src/test/snapshots/
 support_test_log*.txt
+hs_err_pid*.log
