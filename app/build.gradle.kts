@@ -34,7 +34,6 @@ android {
    applicationId = "dfwx.dongdang"
    buildConfigField("boolean", "IS_FULL", "false")
    buildConfigField("String", "OFFICIAL_URL", "\"https://github.com/nekobyran/lanzouplus\"")
-   buildConfigField("String", "DEFAULT_AI_KEY", "\"$defaultAiKey\"")
    resValue("string", "app_name", "东方无限")
    // v1.8.1：内置默认 AI 渠道（RikkaHub 播种器 dfwx/BuiltinProviderSeeder 读取；Key 走 local.properties 不进源码）
    resValue("string", "dfwx_default_ai_url", "https://www.aizhongzhuan.cc/v1")
