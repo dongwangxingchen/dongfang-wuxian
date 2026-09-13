@@ -1,5 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
 
-<style name="Theme.Rikkahub" parent="Theme.Material3.DayNight.NoActionBar" />
+<style name="Theme.Rikkahub" parent="Theme.Material3.DayNight.NoActionBar">
+    <!-- [DFWX PATCH P14] 冷启动窗口底色对齐宿主深色 #0B0A12，防浅色系统下进 AI 页白闪
+         （宿主窗口为深色，Material3 DayNight 浅色默认底为亮色）。同步上游时需重放。 -->
+    <item name="android:windowBackground">#0B0A12</item>
+</style>
 </resources>

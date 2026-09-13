@@ -37,6 +37,12 @@ class UpdateChecker(
 
     private fun checkUpdate(): Flow<UiState<UpdateInfo>> = flow {
         emit(UiState.Loading)
+        // [DFWX PATCH P12] 东方无限禁用上游更新检查：原逻辑请求 updates.rikka-ai.com（版本比较用
+        // 库的 VERSION_NAME，上游一发新版就会在抽屉里引导用户下载 RikkaHub 官方 APK——签名不同
+        // 会装成并存应用，且向第三方服务器暴露 IP/UA）。东方无限走自己的发版渠道。
+        // 短路返回，UpdateCard 因无 Success 数据不展示。同步上游时需重放本改动。
+        return@flow
+        @Suppress("UNREACHABLE_CODE")
         emit(
             UiState.Success(
                 data = try {
