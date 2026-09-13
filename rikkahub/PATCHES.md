@@ -17,6 +17,7 @@
 | P8 | `app/build.gradle.kts` | 删 `androidResources.generateLocaleConfig`（library 无此 API）；`srcDirs`→`srcDir`（AGP9 弃用且脚本编译按错误处理） | AGP 9.4 库模块 DSL 限制 |
 | P9 | `app/src/main/keepRules/` → `dfwxKeepRules/`（目录更名） | AGP 9 库模块自动把 `src/main/keepRules/` 当 consumer 规则，其中 `-dontobfuscate` 是全局项被禁止；宿主 :app 的 proguard-rules.pro 已并入同样内容，等效 | app→library 连带适配 |
 | P10 | `app/src/main/java/.../RikkaHubApp.kt` | `class` → `open class` | 宿主 Application（cc.nkbr.lanzouplus.App）需继承它做进程级初始化；Kotlin 类默认 final |
+| P11 | 新增 `app/src/main/java/.../dfwx/BuiltinProviderSeeder.kt` + RikkaHubApp.onCreate 在 startKoin 后调 `BuiltinProviderSeeder.seedIfNeeded(...)` | 东方无限"开箱即用"需求：首启把宿主 resValue 注入的中转站（dfwx_default_ai_url/key/model，Key 走 local.properties 不进源码）种成默认渠道+默认模型 glm-5.3（maxTokens=128000 对齐官方 128K 最大输出）；SharedPreferences 幂等只播一次，用户删除不复活 | 宿主功能定制；同步上游时需重放 |
 
 ## 宿主侧配套（不在 vendor 内，随宿主版本走）
 

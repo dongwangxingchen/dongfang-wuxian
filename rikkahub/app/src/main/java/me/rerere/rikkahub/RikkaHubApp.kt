@@ -75,6 +75,8 @@ open class RikkaHubApp : Application() {
             workManagerFactory()
             modules(appModule, viewModelModule, dataSourceModule, repositoryModule)
         }
+        // [DFWX PATCH P11] 东方无限：内置默认渠道播种（幂等，只播一次；见 dfwx/BuiltinProviderSeeder.kt）
+        me.rerere.rikkahub.dfwx.BuiltinProviderSeeder.seedIfNeeded(this, get<AppScope>(), get<SettingsStore>())
         this.createNotificationChannel()
 
         // set cursor window size to 32MB
