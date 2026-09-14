@@ -235,7 +235,7 @@ final class ToolHost {
       case "base64":{EditText input=input(body,"输入文本或 Base64…",140);LinearLayout actions=actionRow(body);action(actions,"编码",()->output(body,Toolbox.base64(true,input.getText().toString())));action(actions,"解码",()->output(body,Toolbox.base64(false,input.getText().toString())));result(body);}break;
       case "url_codec":{EditText input=input(body,"输入文本或已编码 URL…",140);LinearLayout actions=actionRow(body);action(actions,"编码",()->output(body,Toolbox.url(true,input.getText().toString())));action(actions,"解码",()->output(body,Toolbox.url(false,input.getText().toString())));result(body);}break;
       case "hash":hash(body);break;
-      case "json":{EditText input=input(body,"粘贴 JSON…",160);LinearLayout actions=actionRow(body);action(actions,"美化",()->output(body,Toolbox.json(true,input.getText().toString())));action(actions,"压缩",()->output(body,Toolbox.json(false,input.getText().toString())));result(body);}break;
+      case "json":json(body);break;
       case "regex":{EditText pattern=input(body,"正则表达式，如 \\d+",60);EditText text=input(body,"被匹配的文本…",120);LinearLayout actions=actionRow(body);primaryAction(actions,"测试",()->output(body,Toolbox.regex(pattern.getText().toString(),text.getText().toString())));result(body);}break;
       case "password":password(body);break;
       case "uuid":{LinearLayout actions=actionRow(body);action(actions,"生成 1 个",()->output(body,Toolbox.uuidBatch(1)));action(actions,"生成 10 个",()->output(body,Toolbox.uuidBatch(10)));result(body);}break;
@@ -722,6 +722,20 @@ final class ToolHost {
     action(actions,"重新生成",()->regen.run());
     primaryAction(actions,"复制",()->{if(current[0]!=null)copy(current[0]);});
     regen.run();
+  }
+
+  void json(LinearLayout body){
+    // v1.10.2 工具精修09：缩进可选/压缩/校验报告（行列定位+统计）/非 ASCII 转义；研究见 07-研究报告
+    EditText input=input(body,"粘贴 JSON…",160);
+    LinearLayout indentRow=chipRow(body);indentRow.setPadding(0,act.dp(10),0,0);
+    LinearLayout.LayoutParams ilp=chipMargin();ilp.rightMargin=act.dp(12);indentRow.addView(text("缩进",12,act.TEXT()),ilp);
+    final int[] indent={2};TextView[] chips=new TextView[2];int[] indents={2,4};String[] labels={"2 空格","4 空格"};
+    for(int i=0;i<2;i++){final int idx=i;chips[i]=selectChip(indentRow,labels[i],indent[0]==indents[i],()->{indent[0]=indents[idx];for(int j=0;j<2;j++)styleSelect(chips[j],indents[j]==indent[0]);});}
+    CheckBox ascii=checkInline(checkRow(body),"非 ASCII 转义为 \\uXXXX",false);
+    LinearLayout actions=actionRow(body);primaryAction(actions,"美化",()->{try{output(body,Toolbox.jsonFormat(input.getText().toString(),indent[0],ascii.isChecked()));}catch(Exception e){output(body,Toolbox.jsonError((org.json.JSONException)e));}});
+    action(actions,"压缩",()->{try{output(body,Toolbox.jsonFormat(input.getText().toString(),0,ascii.isChecked()));}catch(Exception e){output(body,Toolbox.jsonError((org.json.JSONException)e));}});
+    action(actions,"校验",()->output(body,Toolbox.jsonValidate(input.getText().toString())));
+    result(body);
   }
 
   void hash(LinearLayout body){
