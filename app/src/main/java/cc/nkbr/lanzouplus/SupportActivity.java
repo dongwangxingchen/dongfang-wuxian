@@ -88,13 +88,13 @@ public class SupportActivity extends Activity {
     TextView title=text("支持 "+MainActivity.PRODUCT_NAME,24,TEXT);
     title.setTypeface(Typeface.DEFAULT,Typeface.BOLD);title.setIncludeFontPadding(false);
     page.addView(title,new LinearLayout.LayoutParams(-2,dp(40)));
-    TextView subtitle=text("诚信付费 ¥10 · 一次付清 · 承诺永久更新",13,MUTED);
+    TextView subtitle=text("诚信付费 ￥5 · 一次付清 · 承诺永久更新",13,MUTED);
     subtitle.setPadding(dp(2),dp(2),0,dp(12));
     page.addView(subtitle,new LinearLayout.LayoutParams(-2,-2));
     // 开发者信（诚意区，第一人称，v1.5.0 用户定调：委婉、少小字）——成本与坚持 + 学生分层委婉化 + 感谢
     LinearLayout letterCard=card();
     TextView letter=new TextView(this);
-    letter.setText("这个应用没有广告，也不强制付费。\n维护和更新都需要成本，我想高质量地一直做下去。\n还在读书、暂时没有收入的朋友，点击下方按钮直接使用即可；\n如果力所能及，这 10 元会成为我继续更新的动力和底气。\n谢谢你的支持。");
+    letter.setText("这个应用没有广告，也不强制付费。\n维护和更新都需要成本，我想高质量地一直做下去。\n还在读书、暂时没有收入的朋友，点击下方按钮直接使用即可；\n如果力所能及，这 5 元会成为我继续更新的动力和底气。\n谢谢你的支持。");
     letter.setTextColor(TEXT);letter.setTextSize(14);letter.setLineSpacing(dp(4),1f);
     letter.setPadding(dp(16),dp(14),dp(16),dp(14));
     letterCard.addView(letter,new LinearLayout.LayoutParams(-1,-2));
@@ -105,7 +105,7 @@ public class SupportActivity extends Activity {
     page.addView(benefitRow("🤖","AI 对话不限次 · 一次付费长期有效"),new LinearLayout.LayoutParams(-1,dp(34)));
     // 价格大字（成熟付费页惯例：价格必须一眼可见）+ 永久更新承诺
     LinearLayout price=new LinearLayout(this);price.setGravity(Gravity.CENTER_VERTICAL);
-    TextView amount=text("¥10",30,PRIMARY);amount.setTypeface(Typeface.DEFAULT,Typeface.BOLD);
+    TextView amount=text("￥5",30,PRIMARY);amount.setTypeface(Typeface.DEFAULT,Typeface.BOLD);
     price.addView(amount,new LinearLayout.LayoutParams(-2,-2));
     LinearLayout priceCol=new LinearLayout(this);priceCol.setOrientation(LinearLayout.VERTICAL);
     TextView priceNote1=text("诚信付费 · 一次付清",14,TEXT);priceNote1.setTypeface(Typeface.DEFAULT,Typeface.BOLD);
@@ -118,7 +118,7 @@ public class SupportActivity extends Activity {
     LinearLayout.LayoutParams priceLp=new LinearLayout.LayoutParams(-1,-2);priceLp.topMargin=dp(4);priceLp.bottomMargin=dp(6);
     page.addView(price,priceLp);
     // 收款区：微信单卡全宽（用户仅收款微信；码图撑满卡宽，消除两侧留白）
-    page.addView(codeCard("微信收款码",R.drawable.pay_wechat,"微信扫码 · 付 10 元"),new LinearLayout.LayoutParams(-1,-2));
+    page.addView(codeCard("微信收款码",R.drawable.pay_wechat,"微信扫码 · 付 5 元"),new LinearLayout.LayoutParams(-1,-2));
     // 主 CTA：第一人称动词句，零验证解锁（v1.5.1 删「复制金额」小按钮——重复无用，减小字）
     Button confirm=new Button(this);
     confirm.setText("诚信付费，解锁全部权限");
@@ -201,7 +201,7 @@ public class SupportActivity extends Activity {
     code.setImageResource(drawableRes);
     code.setScaleType(ImageView.ScaleType.FIT_CENTER);
     code.setAdjustViewBounds(true);
-    code.setContentDescription(label+"，扫码支付 10 元");
+    code.setContentDescription(label+"，扫码支付 ￥5 元");
     card.addView(code,new LinearLayout.LayoutParams(-1,-2));
     TextView name=text(label,12,Color.DKGRAY);name.setGravity(Gravity.CENTER);name.setPadding(dp(6),dp(10),dp(6),dp(12));
     card.addView(name,new LinearLayout.LayoutParams(-1,-2));
