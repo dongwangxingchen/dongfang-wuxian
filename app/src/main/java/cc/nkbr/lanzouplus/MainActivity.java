@@ -146,8 +146,8 @@ public final class MainActivity extends androidx.activity.ComponentActivity impl
       getPreferences(0).edit().putBoolean("librariesImported",true).apply();
       StringBuilder rules=new StringBuilder();
       for(Models.Source lib:libraries)if(!lib.url.isEmpty())rules.append(lib.url).append('\n');
-      final String batch=rules.toString();final int total=libraries.size();
-      io.execute(()->{try{core.addUserSourcesBatch(batch);}catch(InterruptedException ignored){}runOnUiThread(()->showNotice("已内置 "+total+" 个软件库，可直接搜索或从主页点击浏览",false));});
+      final String batch=rules.toString();
+      io.execute(()->{try{core.addUserSourcesBatch(batch);}catch(InterruptedException ignored){}});// v1.11.1：去掉「已内置 N 个」弹提示（无用文案），静默导入
     }
   }
   String libraryNameFor(Models.Item item){
@@ -412,7 +412,8 @@ indicator.setScaleX(.45f);indicator.setAlpha(.55f);indicator.post(()->indicator.
   void goToDestination(int destination){if(destination==primaryDestination)return;if(destination==4){/* v1.10.0 内嵌改造：AI 为主界面内嵌页（不再跳转 RouteActivity）；DEGRADED=RikkaHub 启动链失败时拦截保主功能 */if(App.DEGRADED){showNotice("AI 模块初始化失败已停用，其他功能不受影响",true);return;}primaryNavigationSwitch=false;pageDirection=1;showAiEmbedded();return;}primaryNavigationSwitch=true;pageDirection=0;if(pageKind==6){toolBackStack.clear();releaseToolMedia();}if(destination==0)navigateHome();else if(destination==1)showSources();else if(destination==2)showDownloads();else if(destination==5)showTools();else showSettings();}
   /** v1.10.0 内嵌 AI 页：ComposeView 缓存复用，切走再切回不丢界面状态；页内容自带顶栏与返回处理 */
   android.view.View aiComposeView;
-  void showAiEmbedded(){primaryBase(4);pageKind=5;activeSource=null;clearFolderTrail();systemBackAction=null;if(App.DEGRADED){TextView tv=text("AI 模块初始化失败已停用，其他功能不受影响",14,MUTED);tv.setGravity(Gravity.CENTER);((android.view.ViewGroup)pageFrame).addView(tv,new LinearLayout.LayoutParams(-1,-2));return;}android.view.View v=aiComposeView();android.view.ViewGroup p=(android.view.ViewGroup)v.getParent();if(p!=null)p.removeView(v);((android.view.ViewGroup)pageFrame).addView(v,new LinearLayout.LayoutParams(-1,0,1));}
+  void showAiEmbedded(){primaryBase(4);pageKind=5;activeSource=null;clearFolderTrail();systemBackAction=null;root.setPadding(0,0,0,0);// v1.11.1 关键修复：ComposeView 必须挂进 root（primaryShell 中权重=1 的内容区，位于底栏上方）；之前挂 pageFrame（=primaryShell）会排到底栏之后——底栏被顶到屏幕中间、上方留出半屏黑底
+    if(App.DEGRADED){TextView tv=text("AI 模块初始化失败已停用，其他功能不受影响",14,MUTED);tv.setGravity(Gravity.CENTER);root.addView(tv,new LinearLayout.LayoutParams(-1,-2));return;}android.view.View v=aiComposeView();android.view.ViewGroup p=(android.view.ViewGroup)v.getParent();if(p!=null)p.removeView(v);root.addView(v,new LinearLayout.LayoutParams(-1,-1));}
   android.view.View aiComposeView(){if(aiComposeView==null)aiComposeView=me.rerere.rikkahub.dfwx.AiPageHostKt.createRikkaHubEmbedView(this);return aiComposeView;}
   GradientDrawable accentIndicatorShape(){GradientDrawable g=new GradientDrawable(GradientDrawable.Orientation.TL_BR,new int[]{ThemeEngine.tint(PRIMARY_HI,70),ThemeEngine.tint(PRIMARY_LO,40)});g.setCornerRadius(dp(16));return g;}
   GradientDrawable searchBoxShape(boolean focused){GradientDrawable g=new GradientDrawable();g.setColor(SURFACE);g.setCornerRadius(dp(26));g.setStroke(dp(1),focused?PRIMARY:BORDER);return g;}
@@ -450,30 +451,24 @@ indicator.setScaleX(.45f);indicator.setAlpha(.55f);indicator.post(()->indicator.
     int searchWidth=homeSearchWidth();
     FrameLayout searchBox=new FrameLayout(this);homeSearchBox=searchBox;searchBox.setClipChildren(true);searchBox.setClipToPadding(true);searchBox.setBackground(searchBoxShape(false));search=new EditText(this);search.setSingleLine();search.setTextColor(TEXT);search.setHintTextColor(MUTED);search.setHint("搜索一下");search.setTextSize(16);search.setBackgroundColor(Color.TRANSPARENT);search.setImeOptions(EditorInfo.IME_ACTION_SEARCH);searchBox.addView(search,new FrameLayout.LayoutParams(-1,-1));searchBack=iconButton(R.drawable.ic_back,"返回");searchBack.setVisibility(View.GONE);searchBack.setOnClickListener(v->exitHomeSearchFocus());FrameLayout.LayoutParams backParams=new FrameLayout.LayoutParams(dp(46),dp(46),Gravity.START|Gravity.CENTER_VERTICAL);backParams.setMargins(dp(4),0,0,0);searchBox.addView(searchBack,backParams);loadSourceCategories();List<String> searchCategories=new ArrayList<>();searchCategories.add("全部");searchCategories.addAll(sourceCategories.keySet());if(!searchCategories.contains(sessionSearchCategory))sessionSearchCategory="全部";Runnable submitHomeSearch=()->{if(!homeSearchFocused){enterHomeSearchFocus();search.requestFocus();}else runSearch(search.getText().toString().trim());};SearchCategoryPicker homeCategory=new SearchCategoryPicker(searchCategories,sessionSearchCategory,value->sessionSearchCategory=value,submitHomeSearch);homeCategoryPicker=homeCategory;homeSearchCategory=homeCategory.view();homeSearchCategory.addOnAttachStateChangeListener(new View.OnAttachStateChangeListener(){public void onViewAttachedToWindow(View view){}public void onViewDetachedFromWindow(View view){homeCategory.dismiss();}});FrameLayout.LayoutParams categoryParams=new FrameLayout.LayoutParams(homeSearchCategoryWidth(searchWidth),dp(52),Gravity.END|Gravity.CENTER_VERTICAL);categoryParams.setMargins(0,0,0,0);searchBox.addView(homeSearchCategory,categoryParams);fitHomeSearchControls(searchWidth);homeColumn.addView(searchBox,new LinearLayout.LayoutParams(searchWidth,dp(52)));// v1.6.1（R-B2）：栏高统一 52dp
     View gap2=new View(this);homeColumn.addView(gap2,new LinearLayout.LayoutParams(-1,dp(16)));
-    // v1.11.0 软件库广场：一排 3 个卡片，全部内置库可见可点（替代原 2 卡横滚）
+    // v1.11.1 软件库入口：横滚胶囊条——一行放下全部库（恢复 v1.10 前紧凑风格），清单扩到 50+ 依旧一排、左滑查看
     if(!libraries.isEmpty()){
-      LinearLayout libsHeader=new LinearLayout(this);libsHeader.setGravity(Gravity.CENTER_VERTICAL);libsHeader.setPadding(dp(4),0,dp(4),dp(6));
-      TextView libsTitle=text("软件库",15,TEXT);libsTitle.setTypeface(android.graphics.Typeface.DEFAULT,android.graphics.Typeface.BOLD);
-      libsHeader.addView(libsTitle,new LinearLayout.LayoutParams(0,-2,1));
-      TextView libsCount=text(libraries.size()+" 个",12,MUTED);libsHeader.addView(libsCount,new LinearLayout.LayoutParams(-2,-2));
-      homeColumn.addView(libsHeader,new LinearLayout.LayoutParams(-1,dp(30)));
-      android.widget.GridLayout libsGrid=new android.widget.GridLayout(this);libsGrid.setColumnCount(3);
+      android.widget.HorizontalScrollView libsStrip=new android.widget.HorizontalScrollView(this);
+      libsStrip.setHorizontalScrollBarEnabled(false);libsStrip.setOverScrollMode(View.OVER_SCROLL_NEVER);
+      LinearLayout libsRow=new LinearLayout(this);libsRow.setOrientation(LinearLayout.HORIZONTAL);libsRow.setPadding(dp(2),0,dp(2),0);
+      libsStrip.addView(libsRow,new FrameLayout.LayoutParams(FrameLayout.LayoutParams.WRAP_CONTENT,FrameLayout.LayoutParams.WRAP_CONTENT));
       for(Models.Source lib:libraries){
-        TextView card=text(lib.title,13,TEXT);card.setGravity(Gravity.CENTER);card.setMaxLines(2);card.setEllipsize(android.text.TextUtils.TruncateAt.END);
-        card.setTypeface(android.graphics.Typeface.DEFAULT,android.graphics.Typeface.BOLD);
-        GradientDrawable cardBg=solidShape(SURFACE,14);cardBg.setStroke(dp(1),BORDER);card.setBackground(cardBg);
-        card.setPadding(dp(8),dp(10),dp(8),dp(10));card.setClickable(true);card.setFocusable(true);
-        card.setContentDescription("打开软件库 "+lib.title);
-        card.setOnClickListener(v->{pageDirection=1;openRecommendedHome(lib);});
-        android.widget.GridLayout.LayoutParams lp=new android.widget.GridLayout.LayoutParams(
-            android.widget.GridLayout.spec(android.widget.GridLayout.UNDEFINED,1f),
-            android.widget.GridLayout.spec(android.widget.GridLayout.UNDEFINED,1f));
-        lp.width=0;lp.height=dp(64);
-        if(libraries.indexOf(lib)%3<2)lp.rightMargin=dp(6);
-        lp.topMargin=dp(5);
-        libsGrid.addView(card,lp);
+        TextView chip=text(lib.title,13,TEXT);chip.setMaxLines(1);chip.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        chip.setTypeface(android.graphics.Typeface.DEFAULT,android.graphics.Typeface.BOLD);
+        GradientDrawable chipBg=solidShape(SURFACE,21);chipBg.setStroke(dp(1),BORDER);chip.setBackground(chipBg);
+        chip.setPadding(dp(14),dp(10),dp(14),dp(10));chip.setClickable(true);chip.setFocusable(true);
+        chip.setContentDescription("打开软件库 "+lib.title);
+        chip.setOnClickListener(v->{pageDirection=1;openRecommendedHome(lib);});
+        LinearLayout.LayoutParams chipLp=new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT,dp(42));
+        if(libraries.indexOf(lib)>0)chipLp.leftMargin=dp(8);
+        libsRow.addView(chip,chipLp);
       }
-      homeColumn.addView(libsGrid,new LinearLayout.LayoutParams(searchWidth,-2));
+      homeColumn.addView(libsStrip,new LinearLayout.LayoutParams(searchWidth,LinearLayout.LayoutParams.WRAP_CONTENT));
       View libsGap=new View(this);homeColumn.addView(libsGap,new LinearLayout.LayoutParams(-1,dp(14)));
     }
     View gap3=new View(this);homeColumn.addView(gap3,new LinearLayout.LayoutParams(-1,dp(14)));
