@@ -238,7 +238,7 @@ final class ToolHost {
       case "json":json(body);break;
       case "regex":regex(body);break;
       case "password":password(body);break;
-      case "uuid":{LinearLayout actions=actionRow(body);action(actions,"生成 1 个",()->output(body,Toolbox.uuidBatch(1)));action(actions,"生成 10 个",()->output(body,Toolbox.uuidBatch(10)));result(body);}break;
+      case "uuid":uuid(body);break;
       case "img_compress":imageCompress(body);break;
       case "sketch":act.toolHostSketch(body);break;
       case "deviceinfo":deviceinfo(body);break;
@@ -788,6 +788,54 @@ final class ToolHost {
     String[][] tpls={{"手机号","1[3-9]\\d{9}"},{"邮箱","[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}"},{"URL","https?://[^\\s]+"},{"日期","\\d{4}-\\d{2}-\\d{2}"},{"身份证","\\d{17}[0-9X]"},{"中文","[\\u4e00-\\u9fa5]+"},{"数字","\\d+(\\.\\d+)?"}};
     for(int i=0;i<tpls.length;i++){final String p=tpls[i][1];selectChip(tpl,tpls[i][0],false,()->{pattern.setText(p);recalcRegex.run();});}
     recalcRegex.run();
+  }
+
+  void uuid(LinearLayout body){
+    // v1.10.5 工具精修12：RFC 4122 多版本（v4 随机批量 / v5 SHA-1 / v3 MD5 名称型）+大写/去连字符+逐行点击复制；研究见 07-研究报告
+    LinearLayout verRow=chipRow(body);verRow.setPadding(0,act.dp(4),0,0);
+    LinearLayout.LayoutParams vlp=chipMargin();vlp.rightMargin=act.dp(12);verRow.addView(text("版本",12,act.TEXT()),vlp);
+    final int[] version={4};TextView[] vchips=new TextView[3];int[] vers={4,5,3};String[] vlabels={"v4 随机","v5 SHA-1","v3 MD5"};
+    EditText name=input(body,"名称（v5/v3 用：同一名称与命名空间结果恒定）",44);
+    LinearLayout nsRow=chipRow(body);
+    LinearLayout.LayoutParams nlp=chipMargin();nlp.rightMargin=act.dp(12);nsRow.addView(text("命名空间",12,act.TEXT()),nlp);
+    final String[][] nsH={{"DNS","6ba7b8109dad11d180b400c04fd430c8"},{"URL","6ba7b8119dad11d180b400c04fd430c8"},{"OID","6ba7b8129dad11d180b400c04fd430c8"},{"X500","6ba7b8149dad11d180b400c04fd430c8"}};
+    final int[] nsel={0};
+    EditText count=input(body,"生成数量（v4，默认 5，最多 100）",44);count.setInputType(InputType.TYPE_CLASS_NUMBER);
+    CheckBox upper=checkInline(checkRow(body),"大写",false);
+    CheckBox noDash=checkInline(checkRow(body),"去连字符",false);
+    TextView hint=text("",12,act.MUTED());hint.setPadding(0,act.dp(4),0,act.dp(4));body.addView(hint,new LinearLayout.LayoutParams(-1,-2));
+    LinearLayout list=new LinearLayout(ctx);list.setOrientation(LinearLayout.VERTICAL);body.addView(list,new LinearLayout.LayoutParams(-1,-2));
+    final String[] current={null};
+    LinearLayout actions=actionRow(body);
+    final EditText nameF=name,countF=count;final CheckBox upF=upper,dashF=noDash;
+    Runnable recalcUuid=()->{
+      boolean up=upF.isChecked(),nd=dashF.isChecked();
+      list.removeAllViews();StringBuilder all=new StringBuilder();
+      if(version[0]==4){
+        int n=Math.max(1,Math.min(100,parseInt(countF,5)));
+        for(int i=0;i<n;i++){String u=Toolbox.uuidFormat(java.util.UUID.randomUUID().toString(),up,nd);all.append(u).append('\n');addUuidRow(list,u);}
+      }else{
+        String u=Toolbox.uuidFormat(Toolbox.uuidNameBased(version[0],nameF.getText().toString(),nsH[nsel[0]][1]),up,nd);
+        all.append(u);addUuidRow(list,u);
+      }
+      current[0]=all.toString().trim();
+      hint.setText(version[0]==4?"v4：加密级随机，逐行点击复制":"RFC 4122 名称型：同一名称+命名空间结果恒定");
+    };
+    android.text.TextWatcher w=new android.text.TextWatcher(){@Override public void beforeTextChanged(CharSequence s,int st,int c,int a){}@Override public void onTextChanged(CharSequence s,int st,int b,int c){recalcUuid.run();}@Override public void afterTextChanged(android.text.Editable s){}};
+    name.addTextChangedListener(w);count.addTextChangedListener(w);
+    upper.setOnClickListener(v->recalcUuid.run());noDash.setOnClickListener(v->recalcUuid.run());
+    primaryAction(actions,"重新生成",recalcUuid::run);action(actions,"复制全部",()->{if(current[0]!=null)copy(current[0]);});
+    primaryAction(actions,"重新生成",recalcUuid::run);action(actions,"复制全部",()->{if(current[0]!=null)copy(current[0]);});
+    for(int i=0;i<3;i++){final int idx=i;vchips[i]=selectChip(verRow,vlabels[i],version[0]==vers[i],()->{version[0]=vers[idx];for(int j=0;j<3;j++)styleSelect(vchips[j],vers[j]==version[0]);recalcUuid.run();});}
+    TextView[] nschips=new TextView[nsH.length];
+    for(int i=0;i<nsH.length;i++){final int idx=i;nschips[i]=selectChip(nsRow,nsH[i][0],nsel[0]==idx,()->{nsel[0]=idx;for(int j=0;j<nsH.length;j++)styleSelect(nschips[j],nsel[0]==j);recalcUuid.run();});}
+    recalcUuid.run();
+  }
+  private void addUuidRow(LinearLayout wrap,String value){
+    TextView row=text(value,13,act.TEXT());row.setTypeface(android.graphics.Typeface.MONOSPACE);
+    row.setPadding(act.dp(10),act.dp(8),act.dp(10),act.dp(8));row.setBackground(solid(act.SURFACE()));
+    row.setClickable(true);row.setFocusable(true);row.setOnClickListener(v->copy(value));
+    LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2);lp.topMargin=act.dp(6);wrap.addView(row,lp);
   }
 
   void hash(LinearLayout body){
