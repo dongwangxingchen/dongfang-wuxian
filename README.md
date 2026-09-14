@@ -3,7 +3,7 @@
 一个轻量的原生 Android 工具箱：蓝奏云目录浏览 / 全源搜索 / 下载管理，内置 35 个本地小工具，以及**完整内嵌开源 AI 聊天应用 RikkaHub**（多渠道 / 助手系统 / 联网搜索 / MCP / 语音 / 工作区全功能）。
 
 - **包名**：`dfwx.dongdang`（Java namespace `cc.nkbr.lanzouplus`，上游遗留，未改动）
-- **当前版本**：1.9.0（versionCode 1030025）
+- **当前版本**：1.10.0（versionCode 1030028）
 - **最低系统**：Android 8.0（API 26） / targetSdk 37
 - **技术栈**：蓝奏云/工具部分为纯 Java + 程序化 View（零第三方依赖）；AI 对话部分自 v1.8.0 起整体 vendor [RikkaHub](https://github.com/re-ovo/rikkahub)（Kotlin + Jetpack Compose 全家桶，见 `rikkahub/` 目录与 [rikkahub/PATCHES.md](rikkahub/PATCHES.md)）
 - **许可证**：AGPL-3.0（见 [LICENSE](LICENSE)）
