@@ -21,6 +21,7 @@
 | P12 | `app/src/main/java/.../utils/UpdateChecker.kt` | checkUpdate() 发出 Loading 后 `return@flow` 短路（代码保留不可达原逻辑） | 禁用上游更新检查：原会请求 updates.rikka-ai.com 并在抽屉引导用户下载 RikkaHub 官方 APK（签名不同成并存应用，问题表单#1）；UpdateCard 因无 Success 数据不展示 | 宿主功能定制；同步上游时需重放 |
 | P14 | `app/src/main/res/values/themes.xml` | Theme.Rikkahub 增加 `android:windowBackground`=#0B0A12 | 冷启动窗口底色对齐宿主深色，防浅色系统下进 AI 页白闪（问题表单#14） | 宿主体验定制；同步上游时需重放 |
 | P6b | 新增 `web/src/main/resources/static/index.html` + `web/src/main/resources/.gitignore` 加 `!static/index.html` 例外 | web-ui 未打包时控制台显示占位说明页而非裸 404（问题表单#16）；装好前端构建后被真实产物覆盖 | 宿主体验定制；同步上游时需重放 |
+| P15 | `app/build.gradle.kts` 删 `implementation(libs.firebase.crashlytics)`；`di/AppModule.kt` 删 crashlytics import 与 Koin 装配 | crashlytics 无官方构建插件时，FirebaseInitProvider 的 EAGER 组件因 build ID 缺失抛 IllegalStateException——**早于 Application.onCreate，DEGRADED 保底接不住**，Android 8.1 真机实测整循环崩溃（crash.log 实证，2026-09-14）；全仓审计确认 crashlytics 零消费点，摘除无功能损失 | 宿主稳定性定制；同步上游时需重放 |
 
 ## 宿主侧配套（不在 vendor 内，随宿主版本走）
 

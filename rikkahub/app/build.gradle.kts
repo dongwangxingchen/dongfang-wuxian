@@ -133,7 +133,9 @@ dependencies {
     // Firebase
     implementation(platform(libs.firebase.bom))
     implementation(libs.firebase.analytics)
-    implementation(libs.firebase.crashlytics)
+    // [DFWX PATCH P15] crashlytics SDK 移除：无官方构建插件时其 Firebase EAGER 组件
+    // 因 build ID 缺失在 FirebaseInitProvider 阶段崩溃（早于 Application），真机实测；
+    // 代码侧配套删除 AppModule 的 crashlytics 装配（全仓零消费点）。同步上游需重放。
 
     // DataStore
     implementation(libs.androidx.datastore.preferences)
