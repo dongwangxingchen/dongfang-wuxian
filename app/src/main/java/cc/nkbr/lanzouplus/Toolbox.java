@@ -298,11 +298,46 @@ final class Toolbox {
     try{byte[] digest=MessageDigest.getInstance(algo).digest(value.getBytes(StandardCharsets.UTF_8));StringBuilder hex=new StringBuilder();for(byte b:digest)hex.append(String.format("%02x",b));return hex.toString();}
     catch(Exception e){return null;}
   }
-  static String json(boolean pretty,String value){
-    try{return pretty?new JSONObject(value).toString(2):new JSONObject(value).toString();}
-    catch(Exception ignored){}
-    try{return pretty?new JSONArray(value).toString(2):new JSONArray(value).toString();}
-    catch(Exception e){return"JSON 不合法："+e.getMessage();}
+  /** v1.10.2 工具精修09：格式化（indentSpaces=0 即压缩）；ensureAscii 把非 ASCII 转义为 Unicode 序列（合法输出上逐字符变换安全）；解析失败抛 JSONException 供页面显示行列 */
+  static String jsonFormat(String value,int indentSpaces,boolean ensureAscii) throws org.json.JSONException{
+    Object o=new org.json.JSONTokener(value).nextValue();
+    String out;
+    if(o instanceof org.json.JSONObject)out=new org.json.JSONObject(value).toString(indentSpaces);
+    else if(o instanceof org.json.JSONArray)out=new org.json.JSONArray(value).toString(indentSpaces);
+    else out=String.valueOf(o);
+    return ensureAscii?ensureAscii(out):out;
+  }
+  /** 校验报告：合法返回统计，非法返回含行列的中文错误（永不抛出） */
+  static String jsonValidate(String value){
+    Object o;
+    try{o=new org.json.JSONTokener(value).nextValue();}
+    catch(org.json.JSONException e){return"解析失败："+jsonError(e);}
+    catch(Exception e){return"解析失败："+e.getMessage();}
+    int top=(o instanceof org.json.JSONObject)?((org.json.JSONObject)o).length():(o instanceof org.json.JSONArray)?((org.json.JSONArray)o).length():1;
+    return"JSON 合法 · 顶层 "+top+" 个"+((o instanceof org.json.JSONArray)?"元素":"键")+" · 深度 "+jsonDepth(o)+" · 原始 "+value.getBytes(StandardCharsets.UTF_8).length+" 字节";
+  }
+  static int jsonDepth(Object o){
+    if(o instanceof org.json.JSONObject){int m=0;java.util.Iterator<String> it=((org.json.JSONObject)o).keys();while(it.hasNext()){String k=it.next();m=Math.max(m,1+jsonDepth(((org.json.JSONObject)o).opt(k)));}return m+1;}
+    if(o instanceof org.json.JSONArray){int m=0;for(int i=0;i<((org.json.JSONArray)o).length();i++)m=Math.max(m,1+jsonDepth(((org.json.JSONArray)o).opt(i)));return m+1;}
+    return 1;
+  }
+  /** 从 org.json 异常消息提取行列（格式 "… at 156 [character 9 line 5]"），无行列则原样返回 */
+  static String jsonError(org.json.JSONException e){
+    String m=e.getMessage()==null?e.toString():e.getMessage();
+    java.util.regex.Matcher mc=java.util.regex.Pattern.compile("character (\\d+) line (\\d+)").matcher(m);
+    if(mc.find())return"第 "+mc.group(2)+" 行 第 "+mc.group(1)+" 列附近："+m;
+    java.util.regex.Matcher mi=java.util.regex.Pattern.compile("at (\\d+)").matcher(m);
+    if(mi.find())return"第 "+mi.group(1)+" 个字符附近："+m;
+    return m;
+  }
+  private static String ensureAscii(String s){
+    StringBuilder out=new StringBuilder(s.length()+16);
+    for(int i=0;i<s.length();i++){char c=s.charAt(i);
+      if(c<128)out.append(c);
+      else if(c>0xFFFF){int cp=Character.codePointAt(s,i);out.append(String.format("\\u%04x",cp));i+=Character.charCount(cp)-1;}
+      else out.append(String.format("\\u%04x",(int)c));
+    }
+    return out.toString();
   }
   static String regex(String pattern,String text){
     if(pattern==null||pattern.trim().isEmpty())return"先输入正则表达式";
