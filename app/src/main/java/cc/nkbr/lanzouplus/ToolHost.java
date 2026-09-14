@@ -236,7 +236,7 @@ final class ToolHost {
       case "url_codec":{EditText input=input(body,"输入文本或已编码 URL…",140);LinearLayout actions=actionRow(body);action(actions,"编码",()->output(body,Toolbox.url(true,input.getText().toString())));action(actions,"解码",()->output(body,Toolbox.url(false,input.getText().toString())));result(body);}break;
       case "hash":hash(body);break;
       case "json":json(body);break;
-      case "regex":{EditText pattern=input(body,"正则表达式，如 \\d+",60);EditText text=input(body,"被匹配的文本…",120);LinearLayout actions=actionRow(body);primaryAction(actions,"测试",()->output(body,Toolbox.regex(pattern.getText().toString(),text.getText().toString())));result(body);}break;
+      case "regex":regex(body);break;
       case "password":password(body);break;
       case "uuid":{LinearLayout actions=actionRow(body);action(actions,"生成 1 个",()->output(body,Toolbox.uuidBatch(1)));action(actions,"生成 10 个",()->output(body,Toolbox.uuidBatch(10)));result(body);}break;
       case "img_compress":imageCompress(body);break;
@@ -736,6 +736,41 @@ final class ToolHost {
     action(actions,"压缩",()->{try{output(body,Toolbox.jsonFormat(input.getText().toString(),0,ascii.isChecked()));}catch(Exception e){output(body,Toolbox.jsonError((org.json.JSONException)e));}});
     action(actions,"校验",()->output(body,Toolbox.jsonValidate(input.getText().toString())));
     result(body);
+  }
+
+  void regex(LinearLayout body){
+    // v1.10.3 工具精修10：对齐 regex101 约定——实时高亮/匹配清单/替换预览/忽略大小写/常用模板；研究见 07-研究报告
+    EditText pattern=input(body,"正则表达式，如 \\d+（或点下方模板）",60);
+    EditText text=input(body,"被匹配的文本…",120);
+    CheckBox ic=checkInline(checkRow(body),"忽略大小写",false);
+    TextView summary=text("",12,act.MUTED());summary.setPadding(0,act.dp(6),0,act.dp(4));body.addView(summary,new LinearLayout.LayoutParams(-1,-2));
+    TextView preview=text("",13,act.TEXT());preview.setTypeface(android.graphics.Typeface.MONOSPACE);preview.setPadding(act.dp(12),act.dp(10),act.dp(12),act.dp(10));preview.setBackground(solid(act.SURFACE()));preview.setMinHeight(act.dp(56));
+    body.addView(preview,new LinearLayout.LayoutParams(-1,-2));
+    EditText repl=input(body,"替换为（支持 $1 组引用，留空仅测试）",44);
+    LinearLayout actions=actionRow(body);primaryAction(actions,"替换",()->{String r=Toolbox.regexReplace(pattern.getText().toString(),text.getText().toString(),repl.getText().toString(),ic.isChecked());output(body,r);});
+    result(body);
+    final EditText pF=pattern,tF=text,rF=repl;final CheckBox icF=ic;
+    Runnable recalcRegex=()->{
+      String p=pF.getText().toString();
+      int[][] ranges=Toolbox.regexRanges(p,tF.getText().toString(),icF.isChecked());
+      if(ranges==null){summary.setText("正则有误，请检查语法");summary.setTextColor(0xFFE5484D);preview.setText("");return;}
+      summary.setText("匹配 "+ranges.length+" 处");summary.setTextColor(ranges.length>0?0xFF46A758:act.MUTED());
+      String src=tF.getText().toString();
+      android.text.SpannableString span=new android.text.SpannableString(src);
+      int limit=Math.min(src.length(),2000);
+      for(int[] r:ranges){if(r[0]>=limit)break;int e=Math.min(r[1],limit);
+        span.setSpan(new android.text.style.BackgroundColorSpan(0x59A78BFA),r[0],e,android.text.Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
+        span.setSpan(new android.text.style.ForegroundColorSpan(0xFF46A758),r[0],e,android.text.Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);}
+      preview.setText(span);
+    };
+    android.text.TextWatcher w=new android.text.TextWatcher(){@Override public void beforeTextChanged(CharSequence s,int st,int c,int a){}@Override public void onTextChanged(CharSequence s,int st,int b,int c){recalcRegex.run();}@Override public void afterTextChanged(android.text.Editable s){}};
+    pattern.addTextChangedListener(w);text.addTextChangedListener(w);repl.addTextChangedListener(w);
+    ic.setOnClickListener(v->recalcRegex.run());
+    LinearLayout tpl=chipRow(body);tpl.setPadding(0,act.dp(8),0,0);
+    LinearLayout.LayoutParams tlp=chipMargin();tlp.rightMargin=act.dp(8);tpl.addView(text("模板",12,act.TEXT()),tlp);
+    String[][] tpls={{"手机号","1[3-9]\\d{9}"},{"邮箱","[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}"},{"URL","https?://[^\\s]+"},{"日期","\\d{4}-\\d{2}-\\d{2}"},{"身份证","\\d{17}[0-9X]"},{"中文","[\\u4e00-\\u9fa5]+"},{"数字","\\d+(\\.\\d+)?"}};
+    for(int i=0;i<tpls.length;i++){final String p=tpls[i][1];selectChip(tpl,tpls[i][0],false,()->{pattern.setText(p);recalcRegex.run();});}
+    recalcRegex.run();
   }
 
   void hash(LinearLayout body){

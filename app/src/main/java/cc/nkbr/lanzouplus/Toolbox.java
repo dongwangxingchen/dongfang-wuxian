@@ -339,10 +339,10 @@ final class Toolbox {
     }
     return out.toString();
   }
-  static String regex(String pattern,String text){
+  static String regex(String pattern,String text,boolean ignoreCase){
     if(pattern==null||pattern.trim().isEmpty())return"先输入正则表达式";
     try{
-      Matcher matcher=Pattern.compile(pattern.trim()).matcher(text==null?"":text);
+      Matcher matcher=Pattern.compile(pattern.trim(),ignoreCase?Pattern.CASE_INSENSITIVE:0).matcher(text==null?"":text);
       StringBuilder out=new StringBuilder();int count=0;
       while(matcher.find()){
         count++;
@@ -355,6 +355,21 @@ final class Toolbox {
       out.insert(0,"匹配 "+count+" 处\n");
       return out.toString().trim();
     }catch(Exception e){return"正则有误："+e.getMessage();}
+  }
+  /** v1.10.3 工具精修10：匹配区间（前 500 处），区间无效（正则有误）返回 null；供界面 Spannable 高亮 */
+  static int[][] regexRanges(String pattern,String text,boolean ignoreCase){
+    try{
+      Matcher matcher=Pattern.compile(pattern,ignoreCase?Pattern.CASE_INSENSITIVE:0).matcher(text==null?"":text);
+      java.util.ArrayList<int[]> list=new java.util.ArrayList<>();
+      while(matcher.find()&&list.size()<500)list.add(new int[]{matcher.start(),matcher.end()});
+      return list.toArray(new int[0][]);
+    }catch(Exception e){return null;}
+  }
+  /** v1.10.3：替换（replaceAll 支持 $1 组引用）；正则有误返回错误说明 */
+  static String regexReplace(String pattern,String text,String replacement,boolean ignoreCase){
+    if(pattern==null||pattern.trim().isEmpty())return"先输入正则表达式";
+    try{return text==null?"":Pattern.compile(pattern,ignoreCase?Pattern.CASE_INSENSITIVE:0).matcher(text).replaceAll(replacement);}
+    catch(Exception e){return"替换失败："+e.getMessage();}
   }
   static String uuidBatch(int count){
     StringBuilder out=new StringBuilder();
