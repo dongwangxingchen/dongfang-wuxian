@@ -28,8 +28,8 @@ android {
   applicationId = "dfwx.dongdang"
   minSdk = 26      // v1.8.0：24→26，RikkaHub 模块（convention minSdk 26）清单合并要求
   targetSdk = 37   // v1.8.0：对齐上游 RikkaHub 2.5.1
-  versionCode = 1030027
-  versionName = "1.9.2"
+  versionCode = 1030028
+  versionName = "1.10.0"
   ndk { abiFilters += listOf("arm64-v8a") }  // RikkaHub native（quickjs/sqlite/termux）只出 arm64：真机 arm64，x86_64 会使体积翻倍
  }
  compileOptions { sourceCompatibility = JavaVersion.VERSION_17; targetCompatibility = JavaVersion.VERSION_17 }
@@ -72,6 +72,7 @@ android {
 
 dependencies {
  implementation(project(":rikkahub-app"))   // v1.8.0 整搬 RikkaHub（UI/数据/网络全量，见 rikkahub/ 目录）
+ implementation("androidx.activity:activity:1.13.0")   // v1.10.0 内嵌 AI 页：MainActivity 需作为 Compose 的 OnBackPressedDispatcherOwner（版本对齐上游 catalog activityCompose）
  implementation("dev.rikka.shizuku:api:13.1.5")
  implementation("dev.rikka.shizuku:provider:13.1.5")
  compileOnly("androidx.annotation:annotation:1.3.0")

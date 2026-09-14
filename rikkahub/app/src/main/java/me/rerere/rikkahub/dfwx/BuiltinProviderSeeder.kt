@@ -64,6 +64,7 @@ object BuiltinProviderSeeder {
                         providers = settings.providers + provider,
                         chatModelId = model.id,
                         fastModelId = model.id,
+                        themeId = "dfwx", // [DFWX PATCH P17] 默认套用东方无限品牌配色，与宿主观感一致
                         assistants = settings.assistants.mapIndexed { index, assistant ->
                             if (index == 0) {
                                 assistant.copy(chatModelId = model.id, maxTokens = 128000)
