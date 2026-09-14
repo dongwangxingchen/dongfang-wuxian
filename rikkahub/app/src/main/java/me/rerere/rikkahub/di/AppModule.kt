@@ -2,7 +2,6 @@ package me.rerere.rikkahub.di
 
 import com.google.firebase.Firebase
 import com.google.firebase.analytics.analytics
-import com.google.firebase.crashlytics.crashlytics
 import kotlinx.serialization.json.Json
 import me.rerere.rikkahub.AppScope
 import me.rerere.rikkahub.data.ai.tools.local.LocalTools
@@ -50,10 +49,10 @@ val appModule = module {
         TTSManager(get())
     }
 
-    single {
-        Firebase.crashlytics
-    }
-
+    // [DFWX PATCH P15] 移除 Firebase.crashlytics Koin 装配与 SDK 依赖：转 library 后无
+    // crashlytics 构建插件，FirebaseInitProvider 的 EAGER 组件初始化会因 build ID 缺失
+    // 直接抛 IllegalStateException（早于 Application.onCreate，保底逻辑接不住），
+    // Android 8.1 真机实测整循环崩溃。审计确认全仓零消费点。同步上游时需重放。
     single {
         Firebase.analytics
     }
