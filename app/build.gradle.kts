@@ -28,8 +28,8 @@ android {
   applicationId = "dfwx.dongdang"
   minSdk = 26      // v1.8.0：24→26，RikkaHub 模块（convention minSdk 26）清单合并要求
   targetSdk = 37   // v1.8.0：对齐上游 RikkaHub 2.5.1
-  versionCode = 1030025
-  versionName = "1.9.0"
+  versionCode = 1030026
+  versionName = "1.9.1"
   ndk { abiFilters += listOf("arm64-v8a") }  // RikkaHub native（quickjs/sqlite/termux）只出 arm64：真机 arm64，x86_64 会使体积翻倍
  }
  compileOptions { sourceCompatibility = JavaVersion.VERSION_17; targetCompatibility = JavaVersion.VERSION_17 }
@@ -44,7 +44,9 @@ android {
    applicationId = "dfwx.dongdang"
    buildConfigField("boolean", "IS_FULL", "false")
    buildConfigField("String", "OFFICIAL_URL", "\"https://github.com/nekobyran/lanzouplus\"")
-   resValue("string", "app_name", "东方无限")
+   // v1.9.1：应用名改用独立资源名 dfwx_app_name——rikkahub 库在 values-zh 等 6 个语言里也定义了
+   // app_name="RikkaHub"，中文系统资源解析优先 values-zh，会导致桌面名字变成 RikkaHub（真机实测）。
+   resValue("string", "dfwx_app_name", "东方无限")
    // v1.8.1：内置默认 AI 渠道（RikkaHub 播种器 dfwx/BuiltinProviderSeeder 读取；Key 走 local.properties 不进源码）
    resValue("string", "dfwx_default_ai_url", "https://www.aizhongzhuan.cc/v1")
    resValue("string", "dfwx_default_ai_model", "glm-5.3")
