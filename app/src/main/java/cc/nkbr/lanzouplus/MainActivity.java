@@ -813,34 +813,85 @@ indicator.setScaleX(.45f);indicator.setAlpha(.55f);indicator.post(()->indicator.
   }
   void refreshToolImageInfo(){if(pageKind==6&&toolHost!=null&&toolHost.toolBody!=null){TextView meta=toolHost.toolBody.findViewWithTag("img-info");if(meta!=null)meta.setText(toolImageInfoText);}}
   public String toolImageInfoText(){return toolImageInfoText==null||toolImageInfoText.isEmpty()?"未选择图片":toolImageInfoText;}
-  /** 简易画板：手指绘制，存 PNG 到相册 */
+  /** 简易画板：手指绘制，撤销/重做/橡皮擦/笔宽，存 PNG 到相册 */
+  private TextView sketchChip(LinearLayout parent,String label,boolean selected){
+    TextView chip=text(label,12,selected?BG:TEXT);
+    chip.setBackground(filterRipple(solidShape(selected?PRIMARY:SURFACE,14)));
+    chip.setPadding(dp(14),0,dp(14),0);chip.setMinHeight(dp(34));chip.setGravity(Gravity.CENTER);
+    parent.addView(chip,new LinearLayout.LayoutParams(-2,dp(34)));
+    return chip;}
+  private void styleSketchChip(TextView chip,boolean selected){
+    chip.setBackground(filterRipple(solidShape(selected?PRIMARY:SURFACE,14)));
+    chip.setTextColor(selected?BG:TEXT);}
   public void toolHostSketch(LinearLayout body){
     SketchView sketch=new SketchView(this);sketch.setBackground(solidShape(SURFACE,16));sketch.setMinimumHeight(dp(300));
-    body.addView(sketch,new LinearLayout.LayoutParams(-1,dp(320)));sketch.post(()->sketch.setFixedSize(sketch.getWidth(),sketch.getHeight()));
+    body.addView(sketch,new LinearLayout.LayoutParams(-1,dp(320)));
+    LinearLayout mode=new LinearLayout(this);mode.setGravity(Gravity.CENTER_VERTICAL);mode.setPadding(0,dp(10),0,0);
+    LinearLayout.LayoutParams mlp=new LinearLayout.LayoutParams(-2,-2);mlp.rightMargin=dp(12);mode.addView(text("模式",12,TEXT()),mlp);
+    TextView[] modeChips=new TextView[2];String[] mlabels={"画笔","橡皮擦"};
+    for(int i=0;i<2;i++){final int idx=i;modeChips[i]=sketchChip(mode,mlabels[i],idx==0);modeChips[i].setOnClickListener(v->{sketch.setEraser(idx==1);for(int j=0;j<2;j++)styleSketchChip(modeChips[j],idx==j);});}
+    body.addView(mode,new LinearLayout.LayoutParams(-1,dp(40)));
+    LinearLayout widthRow=new LinearLayout(this);widthRow.setGravity(Gravity.CENTER_VERTICAL);widthRow.setPadding(0,dp(8),0,0);
+    LinearLayout.LayoutParams wlp=new LinearLayout.LayoutParams(-2,-2);wlp.rightMargin=dp(12);widthRow.addView(text("笔宽",12,TEXT()),wlp);
+    float[] widths={6f,12f,20f};String[] wlabels={"细","中","粗"};
+    TextView[] wchips=new TextView[3];
+    for(int i=0;i<3;i++){final int idx=i;wchips[i]=sketchChip(widthRow,wlabels[i],idx==0);wchips[i].setOnClickListener(v->{sketch.setPaintWidth(widths[idx]);for(int j=0;j<3;j++)styleSketchChip(wchips[j],j==idx);});}
     LinearLayout actions=new LinearLayout(this);actions.setGravity(Gravity.CENTER_VERTICAL);actions.setPadding(0,dp(10),0,0);
     int[] palette={0xFFFFFFFF,0xFF000000,0xFFEF4444,0xFFF59E0B,0xFF10B981,0xFF3B82F6,0xFF8B5CF6};
-    for(int color:palette){View dot=new View(this);GradientDrawable circle=solidShape(color,14);circle.setStroke(dp(1),DIV);dot.setBackground(circle);dot.setOnClickListener(v->{sketch.paintColor=color;});actions.addView(dot,new LinearLayout.LayoutParams(dp(30),dp(30)));}
+    for(int color:palette){View dot=new View(this);GradientDrawable circle=solidShape(color,14);circle.setStroke(dp(1),DIV);dot.setBackground(circle);dot.setOnClickListener(v->{sketch.setPaintColor(color);styleSketchChip(modeChips[0],true);styleSketchChip(modeChips[1],false);});actions.addView(dot,new LinearLayout.LayoutParams(dp(30),dp(30)));}
     LinearLayout.LayoutParams dotParams=new LinearLayout.LayoutParams(dp(30),dp(30));dotParams.setMargins(dp(6),0,dp(6),0);
     for(int i=1;i<actions.getChildCount();i++)actions.getChildAt(i).setLayoutParams(dotParams);
     body.addView(actions,new LinearLayout.LayoutParams(-1,dp(44)));
     LinearLayout run=new LinearLayout(this);run.setGravity(Gravity.CENTER_VERTICAL);run.setPadding(0,dp(8),0,0);
-    Button save=new Button(this);save.setText("保存到相册");save.setTextColor(PRIMARY);save.setTextSize(12);save.setAllCaps(false);save.setBackground(filterRipple(solidShape(SURFACE,14)));save.setMinWidth(0);save.setMinimumWidth(0);save.setMinHeight(dp(44));
-    save.setOnClickListener(v->{byte[] png=sketch.exportPng();if(png==null){showNotice("画布为空",true);return;}String saved=saveToolImage(png,true);showNotice("已保存："+saved,false);});
+    Button undo=new Button(this);undo.setText("撤销");undo.setTextColor(MUTED);undo.setTextSize(12);undo.setAllCaps(false);undo.setBackground(filterRipple(solidShape(SURFACE,14)));undo.setMinWidth(0);undo.setMinimumWidth(0);undo.setMinHeight(dp(44));
+    undo.setOnClickListener(v->sketch.undo());
+    run.addView(undo,new LinearLayout.LayoutParams(-2,dp(44)));
+    Button redo=new Button(this);redo.setText("重做");redo.setTextColor(MUTED);redo.setTextSize(12);redo.setAllCaps(false);redo.setBackground(filterRipple(solidShape(SURFACE,14)));redo.setMinWidth(0);redo.setMinimumWidth(0);redo.setMinHeight(dp(44));
+    LinearLayout.LayoutParams redoParams=new LinearLayout.LayoutParams(-2,dp(44));redoParams.setMargins(dp(8),0,0,0);redo.setLayoutParams(redoParams);
+    redo.setOnClickListener(v->sketch.redo());
+    run.addView(redo,redoParams);
     Button clear=new Button(this);clear.setText("清空");clear.setTextColor(MUTED);clear.setTextSize(12);clear.setAllCaps(false);clear.setBackground(filterRipple(solidShape(SURFACE,14)));clear.setMinWidth(0);clear.setMinimumWidth(0);clear.setMinHeight(dp(44));
-    clear.setOnClickListener(v->sketch.clear());
-    run.addView(save,new LinearLayout.LayoutParams(-2,dp(44)));LinearLayout.LayoutParams clearParams=new LinearLayout.LayoutParams(-2,dp(44));clearParams.setMargins(dp(8),0,0,0);run.addView(clear,clearParams);
+    LinearLayout.LayoutParams clearParams=new LinearLayout.LayoutParams(-2,dp(44));clearParams.setMargins(dp(8),0,0,0);clear.setLayoutParams(clearParams);
+    clear.setOnClickListener(v->sketch.clearAll());
+    run.addView(clear,clearParams);
+    Button save=new Button(this);save.setText("保存到相册");save.setTextColor(BG);save.setTextSize(12);save.setAllCaps(false);save.setBackground(filterRipple(solidShape(PRIMARY,14)));save.setMinWidth(0);save.setMinimumWidth(0);save.setMinHeight(dp(44));
+    LinearLayout.LayoutParams saveParams=new LinearLayout.LayoutParams(-2,dp(44));saveParams.setMargins(dp(8),0,0,0);save.setLayoutParams(saveParams);
+    save.setOnClickListener(v->{byte[] png=sketch.exportPng();if(png==null){showNotice("画布为空",true);return;}String saved=saveToolImage(png,true);showNotice("已保存："+saved,false);});
+    run.addView(save,saveParams);
     body.addView(run,new LinearLayout.LayoutParams(-1,dp(44)));
   }
   static final class SketchView extends View{
+    static final class Stroke{final int color;final float width;final android.graphics.Path path;Stroke(int c,float w,android.graphics.Path p){color=c;width=w;path=p;}}
+    final List<Stroke> strokes=new ArrayList<>();
+    final java.util.ArrayDeque<List<Stroke>> undoStack=new java.util.ArrayDeque<>();
+    final java.util.ArrayDeque<List<Stroke>> redoStack=new java.util.ArrayDeque<>();
     final android.graphics.Paint stroke=new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
-    final android.graphics.Path path=new android.graphics.Path();
-    Bitmap canvas;android.graphics.Canvas drawer;int paintColor=0xFFFFFFFF;
-    SketchView(android.content.Context context){super(context);stroke.setColor(paintColor);stroke.setStyle(android.graphics.Paint.Style.STROKE);stroke.setStrokeCap(android.graphics.Paint.Cap.ROUND);stroke.setStrokeJoin(android.graphics.Paint.Join.ROUND);stroke.setStrokeWidth(6f);setContentDescription("自由绘制画布，可手指画线");}
-    void setFixedSize(int width,int height){if(width<=0||height<=0)return;canvas=Bitmap.createBitmap(width,height,Bitmap.Config.ARGB_8888);drawer=new android.graphics.Canvas(canvas);drawer.drawColor(ThemeEngine.active(getContext()).surface);stroke.setColor(paintColor);}
-    void clear(){if(drawer!=null){drawer.drawColor(ThemeEngine.active(getContext()).surface);invalidate();}}
-    @Override protected void onDraw(android.graphics.Canvas c){super.onDraw(c);if(canvas!=null)c.drawBitmap(canvas,0,0,null);c.drawPath(path,stroke);}
-    @Override public boolean onTouchEvent(android.view.MotionEvent event){if(drawer==null)return false;float x=event.getX(),y=event.getY();switch(event.getAction()){case android.view.MotionEvent.ACTION_DOWN:path.reset();path.moveTo(x,y);break;case android.view.MotionEvent.ACTION_MOVE:path.lineTo(x,y);break;case android.view.MotionEvent.ACTION_UP:{path.lineTo(x,y);stroke.setColor(paintColor);drawer.drawPath(path,stroke);path.reset();invalidate();return true;}default:return false;}invalidate();return true;}
-    byte[] exportPng(){if(canvas==null)return null;java.io.ByteArrayOutputStream buffer=new java.io.ByteArrayOutputStream();canvas.compress(Bitmap.CompressFormat.PNG,100,buffer);return buffer.toByteArray();}
+    android.graphics.Path current;int paintColor=0xFFFFFFFF;float paintWidth=6f;boolean eraser=false;
+    SketchView(android.content.Context context){super(context);stroke.setStyle(android.graphics.Paint.Style.STROKE);stroke.setStrokeCap(android.graphics.Paint.Cap.ROUND);stroke.setStrokeJoin(android.graphics.Paint.Join.ROUND);stroke.setStrokeWidth(paintWidth);setContentDescription("自由绘制画布，可手指画线");}
+    int surfaceColor(){return ThemeEngine.active(getContext()).surface;}
+    void snapshot(){undoStack.push(new ArrayList<>(strokes));while(undoStack.size()>80)undoStack.removeLast();redoStack.clear();}
+    void setPaintColor(int color){paintColor=color;eraser=false;invalidate();}
+    void setPaintWidth(float w){paintWidth=w;invalidate();}
+    void setEraser(boolean e){eraser=e;invalidate();}
+    void undo(){if(strokes.isEmpty())return;redoStack.push(new ArrayList<>(strokes));strokes.remove(strokes.size()-1);invalidate();}
+    void redo(){if(redoStack.isEmpty())return;undoStack.push(new ArrayList<>(strokes));strokes.addAll(redoStack.pollLast());invalidate();}
+    void clearAll(){if(strokes.isEmpty()&&current==null)return;snapshot();strokes.clear();current=null;invalidate();}
+    void setFixedSize(int width,int height){invalidate();}
+    @Override protected void onDraw(android.graphics.Canvas c){super.onDraw(c);
+      c.drawColor(surfaceColor());
+      for(Stroke s:strokes){stroke.setColor(s.color);stroke.setStrokeWidth(s.width);c.drawPath(s.path,stroke);}
+      if(current!=null){stroke.setColor(eraser?surfaceColor():paintColor);stroke.setStrokeWidth(eraser?paintWidth*3f+12f:paintWidth);c.drawPath(current,stroke);}
+    }
+    @Override public boolean onTouchEvent(android.view.MotionEvent event){float x=event.getX(),y=event.getY();switch(event.getAction()){
+      case android.view.MotionEvent.ACTION_DOWN:{current=new android.graphics.Path();current.moveTo(x,y);break;}
+      case android.view.MotionEvent.ACTION_MOVE:current.lineTo(x,y);break;
+      case android.view.MotionEvent.ACTION_UP:{current.lineTo(x,y);snapshot();strokes.add(new Stroke(eraser?surfaceColor():paintColor,eraser?paintWidth*3f+12f:paintWidth,current));current=null;invalidate();return true;}
+      default:return false;}invalidate();return true;}
+    byte[] exportPng(){int w=getWidth(),h=getHeight();if(w<=0||h<=0)return null;
+      Bitmap out=Bitmap.createBitmap(w,h,Bitmap.Config.ARGB_8888);android.graphics.Canvas c=new android.graphics.Canvas(out);c.drawColor(surfaceColor());
+      android.graphics.Paint p=new android.graphics.Paint(stroke);
+      for(Stroke s:strokes){p.setColor(s.color);p.setStrokeWidth(s.width);c.drawPath(s.path,p);}
+      java.io.ByteArrayOutputStream buffer=new java.io.ByteArrayOutputStream();out.compress(Bitmap.CompressFormat.PNG,100,buffer);return buffer.toByteArray();}
   }
   /** 直尺：按屏幕物理宽度标定厘米刻度 */
   public void toolHostRuler(LinearLayout body){
