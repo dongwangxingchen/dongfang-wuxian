@@ -628,12 +628,29 @@ final class ToolHost {
   TextView gridCell(){TextView cell=text("",13,act.TEXT());cell.setGravity(Gravity.CENTER);cell.setHeight(act.dp(42));return cell;}
 
   void randomnum(LinearLayout body){
+    // v1.10.4 工具精修11：排序选项（不排序=抽签序/升/降）+重新生成+复制结果；SecureRandom 在 Toolbox 层
     EditText min=input(body,"下限（默认 1）",44),max=input(body,"上限（默认 100）",44),count=input(body,"生成个数（默认 1，最多 200）",44);
     min.setInputType(InputType.TYPE_CLASS_NUMBER);max.setInputType(InputType.TYPE_CLASS_NUMBER|InputType.TYPE_NUMBER_FLAG_SIGNED);count.setInputType(InputType.TYPE_CLASS_NUMBER);
-    CheckBox unique=checkInline(checkRow(body),"去重",false);
+    CheckBox unique=checkInline(checkRow(body),"去重（抽签模式）",false);
+    final EditText minF=min,maxF=max,countF=count;final CheckBox uniqueF=unique;final int[] sort={0};
+    TextView hint=text("",12,act.MUTED());hint.setPadding(0,act.dp(4),0,act.dp(4));body.addView(hint,new LinearLayout.LayoutParams(-1,-2));
     LinearLayout actions=actionRow(body);
-    primaryAction(actions,"生成",()->{try{output(body,Toolbox.randomNumbers(parseInt(min,1),parseInt(max,100),parseInt(count,1),unique.isChecked()));}catch(Exception e){output(body,"输入有误");}});
+    final String[] current={null};
+    action(actions,"复制结果",()->{if(current[0]!=null)copy(current[0]);});
     result(body);
+    Runnable recalcRnd=()->{
+      String r=Toolbox.randomNumbers(parseInt(minF,1),parseInt(maxF,100),parseInt(countF,1),uniqueF.isChecked(),sort[0]);
+      current[0]=r;output(body,r);
+      hint.setText(r.startsWith("上限")||r.startsWith("去重")?r:"已生成 · SecureRandom 加密级随机");
+    };
+    android.text.TextWatcher w=new android.text.TextWatcher(){@Override public void beforeTextChanged(CharSequence s,int st,int c,int a){}@Override public void onTextChanged(CharSequence s,int st,int b,int c){}@Override public void afterTextChanged(android.text.Editable s){recalcRnd.run();}};
+    min.addTextChangedListener(w);max.addTextChangedListener(w);count.addTextChangedListener(w);
+    unique.setOnClickListener(v->recalcRnd.run());
+    LinearLayout sortRow=chipRow(body);sortRow.setPadding(0,act.dp(8),0,0);
+    LinearLayout.LayoutParams slp=chipMargin();slp.rightMargin=act.dp(12);sortRow.addView(text("排序",12,act.TEXT()),slp);
+    TextView[] schips=new TextView[3];int[] sorts={0,1,2};String[] slabels={"不排序","升序","降序"};
+    for(int i=0;i<3;i++){final int idx=i;schips[i]=selectChip(sortRow,slabels[i],sort[0]==sorts[i],()->{sort[0]=sorts[idx];for(int j=0;j<3;j++)styleSelect(schips[j],sorts[j]==sort[0]);recalcRnd.run();});}
+    recalcRnd.run();
   }
 
   void password(LinearLayout body){

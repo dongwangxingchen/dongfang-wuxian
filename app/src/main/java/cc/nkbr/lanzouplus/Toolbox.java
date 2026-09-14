@@ -261,15 +261,19 @@ final class Toolbox {
   static String coinFlip(){return new SecureRandom().nextBoolean()?"正面（花）":"反面（字）";}
   static int diceRoll(int sides){return new SecureRandom().nextInt(Math.max(2,Math.min(100,sides)))+1;}
   static String decide(String[] options){if(options==null||options.length==0)return"填几个候选";return options[new SecureRandom().nextInt(options.length)];}
-  static String randomNumbers(int min,int max,int count,boolean unique){
-    if(max<min)return"上限需 ≥ 下限";
+  /** v1.10.4 工具精修11：sort 0=不排序（抽签序） 1=升序 2=降序；SecureRandom 全程 */
+  static String randomNumbers(int min,int max,int count,boolean unique,int sort){
+    if(max<min)return"上限需不小于下限";
     SecureRandom r=new SecureRandom();int span=max-min+1;
-    if(unique&&count>span)return"去重时数量不能超过范围";
-    TreeSet<Integer> set=new TreeSet<>();List<Integer> list=new ArrayList<>();
+    if(unique&&count>span)return"去重模式下数量不能超过区间大小 "+span;
+    java.util.LinkedHashSet<Integer> set=new java.util.LinkedHashSet<>();List<Integer> list=new ArrayList<>();
     while((unique?set:list).size()<Math.max(1,Math.min(200,count))){int v=min+r.nextInt(span);if(unique)set.add(v);else list.add(v);}
-    StringBuilder out=new StringBuilder();int i=0;
-    for(int v:unique?set:list){out.append(v);if(++i<(unique?set:list).size())out.append(i%10==0?"\n":"  ");}
-    return out.toString();
+    List<Integer> out=new ArrayList<>(unique?set:list);
+    if(sort==1)java.util.Collections.sort(out);
+    if(sort==2){java.util.Collections.sort(out);java.util.Collections.reverse(out);}
+    StringBuilder sb=new StringBuilder();int i=0;
+    for(int v:out){sb.append(v);if(++i<out.size())sb.append(i%10==0?"\n":"  ");}
+    return sb.toString();
   }
 
   //——— 文本工具（沿用已验证实现）———
