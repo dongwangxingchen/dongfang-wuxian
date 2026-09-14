@@ -5,6 +5,7 @@ import androidx.compose.runtime.Composable
 import me.rerere.rikkahub.ui.theme.presets.AutumnThemePreset
 import me.rerere.rikkahub.ui.theme.presets.BlackThemePreset
 import me.rerere.rikkahub.ui.theme.presets.ClaudeThemePreset
+import me.rerere.rikkahub.ui.theme.presets.DongfangThemePreset
 import me.rerere.rikkahub.ui.theme.presets.MinimalThemePreset
 import me.rerere.rikkahub.ui.theme.presets.OceanThemePreset
 import me.rerere.rikkahub.ui.theme.presets.SakuraThemePreset
@@ -23,6 +24,8 @@ data class PresetTheme(
 
 val PresetThemes by lazy {
     listOf(
+        // [DFWX PATCH P17] 东方无限品牌预设置首 = 全新安装默认主题（themeId 默认取 PresetThemes[0]）
+        DongfangThemePreset,
         SakuraThemePreset,
         OceanThemePreset,
         SpringThemePreset,
