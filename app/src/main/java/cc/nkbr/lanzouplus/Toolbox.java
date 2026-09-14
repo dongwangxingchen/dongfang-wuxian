@@ -292,13 +292,11 @@ final class Toolbox {
     try{return encode?java.net.URLEncoder.encode(value,"UTF-8"):java.net.URLDecoder.decode(value.trim(),"UTF-8");}
     catch(Exception e){return"转换失败："+e.getMessage();}
   }
-  static String hashes(String value){
-    StringBuilder out=new StringBuilder();
-    for(String algo:new String[]{"MD5","SHA-1","SHA-256"}){
-      try{byte[] digest=MessageDigest.getInstance(algo).digest(value.getBytes(StandardCharsets.UTF_8));StringBuilder hex=new StringBuilder();for(byte b:digest)hex.append(String.format("%02x",b));out.append(algo.replace("-","")).append("  ").append(hex).append("\n");}
-      catch(Exception e){out.append(algo).append("  计算失败\n");}
-    }
-    return out.toString().trim();
+  /** v1.10.1 工具精修08：单算法摘要（null=该算法不可用）；hex 小写标准编码 */
+  static final String[] HASH_ALGOS={"MD5","SHA-1","SHA-224","SHA-256","SHA-384","SHA-512"};
+  static String hashHex(String algo,String value){
+    try{byte[] digest=MessageDigest.getInstance(algo).digest(value.getBytes(StandardCharsets.UTF_8));StringBuilder hex=new StringBuilder();for(byte b:digest)hex.append(String.format("%02x",b));return hex.toString();}
+    catch(Exception e){return null;}
   }
   static String json(boolean pretty,String value){
     try{return pretty?new JSONObject(value).toString(2):new JSONObject(value).toString();}
