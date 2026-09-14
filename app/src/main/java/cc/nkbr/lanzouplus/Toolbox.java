@@ -375,10 +375,32 @@ final class Toolbox {
     try{return text==null?"":Pattern.compile(pattern,ignoreCase?Pattern.CASE_INSENSITIVE:0).matcher(text).replaceAll(replacement);}
     catch(Exception e){return"替换失败："+e.getMessage();}
   }
-  static String uuidBatch(int count){
+  /** v1.10.5 工具精修12：RFC 4122 多版本——v4 随机批量（大写/去连字符可选）；count 上限 100 */
+  static String uuidBatch(int count,boolean upper,boolean noDash){
     StringBuilder out=new StringBuilder();
-    for(int i=0;i<Math.max(1,Math.min(50,count));i++)out.append(UUID.randomUUID().toString()).append('\n');
+    for(int i=0;i<Math.max(1,Math.min(100,count));i++)out.append(uuidFormat(UUID.randomUUID().toString(),upper,noDash)).append('\n');
     return out.toString().trim();
+  }
+  /** v1.10.5：RFC 4122 名称型 UUID（version=3 MD5 / 5 SHA-1；nsHex=RFC 内置命名空间小写无连字符） */
+  static String uuidNameBased(int version,String name,String nsHex){
+    try{
+      java.security.MessageDigest md=java.security.MessageDigest.getInstance(version==5?"SHA-1":"MD5");
+      md.update(hexBytes(nsHex));md.update((name==null?"":name).getBytes(StandardCharsets.UTF_8));
+      byte[] h=md.digest();
+      h[6]&=0x0F;h[6]|=(byte)(version<<4);h[8]&=0x3F;h[8]|=(byte)0x80;
+      StringBuilder sb=new StringBuilder();for(byte b:h)sb.append(String.format("%02x",b));
+      return sb.insert(8,'-').insert(13,'-').insert(18,'-').insert(23,'-').toString();
+    }catch(Exception e){return null;}
+  }
+  static String uuidFormat(String u,boolean upper,boolean noDash){
+    if(u==null)return u;
+    String s=upper?u.toUpperCase(java.util.Locale.US):u;
+    return noDash?s.replace("-",""):s;
+  }
+  private static byte[] hexBytes(String hex){
+    byte[] out=new byte[hex.length()/2];
+    for(int i=0;i<out.length;i++)out[i]=(byte)Integer.parseInt(hex.substring(i*2,i*2+2),16);
+    return out;
   }
   /** v1.7.8 工具精修07：SecureRandom + 每类至少一个 + Fisher-Yates 洗牌；形近字符(lI|O01)可排除（Bitwarden/KeePassDX 默认集，见 07-研究报告） */
   static String generatePassword(int length,boolean upper,boolean lower,boolean digits,boolean symbols,boolean avoidAmbiguous){
