@@ -3,7 +3,7 @@ package cc.nkbr.lanzouplus;
 import android.content.Context;
 import android.content.SharedPreferences;
 
-/** 自愿付费解锁状态（本地记录，无服务端、无验证——10 元档信任用户，见 07-研究报告/自愿付费与全App优化-深度研究汇总.md A 部分）。
+/** 自愿付费解锁状态（本地记录，无服务端、无验证——5 元档信任用户，见 07-研究报告/自愿付费与全App优化-深度研究汇总.md A 部分）。
  *  原则：不付费同样可以完整使用；所有付费 UI 都带"继续下载"降级路径。 */
 final class Support {
   private static final String PREF_FILE="support";
