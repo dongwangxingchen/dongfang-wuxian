@@ -234,7 +234,7 @@ final class ToolHost {
       case "text_stats":{EditText input=input(body,"粘贴文本…",140);LinearLayout actions=actionRow(body);primaryAction(actions,"统计",()->output(body,Toolbox.textStats(input.getText().toString())));action(actions,"去重·排序",()->output(body,Toolbox.dedupeLines(input.getText().toString(),true,false)));action(actions,"去重·保序",()->output(body,Toolbox.dedupeLines(input.getText().toString(),false,false)));action(actions,"去空行",()->output(body,Toolbox.dedupeLines(input.getText().toString(),false,true)));result(body);}break;
       case "base64":{EditText input=input(body,"输入文本或 Base64…",140);LinearLayout actions=actionRow(body);action(actions,"编码",()->output(body,Toolbox.base64(true,input.getText().toString())));action(actions,"解码",()->output(body,Toolbox.base64(false,input.getText().toString())));result(body);}break;
       case "url_codec":{EditText input=input(body,"输入文本或已编码 URL…",140);LinearLayout actions=actionRow(body);action(actions,"编码",()->output(body,Toolbox.url(true,input.getText().toString())));action(actions,"解码",()->output(body,Toolbox.url(false,input.getText().toString())));result(body);}break;
-      case "hash":{EditText input=input(body,"输入文本…",120);LinearLayout actions=actionRow(body);primaryAction(actions,"计算 MD5 / SHA",()->output(body,Toolbox.hashes(input.getText().toString())));result(body);}break;
+      case "hash":hash(body);break;
       case "json":{EditText input=input(body,"粘贴 JSON…",160);LinearLayout actions=actionRow(body);action(actions,"美化",()->output(body,Toolbox.json(true,input.getText().toString())));action(actions,"压缩",()->output(body,Toolbox.json(false,input.getText().toString())));result(body);}break;
       case "regex":{EditText pattern=input(body,"正则表达式，如 \\d+",60);EditText text=input(body,"被匹配的文本…",120);LinearLayout actions=actionRow(body);primaryAction(actions,"测试",()->output(body,Toolbox.regex(pattern.getText().toString(),text.getText().toString())));result(body);}break;
       case "password":password(body);break;
@@ -722,6 +722,55 @@ final class ToolHost {
     action(actions,"重新生成",()->regen.run());
     primaryAction(actions,"复制",()->{if(current[0]!=null)copy(current[0]);});
     regen.run();
+  }
+
+  void hash(LinearLayout body){
+    // v1.10.1 工具精修08：对齐 hash-checker 规格（见 07-研究报告）——六算法实时计算+期望值比对高亮+点击复制+大写开关
+    TextView hint=text("输入即实时计算；粘贴期望哈希自动比对校验。",12,act.MUTED());hint.setPadding(0,0,0,act.dp(8));body.addView(hint,new LinearLayout.LayoutParams(-1,-2));
+    EditText input=input(body,"输入文本…",100);
+    LinearLayout opts=new LinearLayout(ctx);opts.setGravity(Gravity.CENTER_VERTICAL);
+    CheckBox upper=checkInline(opts,"大写输出",false);
+    body.addView(opts,new LinearLayout.LayoutParams(-1,act.dp(40)));
+    EditText expect=input(body,"粘贴期望哈希值（可选，自动比对）",44);
+    TextView matchTip=text("",12,act.MUTED());matchTip.setPadding(0,act.dp(4),0,act.dp(4));body.addView(matchTip,new LinearLayout.LayoutParams(-1,-2));
+    String[] algos=Toolbox.HASH_ALGOS;
+    LinearLayout[] rows=new LinearLayout[algos.length];
+    TextView[] hexViews=new TextView[algos.length];
+    TextView[] nameViews=new TextView[algos.length];
+    for(int i=0;i<algos.length;i++){
+      LinearLayout row=new LinearLayout(ctx);row.setOrientation(LinearLayout.VERTICAL);row.setPadding(act.dp(12),act.dp(8),act.dp(12),act.dp(8));row.setBackground(solid(act.SURFACE()));row.setClickable(true);row.setFocusable(true);
+      TextView name=text(algos[i],12,act.PRIMARY());name.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
+      TextView hex=text("—",13,act.TEXT());hex.setTypeface(android.graphics.Typeface.MONOSPACE);
+      LinearLayout.LayoutParams hp=new LinearLayout.LayoutParams(-1,-2);hp.topMargin=act.dp(2);row.addView(name,new LinearLayout.LayoutParams(-1,-2));row.addView(hex,hp);
+      LinearLayout.LayoutParams rp=new LinearLayout.LayoutParams(-1,-2);rp.topMargin=i==0?act.dp(4):act.dp(8);body.addView(row,rp);
+      rows[i]=row;hexViews[i]=hex;nameViews[i]=name;
+      final String algo=algos[i];final TextView hexF=hex;final CheckBox upperF=upper;
+      row.setOnClickListener(v->{String h=hexF.getText().toString();if(!h.equals("—"))copy(upperF.isChecked()?h.toUpperCase(java.util.Locale.US):h);});
+    }
+    final EditText inputF=input,expectF=expect;
+    final CheckBox upperF=upper;
+    Runnable recalc=()->{
+      String v=inputF.getText().toString();
+      String expected=expectF.getText().toString().trim();
+      boolean anyMatch=false;
+      for(int i=0;i<algos.length;i++){
+        String hex=Toolbox.hashHex(algos[i],v);
+        if(hex==null){hexViews[i].setText("不支持");}
+        else{
+          hexViews[i].setText(upperF.isChecked()?hex.toUpperCase(java.util.Locale.US):hex);
+          boolean match=expected.length()>0&&hex.equalsIgnoreCase(expected);
+          hexViews[i].setTextColor(match?0xFF46A758:act.TEXT());
+          nameViews[i].setText(algos[i]+(match?"  ✓ 匹配":""));
+          if(match)anyMatch=true;
+        }
+      }
+      matchTip.setText(expected.length()==0?"":(anyMatch?"校验通过：与期望值匹配":"校验失败：与期望值不匹配"));
+      matchTip.setTextColor(expected.length()==0?act.MUTED():(anyMatch?0xFF46A758:0xFFE5484D));
+    };
+    input.addTextChangedListener(new android.text.TextWatcher(){@Override public void beforeTextChanged(CharSequence s,int st,int c,int a){}@Override public void onTextChanged(CharSequence s,int st,int b,int c){recalc.run();}@Override public void afterTextChanged(android.text.Editable s){}});
+    expect.addTextChangedListener(new android.text.TextWatcher(){@Override public void beforeTextChanged(CharSequence s,int st,int c,int a){}@Override public void onTextChanged(CharSequence s,int st,int b,int c){recalc.run();}@Override public void afterTextChanged(android.text.Editable s){}});
+    upper.setOnClickListener(v->recalc.run());
+    recalc.run();
   }
 
   void imageCompress(LinearLayout body){
