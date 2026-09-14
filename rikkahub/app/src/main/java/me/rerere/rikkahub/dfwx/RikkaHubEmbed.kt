@@ -117,6 +117,7 @@ import me.rerere.rikkahub.ui.pages.share.handler.ShareHandlerPage
 import me.rerere.rikkahub.ui.pages.stats.StatsPage
 import me.rerere.rikkahub.ui.pages.translator.TranslatorPage
 import me.rerere.rikkahub.ui.pages.webview.WebViewPage
+import me.rerere.rikkahub.ui.theme.ColorMode
 import me.rerere.rikkahub.ui.theme.LocalDarkMode
 import me.rerere.rikkahub.ui.theme.RikkahubTheme
 import okhttp3.OkHttpClient
@@ -134,7 +135,9 @@ fun RikkaHubEmbed(
     onBackStackReady: (MutableList<NavKey>) -> Unit,
     onOpenUsageAccessSettings: () -> Unit,
 ) {
-    RikkahubTheme {
+    // [DFWX PATCH P18] 宿主是深色东方风格：内嵌页永远强制深色（不随系统浅色变白），
+    // 并把老版本升级遗留的上游默认主题 "sakura" 一次性迁到 "dfwx"（用户主动选过的其他主题不动）
+    RikkahubTheme(colorMode = ColorMode.DARK) {
         val okHttpClient: OkHttpClient = koinInject()
         setSingletonImageLoaderFactory { context ->
             ImageLoader.Builder(context)
@@ -158,6 +161,11 @@ fun RikkaHubEmbed(
         val settingsStore = koinInject<SettingsStore>()
         val toastState = rememberToasterState()
         val settings by settingsStore.settingsFlow.collectAsStateWithLifecycle()
+        LaunchedEffect(Unit) {
+            if (settingsStore.settingsFlow.value.themeId == "sakura") {
+                settingsStore.update { it.copy(themeId = "dfwx") }
+            }
+        }
         val tts = rememberCustomTtsState()
         val asr = rememberCustomAsrState()
         val eventBus = koinInject<AppEventBus>()
