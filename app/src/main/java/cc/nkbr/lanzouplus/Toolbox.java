@@ -277,11 +277,66 @@ final class Toolbox {
   }
 
   //——— 文本工具（沿用已验证实现）———
-  static String textStats(String value){
-    int chars=value==null?0:value.length(),han=0,words=0;boolean inWord=false;
-    for(int i=0;i<chars;i++){char c=value.charAt(i);if(c>=0x4E00&&c<=0x9FFF)han++;boolean word=!Character.isWhitespace(c)&&Character.isLetterOrDigit(c);if(word&&!inWord)words++;inWord=word;}
-    int lines=value==null||value.isEmpty()?0:value.split("\n",-1).length;
-    return"字符 "+chars+" · 汉字 "+han+" · 行 "+lines+" · 词 "+words;
+  /** v1.11.2 工具精修14：全维度文本统计（对齐 Countable live 口径与 Word 字数约定，见 07-研究报告/工具精修-14）。
+   *  返回 int[10]：0 字数(汉字+英文单词) 1 汉字 2 英文单词 3 数字串 4 字符(含空白) 5 字符(不含空白) 6 句数 7 段落 8 行数 9 标点 */
+  static int[] textStatsAll(String value){
+    int[] s=new int[10];
+    if(value==null||value.isEmpty())return s;
+    int total=value.length();s[4]=total;
+    boolean inWord=false,inNum=false;
+    for(int i=0;i<total;i++){
+      char c=value.charAt(i);
+      boolean ws=Character.isWhitespace(c);
+      if(!ws)s[5]++;
+      boolean han=c>=0x3400&&c<=0x4DBF||c>=0x4E00&&c<=0x9FFF;
+      if(han)s[1]++;
+      boolean letterOrDigit=!ws&&!han&&Character.isLetterOrDigit(c);
+      if(letterOrDigit&&!inWord)s[2]++;
+      inWord=letterOrDigit;
+      boolean digit=!ws&&Character.isDigit(c);
+      if(digit&&!inNum)s[3]++;
+      inNum=digit;
+      if(c=='。'||c=='！'||c=='？'||c=='!'||c=='?'||c=='…'||c=='；'||c==';')s[6]++;
+      if(!ws&&!Character.isLetterOrDigit(c))s[9]++;
+    }
+    // 句末终止符之后仍有非空白内容则补一句（Countable sentences 切分约定）
+    int lastTerm=-1;
+    for(int i=total-1;i>=0;i--){char c=value.charAt(i);if(c=='。'||c=='！'||c=='？'||c=='!'||c=='?'||c=='…'||c=='；'||c==';'){lastTerm=i;break;}}
+    for(int i=lastTerm+1;i<total;i++)if(!Character.isWhitespace(value.charAt(i))){s[6]++;break;}
+    String[] paras=value.split("\n+");
+    for(String p:paras)if(!p.trim().isEmpty())s[7]++;
+    s[8]=value.split("\n",-1).length;
+    s[0]=s[1]+s[2];
+    return s;
+  }
+  /** v1.11.2 工具精修14：高频汉字/英文单词 Top5（无词典近似，灵感取自 TextAnalyzer 高频词提取；空文本返回空串） */
+  static String textTopFreq(String value){
+    if(value==null||value.isEmpty())return "";
+    java.util.HashMap<String,Integer> hanMap=new java.util.HashMap<>(),wordMap=new java.util.HashMap<>();
+    StringBuilder word=new StringBuilder();
+    int total=value.length();
+    for(int i=0;i<=total;i++){
+      char c=i<total?value.charAt(i):' ';
+      boolean han=i<total&&(c>=0x3400&&c<=0x4DBF||c>=0x4E00&&c<=0x9FFF);
+      boolean asciiWord=i<total&&(c>='a'&&c<='z'||c>='A'&&c<='Z'||c>='0'&&c<='9');
+      if(han){hanMap.merge(String.valueOf(c),1,Integer::sum);}
+      if(han||!asciiWord){
+        if(word.length()>=2)wordMap.merge(word.toString().toLowerCase(java.util.Locale.US),1,Integer::sum);
+        word.setLength(0);
+      }else word.append(c);
+    }
+    StringBuilder out=new StringBuilder();
+    appendTopFreq(out,"高频汉字",hanMap);
+    appendTopFreq(out,"高频单词",wordMap);
+    return out.toString();
+  }
+  private static void appendTopFreq(StringBuilder out,String label,java.util.HashMap<String,Integer> map){
+    if(map.isEmpty())return;
+    List<java.util.Map.Entry<String,Integer>> entries=new ArrayList<>(map.entrySet());
+    entries.sort((a,b)->b.getValue()-a.getValue());
+    out.append(label).append("：");
+    for(int i=0;i<Math.min(5,entries.size());i++){if(i>0)out.append("  ");out.append(entries.get(i).getKey()).append('×').append(entries.get(i).getValue());}
+    out.append('\n');
   }
   static String dedupeLines(String value,boolean sort,boolean dropEmpty){
     TreeSet<String> unique=new TreeSet<>();List<String> keep=new ArrayList<>();

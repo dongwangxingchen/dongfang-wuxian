@@ -231,7 +231,57 @@ final class ToolHost {
       case "scorecard":scorecard(body);break;
       case "calendar":calendarGrid(body);break;
       case "randomnum":randomnum(body);break;
-      case "text_stats":{EditText input=input(body,"粘贴文本…",140);LinearLayout actions=actionRow(body);primaryAction(actions,"统计",()->output(body,Toolbox.textStats(input.getText().toString())));action(actions,"去重·排序",()->output(body,Toolbox.dedupeLines(input.getText().toString(),true,false)));action(actions,"去重·保序",()->output(body,Toolbox.dedupeLines(input.getText().toString(),false,false)));action(actions,"去空行",()->output(body,Toolbox.dedupeLines(input.getText().toString(),false,true)));result(body);}break;
+      case "text_stats":{
+        // v1.11.2 工具精修14：实时全维度统计（基准 Countable live 计数 + Word 字数口径，见 07-研究报告/工具精修-14）
+        TextView hint=text("输入即实时统计；字数 = 汉字 + 英文单词（与 Word 口径一致）。",12,act.MUTED());hint.setPadding(0,0,0,act.dp(8));body.addView(hint,new LinearLayout.LayoutParams(-1,-2));
+        EditText input=input(body,"粘贴文本…",120);
+        String[] statLabels={"字数","汉字","英文单词","数字串","字符(含空格)","字符(不含空白)","句数","段落","行数","标点"};
+        android.widget.GridLayout statGrid=new android.widget.GridLayout(ctx);statGrid.setColumnCount(2);
+        TextView[] statVals=new TextView[statLabels.length];
+        for(int i=0;i<statLabels.length;i++){
+          LinearLayout cell=new LinearLayout(ctx);cell.setOrientation(LinearLayout.VERTICAL);cell.setGravity(Gravity.CENTER);
+          GradientDrawable cellBg=solid(act.SURFACE());cellBg.setCornerRadius(act.dp(12));cell.setBackground(cellBg);
+          TextView num=text("0",17,act.TEXT());num.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);num.setGravity(Gravity.CENTER);num.setIncludeFontPadding(false);
+          TextView lab=text(statLabels[i],11,act.MUTED());lab.setGravity(Gravity.CENTER);
+          cell.addView(num,new LinearLayout.LayoutParams(-1,-2));cell.addView(lab,new LinearLayout.LayoutParams(-1,-2));
+          android.widget.GridLayout.LayoutParams clp=new android.widget.GridLayout.LayoutParams(
+              android.widget.GridLayout.spec(android.widget.GridLayout.UNDEFINED,1f),
+              android.widget.GridLayout.spec(android.widget.GridLayout.UNDEFINED,1f));
+          clp.width=0;clp.height=act.dp(62);
+          if(i%2==0)clp.rightMargin=act.dp(6);
+          clp.topMargin=act.dp(6);
+          statGrid.addView(cell,clp);statVals[i]=num;
+        }
+        body.addView(statGrid,new LinearLayout.LayoutParams(-1,-2));
+        TextView foot=text("",12,act.MUTED());foot.setPadding(act.dp(4),act.dp(8),act.dp(4),0);body.addView(foot,new LinearLayout.LayoutParams(-1,-2));
+        LinearLayout freqCard=new LinearLayout(ctx);freqCard.setOrientation(LinearLayout.VERTICAL);
+        GradientDrawable freqBg=solid(act.SURFACE());freqBg.setCornerRadius(act.dp(12));freqCard.setBackground(freqBg);freqCard.setPadding(act.dp(12),act.dp(10),act.dp(12),act.dp(10));freqCard.setClickable(true);freqCard.setFocusable(true);
+        freqCard.setContentDescription("高频字词，点击复制");
+        TextView freq=text("高频字词：—",13,act.TEXT());freq.setLineSpacing(act.dp(2),1f);freqCard.addView(freq,new LinearLayout.LayoutParams(-1,-2));
+        LinearLayout.LayoutParams fp=new LinearLayout.LayoutParams(-1,-2);fp.topMargin=act.dp(8);body.addView(freqCard,fp);
+        freqCard.setOnClickListener(v->{String t=freq.getText().toString();if(!t.endsWith("—"))copy(t);});
+        final EditText inputF=input;final TextView[] statValsF=statVals;final TextView footF=foot;final TextView freqF=freq;
+        Runnable recalc=()->{
+          String v=inputF.getText().toString();
+          int[] s=Toolbox.textStatsAll(v);
+          for(int i=0;i<statValsF.length;i++)statValsF[i].setText(String.valueOf(s[i]));
+          if(v.isEmpty()){footF.setText("UTF-8 0 字节 · 预计阅读 —");freqF.setText("高频字词：—");return;}
+          long bytes=v.getBytes(java.nio.charset.StandardCharsets.UTF_8).length;
+          String kb=bytes>=1024?String.format(java.util.Locale.US,"（%.1f KB）",bytes/1024.0):"";
+          String read=s[0]==0?"—":(s[0]<300?"<1 分钟":((s[0]+299)/300)+" 分钟");
+          footF.setText("UTF-8 "+bytes+" 字节"+kb+" · 预计阅读 "+read+"（按 300 字/分钟）");
+          String top=Toolbox.textTopFreq(v);
+          freqF.setText(top.isEmpty()?"高频字词：—":top.trim());
+        };
+        inputF.addTextChangedListener(new android.text.TextWatcher(){public void beforeTextChanged(CharSequence s,int a,int b,int c){}public void onTextChanged(CharSequence s,int a,int b,int c){}public void afterTextChanged(android.text.Editable s){recalc.run();}});
+        recalc.run();
+        LinearLayout actions=actionRow(body);
+        action(actions,"去重·保序",()->output(body,Toolbox.dedupeLines(input.getText().toString(),false,false)));
+        action(actions,"去重·排序",()->output(body,Toolbox.dedupeLines(input.getText().toString(),true,false)));
+        action(actions,"去空行",()->output(body,Toolbox.dedupeLines(input.getText().toString(),false,true)));
+        action(actions,"清空",()->{input.setText("");output(body,"");});
+        result(body);
+      }break;
       case "base64":{EditText input=input(body,"输入文本或 Base64…",140);LinearLayout actions=actionRow(body);action(actions,"编码",()->output(body,Toolbox.base64(true,input.getText().toString())));action(actions,"解码",()->output(body,Toolbox.base64(false,input.getText().toString())));result(body);}break;
       case "url_codec":{EditText input=input(body,"输入文本或已编码 URL…",140);LinearLayout actions=actionRow(body);action(actions,"编码",()->output(body,Toolbox.url(true,input.getText().toString())));action(actions,"解码",()->output(body,Toolbox.url(false,input.getText().toString())));result(body);}break;
       case "hash":hash(body);break;
