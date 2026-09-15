@@ -295,7 +295,11 @@ final class Toolbox {
       if(days<0){months--;Calendar prev=Calendar.getInstance();prev.setTime(now.getTime());prev.add(Calendar.MONTH,-1);days+=prev.getActualMaximum(Calendar.DAY_OF_MONTH);}// v1.7.4 修复：借「上一个月」天数（旧实现用当前月，月份边界算错）
       if(months<0){years--;months+=12;}
       long total=Math.round((now.getTimeInMillis()-b.getTimeInMillis())/86400000.0);
-      return"周岁 "+years+" 岁 "+months+" 个月 "+days+" 天\n共生活 "+total+" 天";
+      int nominal=now.get(Calendar.YEAR)-b.get(Calendar.YEAR)+1;// v1.14.0 精修27：虚岁——出生即 1 岁，每跨一个公历元旦 +1
+      Calendar nextBirthday=(Calendar)b.clone();nextBirthday.set(Calendar.YEAR,now.get(Calendar.YEAR));
+      if(nextBirthday.before(now))nextBirthday.add(Calendar.YEAR,1);
+      int daysToBirthday=(int)Math.round((nextBirthday.getTimeInMillis()-now.getTimeInMillis())/86400000.0);
+      return"周岁 "+years+" 岁 "+months+" 个月 "+days+" 天\n虚岁 "+nominal+" 岁\n共生活 "+total+" 天\n距下一生日 "+daysToBirthday+" 天";
     }catch(Exception e){return"格式：2000-06-15";}
   }
 
@@ -575,12 +579,40 @@ final class Toolbox {
     int idx=day<cut[month-1]?month-1:month;
     return STAR_SIGNS[idx%12]+"座";
   }
+  /** v1.14.0 精修25：生肖按立春精确判定——立春前出生属上一年生肖（寿星公式 2001-2099，与万年历节气同源）；范围外回退按公历年 */
+  static int lichunDay(int year){
+    int y2=year%100;
+    return (int)(y2*0.2422+3.87)-(int)((y2-1)/4);
+  }
+  static String zodiacPrecise(int year,int month,int day){
+    int idxYear=year;
+    if(year>=2001&&year<=2099){
+      int lichun=lichunDay(year);
+      if(month<2||(month==2&&day<lichun))idxYear=year-1;
+    }
+    return zodiacOf(idxYear);
+  }
   static String zodiac(String yyyymmdd){
     try{java.text.SimpleDateFormat f=new java.text.SimpleDateFormat("yyyy-MM-dd",Locale.CHINA);f.setLenient(false);
       Calendar c=Calendar.getInstance();c.setTime(f.parse(yyyymmdd.trim()));
       int y=c.get(Calendar.YEAR),m=c.get(Calendar.MONTH)+1,d=c.get(Calendar.DAY_OF_MONTH);
-      return"生肖："+zodiacOf(y)+"\n星座："+starSign(m,d);
+      String note=(y>=2001&&y<=2099)?"（按立春校正）":"";
+      return"生肖："+zodiacPrecise(y,m,d)+note+"\n星座："+starSign(m,d);
     }catch(Exception e){return"格式：2000-06-15";}
+  }
+  /** v1.14.0 精修26：+省份（GB/T 2260 省级行政区划码）+周岁 */
+  static String provinceOf(String id){
+    int code=Integer.parseInt(id.substring(0,2));
+    switch(code){
+      case 11:return"北京";case 12:return"天津";case 13:return"河北";case 14:return"山西";case 15:return"内蒙古";
+      case 21:return"辽宁";case 22:return"吉林";case 23:return"黑龙江";
+      case 31:return"上海";case 32:return"江苏";case 33:return"浙江";case 34:return"安徽";case 35:return"福建";case 36:return"江西";case 37:return"山东";
+      case 41:return"河南";case 42:return"湖北";case 43:return"湖南";case 44:return"广东";case 45:return"广西";case 46:return"海南";
+      case 50:return"重庆";case 51:return"四川";case 52:return"贵州";case 53:return"云南";case 54:return"西藏";
+      case 61:return"陕西";case 62:return"甘肃";case 63:return"青海";case 64:return"宁夏";case 65:return"新疆";
+      case 71:return"台湾";case 81:return"香港";case 82:return"澳门";
+      default:return"未知地区码";
+    }
   }
   static String parseIdCard(String raw){
     String id=raw==null?"":raw.trim().toUpperCase(Locale.ROOT);
@@ -592,7 +624,8 @@ final class Toolbox {
     int year=Integer.parseInt(id.substring(6,10)),month=Integer.parseInt(id.substring(10,12)),day=Integer.parseInt(id.substring(12,14));
     try{java.text.SimpleDateFormat f=new java.text.SimpleDateFormat("yyyy-MM-dd",Locale.CHINA);f.setLenient(false);f.parse(year+"-"+month+"-"+day);}catch(Exception e){return"出生日期无效";}
     String gender=(id.charAt(16)-'0')%2==1?"男":"女";
-    return"出生："+year+"-"+String.format(Locale.US,"%02d",month)+"-"+String.format(Locale.US,"%02d",day)+"\n性别："+gender+"\n校验位："+(valid?"有效 ✓":"无效 ✗");
+    int age=Calendar.getInstance().get(Calendar.YEAR)-year;
+    return"省份："+provinceOf(id)+"\n出生："+year+"-"+String.format(Locale.US,"%02d",month)+"-"+String.format(Locale.US,"%02d",day)+"（"+age+" 岁）\n性别："+gender+"\n校验位："+(valid?"有效 ✓":"无效 ✗");
   }
   static String bmiInfo(double heightCm,double weightKg){
     if(heightCm<50||heightCm>260||weightKg<10||weightKg>500)return"请输入合理的身高体重";
