@@ -1078,23 +1078,30 @@ final class ToolHost {
   void torch(LinearLayout body){
     TextView state=text("未开启",14,act.TEXT());state.setPadding(0,act.dp(6),0,act.dp(6));
     LinearLayout actions=actionRow(body);
-    action(actions,"开灯",()->{if(act.startTorch())state.setText("手电筒已开启\n返回或离开工具页自动关闭");});
+    // v1.15.0 精修30：开灯失败给明确反馈（旧版静默无提示）
+    action(actions,"开灯",()->{if(act.startTorch())state.setText("手电筒已开启\n返回或离开工具页自动关闭");else state.setText("此设备没有闪光灯，或手电筒被占用");});
     action(actions,"关灯",()->{act.stopTorch();state.setText("已关闭");});
     body.addView(state,new LinearLayout.LayoutParams(-1,-2));
     result(body);
   }
 
   void noise(LinearLayout body){
-    TextView state=text("棕噪音：低频噪声，适合助眠与专注。播放中可退到后台。",12,act.MUTED());state.setPadding(0,0,0,act.dp(10));
+    TextView state=text("白噪音：均匀沙沙声，适合专注；棕噪音：低频隆隆声，适合助眠。播放中可退到后台。",12,act.MUTED());state.setPadding(0,0,0,act.dp(10));
     body.addView(state,new LinearLayout.LayoutParams(-1,-2));
     LinearLayout actions=actionRow(body);
-    action(actions,"播放",()->{act.startBrownNoise();act.showNotice("播放中",false);});
-    action(actions,"停止",()->act.stopBrownNoise());
+    // v1.15.0 精修31：+白噪音
+    action(actions,"白噪音",()->{act.startNoise(true);act.showNotice("白噪音播放中",false);});
+    action(actions,"棕噪音",()->{act.startNoise(false);act.showNotice("棕噪音播放中",false);});
+    action(actions,"停止",()->act.stopNoise());
     result(body);
   }
 
   void tts(LinearLayout body){
     EditText input=input(body,"输入要朗读的文字…",100);
+    LinearLayout rateRow=chipRow(body);rateRow.setPadding(0,act.dp(8),0,0);
+    LinearLayout.LayoutParams rlabelLp=chipMargin();rlabelLp.rightMargin=act.dp(12);rateRow.addView(text("语速",12,act.TEXT()),rlabelLp);
+    float[] rates={0.75f,1f,1.5f};String[] rateNames={"慢 0.75x","正常 1x","快 1.5x"};TextView[] rateChips=new TextView[rates.length];
+    for(int i=0;i<rates.length;i++){final int idx=i;rateChips[i]=selectChip(rateRow,rateNames[i],idx==1,()->{act.setTtsRate(rates[idx]);for(int j=0;j<rateChips.length;j++)styleSelect(rateChips[j],j==idx);});}
     LinearLayout actions=actionRow(body);
     action(actions,"朗读",()->act.speakTts(input.getText().toString()));
     action(actions,"停止",()->act.stopTts());
@@ -1288,6 +1295,7 @@ final class ToolHost {
     TextView dial=text("…",44,act.PRIMARY());dial.setGravity(Gravity.CENTER);dial.setBackground(solid(act.SURFACE()));body.addView(dial,new LinearLayout.LayoutParams(-1,act.dp(150)));
     TextView degree=text("",13,act.TEXT());degree.setGravity(Gravity.CENTER);body.addView(degree,new LinearLayout.LayoutParams(-1,act.dp(30)));
     TextView note=text("电子设备/磁场附近可能不准。",11,act.MUTED());body.addView(note,new LinearLayout.LayoutParams(-1,act.dp(24)));
+    final float[] smoothPrev={Float.NaN};// v1.15.0 精修33：平滑状态槽
     android.hardware.SensorManager sm=(android.hardware.SensorManager)act.getSystemService(android.content.Context.SENSOR_SERVICE);
     android.hardware.Sensor sensor=sm==null?null:sm.getDefaultSensor(android.hardware.Sensor.TYPE_ROTATION_VECTOR);
     if(sensor==null&&sm!=null)sensor=sm.getDefaultSensor(android.hardware.Sensor.TYPE_ORIENTATION);
@@ -1303,8 +1311,16 @@ final class ToolHost {
           deg=(int)Math.round(Math.toDegrees(ori[0]));
         }else deg=(int)event.values[0];
         deg=(deg%360+360)%360;
-        dial.setText(dirs[Math.round(deg/45f)%8]);
-        degree.setText(deg+"°");
+        // v1.15.0 精修33：低通平滑防抖（raw 跳变时读数渐进跟随，指针不抖）
+        if(Float.isNaN(smoothPrev[0]))smoothPrev[0]=deg;
+        float delta=deg-smoothPrev[0];
+        if(delta>180)delta-=360;if(delta<-180)delta+=360;
+        float smooth=smoothPrev[0]+delta*0.25f;
+        smooth=(smooth%360+360)%360;
+        smoothPrev[0]=smooth;
+        int shown=Math.round(smooth);
+        dial.setText(dirs[Math.round(shown/45f)%8]);
+        degree.setText(shown+"°");
       }
       public void onAccuracyChanged(android.hardware.Sensor s,int a){}
     };
@@ -1315,6 +1331,10 @@ final class ToolHost {
   void freqgen(LinearLayout body){
     TextView status=text("未播放",14,act.TEXT());status.setPadding(0,act.dp(8),0,act.dp(8));body.addView(status,new LinearLayout.LayoutParams(-1,act.dp(32)));
     final EditText hz=input(body,"频率 Hz（20–20000）",44);hz.setInputType(InputType.TYPE_CLASS_NUMBER);hz.setText("440");
+    LinearLayout presets=chipRow(body);presets.setPadding(0,act.dp(8),0,0);
+    LinearLayout.LayoutParams plp=chipMargin();plp.rightMargin=act.dp(12);presets.addView(text("常用",12,act.TEXT()),plp);
+    int[] presetHz={100,440,1000,8000};TextView[] presetChips=new TextView[presetHz.length];
+    for(int i=0;i<presetHz.length;i++){final int p=presetHz[i];presetChips[i]=selectChip(presets,p+" Hz",p==440,()->{hz.setText(String.valueOf(p));for(int j=0;j<presetChips.length;j++)styleSelect(presetChips[j],presetHz[j]==p);});}
     LinearLayout actions=actionRow(body);result(body);
     final android.media.AudioTrack[] track={null};
     action(actions,"播放",()->{
@@ -1355,7 +1375,7 @@ final class ToolHost {
     LinearLayout root();
     void showNotice(String message,boolean longLived);
     void openTool(String id);void popToolBack();void startScreenTest();
-    boolean startTorch();void stopTorch();void startBrownNoise();void stopBrownNoise();void speakTts(String value);void stopTts();
+    boolean startTorch();void stopTorch();void startNoise(boolean white);void stopNoise();void speakTts(String value);void stopTts();void setTtsRate(float rate);
     void toolHostSketch(LinearLayout body);void toolHostRuler(LinearLayout body);void toolHostLevel(LinearLayout body);
     void pickToolImage();void runImageCompressPending();
     Runnable levelCleanup();void setLevelCleanup(Runnable value);

@@ -1661,28 +1661,37 @@ void showCustomLanzouBaseOriginDialog(){EditText input=sourceInput("输入 oreoj
   static File uniqueFile(File directory,String name){File file=new File(directory,name);if(!file.exists())return file;int dot=name.lastIndexOf('.');String base=dot>0?name.substring(0,dot):name,ext=dot>0?name.substring(dot):"";for(int i=1;;i++){file=new File(directory,base+" ("+i+")"+ext);if(!file.exists())return file;}}
   static String safeName(String name){String value=name.replaceAll("[\\/:*?\"<>|]","_").trim();return value.isEmpty()?"download.bin":value;}
 
-  //—— 工具屏媒体资源：棕噪音 / TTS（退出工具页或销毁时释放）——
-  public void startBrownNoise(){
-    stopBrownNoise();
+  //—— 工具屏媒体资源：噪音 / TTS（退出工具页或销毁时释放）——
+  /** v1.15.0 精修31：白/棕噪音统一入口（白=原始白噪声，棕=积分低通） */
+  public void startNoise(boolean white){
+    stopNoise();
     int sampleRate=44100,len=sampleRate*4;// 4 秒循环
     byte[] buffer=new byte[len];
     double last=0;
-    for(int i=0;i<len;i++){double white=Math.random()*2-1;last=(last+0.02*white)/1.02;double brown=last*3.5;if(brown>1)brown=1;if(brown<-1)brown=-1;buffer[i]=(byte)(int)(brown*127);}
+    for(int i=0;i<len;i++){double w=Math.random()*2-1;
+      if(white){buffer[i]=(byte)(int)(w*127);continue;}
+      last=(last+0.02*w)/1.02;double brown=last*3.5;if(brown>1)brown=1;if(brown<-1)brown=-1;buffer[i]=(byte)(int)(brown*127);}
     int minBuf=android.media.AudioTrack.getMinBufferSize(sampleRate,android.media.AudioFormat.CHANNEL_OUT_MONO,android.media.AudioFormat.ENCODING_PCM_8BIT);
     noiseTrack=new android.media.AudioTrack(android.media.AudioManager.STREAM_MUSIC,sampleRate,android.media.AudioFormat.CHANNEL_OUT_MONO,android.media.AudioFormat.ENCODING_PCM_8BIT,Math.max(minBuf,len),android.media.AudioTrack.MODE_STATIC);
     noiseTrack.write(buffer,0,len);
     noiseTrack.setLoopPoints(0,len,-1);
     noiseTrack.play();
   }
-  public void stopBrownNoise(){if(noiseTrack!=null){try{noiseTrack.stop();noiseTrack.release();}catch(Exception ignored){}noiseTrack=null;}}
+  public void stopNoise(){if(noiseTrack!=null){try{noiseTrack.stop();noiseTrack.release();}catch(Exception ignored){}noiseTrack=null;}}
   public void speakTts(String value){
     if(value==null||value.trim().isEmpty()){showNotice("先输入文字",true);return;}
-    if(ttsEngine==null){ttsEngine=new android.speech.tts.TextToSpeech(this,status->{if(status==android.speech.tts.TextToSpeech.SUCCESS){ttsEngine.setLanguage(Locale.SIMPLIFIED_CHINESE);ttsEngine.speak(value,android.speech.tts.TextToSpeech.QUEUE_FLUSH,null,"dfwx");}else showNotice("TTS 初始化失败",true);});return;}
+    if(ttsEngine==null){ttsEngine=new android.speech.tts.TextToSpeech(this,status->{if(status==android.speech.tts.TextToSpeech.SUCCESS){ttsEngine.setLanguage(Locale.SIMPLIFIED_CHINESE);ttsEngine.setSpeechRate(ttsRate);ttsEngine.speak(value,android.speech.tts.TextToSpeech.QUEUE_FLUSH,null,"dfwx");}else showNotice("TTS 初始化失败",true);});return;}
+    ttsEngine.setSpeechRate(ttsRate);
     ttsEngine.speak(value,android.speech.tts.TextToSpeech.QUEUE_FLUSH,null,"dfwx");
+  }
+  float ttsRate=1f;// v1.15.0 精修32：语速记忆
+  public void setTtsRate(float rate){
+    ttsRate=rate;
+    if(ttsEngine!=null)ttsEngine.setSpeechRate(rate);
   }
   public void stopTts(){if(ttsEngine!=null)ttsEngine.stop();}
   void releaseToolMedia(){
-    stopBrownNoise();stopTts();
+    stopNoise();stopTts();
     if(ttsEngine!=null){try{ttsEngine.shutdown();}catch(Exception ignored){}ttsEngine=null;}
     if(torchCleanup!=null){try{torchCleanup.run();}catch(Exception ignored){}torchCleanup=null;}
     if(levelCleanup!=null){try{levelCleanup.run();}catch(Exception ignored){}levelCleanup=null;}// v1.2.2:水平仪独立清理槽
