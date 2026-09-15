@@ -282,8 +282,29 @@ final class ToolHost {
         action(actions,"清空",()->{input.setText("");output(body,"");});
         result(body);
       }break;
-      case "base64":{EditText input=input(body,"输入文本或 Base64…",140);LinearLayout actions=actionRow(body);action(actions,"编码",()->output(body,Toolbox.base64(true,input.getText().toString())));action(actions,"解码",()->output(body,Toolbox.base64(false,input.getText().toString())));result(body);}break;
-      case "url_codec":{EditText input=input(body,"输入文本或已编码 URL…",140);LinearLayout actions=actionRow(body);action(actions,"编码",()->output(body,Toolbox.url(true,input.getText().toString())));action(actions,"解码",()->output(body,Toolbox.url(false,input.getText().toString())));result(body);}break;
+      case "base64":{
+        // v1.12.0 工具精修15：RFC 4648 向量背书 + URL-safe/去填充变体（见研究报告）
+        EditText input=input(body,"输入文本或 Base64…",140);
+        LinearLayout opts=new LinearLayout(ctx);opts.setGravity(Gravity.CENTER_VERTICAL);
+        CheckBox urlSafe=checkInline(opts,"URL-safe（-_）",false);
+        CheckBox noPad=checkInline(opts,"去填充（=）",false);
+        body.addView(opts,new LinearLayout.LayoutParams(-1,act.dp(40)));
+        LinearLayout actions=actionRow(body);
+        action(actions,"编码",()->output(body,Toolbox.base64Encode(input.getText().toString(),urlSafe.isChecked(),noPad.isChecked())));
+        action(actions,"解码",()->output(body,Toolbox.base64Decode(input.getText().toString())));
+        result(body);
+      }break;
+      case "url_codec":{
+        // v1.12.0 工具精修16：路径（%20）与表单（+）双口径
+        EditText input=input(body,"输入文本或已编码 URL…",140);
+        LinearLayout opts=new LinearLayout(ctx);opts.setGravity(Gravity.CENTER_VERTICAL);
+        CheckBox formMode=checkInline(opts,"表单口径（空格→+）",false);
+        body.addView(opts,new LinearLayout.LayoutParams(-1,act.dp(40)));
+        LinearLayout actions=actionRow(body);
+        action(actions,"编码",()->output(body,Toolbox.urlEncode(input.getText().toString(),formMode.isChecked())));
+        action(actions,"解码",()->output(body,Toolbox.urlDecode(input.getText().toString(),formMode.isChecked())));
+        result(body);
+      }break;
       case "hash":hash(body);break;
       case "json":json(body);break;
       case "regex":regex(body);break;
@@ -1235,19 +1256,28 @@ final class ToolHost {
     action(actions,"倒计时",()->{try{long ms=Long.parseLong(mins.getText().toString().trim())*60000;if(ms<=0)throw new NumberFormatException();cdMode[0]=true;running[0]=true;cdEnd[0]=System.currentTimeMillis()+ms;handler.post(tick[0]);}catch(Exception e){act.showNotice("先填倒计时分钟数",true);}});
   }
   void timestamp(LinearLayout body){
-    final EditText field=input(body,"时间戳（秒/毫秒）或日期（yyyy-MM-dd HH:mm:ss）",44);
+    // v1.12.0 工具精修17：自动判别方向实时转换（纯数字=时间戳，否则=日期）；ISO 8601+星期
+    TextView hint=text("粘贴即自动转换：纯数字按时间戳（秒/毫秒自动判别），否则按日期。",12,act.MUTED());hint.setPadding(0,0,0,act.dp(8));body.addView(hint,new LinearLayout.LayoutParams(-1,-2));
+    final EditText field=input(body,"时间戳或日期",44);
+    TextView live=text("",13,act.TEXT());live.setTypeface(android.graphics.Typeface.MONOSPACE);live.setLineSpacing(act.dp(2),1f);live.setTextIsSelectable(true);
+    LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2);lp.topMargin=act.dp(8);body.addView(live,lp);
     LinearLayout actions=actionRow(body);
-    action(actions,"当前时间戳",()->output(body,Toolbox.timestampConvert("now","")));
-    action(actions,"时间戳 → 日期",()->output(body,Toolbox.timestampConvert("to_date",field.getText().toString())));
-    action(actions,"日期 → 时间戳",()->output(body,Toolbox.timestampConvert("to_stamp",field.getText().toString())));
+    action(actions,"当前时间戳",()->output(body,Toolbox.timestampNow()));
+    Runnable recalc=()->{
+      String v=field.getText().toString();
+      live.setText(v.trim().isEmpty()?"":Toolbox.timestampAuto(v));
+    };
+    field.addTextChangedListener(new android.text.TextWatcher(){public void beforeTextChanged(CharSequence s,int a,int b,int c){}public void onTextChanged(CharSequence s,int a,int b,int c){}public void afterTextChanged(android.text.Editable s){recalc.run();}});
+    recalc.run();
     result(body);
   }
   void radix(LinearLayout body){
-    final EditText value=input(body,"数值",44);
+    final EditText value=input(body,"数值（支持负号与 0x/0b 前缀）",44);
     LinearLayout actions=actionRow(body);result(body);
     action(actions,"按十进制解析",()->output(body,Toolbox.radixConvert(value.getText().toString().trim(),10)));
     action(actions,"按十六进制解析",()->output(body,Toolbox.radixConvert(value.getText().toString().trim(),16)));
     action(actions,"按二进制解析",()->output(body,Toolbox.radixConvert(value.getText().toString().trim(),2)));
+    action(actions,"按三十六进制解析",()->output(body,Toolbox.radixConvert(value.getText().toString().trim(),36)));// v1.12.0 精修18：短链常见 base36
   }
   void compass(LinearLayout body){
     TextView dial=text("…",44,act.PRIMARY());dial.setGravity(Gravity.CENTER);dial.setBackground(solid(act.SURFACE()));body.addView(dial,new LinearLayout.LayoutParams(-1,act.dp(150)));
@@ -1304,7 +1334,8 @@ final class ToolHost {
     LinearLayout actions=actionRow(body);primaryAction(actions,"抽取",()->output(body,Toolbox.pickFrom(names.getText().toString(),parseInt(count,1))));result(body);
   }
   void morse(LinearLayout body){
-    final EditText field=input(body,"英文或摩斯电码（. - 与 /）",100);
+    // v1.12.0 工具精修19：ITU 全表（字母+数字+标点），·—容错，未知电码计数
+    final EditText field=input(body,"英文/数字/标点 或 摩斯电码（. - · — 与 /）",100);
     LinearLayout actions=actionRow(body);result(body);
     action(actions,"编码为摩斯",()->output(body,Toolbox.morseConvert(true,field.getText().toString())));
     action(actions,"解码为英文",()->output(body,Toolbox.morseConvert(false,field.getText().toString())));
