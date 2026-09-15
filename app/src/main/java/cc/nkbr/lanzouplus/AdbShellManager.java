@@ -83,5 +83,5 @@ final class AdbShellManager implements AutoCloseable {
     }catch(Throwable error){service=null;refresh();return new InstallResult(false,safeMessage(error));}finally{if(staged!=null&&!staged.delete())staged.deleteOnExit();}
   }
 
-  @Override public void close(){if(!started)return;started=false;Shizuku.removeBinderReceivedListener(binderReceived);Shizuku.removeBinderDeadListener(binderDead);Shizuku.removeRequestPermissionResultListener(permissionResult);try{if(Shizuku.pingBinder())Shizuku.unbindUserService(serviceArgs,connection,false);}catch(Throwable ignored){}service=null;binding=false;}
+  @Override public void close(){if(!started)return;started=false;Shizuku.removeBinderReceivedListener(binderReceived);Shizuku.removeBinderDeadListener(binderDead);Shizuku.removeRequestPermissionResultListener(permissionResult);try{if(Shizuku.pingBinder())Shizuku.unbindUserService(serviceArgs,connection,false);}catch(Throwable ignored){android.util.Log.w("AdbShellManager.java", "AdbShellManager.java Throwable: "+ignored.getMessage(), ignored);}service=null;binding=false;}
 }

@@ -20,18 +20,18 @@ final class Support {
   static boolean askOnDownload(Context c){return prefs(c).getBoolean(KEY_ASK_ON_DOWNLOAD,true);}
   static void setAskOnDownload(Context c,boolean value){
     SharedPreferences p=prefs(c);
-    try{SharedPreferences.Editor e=p.edit();if(e!=null)e.putBoolean(KEY_ASK_ON_DOWNLOAD,value).apply();}catch(Throwable ignored){}
+    try{SharedPreferences.Editor e=p.edit();if(e!=null)e.putBoolean(KEY_ASK_ON_DOWNLOAD,value).apply();}catch(Throwable ignored){android.util.Log.w("Support.java", "Support.java Throwable: "+ignored.getMessage(), ignored);}
   }
   /** 记录"刚弹过支持请求"，进入 24h 冷却 */
   static void touchNag(Context c){
     SharedPreferences p=prefs(c);
-    try{SharedPreferences.Editor e=p.edit();if(e!=null)e.putLong(KEY_LAST_NAG_AT,System.currentTimeMillis()).apply();}catch(Throwable ignored){}
+    try{SharedPreferences.Editor e=p.edit();if(e!=null)e.putLong(KEY_LAST_NAG_AT,System.currentTimeMillis()).apply();}catch(Throwable ignored){android.util.Log.w("Support.java", "Support.java Throwable: "+ignored.getMessage(), ignored);}
   }
   /** 零验证零延迟解锁（Seal/MiXplorer 捐赠型产品的信任模式；付费页小字已说明换机后重按一次即可）。
    *  v1.5.1 幂等：已解锁状态下重复点解锁不覆盖首次付费日期（感谢页日期 = 首次支持日） */
   static void unlock(Context c){
     SharedPreferences p=prefs(c);
-    try{long first=p.getLong(KEY_PAID_AT,0L);SharedPreferences.Editor e=p.edit();if(e!=null){e.putBoolean(KEY_UNLOCKED,true);if(first<=0L)e.putLong(KEY_PAID_AT,System.currentTimeMillis());e.apply();}}catch(Throwable ignored){}
+    try{long first=p.getLong(KEY_PAID_AT,0L);SharedPreferences.Editor e=p.edit();if(e!=null){e.putBoolean(KEY_UNLOCKED,true);if(first<=0L)e.putLong(KEY_PAID_AT,System.currentTimeMillis());e.apply();}}catch(Throwable ignored){android.util.Log.w("Support.java", "Support.java Throwable: "+ignored.getMessage(), ignored);}
   }
   private static SharedPreferences prefs(Context c){return c.getSharedPreferences(PREF_FILE,Context.MODE_PRIVATE);}
 

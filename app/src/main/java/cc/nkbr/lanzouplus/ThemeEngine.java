@@ -71,11 +71,11 @@ static int selectedFill(int primary){return tint(primary,30);}
     String id=p.getString(KEY_THEME,"legacy");
     if(!p.getBoolean(KEY_MIGRATED_131,false)){
       id="legacy";
-      try{SharedPreferences.Editor e=p.edit();if(e!=null)e.putBoolean(KEY_MIGRATED_131,true).putString(KEY_THEME,id).apply();}catch(Throwable ignored){}
+      try{SharedPreferences.Editor e=p.edit();if(e!=null)e.putBoolean(KEY_MIGRATED_131,true).putString(KEY_THEME,id).apply();}catch(Throwable ignored){android.util.Log.w("ThemeEngine.java", "ThemeEngine.java Throwable: "+ignored.getMessage(), ignored);}
     }
     if("nova".equals(id)){// v1.5.0 删主题迁移：nova 已不存在，落回 legacy 并写盘
       id="legacy";
-      try{SharedPreferences.Editor e=p.edit();if(e!=null)e.putString(KEY_THEME,id).apply();}catch(Throwable ignored){}
+      try{SharedPreferences.Editor e=p.edit();if(e!=null)e.putString(KEY_THEME,id).apply();}catch(Throwable ignored){android.util.Log.w("ThemeEngine.java", "ThemeEngine.java Throwable: "+ignored.getMessage(), ignored);}
     }
     cache=byId(id);
     return cache.id;

@@ -146,7 +146,7 @@ final class PremiumCloudClient {
     boolean isCancelled(){synchronized(lock){return cancelled;}}
     void register(HttpURLConnection connection)throws CloudException{synchronized(lock){if(cancelled){connection.disconnect();throw new CloudException(ERROR_NETWORK,"操作已中断");}connections.add(connection);}}
     void unregister(HttpURLConnection connection){if(connection==null)return;synchronized(lock){connections.remove(connection);}}
-    void cancel(){List<HttpURLConnection> active;synchronized(lock){if(cancelled)return;cancelled=true;active=new ArrayList<>(connections);connections.clear();}for(HttpURLConnection connection:active)try{connection.disconnect();}catch(RuntimeException ignored){}}
+    void cancel(){List<HttpURLConnection> active;synchronized(lock){if(cancelled)return;cancelled=true;active=new ArrayList<>(connections);connections.clear();}for(HttpURLConnection connection:active)try{connection.disconnect();}catch(RuntimeException ignored){android.util.Log.w("PremiumCloudClient.java", "PremiumCloudClient.java RuntimeException: "+ignored.getMessage(), ignored);}}
   }
 
   /** Fast local check used to decide whether the account dialog is needed. */
@@ -521,7 +521,7 @@ final class PremiumCloudClient {
 
   private void clearStoredLogin(){
     preferences.edit().remove(PREF_IV).remove(PREF_SECRET).apply();sessions.clear();accountLocks.clear();
-    try{KeyStore store=KeyStore.getInstance("AndroidKeyStore");store.load(null);if(store.containsAlias(KEY_ALIAS))store.deleteEntry(KEY_ALIAS);}catch(Exception ignored){}
+    try{KeyStore store=KeyStore.getInstance("AndroidKeyStore");store.load(null);if(store.containsAlias(KEY_ALIAS))store.deleteEntry(KEY_ALIAS);}catch(Exception ignored){android.util.Log.w("PremiumCloudClient.java", "PremiumCloudClient.java Exception: "+ignored.getMessage(), ignored);}
   }
 
   private static String normalizedName(String loginName)throws CloudException{
@@ -603,7 +603,7 @@ final class PremiumCloudClient {
     if(body==null||body.isEmpty())return "";
     try{
       JSONObject object=new JSONObject(body);String found=findUrl(object,0);if(!found.isEmpty())return found;
-    }catch(Exception ignored){}
+    }catch(Exception ignored){android.util.Log.w("PremiumCloudClient.java", "PremiumCloudClient.java Exception: "+ignored.getMessage(), ignored);}
     Matcher matcher=Pattern.compile("https://(?:[A-Za-z0-9-]+\\.)*ilanzou\\.com/[^\\\"'\\s<]+",Pattern.CASE_INSENSITIVE).matcher(body);
     return matcher.find()?matcher.group():"";
   }

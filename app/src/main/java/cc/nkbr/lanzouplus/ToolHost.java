@@ -1325,7 +1325,7 @@ final class ToolHost {
       public void onAccuracyChanged(android.hardware.Sensor s,int a){}
     };
     sm.registerListener(listener,sensor,android.hardware.SensorManager.SENSOR_DELAY_UI);
-    if(act.levelCleanup()!=null){try{act.levelCleanup().run();}catch(Exception ignored){}}
+    if(act.levelCleanup()!=null){try{act.levelCleanup().run();}catch(Exception ignored){android.util.Log.w("ToolHost.java", "ToolHost.java Exception: "+ignored.getMessage(), ignored);}}
     act.setLevelCleanup(()->sm.unregisterListener(listener));// 独立清理槽（同水平仪），离开工具页自动注销
   }
   void freqgen(LinearLayout body){
@@ -1340,7 +1340,7 @@ final class ToolHost {
     action(actions,"播放",()->{
       try{
         int f=Math.max(20,Math.min(20000,parseInt(hz,440)));
-        if(track[0]!=null){try{track[0].stop();track[0].release();}catch(Exception ignored){}track[0]=null;}
+        if(track[0]!=null){try{track[0].stop();track[0].release();}catch(Exception ignored){android.util.Log.w("ToolHost.java", "ToolHost.java Exception: "+ignored.getMessage(), ignored);}track[0]=null;}
         int rate=44100,n=rate;
         short[] wave=new short[n];
         for(int i=0;i<n;i++)wave[i]=(short)(Math.sin(2*Math.PI*f*i/rate)*8000);
@@ -1349,9 +1349,9 @@ final class ToolHost {
         status.setText("正在播放 "+f+" Hz（注意音量）");
       }catch(Exception e){act.showNotice("播放失败："+e.getMessage(),true);}
     });
-    action(actions,"停止",()->{if(track[0]!=null){try{track[0].stop();track[0].release();}catch(Exception ignored){}track[0]=null;}status.setText("已停止");});
-    if(act.levelCleanup()!=null){try{act.levelCleanup().run();}catch(Exception ignored){}}
-    act.setLevelCleanup(()->{if(track[0]!=null){try{track[0].stop();track[0].release();}catch(Exception ignored){}track[0]=null;}});// 离开工具页自动停止
+    action(actions,"停止",()->{if(track[0]!=null){try{track[0].stop();track[0].release();}catch(Exception ignored){android.util.Log.w("ToolHost.java", "ToolHost.java Exception: "+ignored.getMessage(), ignored);}track[0]=null;}status.setText("已停止");});
+    if(act.levelCleanup()!=null){try{act.levelCleanup().run();}catch(Exception ignored){android.util.Log.w("ToolHost.java", "ToolHost.java Exception: "+ignored.getMessage(), ignored);}}
+    act.setLevelCleanup(()->{if(track[0]!=null){try{track[0].stop();track[0].release();}catch(Exception ignored){android.util.Log.w("ToolHost.java", "ToolHost.java Exception: "+ignored.getMessage(), ignored);}track[0]=null;}});// 离开工具页自动停止
   }
   void picker(LinearLayout body){
     final EditText names=input(body,"名单（换行或逗号分隔）",120);
