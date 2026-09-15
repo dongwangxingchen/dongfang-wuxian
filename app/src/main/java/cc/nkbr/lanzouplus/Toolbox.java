@@ -3,6 +3,8 @@ package cc.nkbr.lanzouplus;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.SecureRandom;
+import java.text.ParsePosition;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.List;
@@ -94,19 +96,44 @@ final class Toolbox {
   static int toolHeat(String id){for(String[] t:TOOLS)if(t[0].equals(id))return Integer.parseInt(t[6]);return 0;}
   static String toolCatalogJson(){try{JSONArray array=new JSONArray();for(String[] t:TOOLS)array.put(new JSONObject().put("id",t[0]).put("name",t[1]).put("description",t[2]).put("keywords",t[3]).put("category",t[5]));return new JSONObject().put("tools",array).toString();}catch(Exception e){return "{\"tools\":[]}";}}
   //——— v1.2.2 新增工具纯逻辑 ———
-  static String timestampConvert(String mode,String value){
-    try{
-      java.text.SimpleDateFormat fmt=new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss",Locale.CHINA);
-      if("now".equals(mode))return "当前时间戳："+System.currentTimeMillis()/1000+" 秒 / "+System.currentTimeMillis()+" 毫秒\n本地时间："+fmt.format(new java.util.Date());
-      if("to_date".equals(mode)){long v=Long.parseLong(value.trim());if(v<100000000000L)v*=1000;return "对应时间："+fmt.format(new java.util.Date(v));}
-      java.util.Date d=fmt.parse(value.trim());if(d==null)return"无法解析";
-      return "时间戳（秒）："+d.getTime()/1000+"\n时间戳（毫秒）："+d.getTime();
-    }catch(Exception e){return"格式错误：日期用 yyyy-MM-dd HH:mm:ss，时间戳为纯数字";}
+  /** v1.12.0 工具精修17：时间戳自动判别方向（纯数字=时间戳，其余=日期）；ISO 8601+星期 */
+  static String timestampNow(){
+    SimpleDateFormat fmt=new SimpleDateFormat("yyyy-MM-dd HH:mm:ss",Locale.CHINA);
+    return "当前时间戳："+System.currentTimeMillis()/1000+" 秒 / "+System.currentTimeMillis()+" 毫秒\n本地时间："+fmt.format(new java.util.Date());
   }
+  static String timestampAuto(String value){
+    String v=value==null?"":value.trim();
+    if(v.isEmpty())return "输入时间戳（秒/毫秒）或日期（yyyy-MM-dd 或 yyyy-MM-dd HH:mm:ss）";
+    if(v.matches("\\d+"))return stampToDate(Long.parseLong(v));
+    return dateToStamp(v);
+  }
+  static String stampToDate(long v){
+    long ms=v<100000000000L?v*1000:v;
+    java.util.Date d=new java.util.Date(ms);
+    SimpleDateFormat fmt=new SimpleDateFormat("yyyy-MM-dd HH:mm:ss",Locale.CHINA);
+    SimpleDateFormat iso=new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssXXX",Locale.CHINA);
+    Calendar c=Calendar.getInstance();c.setTime(d);
+    String[] weeks={"周日","周一","周二","周三","周四","周五","周六"};// Calendar.DAY_OF_WEEK: 1=周日
+    return "对应时间："+fmt.format(d)+"\nISO 8601："+iso.format(d)+"\n星期："+weeks[c.get(Calendar.DAY_OF_WEEK)-1];
+  }
+  static String dateToStamp(String value){
+    try{
+      ParsePosition pp=new ParsePosition(0);
+      SimpleDateFormat f2=new SimpleDateFormat("yyyy-MM-dd HH:mm:ss",Locale.CHINA);f2.setLenient(false);
+      java.util.Date d=f2.parse(value.trim(),pp);
+      if(d==null){f2.applyPattern("yyyy-MM-dd");pp.setIndex(0);d=f2.parse(value.trim(),pp);}
+      if(d==null)return "无法解析：日期用 yyyy-MM-dd 或 yyyy-MM-dd HH:mm:ss";
+      return "时间戳（秒）："+d.getTime()/1000+"\n时间戳（毫秒）："+d.getTime();
+    }catch(Exception e){return "无法解析：日期用 yyyy-MM-dd 或 yyyy-MM-dd HH:mm:ss";}
+  }
+  /** v1.12.0 工具精修18：+0x/0b 前缀剥离；负号与 2-36 进制由 Long.parseLong 原生支持 */
   static String radixConvert(String value,int from){
-    try{long v=Long.parseLong(value.trim(),from);
-      return "二进制："+Long.toString(v,2)+"\n八进制："+Long.toString(v,8)+"\n十进制："+v+"\n十六进制："+Long.toString(v,16).toUpperCase(Locale.ROOT);
-    }catch(Exception e){return"无法按所选进制解析该数字（范围限 64 位整数）";}
+    String v=value.trim();
+    if(from==16&&v.length()>2&&(v.startsWith("0x")||v.startsWith("0X")))v=v.substring(2);
+    if(from==2&&v.length()>2&&(v.startsWith("0b")||v.startsWith("0B")))v=v.substring(2);
+    try{long r=Long.parseLong(v,from);
+      return "二进制："+Long.toString(r,2)+"\n八进制："+Long.toString(r,8)+"\n十进制："+r+"\n十六进制："+Long.toString(r,16).toUpperCase(Locale.ROOT);
+    }catch(Exception e){return"无法按 "+from+" 进制解析该数字（范围限 64 位整数）";}
   }
   static String pickFrom(String names,int count){
     java.util.List<String> pool=new ArrayList<>();
@@ -118,24 +145,39 @@ final class Toolbox {
     for(int i=0;i<count;i++)out.append(i+1).append(". ").append(pool.get(i)).append('\n');
     return out.toString().trim();
   }
+  /** v1.12.0 工具精修19：ITU 全表（字母 26+数字 10+标点 14），·— 容错，未知电码诚实计数（基准 ozdemirburak/morse-code-translator 280★，见研究报告） */
+  static final String[] MORSE_LETTERS={".-","-...","-.-.","-..",".","..-.","--.","....","..",".---","-.-",".-..","--","-.","---",".--.","--.-",".-.","...","-","..-","...-",".--","-..-","-.--","--.."};
+  static final String[] MORSE_DIGITS={"-----",".----","..---","...--","....-",".....","-....","--...","---..","----."};
+  static final String[][] MORSE_PUNCT={{".",".-.-.-"},{",","--..--"},{"?","..--.."},{"!","-.-.--"},{"/","-..-."},{"=","-...-"},{"+",".-.-."},{"-","-....-"},{"@",".--.-."},{"(","-.--."},{")","-.--.-"},{"&",".-..."},{"'",".----."},{"\"",".-..-."}};
   static String morseConvert(boolean toMorse,String value){
-    String[] codes={".-","-...","-.-.","-..",".","..-.","--.","....","..",".---","-.-",".-..","--","-.","---",".--.","--.-",".-.","...","-","..-","...-",".--","-..-","-.--","--.."};
+    java.util.Map<String,String> enc=new java.util.HashMap<>();
+    java.util.Map<String,String> dec=new java.util.HashMap<>();
+    for(int i=0;i<26;i++){enc.put(String.valueOf((char)('A'+i)),MORSE_LETTERS[i]);dec.put(MORSE_LETTERS[i],String.valueOf((char)('A'+i)));}
+    for(int i=0;i<10;i++){enc.put(String.valueOf((char)('0'+i)),MORSE_DIGITS[i]);dec.put(MORSE_DIGITS[i],String.valueOf((char)('0'+i)));}
+    for(String[] p:MORSE_PUNCT){enc.put(p[0],p[1]);dec.put(p[1],p[0]);}
     if(toMorse){
-      StringBuilder out=new StringBuilder();
+      StringBuilder out=new StringBuilder();int skipped=0;
       for(char c:value.toUpperCase(Locale.ROOT).toCharArray()){
-        if(c>='A'&&c<='Z'){if(out.length()>0)out.append(' ');out.append(codes[c-'A']);}
-        else if(c==' '&&out.length()>0)out.append(" / ");
+        String code=enc.get(String.valueOf(c));
+        if(code!=null){if(out.length()>0)out.append(' ');out.append(code);}
+        else if(c==' '){if(out.length()>0&&!out.toString().endsWith(" / "))out.append(" / ");}
+        else skipped++;
       }
-      return out.length()==0?"输入英文字母（A-Z 和空格）":out.toString();
+      String s=out.toString().replaceAll(" / $","");
+      if(skipped>0)s+="\n（跳过 "+skipped+" 个无法编码的字符）";
+      return s.isEmpty()?"输入英文、数字或常用标点":s;
     }
-    java.util.Map<String,Character> map=new java.util.HashMap<>();
-    for(int i=0;i<26;i++)map.put(codes[i],(char)('A'+i));
-    StringBuilder out=new StringBuilder();
+    StringBuilder out=new StringBuilder();int unknown=0;
     for(String p:value.trim().split("\\s+")){
+      if(p.isEmpty())continue;
       if(p.equals("/")){out.append(' ');continue;}
-      Character c=map.get(p);if(c!=null)out.append(c);
+      String norm=p.replace('·','.').replace('—','-').replace('−','-');
+      String ch=dec.get(norm);
+      if(ch!=null)out.append(ch);else unknown++;
     }
-    return out.length()==0?"输入摩斯电码（. - 间隔，/ 分隔单词）":out.toString();
+    String s=out.toString();
+    if(unknown>0)s+="\n（"+unknown+" 个未知电码已跳过）";
+    return s.isEmpty()?"输入摩斯电码（. - 间隔，/ 分隔单词）":s;
   }
 
   //——— 计算器：递归下降解析，支持 + - * / % ( ) ———
@@ -343,13 +385,50 @@ final class Toolbox {
     for(String line:value.split("\n",-1)){String trimmed=line.trim();if(dropEmpty&&trimmed.isEmpty())continue;if(unique.add(trimmed))keep.add(trimmed);}
     return sort?String.join("\n",unique):String.join("\n",keep);
   }
-  static String base64(boolean encode,String value){
-    try{return encode?android.util.Base64.encodeToString(value.getBytes(StandardCharsets.UTF_8),android.util.Base64.NO_WRAP):new String(android.util.Base64.decode(value.trim(),android.util.Base64.DEFAULT),StandardCharsets.UTF_8);}
-    catch(Exception e){return"解码失败：不是有效的 Base64";}
+  /** v1.12.0 工具精修15：+URL-safe(-_)与去填充变体（RFC 4648 §5）；解码剥空白、-_ 自动还原、字母表预校验（垃圾输入诚实报错） */
+  static String base64Encode(String value,boolean urlSafe,boolean stripPadding){
+    String out=android.util.Base64.encodeToString(value.getBytes(StandardCharsets.UTF_8),android.util.Base64.NO_WRAP);
+    if(urlSafe)out=out.replace('+','-').replace('/','_');
+    if(stripPadding){int end=out.length();while(end>0&&out.charAt(end-1)=='=')end--;out=out.substring(0,end);}
+    return out;
   }
-  static String url(boolean encode,String value){
-    try{return encode?java.net.URLEncoder.encode(value,"UTF-8"):java.net.URLDecoder.decode(value.trim(),"UTF-8");}
-    catch(Exception e){return"转换失败："+e.getMessage();}
+  static String base64Decode(String value){
+    try{
+      String v=value.replaceAll("\\s+","").replace('-','+').replace('_','/');
+      for(char c:v.toCharArray())if(!(c>='A'&&c<='Z'||c>='a'&&c<='z'||c>='0'&&c<='9'||c=='+'||c=='/'||c=='='))return"解码失败：不是有效的 Base64";
+      while(v.length()%4!=0)v+="=";
+      return new String(android.util.Base64.decode(v,android.util.Base64.NO_WRAP),StandardCharsets.UTF_8);
+    }catch(Exception e){return"解码失败：不是有效的 Base64";}
+  }
+  /** v1.12.0 工具精修16：双口径——路径（RFC 3986，空格=%20）与表单（空格=+）；解码 %XX 一律解，+ 仅表单口径还原 */
+  static String urlEncode(String value,boolean formMode){
+    try{
+      if(formMode)return java.net.URLEncoder.encode(value,"UTF-8");
+      StringBuilder sb=new StringBuilder();
+      for(byte b:value.getBytes(StandardCharsets.UTF_8)){
+        char c=(char)(b&0xFF);
+        if(c>='A'&&c<='Z'||c>='a'&&c<='z'||c>='0'&&c<='9'||c=='-'||c=='_'||c=='.'||c=='~')sb.append(c);
+        else sb.append('%').append(String.format("%02X",b&0xFF));
+      }
+      return sb.toString();
+    }catch(Exception e){return"编码失败："+e.getMessage();}
+  }
+  static String urlDecode(String value,boolean formMode){
+    try{
+      java.io.ByteArrayOutputStream bos=new java.io.ByteArrayOutputStream();
+      byte[] buf=value.getBytes(StandardCharsets.UTF_8);
+      for(int i=0;i<buf.length;i++){
+        char c=(char)(buf[i]&0xFF);
+        if(c=='%'){
+          if(i+2>=buf.length){bos.write('%');continue;}
+          int hi=Character.digit((char)(buf[i+1]&0xFF),16),lo=Character.digit((char)(buf[i+2]&0xFF),16);
+          if(hi<0||lo<0){bos.write('%');continue;}
+          bos.write((hi<<4)|lo);i+=2;
+        }else if(c=='+'&&formMode)bos.write(' ');
+        else bos.write(buf[i]);
+      }
+      return new String(bos.toByteArray(),StandardCharsets.UTF_8);
+    }catch(Exception e){return"解码失败："+e.getMessage();}
   }
   /** v1.10.1 工具精修08：单算法摘要（null=该算法不可用）；hex 小写标准编码 */
   static final String[] HASH_ALGOS={"MD5","SHA-1","SHA-224","SHA-256","SHA-384","SHA-512"};
