@@ -370,11 +370,11 @@ final class PremiumSaveCoordinator {
 
     private Snapshot eventSnapshotLocked(){revision++;return snapshotLocked();}
 
-    private void notifyChanged(Snapshot snapshot){try{if(listener!=null)listener.changed(this,snapshot);}catch(RuntimeException ignored){}}
-    private void notifyCapacity(Snapshot snapshot){try{if(listener!=null)listener.capacityBlocked(this,snapshot);}catch(RuntimeException ignored){}}
+    private void notifyChanged(Snapshot snapshot){try{if(listener!=null)listener.changed(this,snapshot);}catch(RuntimeException ignored){android.util.Log.w("PremiumSaveCoordinator.java", "PremiumSaveCoordinator.java RuntimeException: "+ignored.getMessage(), ignored);}}
+    private void notifyCapacity(Snapshot snapshot){try{if(listener!=null)listener.capacityBlocked(this,snapshot);}catch(RuntimeException ignored){android.util.Log.w("PremiumSaveCoordinator.java", "PremiumSaveCoordinator.java RuntimeException: "+ignored.getMessage(), ignored);}}
     private void notifyFinished(Snapshot snapshot){
       synchronized(lock){if(finishNotified)return;finishNotified=true;}
-      try{if(listener!=null)listener.finished(this,snapshot,attempts());}catch(RuntimeException ignored){}
+      try{if(listener!=null)listener.finished(this,snapshot,attempts());}catch(RuntimeException ignored){android.util.Log.w("PremiumSaveCoordinator.java", "PremiumSaveCoordinator.java RuntimeException: "+ignored.getMessage(), ignored);}
     }
   }
 
