@@ -32,6 +32,7 @@ public final class MainActivity extends androidx.activity.ComponentActivity impl
   @Override public Runnable levelCleanup(){return levelCleanup;}@Override public void setLevelCleanup(Runnable value){levelCleanup=value;}
   @Override public int pageDirection(){return pageDirection;}@Override public void setPageDirection(int value){pageDirection=value;}
   @Override public int toolQuality(){return toolQuality;}@Override public void setToolQuality(int value){toolQuality=value;}
+  @Override public int toolTargetSizeKb(){return toolTargetSizeKb;}@Override public void setToolTargetSizeKb(int value){toolTargetSizeKb=value;}
   @Override public android.net.Uri toolImageUri(){return toolImageUri;}@Override public void setToolImageUri(android.net.Uri value){toolImageUri=value;}@Override public void setToolImageInfoText(String value){toolImageInfoText=value;}
   
   static final String PRODUCT_NAME="东方无限";
@@ -788,7 +789,7 @@ indicator.setScaleX(.45f);indicator.setAlpha(.55f);indicator.post(()->indicator.
     android.transition.TransitionManager.beginDelayedTransition(section,set);content.setVisibility(open?View.VISIBLE:View.GONE);arrow.animate().rotation(open?180f:0f).setDuration(240).start();}
   void addSettingsSection(LinearLayout body,View section){LinearLayout.LayoutParams params=new LinearLayout.LayoutParams(-1,-2);params.setMargins(0,0,0,dp(10));body.addView(section,params);}
   void showSettings(){primaryBase(3);pageKind=4;activeSource=null;clearFolderTrail();systemBackAction=null;primaryHeader("设置");LinearLayout body=new LinearLayout(this);body.setOrientation(LinearLayout.VERTICAL);body.setPadding(dp(8),dp(4),dp(8),dp(18));LinearLayout.LayoutParams integrityPayLp=new LinearLayout.LayoutParams(-1,-2);integrityPayLp.bottomMargin=dp(10);body.addView(new IntegrityPayButton(this,ThemeEngine.active(this),getResources().getDisplayMetrics().density,Support.unlocked(this),motionEnabled(),this::openSupportActivity),integrityPayLp);applePressScale(integrityPayLp==null?null:(View)body.getChildAt(body.getChildCount()-1));addSettingsSection(body,settingsSection("外观","界面主题与配色",false,buildThemeRow()));addSettingsSection(body,settingsSection("常用","下载、搜索与列表浏览",false,buildDownloadPathPanel(),buildSearchModeRow(),settingsSwitchRow("文件夹递归",sessionSearchRecursiveFolders,checked->{sessionSearchRecursiveFolders=checked;persistSearchSettings();}),settingsSwitchRow("浏览时自动加载更多",sessionAutoExpand,checked->{sessionAutoExpand=checked;persistSearchSettings();if(checked&&folderPullScroll!=null)folderPullScroll.post(this::maybeAutoExpand);}),buildAutoInstallDownloadsRow(),settingsSwitchRow("下载时推荐诚信付费",Support.askOnDownload(this),checked->{Support.setAskOnDownload(this,checked);if(pageKind==4)showSettings();})));addSettingsSection(body,settingsSection("安装与权限","ADB 与静默安装（可选能力）",false,buildAdbPermissionCard()));addSettingsSection(body,settingsSection("搜索索引","后台建立本地搜索索引",false,buildIndexProgressCard()));addSettingsSection(body,settingsSection("性能与加载","并发、分页与缓存策略",false,buildSearchSettingsPanel(),buildDownloadSettingsPanel(),buildListDisplaySettings(),buildAutoExpandPageSettings(),buildIndexSliderSettings(),buildAdbInstallThreadSettings()));addSettingsSection(body,settingsSection("网络与兼容","仅在访问异常时调整",false,buildUaSettingsRow(),settingsSwitchRow("蓝奏链接直接解析打开",directLanzouListOpen,checked->{directLanzouListOpen=checked;persistSearchSettings();}),buildLanzouBaseOriginRow(),settingsSwitchRow("基础链接超时自动切换",sessionLanzouTimeoutFailover,checked->{sessionLanzouTimeoutFailover=checked;persistSearchSettings();}),settingsSwitchRow("网页外部打开",sessionOpenWebExternal,checked->{sessionOpenWebExternal=checked;persistSearchSettings();}),settingsSwitchRow("列表源展示链接",showSourceLinks,checked->{showSourceLinks=checked;persistSearchSettings();})));addSettingsSection(body,settingsSection("数据与关于","下载显示、资源与应用信息",false,settingsSwitchRow("批量下载逐项显示",sessionBatchDownloadSingleItem,checked->{sessionBatchDownloadSingleItem=checked;persistSearchSettings();if(pageKind==2)renderDownloads(downloadQuery);}),buildSourceSettingsPanel(),settingsAction(R.drawable.ic_sources,"资源源管理",v->showSources()),settingsAction(R.drawable.ic_refresh,"开源项目主页",v->openInBrowser(LANZOU_PLUS_REPOSITORY,"")),settingsAction(R.drawable.ic_expand,"参考与致谢",v->showAcknowledgementsDialog()),settingsAction(R.drawable.ic_copy,"关于"+PRODUCT_NAME,v->showSoftwareDetailsDialog(false))));ScrollView scroll=new ScrollView(this);scroll.setFillViewport(true);scroll.setContentDescription("设置");scroll.addView(body,new ScrollView.LayoutParams(-1,-2));root.addView(scroll,new LinearLayout.LayoutParams(-1,0,1));refreshIndexProgressCard();}
-  Uri toolImageUri;int toolQuality=70;String toolImageInfoText="";
+  Uri toolImageUri;int toolQuality=70;String toolImageInfoText="";int toolTargetSizeKb=0;// v1.13.0 精修20：>0 时启用目标体积二分模式
   final java.util.ArrayDeque<String> toolBackStack=new java.util.ArrayDeque<>();
   ToolHost toolHost;
   Runnable torchCleanup,levelCleanup;java.lang.ref.WeakReference<View> levelViewRef;android.media.AudioTrack noiseTrack;android.speech.tts.TextToSpeech ttsEngine;
@@ -828,14 +829,43 @@ indicator.setScaleX(.45f);indicator.setAlpha(.55f);indicator.post(()->indicator.
       android.graphics.BitmapFactory.Options opts=new android.graphics.BitmapFactory.Options();opts.inSampleSize=sample;
       java.io.InputStream in=getContentResolver().openInputStream(uri);android.graphics.Bitmap bitmap=android.graphics.BitmapFactory.decodeStream(in,null,opts);if(in!=null)try{in.close();}catch(Exception ignored){}
       if(bitmap==null){toolImageInfoText="图片解码失败";ui.post(()->{refreshToolImageInfo();showNotice("图片解码失败",true);});return;}
+      // v1.13.0 精修20：EXIF 方向修正——相机原图带旋转标记，解码会横竖颠倒；按标记转正后再压缩
+      int exifRotation=0;String[] exifTags={"Orientation"};
+      try{java.io.InputStream exIn=getContentResolver().openInputStream(uri);
+        if(exIn!=null){android.media.ExifInterface exif=new android.media.ExifInterface(exIn);int o=exif.getAttributeInt(android.media.ExifInterface.TAG_ORIENTATION,1);
+          if(o==android.media.ExifInterface.ORIENTATION_ROTATE_90)exifRotation=90;
+          else if(o==android.media.ExifInterface.ORIENTATION_ROTATE_180)exifRotation=180;
+          else if(o==android.media.ExifInterface.ORIENTATION_ROTATE_270)exifRotation=270;
+          exIn.close();}
+      }catch(Exception ignored){}
+      if(exifRotation!=0){android.graphics.Matrix m=new android.graphics.Matrix();m.postRotate(exifRotation);android.graphics.Bitmap rotated=android.graphics.Bitmap.createBitmap(bitmap,0,0,bitmap.getWidth(),bitmap.getHeight(),m,true);if(rotated!=bitmap)bitmap.recycle();bitmap=rotated;}
+      if(bitmap==null){toolImageInfoText="图片解码失败";ui.post(()->{refreshToolImageInfo();showNotice("图片解码失败",true);});return;}
       long original=0;try{android.content.res.AssetFileDescriptor fd=getContentResolver().openAssetFileDescriptor(uri,"r");if(fd!=null){original=fd.getLength();fd.close();}}catch(Exception ignored){}
-      java.io.ByteArrayOutputStream buffer=new java.io.ByteArrayOutputStream();bitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG,toolQuality,buffer);
+      java.io.ByteArrayOutputStream buffer=new java.io.ByteArrayOutputStream();
+      int usedQuality=toolQuality;
+      if(toolTargetSizeKb>0){
+        // v1.13.0 精修20：目标体积模式——质量二分（6 轮内逼近目标 KB 上限）
+        int lo=10,hi=95;usedQuality=70;byte[] best=null;
+        while(lo<=hi){
+          int q=(lo+hi)/2;buffer.reset();bitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG,q,buffer);
+          int sizeKb=buffer.size()/1024;
+          if(sizeKb<=toolTargetSizeKb){best=buffer.toByteArray();usedQuality=q;lo=q+1;}else hi=q-1;
+        }
+        byte[] bytesFinal=best!=null?best:buffer.toByteArray();
+        String saved=saveToolImage(bytesFinal);
+        bitmap.recycle();
+        final String infoT="原始 "+toolBytes(original)+" → 压缩后 "+toolBytes(bytesFinal.length)+"（目标 "+toolTargetSizeKb+"KB，质量 "+usedQuality+"%，"+bitmapRotateNote(exifRotation)+bounds.outWidth+"×"+bounds.outHeight+"）\n已保存："+saved;
+        toolImageInfoText=infoT;ui.post(()->{refreshToolImageInfo();showNotice("压缩完成",false);});
+        return;
+      }
+      bitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG,toolQuality,buffer);
       byte[] bytes=buffer.toByteArray();String saved=saveToolImage(bytes);
       bitmap.recycle();
-      final String info="原始 "+toolBytes(original)+" → 压缩后 "+toolBytes(bytes.length)+"（质量 "+toolQuality+"%，"+bounds.outWidth+"×"+bounds.outHeight+"）\n已保存："+saved;
+      final String info="原始 "+toolBytes(original)+" → 压缩后 "+toolBytes(bytes.length)+"（质量 "+toolQuality+"%，"+bitmapRotateNote(exifRotation)+bounds.outWidth+"×"+bounds.outHeight+"）\n已保存："+saved;
       toolImageInfoText=info;ui.post(()->{refreshToolImageInfo();showNotice("压缩完成",false);});
     }catch(Exception error){ui.post(()->showNotice("压缩失败："+friendlyError(error),true));}
   }
+  String bitmapRotateNote(int rotation){return rotation==0?"":"已按 EXIF 转正 "+rotation+"°，";}
   String saveToolImage(byte[] bytes){return saveToolImage(bytes,false);}
   String saveToolImage(byte[] bytes,boolean png){
     String name="dfwx_"+System.currentTimeMillis()+(png?".png":".jpg");
@@ -1023,13 +1053,15 @@ indicator.setScaleX(.45f);indicator.setAlpha(.55f);indicator.post(()->indicator.
   public void runImageCompressPending(){if(toolImageUri!=null)runImageCompress(toolImageUri);}
   public void startScreenTest(){toolBackStack.push("__screen_test__");showScreenTestOverlay();}
   void showScreenTestOverlay(){
-    final int[] colors={0xFF000000,0xFFFFFFFF,0xFFFF0000,0xFF00FF00,0xFF0000FF,0xFF808080};
+    // v1.13.0 精修22：加 25%/75% 灰阶（查灰阶断层/banding 更细），提示行显示当前颜色名
+    final String[] names={"黑","白","红","绿","蓝","50% 灰","25% 灰","75% 灰"};
+    final int[] colors={0xFF000000,0xFFFFFFFF,0xFFFF0000,0xFF00FF00,0xFF0000FF,0xFF808080,0xFF404040,0xFFC0C0C0};
     final int[] idx={0};
     final FrameLayout overlay=new FrameLayout(this);overlay.setBackgroundColor(colors[0]);
-    TextView hint=text("点击切换颜色 · 返回退出",12,Color.argb(130,255,255,255));hint.setGravity(Gravity.CENTER);
+    TextView hint=text("点击切换颜色 · 返回退出（当前："+names[0]+"）",12,Color.argb(150,255,255,255));hint.setGravity(Gravity.CENTER);
     FrameLayout.LayoutParams hp=new FrameLayout.LayoutParams(-1,-2,Gravity.BOTTOM|Gravity.CENTER_HORIZONTAL);hp.bottomMargin=dp(48);
     overlay.addView(hint,hp);
-    overlay.setOnClickListener(v->{idx[0]=(idx[0]+1)%colors.length;overlay.setBackgroundColor(colors[idx[0]]);});
+    overlay.setOnClickListener(v->{idx[0]=(idx[0]+1)%colors.length;overlay.setBackgroundColor(colors[idx[0]]);hint.setText("点击切换颜色 · 返回退出（当前："+names[idx[0]]+"）");});
     setContentView(overlay);
     // 复审3:恢复主视图后必须经 primaryBase(5) 完整重建 shell/root/pageFrame——手工拼 composePrimaryShell 会与 basePage 的 root 重建顺序脱节
     systemBackAction=()->{systemBackAction=null;toolBackStack.poll();pageDirection=-1;popToolBack();};

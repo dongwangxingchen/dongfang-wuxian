@@ -965,9 +965,14 @@ final class ToolHost {
     body.addView(meta,new LinearLayout.LayoutParams(-1,-2));
     LinearLayout quality=chipRow(body);quality.setPadding(0,act.dp(10),0,0);
     LinearLayout.LayoutParams labelLp=chipMargin();labelLp.rightMargin=act.dp(12);quality.addView(text("压缩质量",12,act.TEXT()),labelLp);
-    int[] qualities={90,70,50};TextView[] chips=new TextView[qualities.length];
-    for(int i=0;i<qualities.length;i++){final int q=qualities[i];chips[i]=selectChip(quality,q+"%",act.toolQuality()==q,()->{act.setToolQuality(q);for(int j=0;j<chips.length;j++)styleSelect(chips[j],qualities[j]==q);});}
+    int[] qualities={90,70,50};TextView[] chips=new TextView[qualities.length];TextView[] sizeChips=new TextView[2];
+    for(int i=0;i<qualities.length;i++){final int q=qualities[i];chips[i]=selectChip(quality,q+"%",act.toolQuality()==q&&act.toolTargetSizeKb()==0,()->{act.setToolQuality(q);act.setToolTargetSizeKb(0);for(int j=0;j<chips.length;j++)styleSelect(chips[j],qualities[j]==q);for(int j=0;j<sizeChips.length;j++)styleSelect(sizeChips[j],false);});}
     quality.setTag("img-quality");
+    // v1.13.0 精修20：目标体积模式——二分质量逼近目标，比固定质量更能保证「发得出」
+    LinearLayout target=chipRow(body);target.setPadding(0,act.dp(6),0,0);
+    LinearLayout.LayoutParams tlabelLp=chipMargin();tlabelLp.rightMargin=act.dp(12);target.addView(text("目标体积",12,act.TEXT()),tlabelLp);
+    int[] targets={200,500};
+    for(int i=0;i<targets.length;i++){final int t=targets[i];sizeChips[i]=selectChip(target,"≤"+t+"KB",act.toolTargetSizeKb()==t,()->{act.setToolTargetSizeKb(t);for(int j=0;j<sizeChips.length;j++)styleSelect(sizeChips[j],targets[j]==t);for(int j=0;j<chips.length;j++)styleSelect(chips[j],false);});}
     LinearLayout run=actionRow(body);action(run,"压缩并保存",()->{if(act.toolImageUri()==null){act.showNotice("先选择图片",true);return;}act.showNotice("正在压缩…",false);act.runImageCompressPending();});
     result(body);
   }
@@ -1355,7 +1360,7 @@ final class ToolHost {
     void pickToolImage();void runImageCompressPending();
     Runnable levelCleanup();void setLevelCleanup(Runnable value);
     int pageDirection();void setPageDirection(int value);
-    int toolQuality();void setToolQuality(int value);
+    int toolQuality();void setToolQuality(int value);int toolTargetSizeKb();void setToolTargetSizeKb(int value);
     android.net.Uri toolImageUri();void setToolImageUri(android.net.Uri value);
     String toolImageInfoText();void setToolImageInfoText(String value);
     ImageButton iconButton(int icon,String description);
