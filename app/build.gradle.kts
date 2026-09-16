@@ -28,8 +28,8 @@ android {
   applicationId = "dfwx.dongdang"
   minSdk = 26      // v1.8.0：24→26，RikkaHub 模块（convention minSdk 26）清单合并要求
   targetSdk = 37   // v1.8.0：对齐上游 RikkaHub 2.5.1
-  versionCode = 1036000
-  versionName = "1.17.0"
+  versionCode = 1036001
+  versionName = "1.17.1"
   ndk { abiFilters += listOf("arm64-v8a") }  // RikkaHub native（quickjs/sqlite/termux）只出 arm64：真机 arm64，x86_64 会使体积翻倍
  }
  compileOptions { sourceCompatibility = JavaVersion.VERSION_17; targetCompatibility = JavaVersion.VERSION_17 }
