@@ -1,0 +1,19 @@
+* Host catbox.moe:443 was resolved.
+* IPv6: (none)
+* IPv4: 108.181.20.35
+*   Trying 108.181.20.35:443...
+* schannel: disabled automatic use of client certificate
+* ALPN: curl offers http/1.1
+* ALPN: server accepted http/1.1
+* Connected to catbox.moe (108.181.20.35) port 443
+* using HTTP/1.x
+> POST /user/api.php HTTP/1.1
+> Host: catbox.moe
+> User-Agent: curl/8.13.0
+> Accept: */*
+> Content-Length: 36546577
+> Content-Type: multipart/form-data; boundary=------------------------LRdeXN37YoTSvUKdd10Uov
+> Expect: 100-continue
+> 
+* schannel: server closed abruptly (missing close_notify)
+* closing connection #0
