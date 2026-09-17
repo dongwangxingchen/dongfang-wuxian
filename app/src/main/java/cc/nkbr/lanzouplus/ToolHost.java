@@ -866,7 +866,7 @@ final class ToolHost {
     LinearLayout verRow=chipRow(body);verRow.setPadding(0,act.dp(4),0,0);
     LinearLayout.LayoutParams vlp=chipMargin();vlp.rightMargin=act.dp(12);verRow.addView(text("版本",12,act.TEXT()),vlp);
     final int[] version={4};TextView[] vchips=new TextView[3];int[] vers={4,5,3};String[] vlabels={"v4 随机","v5 SHA-1","v3 MD5"};
-    EditText name=input(body,"名称（v5/v3 用：同一名称与命名空间结果恒定）",44);
+    EditText name=input(body,"名称（v5/v3 用：同名同命名空间结果恒定）",44);// 手表 343dp 宽下原提示语换行后被 44dp 定高输入框裁半行，改短保单行
     LinearLayout nsRow=chipRow(body);
     LinearLayout.LayoutParams nlp=chipMargin();nlp.rightMargin=act.dp(12);nsRow.addView(text("命名空间",12,act.TEXT()),nlp);
     final String[][] nsH={{"DNS","6ba7b8109dad11d180b400c04fd430c8"},{"URL","6ba7b8119dad11d180b400c04fd430c8"},{"OID","6ba7b8129dad11d180b400c04fd430c8"},{"X500","6ba7b8149dad11d180b400c04fd430c8"}};
@@ -1127,6 +1127,7 @@ final class ToolHost {
   LinearLayout chipRow(LinearLayout parent){LinearLayout row=new LinearLayout(ctx);row.setOrientation(LinearLayout.HORIZONTAL);parent.addView(row,new LinearLayout.LayoutParams(-1,-2));return row;}
   TextView selectChip(LinearLayout row,String label,boolean selected,Runnable click){
     TextView chip=text(label,12,selected?act.PRIMARY():act.TEXT());chip.setGravity(Gravity.CENTER);chip.setClickable(true);chip.setFocusable(true);chip.setSelected(selected);
+    chip.setPadding(act.dp(6),0,act.dp(6),0);// 手表宽度下文字曾贴着描边（tts「正常 1x」被裁）；6dp 是上限——再宽 unit 六类别行就溢出换行
     styleSelect(chip,selected);chip.setOnClickListener(v->press(v,click));row.addView(chip,chipMargin());return chip;
   }
   void styleSelect(TextView chip,boolean selected){
@@ -1285,11 +1286,12 @@ final class ToolHost {
   }
   void radix(LinearLayout body){
     final EditText value=input(body,"数值（支持负号与 0x/0b 前缀）",44);
-    LinearLayout actions=actionRow(body);result(body);
+    // v1.17.3：4 个按钮一行在手表 343dp 宽下溢出，第 4 个（base36）完全在屏外不可点；改两行各两个。
+    LinearLayout actions=actionRow(body);LinearLayout actions2=actionRow(body);result(body);
     action(actions,"按十进制解析",()->output(body,Toolbox.radixConvert(value.getText().toString().trim(),10)));
     action(actions,"按十六进制解析",()->output(body,Toolbox.radixConvert(value.getText().toString().trim(),16)));
-    action(actions,"按二进制解析",()->output(body,Toolbox.radixConvert(value.getText().toString().trim(),2)));
-    action(actions,"按三十六进制解析",()->output(body,Toolbox.radixConvert(value.getText().toString().trim(),36)));// v1.12.0 精修18：短链常见 base36
+    action(actions2,"按二进制解析",()->output(body,Toolbox.radixConvert(value.getText().toString().trim(),2)));
+    action(actions2,"按三十六进制解析",()->output(body,Toolbox.radixConvert(value.getText().toString().trim(),36)));// v1.12.0 精修18：短链常见 base36
   }
   void compass(LinearLayout body){
     TextView dial=text("…",44,act.PRIMARY());dial.setGravity(Gravity.CENTER);dial.setBackground(solid(act.SURFACE()));body.addView(dial,new LinearLayout.LayoutParams(-1,act.dp(150)));
