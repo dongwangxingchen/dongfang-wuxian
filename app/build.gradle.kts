@@ -28,13 +28,20 @@ android {
   applicationId = "dfwx.dongdang"
   minSdk = 26      // v1.8.0：24→26，RikkaHub 模块（convention minSdk 26）清单合并要求
   targetSdk = 37   // v1.8.0：对齐上游 RikkaHub 2.5.1
-  versionCode = 1036002
-  versionName = "1.17.2"
+  versionCode = 1036003
+  versionName = "1.17.3"
   ndk { abiFilters += if (gradle.startParameter.taskNames.any { it.contains("Debug", true) }) listOf("x86_64") else listOf("arm64-v8a") }  // debug 构建出 x86_64 供模拟器实机测试；release 只出 arm64（真机）
  }
  compileOptions { sourceCompatibility = JavaVersion.VERSION_17; targetCompatibility = JavaVersion.VERSION_17 }
  packaging {
   jniLibs { useLegacyPackaging = true; pickFirsts += "lib/*/libtermux.so" }  // 对齐上游：workspace/termux 双处提供同名 so
+ }
+ // [DFWX] Robolectric JVM 点击测试（工具箱 35 页等 Java UI）：无真机/无模拟器环境的验收路线
+ testOptions {
+  unitTests {
+   isIncludeAndroidResources = true
+   all { it.maxHeapSize = "3g" }
+  }
  }
  flavorDimensions += "catalog"
  productFlavors {
@@ -76,4 +83,8 @@ dependencies {
  implementation("dev.rikka.shizuku:api:13.1.5")
  implementation("dev.rikka.shizuku:provider:13.1.5")
  compileOnly("androidx.annotation:annotation:1.3.0")
+ // Robolectric JVM 点击测试（与 rikkahub-app 同版本，测试放 src/test/java/cc/nkbr/lanzouplus/）
+ testImplementation(libs.junit)
+ testImplementation(libs.robolectric)
+ testImplementation("androidx.test:core:1.7.0")
 }
