@@ -73,6 +73,14 @@ android {
             pickFirsts += "lib/*/libtermux.so"
         }
     }
+    // [DFWX PATCH] Robolectric JVM 点击测试：无真机/无模拟器环境下在开发机上直接渲染 Compose 页面做回归
+    testOptions {
+        unitTests {
+            isIncludeAndroidResources = true
+            // 整个 Embed 外壳 + Robolectric 本身吃内存，默认 512m~1g 在扫描后段会 OOM
+            all { it.maxHeapSize = "4g" }
+        }
+    }
     tasks.withType<KotlinCompile>().configureEach {
         compilerOptions.optIn.add("androidx.compose.material3.ExperimentalMaterial3Api")
         compilerOptions.optIn.add("androidx.compose.material3.ExperimentalMaterial3ExpressiveApi")
@@ -264,6 +272,10 @@ dependencies {
 
     // tests
     testImplementation(libs.junit)
+    testImplementation(libs.robolectric)
+    testImplementation(platform(libs.androidx.compose.bom))
+    testImplementation(libs.androidx.ui.test.junit4)
+    testImplementation(libs.androidx.ui.test.manifest)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(platform(libs.androidx.compose.bom))
