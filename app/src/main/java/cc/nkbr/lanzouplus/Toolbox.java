@@ -57,6 +57,8 @@ final class Toolbox {
     {"freqgen","频率发生器","正弦波发声 20Hz-20kHz","频率 声音 正弦 测试 音叉 发生器",AUDIO,"设备相关","30"},
     {"picker","随机抽取","名单随机抽 N 个，可点名","抽取 随机 点名 抽奖 名单 抽签",DICE,"生活查询","36"},
     {"morse","摩斯电码","英文与摩斯电码互转","摩斯 电码 morse 报文 密码",COPY,"文字处理","26"},
+    {"soundmeter","分贝仪","环境声音大小估算，实时显示","分贝 噪音 声音 测量 声级",AUDIO,"设备相关","30"},
+    {"colorpicker","取色器","选图取色，HEX/RGB/HSL 互转","取色 颜色 色值 hex rgb 调色",PALETTE,"图片工具","30"},
   };
   static final String[] CATEGORIES={"常用工具","文字处理","图片工具","设备相关","生活查询"};
   static final String CAT_ALL="全部";
@@ -633,5 +635,30 @@ final class Toolbox {
     String level=v<18.5?"偏瘦":v<24?"正常":v<28?"偏胖":"肥胖";
     double lo=18.5*(heightCm/100)*(heightCm/100),hi=24*(heightCm/100)*(heightCm/100);
     return String.format(Locale.US,"BMI %.1f（%s）\n正常体重范围 %.1f - %.1f kg",v,level,lo,hi);
+  }
+  // v1.18.0 精修36：取色器——RGB→HSL（HSL and HSV 规范公式；H 取整角度 0-360，S/L 取整百分比）
+  static int[] rgbToHsl(int r,int g,int b){
+    double rn=r/255.0,gn=g/255.0,bn=b/255.0;
+    double max=Math.max(rn,Math.max(gn,bn)),min=Math.min(rn,Math.min(gn,bn));
+    double h=0,s=0,l=(max+min)/2;
+    if(max!=min){
+      double d=max-min;
+      s=l>0.5?d/(2-max-min):d/(max+min);
+      if(max==rn)h=60*(((gn-bn)/d)%6);
+      else if(max==gn)h=60*((bn-rn)/d+2);
+      else h=60*((rn-gn)/d+4);
+      if(h<0)h+=360;
+    }
+    return new int[]{(int)Math.round(h),(int)Math.round(s*100),(int)Math.round(l*100)};
+  }
+  static String colorInfo(int color){
+    int r=(color>>16)&0xFF,g=(color>>8)&0xFF,b=color&0xFF;
+    int[] hsl=rgbToHsl(r,g,b);
+    return String.format(Locale.US,"HEX #%02X%02X%02X\nRGB(%d, %d, %d)\nHSL(%d°, %d%%, %d%%)",r,g,b,r,g,b,hsl[0],hsl[1],hsl[2]);
+  }
+  // v1.18.0 精修37：分贝仪——dBFS=20*log10(rms/32768)，AudioRecord 16bit 满幅 32768（同式出处：cambridge-cares/TheWorldAvatar SoundLevelHandler.java、interdroid/interdroid-swan SoundSensor.java）；0 返回 -999 哨兵
+  static double rmsToDb(double rms){
+    if(rms<=0)return-999;
+    return 20*Math.log10(rms/32768.0);
   }
 }
