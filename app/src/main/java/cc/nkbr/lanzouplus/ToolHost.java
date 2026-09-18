@@ -1412,9 +1412,10 @@ final class ToolHost {
 
   void soundmeter(LinearLayout body){
     // dBFS→估算声级：无专业校准，固定 +100dB 偏移（0dBFS≈100dB SPL 常见做法，同 interdroid-swan 的 peakDb 偏移思路）；UI 明示"估算"
-    TextView level=text("—",44,act.PRIMARY());level.setGravity(Gravity.CENTER);level.setBackground(solid(act.SURFACE()));body.addView(level,new LinearLayout.LayoutParams(-1,act.dp(110)));
-    android.widget.ProgressBar bar=new android.widget.ProgressBar(ctx,null,android.R.attr.progressBarStyleHorizontal);bar.setMax(90);bar.setProgress(0);body.addView(bar,new LinearLayout.LayoutParams(-1,act.dp(24)));
-    TextView note=text("估测值：麦克风未经专业校准，数值供相对参考（30-120 dB）。需要麦克风权限。",11,act.MUTED());body.addView(note,new LinearLayout.LayoutParams(-1,-2));
+    // v1.18.0 手表首屏收纳：读数框 60dp/进度条 20dp/提示一行——开始/停止按钮曾裁在折叠线下（截图目检 2026-09-19）
+    TextView level=text("—",34,act.PRIMARY());level.setGravity(Gravity.CENTER);level.setBackground(solid(act.SURFACE()));body.addView(level,new LinearLayout.LayoutParams(-1,act.dp(60)));
+    android.widget.ProgressBar bar=new android.widget.ProgressBar(ctx,null,android.R.attr.progressBarStyleHorizontal);bar.setMax(90);bar.setProgress(0);body.addView(bar,new LinearLayout.LayoutParams(-1,act.dp(20)));
+    TextView note=text("估测值：麦克风未经校准，仅供相对参考；需麦克风权限。",11,act.MUTED());body.addView(note,new LinearLayout.LayoutParams(-1,-2));
     LinearLayout actions=actionRow(body);result(body);
     final android.media.AudioRecord[] rec={null};final java.util.concurrent.atomic.AtomicBoolean running=new java.util.concurrent.atomic.AtomicBoolean(false);final float[] smooth={Float.NaN};
     Runnable stop=()->{running.set(false);if(rec[0]!=null){try{rec[0].stop();rec[0].release();}catch(Exception ignored){android.util.Log.w("ToolHost.java", "ToolHost.java Exception: "+ignored.getMessage(), ignored);}rec[0]=null;}};
