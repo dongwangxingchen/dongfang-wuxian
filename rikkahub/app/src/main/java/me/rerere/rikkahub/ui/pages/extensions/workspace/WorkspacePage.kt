@@ -165,6 +165,8 @@ private fun EmptyWorkspaceState() {
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         Text(
+            // [DFWX] 手表宽度(343dp)下提示文字延伸进右下 FAB 区域被截断（截图验收 2026-09-19）；72dp 使文字避开 FAB 左缘
+            modifier = Modifier.padding(horizontal = 72.dp),
             text = stringResource(R.string.workspace_page_empty_desc),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,

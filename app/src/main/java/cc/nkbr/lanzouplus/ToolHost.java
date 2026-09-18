@@ -330,6 +330,8 @@ final class ToolHost {
       case "freqgen":freqgen(body);break;
       case "picker":picker(body);break;
       case "morse":morse(body);break;
+  case "soundmeter":soundmeter(body);break;
+  case "colorpicker":colorpicker(body);break;
       default:{TextView info=text("该工具即将上线",13,act.MUTED());body.addView(info,new LinearLayout.LayoutParams(-1,act.dp(48)));break;}
     }
     if(act.motionEnabled())enterStagger(scroll);
@@ -1367,6 +1369,88 @@ final class ToolHost {
     action(actions,"编码为摩斯",()->output(body,Toolbox.morseConvert(true,field.getText().toString())));
     action(actions,"解码为英文",()->output(body,Toolbox.morseConvert(false,field.getText().toString())));
   }
+  //—— v1.18.0 精修36/37：取色器 + 分贝仪 ——
+
+  void colorpicker(LinearLayout body){
+    TextView info=text("选择图片后，点按或滑动图上任意位置取色；换图再点「选择图片」。",12,act.MUTED());info.setPadding(0,0,0,act.dp(10));body.addView(info,new LinearLayout.LayoutParams(-1,-2));
+    LinearLayout actions=actionRow(body);
+    ImageView img=new ImageView(ctx);img.setVisibility(View.GONE);img.setBackground(solid(act.SURFACE()));img.setAdjustViewBounds(true);img.setScaleType(ImageView.ScaleType.FIT_CENTER);
+    final android.graphics.Bitmap[] bmp={null};
+    TextView out=text("未取色",13,act.TEXT());out.setVisibility(View.GONE);out.setTextIsSelectable(true);out.setPadding(act.dp(12),act.dp(10),act.dp(12),act.dp(10));out.setBackground(solid(act.SURFACE()));out.setMinHeight(act.dp(66));
+    View swatch=new View(ctx);swatch.setVisibility(View.GONE);
+    Runnable reload=()->{android.net.Uri uri=act.toolImageUri();if(uri==null){act.showNotice("先选择图片",true);return;}
+      try{
+        android.graphics.BitmapFactory.Options o=new android.graphics.BitmapFactory.Options();o.inJustDecodeBounds=true;
+        java.io.InputStream is=act.context().getContentResolver().openInputStream(uri);android.graphics.BitmapFactory.decodeStream(is,null,o);if(is!=null)is.close();
+        int sample=1;while(o.outWidth/sample>1024||o.outHeight/sample>1024)sample*=2;
+        android.graphics.BitmapFactory.Options o2=new android.graphics.BitmapFactory.Options();o2.inSampleSize=sample;
+        java.io.InputStream is2=act.context().getContentResolver().openInputStream(uri);android.graphics.Bitmap b=android.graphics.BitmapFactory.decodeStream(is2,null,o2);if(is2!=null)is2.close();
+        if(b==null){act.showNotice("图片读取失败",true);return;}
+        bmp[0]=b;img.setImageBitmap(b);img.setVisibility(View.VISIBLE);
+      }catch(Exception e){act.showNotice("图片读取失败："+e.getMessage(),true);}};
+    action(actions,"选择图片",()->act.pickToolColorImage(reload));
+    body.addView(img,new LinearLayout.LayoutParams(-1,-2));
+    LinearLayout colorRow=new LinearLayout(ctx);colorRow.setOrientation(LinearLayout.HORIZONTAL);colorRow.setGravity(Gravity.CENTER_VERTICAL);colorRow.setPadding(0,act.dp(10),0,0);
+    colorRow.addView(swatch,new LinearLayout.LayoutParams(act.dp(44),act.dp(44)));
+    body.addView(colorRow,new LinearLayout.LayoutParams(-1,-2));
+    body.addView(out,new LinearLayout.LayoutParams(-1,-2));
+    LinearLayout copyRow=actionRow(body);action(copyRow,"复制色值",()->{String v=out.getText().toString();int i=v.indexOf('#');if(i<0){act.showNotice("还没有取色",true);return;}copy(v.substring(i,i+7));act.showNotice("已复制",false);});
+    result(body);
+    img.setOnTouchListener((v,ev)->{
+      if(bmp[0]==null)return false;
+      android.graphics.Bitmap b=bmp[0];
+      float[] pts=new float[]{ev.getX(),ev.getY()};
+      android.graphics.Matrix m=new android.graphics.Matrix();img.getImageMatrix().invert(m);m.mapPoints(pts);
+      int x=Math.round(pts[0]),y=Math.round(pts[1]);
+      if(x<0||y<0||x>=b.getWidth()||y>=b.getHeight())return true;
+      int c=b.getPixel(x,y);
+      GradientDrawable dot=solid(0xFF000000|c);dot.setStroke(act.dp(2),act.TEXT());swatch.setBackground(dot);swatch.setVisibility(View.VISIBLE);
+      out.setText(Toolbox.colorInfo(c));out.setVisibility(View.VISIBLE);
+      return true;
+    });
+  }
+
+  void soundmeter(LinearLayout body){
+    // dBFS→估算声级：无专业校准，固定 +100dB 偏移（0dBFS≈100dB SPL 常见做法，同 interdroid-swan 的 peakDb 偏移思路）；UI 明示"估算"
+    TextView level=text("—",44,act.PRIMARY());level.setGravity(Gravity.CENTER);level.setBackground(solid(act.SURFACE()));body.addView(level,new LinearLayout.LayoutParams(-1,act.dp(110)));
+    android.widget.ProgressBar bar=new android.widget.ProgressBar(ctx,null,android.R.attr.progressBarStyleHorizontal);bar.setMax(90);bar.setProgress(0);body.addView(bar,new LinearLayout.LayoutParams(-1,act.dp(24)));
+    TextView note=text("估测值：麦克风未经专业校准，数值供相对参考（30-120 dB）。需要麦克风权限。",11,act.MUTED());body.addView(note,new LinearLayout.LayoutParams(-1,-2));
+    LinearLayout actions=actionRow(body);result(body);
+    final android.media.AudioRecord[] rec={null};final java.util.concurrent.atomic.AtomicBoolean running=new java.util.concurrent.atomic.AtomicBoolean(false);final float[] smooth={Float.NaN};
+    Runnable stop=()->{running.set(false);if(rec[0]!=null){try{rec[0].stop();rec[0].release();}catch(Exception ignored){android.util.Log.w("ToolHost.java", "ToolHost.java Exception: "+ignored.getMessage(), ignored);}rec[0]=null;}};
+    action(actions,"开始测量",()->act.requestToolMicPermission(()->{
+      if(running.get())return;
+      try{
+        int rate=44100,min=android.media.AudioRecord.getMinBufferSize(rate,android.media.AudioFormat.CHANNEL_IN_MONO,android.media.AudioFormat.ENCODING_PCM_16BIT);
+        android.media.AudioRecord r=new android.media.AudioRecord(android.media.MediaRecorder.AudioSource.MIC,rate,android.media.AudioFormat.CHANNEL_IN_MONO,android.media.AudioFormat.ENCODING_PCM_16BIT,Math.max(min,rate)*2);
+        if(r.getState()!=android.media.AudioRecord.STATE_INITIALIZED){r.release();act.showNotice("麦克风初始化失败",true);return;}
+        rec[0]=r;running.set(true);smooth[0]=Float.NaN;r.startRecording();level.setText("…");
+        Thread worker=new Thread(()->{
+          short[] buf=new short[2048];
+          android.os.Handler main=new android.os.Handler(android.os.Looper.getMainLooper());
+          while(running.get()){
+            int n=r.read(buf,0,buf.length);
+            if(n>0){
+              long sum=0;for(int i=0;i<n;i++)sum+=(long)buf[i]*buf[i];
+              double rms=Math.sqrt(sum/(double)n);
+              double db=Toolbox.rmsToDb(rms);
+              final float spl=db<=-99?0f:(float)Math.max(30,Math.min(120,db+100));
+              if(Float.isNaN(smooth[0]))smooth[0]=spl;
+              smooth[0]=smooth[0]*0.7f+spl*0.3f;// v1.15.0 精修33 同款低通平滑
+              final float show=smooth[0];
+              main.post(()->{level.setText(String.format(java.util.Locale.US,"%.0f dB",show));bar.setProgress(Math.round(show)-30);});
+            }
+            try{Thread.sleep(60);}catch(InterruptedException e){android.util.Log.i("ToolHost.java", "ToolHost.java InterruptedException: "+e.getMessage());break;}
+          }
+        },"dfwx-soundmeter");
+        worker.setDaemon(true);worker.start();
+      }catch(Exception e){act.showNotice("无法启动麦克风："+e.getMessage(),true);}
+    }));
+    action(actions,"停止",()->{stop.run();level.setText("已停止");bar.setProgress(0);});
+    if(act.levelCleanup()!=null){try{act.levelCleanup().run();}catch(Exception ignored){android.util.Log.w("ToolHost.java", "ToolHost.java Exception: "+ignored.getMessage(), ignored);}}
+    act.setLevelCleanup(stop);// 离开工具页自动停止（同指南针/频率发生器）
+  }
+
   interface Host {
     int dp(int v);
     android.content.Context context();
@@ -1380,6 +1464,7 @@ final class ToolHost {
     boolean startTorch();void stopTorch();void startNoise(boolean white);void stopNoise();void speakTts(String value);void stopTts();void setTtsRate(float rate);
     void toolHostSketch(LinearLayout body);void toolHostRuler(LinearLayout body);void toolHostLevel(LinearLayout body);
     void pickToolImage();void runImageCompressPending();
+    void pickToolColorImage(Runnable onPicked);void requestToolMicPermission(Runnable onGranted);
     Runnable levelCleanup();void setLevelCleanup(Runnable value);
     int pageDirection();void setPageDirection(int value);
     int toolQuality();void setToolQuality(int value);int toolTargetSizeKb();void setToolTargetSizeKb(int value);
