@@ -30,7 +30,6 @@ android {
   targetSdk = 37   // v1.8.0：对齐上游 RikkaHub 2.5.1
   versionCode = 1037000
   versionName = "1.18.0"
-  ndk { abiFilters += if (gradle.startParameter.taskNames.any { it.contains("Debug", true) }) listOf("x86_64") else listOf("arm64-v8a") }  // debug 构建出 x86_64 供模拟器实机测试；release 只出 arm64（真机）
  }
  compileOptions { sourceCompatibility = JavaVersion.VERSION_17; targetCompatibility = JavaVersion.VERSION_17 }
  packaging {
@@ -73,6 +72,10 @@ android {
     }
    }
    signingConfig = signingConfigs.getByName("heiyao")
+   ndk { abiFilters += "arm64-v8a" }  // v1.18.0 修复：release 只出 arm64（真机）——按构建类型静态判断，与任务名无关
+  }
+  getByName("debug") {
+   ndk { abiFilters += "x86_64" }  // debug 出 x86_64 供模拟器/测试（AGP9 Variant.ndk 已移除，改经典 DSL 按构建类型配置）
   }
  }
 }

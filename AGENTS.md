@@ -92,3 +92,5 @@
 ## 六、踩坑记录
 
 - "搬运"与"参照重写"是两个任务：用户说搬运时，仓库里必须能找到上游原文件（路径可对 diff）。此前用 918 行自写 Java 冒充 12.9 万行上游代码并汇报"接入完成"，连续三轮被驳回。教训：当"零依赖/APK<1MiB"与搬运需求物理冲突时，当轮立即上报用户裁决，不许私自缩水选边。
+- **2026-09-19 v1.18.0 x86_64 误发**：ABI 原按"任务名含 Debug"判断，`assembleEmptyRelease` 与 `testDebugUnitTest` 混在一条命令时 release 包错出 x86_64-only，arm64 手表「应用未安装」；终验只核了 versionCode 未核 native-code，且 +684KB 体积异常被忽略。根修：ABI 改按构建类型静态判断（buildTypes.release/debug 各自 ndk.abiFilters，AGP9 的 Variant.ndk 已移除）；发版脚本上传前强制 `aapt dump badging` 断言 `native-code: arm64-v8a`；**发版终验必查 ABI，体积异常必须解释**。
+- **2026-09-19 PowerShell 无 BOM UTF-8 脚本坑**：Windows PowerShell 5.1 把无 BOM 的 .ps1 按 ANSI/GBK 读——`tools/*.ps1` 里的中文注释/字符串会变乱码甚至破坏解析（v1.18.0 发版说明因此整页乱码）。铁律：**tools 下脚本一律纯 ASCII**；中文内容放独立 UTF-8 数据文件、脚本里用 `[System.Text.Encoding]::UTF8` 显式读取（release_body_180.md 模式）。
