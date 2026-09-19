@@ -2,6 +2,7 @@ package cc.nkbr.lanzouplus
 
 import android.graphics.Bitmap
 import android.os.Looper
+import org.junit.BeforeClass
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.Robolectric
@@ -22,6 +23,11 @@ import java.io.FileOutputStream
 @Config(sdk = [35], qualifiers = "w343dp-h343dp-280dpi")
 @GraphicsMode(GraphicsMode.Mode.NATIVE)  // 必须：LEGACY 模式 draw 是空操作，截出来全是同一张垃圾位图
 class ToolsShotsJvmTest {
+
+    companion object {
+        // v1.19.0：内置清单 85 源，不静默的话每次启动 MainActivity 都会触发批量导入的真实网络探测
+        @BeforeClass @JvmStatic fun silenceAutoImport() { MainActivity.LIBRARY_AUTO_IMPORT = false }
+    }
 
     private fun idle() {
         shadowOf(Looper.getMainLooper()).idle()

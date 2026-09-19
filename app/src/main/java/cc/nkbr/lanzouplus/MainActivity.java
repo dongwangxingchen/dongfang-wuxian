@@ -136,19 +136,20 @@ public final class MainActivity extends androidx.activity.ComponentActivity impl
     void startMainExperience(){if(mainExperienceStarted)return;mainExperienceStarted=true;showHomeLanding();prefetchHome();ui.postDelayed(()->{if(sessionBackgroundIndex)requestDirectoryIndexUpdate(false,false);},2500);}
     @Override protected void onResume(){super.onResume();if(adbShell!=null)adbShell.refresh();if(manageAllFilesSettingsPending&&Build.VERSION.SDK_INT>=30){manageAllFilesSettingsPending=false;boolean startup=manageAllFilesStartupFlow;manageAllFilesStartupFlow=false;if(Environment.isExternalStorageManager())runPendingStorageAccessActions();else{pendingStorageAccessActions.clear();showNotice("未获得管理所有文件权限；下载、更新、删除和自定义路径可能不可用",true);}if(startup)ui.post(this::maybeRequestBatteryExemption);}if(pendingInstallEntry!=null&&(Build.VERSION.SDK_INT<26||getPackageManager().canRequestPackageInstalls())){DownloadEntry ready=pendingInstallEntry;pendingInstallEntry=null;ui.post(()->installEntryWithSystemInstaller(ready));}}
   final List<Models.Source> libraries=new ArrayList<>();final Map<String,String> libraryNames=new HashMap<>();
+  static volatile boolean LIBRARY_AUTO_IMPORT=true;// v1.19.0：JVM 回归测试置 false 静默批量导入（85 源真实网络探测不能进测试）
   void loadRecommendations(){
     List<Models.Source> values=core.recommendations();
     libraries.clear();libraryNames.clear();libraries.addAll(values);
     for(Models.Source lib:libraries)if(!lib.url.isEmpty())libraryNames.put(LanzouCore.sourceId(lib),lib.title);
     if(!values.isEmpty())copySource(values.get(0),home);
     if(values.size()>1)copySource(values.get(1),sharedHome);
-    // v1.11.0 软件库广场：内置库首次自动批量导入为可搜索源（引擎自带去重，仅一次）
-    if(!libraries.isEmpty()&&!getPreferences(0).getBoolean("librariesImported",false)){
-      getPreferences(0).edit().putBoolean("librariesImported",true).apply();
+    // v1.19.0 内置清单扩到 85 源：导入 flag 版本化 .v2（存量安装重新触发，URL 去重幂等）；批量行拼「提取码:」
+    // 由 LanzouCore.parseBatchSourceInputs 的 SMART_PASSWORD 正则就近配对（LanzouCore.java:97），否则带码源导入后无法搜索
+    if(!libraries.isEmpty()&&LIBRARY_AUTO_IMPORT&&!getPreferences(0).getBoolean("librariesImported.v2",false)){
       StringBuilder rules=new StringBuilder();
-      for(Models.Source lib:libraries)if(!lib.url.isEmpty())rules.append(lib.url).append('\n');
+      for(Models.Source lib:libraries)if(!lib.url.isEmpty()){rules.append(lib.url);if(!lib.password.isEmpty())rules.append(" 提取码:").append(lib.password);rules.append('\n');}
       final String batch=rules.toString();
-      io.execute(()->{try{core.addUserSourcesBatch(batch);}catch(InterruptedException ignored){android.util.Log.i("MainActivity", "MainActivity interrupted: "+ignored.getMessage());}});// v1.11.1：去掉「已内置 N 个」弹提示（无用文案），静默导入
+      io.execute(()->{try{core.addUserSourcesBatch(batch);getPreferences(0).edit().putBoolean("librariesImported.v2",true).apply();}catch(InterruptedException ignored){android.util.Log.i("MainActivity", "MainActivity interrupted: "+ignored.getMessage());}});// 静默导入：探测提交成功后才落 flag——离线首启全失败时不落旗、下次启动自动重试（URL 去重幂等），重复 URL 自动跳过
     }
   }
   String libraryNameFor(Models.Item item){
