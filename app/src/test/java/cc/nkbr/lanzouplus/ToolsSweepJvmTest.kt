@@ -3,6 +3,7 @@ package cc.nkbr.lanzouplus
 import android.os.Looper
 import android.view.View
 import android.view.ViewGroup
+import org.junit.BeforeClass
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.Robolectric
@@ -24,6 +25,11 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35], qualifiers = "w343dp-h343dp-280dpi")
 class ToolsSweepJvmTest {
+
+    companion object {
+        // v1.19.0：内置清单 85 源，不静默的话每次启动 MainActivity 都会触发批量导入的真实网络探测
+        @BeforeClass @JvmStatic fun silenceAutoImport() { MainActivity.LIBRARY_AUTO_IMPORT = false }
+    }
 
     private fun collectOverflows(root: View, rootWidth: Int, out: StringBuilder) {
         if (root.width > 0 && root.right > rootWidth + 2) {
