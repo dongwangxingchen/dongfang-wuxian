@@ -94,3 +94,20 @@
 - "搬运"与"参照重写"是两个任务：用户说搬运时，仓库里必须能找到上游原文件（路径可对 diff）。此前用 918 行自写 Java 冒充 12.9 万行上游代码并汇报"接入完成"，连续三轮被驳回。教训：当"零依赖/APK<1MiB"与搬运需求物理冲突时，当轮立即上报用户裁决，不许私自缩水选边。
 - **2026-09-19 v1.18.0 x86_64 误发**：ABI 原按"任务名含 Debug"判断，`assembleEmptyRelease` 与 `testDebugUnitTest` 混在一条命令时 release 包错出 x86_64-only，arm64 手表「应用未安装」；终验只核了 versionCode 未核 native-code，且 +684KB 体积异常被忽略。根修：ABI 改按构建类型静态判断（buildTypes.release/debug 各自 ndk.abiFilters，AGP9 的 Variant.ndk 已移除）；发版脚本上传前强制 `aapt dump badging` 断言 `native-code: arm64-v8a`；**发版终验必查 ABI，体积异常必须解释**。
 - **2026-09-19 PowerShell 无 BOM UTF-8 脚本坑**：Windows PowerShell 5.1 把无 BOM 的 .ps1 按 ANSI/GBK 读——`tools/*.ps1` 里的中文注释/字符串会变乱码甚至破坏解析（v1.18.0 发版说明因此整页乱码）。铁律：**tools 下脚本一律纯 ASCII**；中文内容放独立 UTF-8 数据文件、脚本里用 `[System.Text.Encoding]::UTF8` 显式读取（release_body_180.md 模式）。
+
+---
+
+## 五、Mac 迁移环境更新(2026-09-20 追加;与上文路径/命令冲突时,以本节为准)
+
+项目已于 2026-09-20 从 Windows 交接迁移至本 mac(Apple Silicon),长期接管。上文「项目事实」中的 Windows 路径与命令按本节替换:
+
+- 仓库:`~/heiyao/src`(git 分支 test);工作区入口 `~/heiyao/AGENTS.md`;总计划与归档在 `~/heiyao/黑曜/`(00-总计划 ~ 07-研究报告)
+- 构建:`JAVA_HOME=/Users/lishaowei/sdk/jdk-21.0.11.jdk/Contents/Home ./gradlew :app:assembleEmptyRelease`(JDK 21;Android SDK 在 `~/Library/Android/sdk`,platform-37.0)
+- 终验:`~/Library/Android/sdk/build-tools/37.0.0/aapt dump badging` 断言 `native-code: arm64-v8a`
+- 网络:github.com:443 直连不通(仅 api.github.com 可达);git push 走 SSH over 443(`~/.ssh/config` 已配);发版只走 GitHub Release(gofile 不通),资产上传走 uploads.github.com
+- GitHub:用户账号 dongwangxingchen(gh CLI 已登录);发版仓库 dongwangxingchen/dongfang-wuxian(2026-09-20 起,原 hucxi57-collab/lanzouplus 废弃);mac 端 git 操作用 gh CLI / SSH,不再用 Windows 的 token 内嵌 URL 与分块推送脚本
+- 发版红线已固化为技能:`.zcode/skills/dfwx-release/SKILL.md`,发版/构建 release/上传前必读
+- 模拟器:本机暂未安装(Android emulator 与系统镜像均无);「UI 效果由用户真机截图验收」的铁律在装好模拟器之前不变。Apple Silicon 可运行 arm64 Wear OS 镜像,是否补装由用户决定
+- Windows 专属教训(PowerShell 编码、cmd 引号)仅在回到 Windows 环境时适用
+- 其余全部继续有效:五阶段工作流、铁律、代码风格、禁第三方依赖、`adb devices` 当前无设备(手表未连时 mobile-mcp 保持禁用)
+- 模拟器更新(2026-09-20 晚,覆盖本节上文"暂未安装"表述):Android Emulator + Wear OS 5(API 34)arm64 镜像已装,AVD `dfwx-wear34`(384x384 小圆屏)已完成全链路实测(装机/启动/截图/触控/零崩溃)。本地自测跑法见 `.zcode/skills/dfwx-emulator/SKILL.md`;它替代不了真机验收铁律,是发版前新增的自测层
