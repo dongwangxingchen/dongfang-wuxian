@@ -49,7 +49,7 @@ android {
    isDefault = true
    applicationId = "dfwx.dongdang"
    buildConfigField("boolean", "IS_FULL", "false")
-   buildConfigField("String", "OFFICIAL_URL", "\"https://github.com/nekobyran/lanzouplus\"")
+   buildConfigField("String", "OFFICIAL_URL", "\"https://github.com/dongwangxingchen/dongfang-wuxian\"")
    // v1.9.1：应用名改用独立资源名 dfwx_app_name——rikkahub 库在 values-zh 等 6 个语言里也定义了
    // app_name="RikkaHub"，中文系统资源解析优先 values-zh，会导致桌面名字变成 RikkaHub（真机实测）。
    resValue("string", "dfwx_app_name", "东方无限")
