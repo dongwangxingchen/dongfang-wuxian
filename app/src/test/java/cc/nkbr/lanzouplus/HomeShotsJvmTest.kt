@@ -16,11 +16,12 @@ import java.io.FileOutputStream
 /**
  * [DFWX] 手机尺寸视觉验收（v1.19.2 UI 修复回归）：Robolectric 原生图形在 JVM 上真实渲染
  * 首页落位 / 搜索历史 / 搜索结果三态并截成 PNG（~/heiyao/build_output/phone_shots/）。
- * 尺寸=主流手机：w412dp-h915dp-420dpi。手表尺寸同类测试见 ToolsShotsJvmTest（w343dp）。
+ * 尺寸=iQOO Neo 10：w448dp-h996dp-450dpi（硬件 6.78" 2800×1260 1.5K，450/160=2.8125 缩放）。
+ * 手表尺寸同类测试见 ToolsShotsJvmTest（w343dp）。
  * 修复点回归目标：顶部留白上限 64dp、chips 横带随搜索位移不重叠、列表高度统一、结果卡 104dp 不裁切。
  */
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [35], qualifiers = "w412dp-h915dp-420dpi")
+@Config(sdk = [35], qualifiers = "w448dp-h996dp-450dpi")
 @GraphicsMode(GraphicsMode.Mode.NATIVE)  // 必须：LEGACY 模式 draw 是空操作，截出来全是同一张垃圾位图
 class HomeShotsJvmTest {
 
@@ -37,7 +38,7 @@ class HomeShotsJvmTest {
         val decor = activity.window.decorView
         var w = decor.width
         var h = decor.height
-        if (w <= 0 || h <= 0) { w = 1082; h = 2402 }
+        if (w <= 0 || h <= 0) { w = 1260; h = 2800 }
         val bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
         decor.draw(android.graphics.Canvas(bmp))
         val out = File(System.getProperty("user.home") + "/heiyao/build_output/phone_shots/$name.png")
