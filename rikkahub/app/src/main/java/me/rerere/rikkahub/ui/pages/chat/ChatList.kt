@@ -312,6 +312,29 @@ private fun ChatListNormal(
                     .hazeSource(state = hazeState)
                     .padding(top = innerPadding.calculateTopPadding()),
             ) {
+            // [DFWX-P19] 空聊天占位：上游无空态设计，空会话时 LazyColumn 只剩滚动 Spacer，整页空白
+            if (conversation.messageNodes.isEmpty()) {
+                item(key = "DfwxEmptyChatState") {
+                    Box(
+                        modifier = Modifier.fillParentMaxSize(),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text(
+                                text = "开始你的对话",
+                                style = MaterialTheme.typography.titleMedium,
+                                color = MaterialTheme.colorScheme.onSurface,
+                            )
+                            Spacer(Modifier.height(6.dp))
+                            Text(
+                                text = "在下方输入框提问，AI 会在这里回复",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.outline,
+                            )
+                        }
+                    }
+                }
+            } else {
             itemsIndexed(
                 items = conversation.messageNodes,
                 key = { index, item -> item.id },
@@ -367,7 +390,8 @@ private fun ChatListNormal(
                         )
                     }
                 }
-            }
+            } // [DFWX-P19] itemsIndexed 内容闭包
+            } // [DFWX-P19] else 闭包
 
             if (!loading && assistant?.allowConversationSystemPrompt == true && onConversationSystemPromptChange != null) {
                 item(key = "ConversationSystemPrompt") {
