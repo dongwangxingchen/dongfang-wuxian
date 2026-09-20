@@ -2,9 +2,9 @@
 
 > 一款纯净的原生 Android 工具箱：软件库资源获取 · 37 个离线小工具 · 完整 AI 聊天，手机与手表都好用
 
-![License](https://img.shields.io/badge/License-AGPL--3.0-blue) ![Release](https://img.shields.io/badge/Release-v1.19.0-green) ![Platform](https://img.shields.io/badge/Android-8.0%2B%20%7C%20arm64--v8a-brightgreen) ![Versions](https://img.shields.io/badge/%E7%89%88%E6%9C%AC%E8%BF%AD%E4%BB%A3-60%2B%20%E6%AC%A1-orange)
+![License](https://img.shields.io/github/license/dongwangxingchen/dongfang-wuxian) ![Release](https://img.shields.io/github/v/release/dongwangxingchen/dongfang-wuxian) ![Platform](https://img.shields.io/badge/Android-8.0%2B%20%7C%20arm64--v8a-brightgreen)
 
-**东方无限**是一款持续迭代了 60 多个版本的原生 Android 应用。它把三件事装进一个干净的小体积 APP 里：
+**东方无限**是一款原生 Android 应用，把三件事装进一个干净的小体积 APP 里：
 
 - **软件库** —— 多源聚合的资源搜索与下载
 - **工具箱** —— 37 个纯离线小工具，覆盖日常方方面面
@@ -18,7 +18,7 @@ APP 底部导航即五大板块，各司其职：
 
 ### 📚 软件库 —— 找资源
 
-- **85 条内置源路**，开箱即用：九分类导航 + 好软合集 + 热门应用更新页
+- 内置多分类源路，开箱即用：分类导航 + 好软合集 + 热门应用更新页
 - 接入自定义源规则：导入 / 导出 / 合并（本地或 HTTPS），离线首启可重试
 - **全源并发搜索**：分页进度、暂停与继续、文件夹递归
 - 目录浏览带缓存与路径导航，支持批量提取码配对
@@ -65,24 +65,12 @@ APP 底部导航即五大板块，各司其职：
 
 东方无限不是手机 APP 的简单缩小：AI 对话全部页面与工具箱均按手表小屏（343dp 级别）逐页截图验收，FAB 遮挡、溢出、触控目标都经过调整——在 arm64 手表上是一个真正可用的独立 APP。
 
-## 版本历程（60+ 次迭代）
-
-| 里程碑 | 内容 |
-|---|---|
-| v1.0 ~ v1.7 | 软件库核心：多源搜索、目录浏览、下载管理打下地基；工具箱逐步扩充 |
-| v1.8 | 重大升级：完整内置 RikkaHub AI 对话，从"工具箱"进化为"工具箱 + AI 助手" |
-| v1.9 ~ v1.11 | 内置默认 AI 渠道、软件库清单扩容、浏览体验重构 |
-| v1.12 ~ v1.16 | 工具箱五批精修：21+ 个工具逐一算法验证、真机验收 |
-| v1.17 ~ v1.19 | 视觉验收闭环（工具箱 + AI 全页面）、应用内崩溃日志、软件库扩至 85 源路 |
-
 ## 下载
 
-| 渠道 | 地址 |
-|---|---|
-| APK 发版 | [hucxi57-collab/lanzouplus/releases](https://github.com/hucxi57-collab/lanzouplus/releases)（最新 v1.19.0，约 35 MB，arm64-v8a） |
-| 完整源码 | 即本仓库（AGPL-3.0，随版同步） |
+前往 **[Releases](https://github.com/dongwangxingchen/dongfang-wuxian/releases)** 下载最新 APK（约 35 MB，arm64-v8a）。
 
-系统要求：Android 8.0（API 26）及以上，arm64-v8a 设备（手机 / 手表）。
+- 系统要求：Android 8.0（API 26）及以上，手机 / 手表均可
+- 完整源码即本仓库（AGPL-3.0，与发版同步）
 
 ## 支持作者
 
