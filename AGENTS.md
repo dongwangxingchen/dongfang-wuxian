@@ -111,3 +111,4 @@
 - Windows 专属教训(PowerShell 编码、cmd 引号)仅在回到 Windows 环境时适用
 - 其余全部继续有效:五阶段工作流、铁律、代码风格、禁第三方依赖、`adb devices` 当前无设备(手表未连时 mobile-mcp 保持禁用)
 - 模拟器更新(2026-09-20 晚,覆盖本节上文"暂未安装"表述):Android Emulator + Wear OS 5(API 34)arm64 镜像已装,AVD `dfwx-wear34`(384x384 小圆屏)已完成全链路实测(装机/启动/截图/触控/零崩溃)。本地自测跑法见 `.zcode/skills/dfwx-emulator/SKILL.md`;它替代不了真机验收铁律,是发版前新增的自测层
+- 踩坑记录(2026-09-21,v1.19.3 启动 ANR 修复):①启动关键路径三禁——主线程 binder transact(Shizuku sticky 注册即触发)、启动期 Compose 预热挂载、任何无超时跨进程调用,一律 postDelayed 挪出 onCreate 窗口;模拟器复现不了真机 ANR 时,按"主线程可阻塞点"静态收敛后修复是合规路径。②GitHub Release 资产名严禁中文(会被剥离成 `-v1.19.3-release-.apk`);`gh release upload` 不支持 `文件#标签` 语法(那是 create 的),用临时 ASCII 文件名上传;`gh release delete-asset` 的 `--` 分隔符后不能再放 `-R`(会被计成位置参数)。③无锚 `.gitignore` 规则(`log/`、`backup/`)会吞任意层级同名源码包,交接完整性必须靠 CI 实测验证(本地构建通过≠仓库完整)。④一行式长方法里插行尾注释会把该行剩余代码全部吞掉(本项目第二次踩),注释必须独立成行或抽小方法。
