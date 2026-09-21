@@ -63,15 +63,20 @@ android {
   getByName("release") {
    isMinifyEnabled = true; isShrinkResources = true
    proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-   signingConfigs {
-    create("heiyao") {
-     storeFile = rootProject.file("../heiyao.keystore")
-     storePassword = heiyaoStorePassword
-     keyAlias = "heiyao"
-     keyPassword = heiyaoKeyPassword
+   // v1.19.2：GitHub Actions 云构建用 -Pdfwx.unsigned 跳过签名（keystore 在仓库外，CI 上不存在；
+   // 正式签名仍在本地出包，CI 先验证工具链）。开关关闭时行为与历史完全一致。
+   val ciUnsigned = providers.gradleProperty("dfwx.unsigned").isPresent
+   if (!ciUnsigned) {
+    signingConfigs {
+     create("heiyao") {
+      storeFile = rootProject.file("../heiyao.keystore")
+      storePassword = heiyaoStorePassword
+      keyAlias = "heiyao"
+      keyPassword = heiyaoKeyPassword
+     }
     }
+    signingConfig = signingConfigs.getByName("heiyao")
    }
-   signingConfig = signingConfigs.getByName("heiyao")
    ndk { abiFilters += "arm64-v8a" }  // v1.18.0 修复：release 只出 arm64（真机）——按构建类型静态判断，与任务名无关
   }
   getByName("debug") {
