@@ -24,8 +24,9 @@ app/src/main/assets/r
 app/src/main/assets/c
 request/
 release/
-log/
-backup/
+# 2026-09-21 锚定到仓库根：无锚 log/、backup/ 曾误吞 ui/pages/{log,backup} 源码包（交接漏提交 8 个 kt，CI 揪出）
+/log/
+/backup/
 verification/
 .tmp/
 .playwright-cli/
