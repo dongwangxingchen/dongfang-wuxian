@@ -55,7 +55,7 @@ class LibrariesCatalogJvmTest {
         val activity = controller.get()
         try {
             assertTrue("主页 libraries 应≥50，实际 ${activity.libraries.size}", activity.libraries.size >= 50)
-            assertEquals("首库必须是电子香菜（home 落地源契约）", "电子香菜软件库", activity.libraries[0].title)
+            assertEquals("首库必须是电子香菜（home 落地源契约,v1.19.6 起 DisplayName=分类·内容）", "综合·电子香菜", activity.libraries[0].title)
         } finally {
             controller.destroy()
         }

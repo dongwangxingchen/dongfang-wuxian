@@ -357,42 +357,22 @@ trigger.addView(value,new LinearLayout.LayoutParams(0,dp(54),1));arrow=new Image
     }
     return new RippleDrawable(android.content.res.ColorStateList.valueOf(ThemeEngine.tint(PRIMARY,42)),content,null);
   }
-  /** v1.5.0 苹果按压缩放（研究 R2 规格表#2）：按下 0.97（0ms），松手 220ms 弱过冲回弹 (0.2,0.9,0.3,1.05)；只对主交互面启用，点击事件不受影响 */
-  /* v1.19.7 升级为全主题按压反馈（wear-ui-system.md §3：主反馈=scale 形变+回位，ripple 降辅助）。
-     原 v1.5.0 版仅苹果主题生效，LEGACY 紫主题按下毫无反馈=廉价感主因之一。统一按下 0.96；
-     回位：苹果主题沿用 v1.5.0 调校曲线（220ms 微 overshoot），其余主题用 MotionTokens
-     SPATIAL_DEFAULT 弹簧（stiffness 350 / damping 0.75，dynamicanimation §10 已批准）。 */
+  /** v1.5.0 苹果按压缩放（研究 R2 规格表#2）：按下缩小（0ms），松手 220ms 弱过冲回弹 (0.2,0.9,0.3,1.05)。
+      v1.19.7 起全主题启用（wear-ui-system.md §3：主反馈=scale 形变+回位，ripple 降辅助），统一按下 0.96。 */
+  /* 踩坑(v1.19.7 真机卡死根因)：非苹果主题曾用 dynamicanimation 弹簧回位——
+     ①缓存在 view tag 的弹簧在下次 ACTION_DOWN 不会被取消（view.animate().cancel() 只管 VPA），
+       连点时旧弹簧把 0.96 按压态直接拽回 1.0，按钮"看起来点不动"；
+     ②stiffness 350 软弹簧 settle 无上界，弱手表每次点击近 0.5s 逐帧重绘，连点即渲染风暴→ANR 闪退；
+     ③弹簧与 VPA 两套系统同时写同一视图的 SCALE_X/Y 互相打架。
+     v1.19.8 删除弹簧实现：全主题统一 v1.5.0 已真机验证数月的 VPA 曲线，时长有界必 settle。 */
   public void applePressScale(View v){
     if(v==null)return;
     v.setOnTouchListener((view,event)->{
       if(!motionEnabled())return false;
       if(event.getActionMasked()==android.view.MotionEvent.ACTION_DOWN){view.animate().cancel();view.setScaleX(0.96f);view.setScaleY(0.96f);}
-      else if(event.getActionMasked()==android.view.MotionEvent.ACTION_UP||event.getActionMasked()==android.view.MotionEvent.ACTION_CANCEL){
-        view.animate().cancel();
-        if(ThemeEngine.isApple(view.getContext())){view.animate().scaleX(1f).scaleY(1f).setDuration(220).setInterpolator(new android.view.animation.PathInterpolator(0.2f,0.9f,0.3f,1.05f)).start();}
-        else{SpringBack.run(view);}
-      }
+      else if(event.getActionMasked()==android.view.MotionEvent.ACTION_UP||event.getActionMasked()==android.view.MotionEvent.ACTION_CANCEL){view.animate().cancel();view.animate().scaleX(1f).scaleY(1f).setDuration(220).setInterpolator(new android.view.animation.PathInterpolator(0.2f,0.9f,0.3f,1.05f)).start();}
       return false;
     });
-  }
-  /** v1.19.7：LEGACY 主题弹簧回位（350/0.75）。动画缓存在 view tag，避免每次 UP 新建。 */
-  static final class SpringBack{
-    static void run(View view){
-      androidx.dynamicanimation.animation.SpringAnimation sx=(androidx.dynamicanimation.animation.SpringAnimation)view.getTag(R.id.press_spring_x);
-      androidx.dynamicanimation.animation.SpringAnimation sy=(androidx.dynamicanimation.animation.SpringAnimation)view.getTag(R.id.press_spring_y);
-      if(sx==null||sy==null){
-        sx=new androidx.dynamicanimation.animation.SpringAnimation(view,androidx.dynamicanimation.animation.DynamicAnimation.SCALE_X,1f);
-        sy=new androidx.dynamicanimation.animation.SpringAnimation(view,androidx.dynamicanimation.animation.DynamicAnimation.SCALE_Y,1f);
-        // 踩坑(v1.19.7)：两个动画不能共享一个 SpringForce 实例——共享实例的 finalPosition 保持 UNSET，
-        // SpringAnimation.start() 的 sanityCheck 直接抛 "Final position ... greater than the max value"
-        // 真机即崩。每个动画独立 force 并在构造里显式给 finalPosition=1f。
-        androidx.dynamicanimation.animation.SpringForce fx=new androidx.dynamicanimation.animation.SpringForce(1f);fx.setStiffness(350f);fx.setDampingRatio(0.75f);
-        androidx.dynamicanimation.animation.SpringForce fy=new androidx.dynamicanimation.animation.SpringForce(1f);fy.setStiffness(350f);fy.setDampingRatio(0.75f);
-        sx.setSpring(fx);sy.setSpring(fy);
-        view.setTag(R.id.press_spring_x,sx);view.setTag(R.id.press_spring_y,sy);
-      }
-      sx.start();sy.start();
-    }
   }
   void resetButtonChrome(Button b){b.setAllCaps(false);b.setMinWidth(0);b.setMinimumWidth(0);b.setMinHeight(dp(44));b.setMinimumHeight(dp(44));b.setPadding(dp(12),0,dp(12),0);b.setStateListAnimator(null);applePressScale(b);}
   void styleDialogButton(Button b,boolean emphasized){if(b==null)return;resetButtonChrome(b);b.setTextSize(13);b.setTextColor(emphasized?PRIMARY:MUTED);b.setBackground(filterRipple(new ColorDrawable(Color.TRANSPARENT)));b.setGravity(Gravity.CENTER);}
