@@ -89,6 +89,17 @@
 - **可维护性是硬指标**：上游源码以 vendor 目录进仓库、文件路径与上游一一对应（可 diff）；本项目定制做成薄 patch 层；上游更新流程 = 拉 diff → 覆盖 vendor → 重放 patch。
 - **研究前置**：动手前必须完整摸清上游构建体系、依赖、UI 架构（用户点名过：设置界面全家桶、历史记录左抽屉、切换模型只是其中一小块）。
 
+### 2026-09-22 全套规范一致性消解（全套 audit 后追加，按铁律 7 只追加不改写）
+
+以下条目在旧流程条款与 2026-09-21/22 新增协议冲突时，**以本节为准**：
+
+1. **阶段四"每步跑 assembleEmptyRelease"修正为 debug 构建**：日常迭代验证一律 `JAVA_HOME=~/sdk/jdk-21... ./gradlew :app:assembleDebug`（快、不被混淆裁剪）；release 构建只在发版时跑。与第七节"构建分层"一致，覆盖阶段四原文。
+2. **阶段一"至少 3 个并行子智能体、合计 100+ 案例"的大规模搜证默认跳过**：2026-09-21/22 两份深度研究报告 + `docs/design/wear-ui-system.md` v2 已完成通用 UI 研究并把全部参数固化；常规 UI 任务直接引用 spec 与报告（引用即合规，不算偷懒）。只有进入全新领域（全新组件类型/全新交互范式）才重新走五阶段搜证。
+3. **§一 Windows 路径的 Mac 落点**：`D:\新建文件夹 (2)\` → `~/heiyao/`。项目认知在 `~/heiyao/东方无限-项目认知.md`（仍须 git log 核时效）；m3tok.json/easing.json/m3dir.json 在 `~/heiyao/` 根；**`东方无限-用户偏好.md` 未迁移到 Mac（不存在），该步跳过不阻塞、不报错**。
+4. **§二 旧色板（BG #0B0A12 等）被 spec v2 §5 OLED 亮度阶梯取代**：新 UI 一律取 spec token；存量页面按 spec §11 顺序渐进迁移，迁移完成期两套并存不视为违规，但禁止新码引用旧色值常量。
+5. **快照测试路线澄清**：§五-2026-09-13"paparazzi 与 AGP9 不兼容已停用"不阻塞 spec §12 的 Roborazzi 视觉回归计划——Roborazzi 走 Robolectric 管线，与 paparazzi 是不同实现，正是它的替代路线。
+6. **126 个全局技能的路由规则（防过载）**：web 向设计技能（impeccable / frontend-design / taste-skill / GSAP 系等）只允许"审美评审框架"用途；其具体规则与本文件或 spec 冲突时（禁纯黑、禁 bounce、字号上限等），一律以 `wear-ui-system.md` §9 的冲突过滤为准。UI 任务只读：本文件第七节 + spec 对应节，禁止遍历技能库找规矩。
+
 ## 六、踩坑记录
 
 - "搬运"与"参照重写"是两个任务：用户说搬运时，仓库里必须能找到上游原文件（路径可对 diff）。此前用 918 行自写 Java 冒充 12.9 万行上游代码并汇报"接入完成"，连续三轮被驳回。教训：当"零依赖/APK<1MiB"与搬运需求物理冲突时，当轮立即上报用户裁决，不许私自缩水选边。
@@ -114,4 +125,4 @@
 - 踩坑记录(2026-09-21,v1.19.3 启动 ANR 修复):①启动关键路径三禁——主线程 binder transact(Shizuku sticky 注册即触发)、启动期 Compose 预热挂载、任何无超时跨进程调用,一律 postDelayed 挪出 onCreate 窗口;模拟器复现不了真机 ANR 时,按"主线程可阻塞点"静态收敛后修复是合规路径。②GitHub Release 资产名严禁中文(会被剥离成 `-v1.19.3-release-.apk`);`gh release upload` 不支持 `文件#标签` 语法(那是 create 的),用临时 ASCII 文件名上传;`gh release delete-asset` 的 `--` 分隔符后不能再放 `-R`(会被计成位置参数)。③无锚 `.gitignore` 规则(`log/`、`backup/`)会吞任意层级同名源码包,交接完整性必须靠 CI 实测验证(本地构建通过≠仓库完整)。④一行式长方法里插行尾注释会把该行剩余代码全部吞掉(本项目第二次踩),注释必须独立成行或抽小方法。
 - 踩坑记录(2026-09-21 晚,v1.19.4 搜索滚动修复):①嵌套 ScrollView 铁律——普通 ScrollView.onInterceptTouchEvent 超过 touchSlop 会无条件抢走竖向手势,不看自己是否还能滚;内层列表必须在外层 dispatchTouchEvent 的 DOWN 时 requestDisallowInterceptTouchEvent(true)、UP/CANCEL 释放(SearchDragBar/FolderPullScrollView/pageScroll 三处同款模式)。②嵌套滚动被抢的连锁症状:内层 onScrollChangeListener 里的分批渲染/懒加载全部失活(搜索底部留白截断的根因)。③模拟器复现手法:wm size/density 调成用户真机视口(手表 612x752@280dpi);input swipe 坐标必须落在目标 ScrollView 内(此前甩在内容区与底栏的死区白忙一场);OnTouchListener 只在"该 view 自身是触摸目标"时触发,要截获子 view 的事件流必须匿名子类重载 dispatchTouchEvent/onInterceptTouchEvent。
 
- - 踩坑记录(2026-09-22,v1.19.5 体验修复):①自绘拖动条与原生滚动条互斥——ScrollView 默认滚动条和自定义指示器(如 SearchDragBar 紫色胶囊)同屏会出现"分裂"双指示器,自绘方案必须 setVerticalScrollBarEnabled(false)(pageScroll/homeScroll/FolderPullScrollView 全关);自绘 thumb 靠 bumpActivity 唤醒时只改 alpha 不够,必须显式 invalidate() 否则位置不重绘、看起来"不跟手"。②首开重初始化界面必须有同步占位——AI 对话页 ComposeView 首次创建重(Compose 运行时+主题初始化),直接同步建会卡死 UI 线程数秒;正确姿势:点击瞬间同步挂轻量占位(文字+ProgressBar),ui.post 里异步建 ComposeView 再替换,替换前用 pageKind 守卫防用户已切页错挂,catch(Throwable) 兜底错误文案。③模拟器太快抓不到占位帧属正常(点击→键盘弹起全程<500ms),占位是给慢真机的;功能验证看最终态(键盘弹起=输入框聚焦=Compose 挂载成功),别在快模拟器上追求截图占位帧。
+ - 踩坑记录(2026-09-22,v1.19.6 软件库治理):①批量导入探测会用蓝奏云页面标题覆盖传入标题落库("电子香菜软件资源"等),内置清单改名的存量同步不能靠旧命名特征匹配——必须按 URL 无条件强推一次(flag 版本化 .v4,只推一次,之后用户手动改名不再被动);且同步要跑两次:导入前(覆盖存量设备)+导入后(新装设备 addUserSourcesBatch 探测落库在后,不等导入完就被页面标题覆盖)。②搜索结果 folder 条目曾加载远程图标+显示站点描述,看起来像软件导致用户误点进文件夹;folder 必须固定 ic_folder 不 loadImage,meta 标"文件夹"。③"安卓机器人图标的软件"=源内 APK 自带默认 icon(官方开源包如 lx-music 或改版包未换 icon),APP 端改不了 APK 本身,改进方向是类型标注(安装包/压缩包+arm64/armv7 架构从文件名提取)而不是图标;压缩包标"不是应用,下载后需解压"能挡住下载后打不开的困惑。
