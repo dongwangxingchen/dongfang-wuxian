@@ -721,6 +721,33 @@ final class LanzouCore {
 
   Models.Source updateCompositeMetadata(String sourceId,String title,String publisher,String description)throws Exception{synchronized(USER_SOURCE_LOCK){Models.Source source=editableComposite(sourceId);String name=cleanRuleCell(title),author=cleanRuleCell(publisher),summary=description==null?"":description.trim();if(name.isEmpty()||name.length()>160)throw new IOException("请输入有效的合集标题");if(author.length()>80||summary.length()>4000||containsControl(author))throw new IOException("合集信息格式无效");source.title=name;source.publisher=author;source.description=summary;String icon=firstSoftwareIcon(source);if(!icon.isEmpty())source.avatarUrl=icon;storeUserSourceLocked(source);touchSourceRevisionLocked(sourceRootId(sourceId));return copySource(source);}}
 
+  // v1.19.6：内置清单改名后按 URL 同步已导入用户源的标题。force=false 只覆盖 v1.19.5 及更早
+  // 内置清单的旧命名（"电子香菜软件库"或"好软·"/"423down·"前缀）；force=true 无条件按 URL 覆盖——
+  // 实测批量导入探测会用蓝奏云页面标题落库（"电子香菜软件资源"等），不匹配任何旧命名特征，
+  // 清单改名的存量同步必须强推一次；强推只发生一次（flag 版本化），之后用户手动改名不再被动。
+  static final java.util.regex.Pattern LEGACY_LIBRARY_TITLE=java.util.regex.Pattern.compile("^(电子香菜软件库|好软·|423down·)");
+
+  int syncLibraryTitles(Map<String,String> titleByUrl,boolean force)throws Exception{
+    if(titleByUrl==null||titleByUrl.isEmpty())return 0;
+    synchronized(USER_SOURCE_LOCK){
+      List<Models.Source> saved=loadUserSourcesLocked();
+      Set<String> touched=new LinkedHashSet<>();int changed=0;
+      for(Models.Source source:saved){
+        if(source.kind==Models.SOURCE_COMPOSITE||source.url.isEmpty())continue;
+        String title=titleByUrl.get(source.url);
+        if(title==null||title.isEmpty()||title.equals(source.title))continue;
+        if(!force&&!LEGACY_LIBRARY_TITLE.matcher(source.title).find())continue;
+        source.title=cleanRuleCell(title);changed++;touched.add(sourceRootId(sourceId(source)));
+      }
+      if(changed==0)return 0;
+      SharedPreferences preferences=context.getSharedPreferences(USER_SOURCE_PREFS,Context.MODE_PRIVATE);
+      if(!preferences.edit().putString(USER_SOURCE_KEY,sourceDocument(saved).toString()).commit())throw new IOException("软件库名称同步失败");
+      for(String key:touched){touchSourceRevisionLocked(key);SOURCE_OVERRIDES.remove(key);}
+      invalidateSourceNameIndex();
+      return changed;
+    }
+  }
+
   List<Models.Source> restoreOfficialSources()throws Exception{synchronized(USER_SOURCE_LOCK){List<Models.Source> built=builtInSources(),users=loadUserSourcesLocked(),kept=new ArrayList<>();Set<String> builtIds=new HashSet<>();Map<String,Models.Source> baselines=new HashMap<>();for(Models.Source source:built){String id=sourceId(source);builtIds.add(id);baselines.put(id,source);}for(Models.Source source:users){String id=sourceId(source),root=sourceRootId(id);Models.Source baseline=baselines.get(root);if(baseline==null){kept.add(source);continue;}if(baseline.kind==Models.SOURCE_COMPOSITE&&source.kind==Models.SOURCE_COMPOSITE){Models.Source overlay=source.overlay?copySource(source):compositeOverlay(baseline,source);overlay.overlay=true;overlay.metadataOverride=false;overlay.title=overlay.publisher=overlay.avatarUrl=overlay.description="";kept.add(overlay);}}SharedPreferences preferences=context.getSharedPreferences(USER_SOURCE_PREFS,Context.MODE_PRIVATE);Set<String> removed=loadRemovedSourcesLocked(preferences);removed.removeAll(builtIds);if(!preferences.edit().putString(USER_SOURCE_KEY,sourceDocument(kept).toString()).putString(REMOVED_SOURCE_KEY,new JSONArray(removed).toString()).commit())throw new IOException("恢复官方源失败");for(String id:builtIds){SOURCE_OVERRIDES.remove(id);touchSourceRevisionLocked(id);}return sources(removed);}}
 
   List<Models.Source> resetAllSources()throws Exception{synchronized(USER_SOURCE_LOCK){SharedPreferences preferences=context.getSharedPreferences(USER_SOURCE_PREFS,Context.MODE_PRIVATE);Set<String> touched=new LinkedHashSet<>();for(Models.Source source:builtInSources())touched.add(sourceId(source));for(Models.Source source:loadUserSourcesLocked())touched.add(sourceRootId(sourceId(source)));touched.addAll(loadRemovedSourcesLocked(preferences));touched.addAll(SOURCE_OVERRIDES.keySet());if(!preferences.edit().remove(USER_SOURCE_KEY).remove(REMOVED_SOURCE_KEY).commit())throw new IOException("重置源列表失败");context.getSharedPreferences(COMPOSITE_MEMBER_PREFS,Context.MODE_PRIVATE).edit().clear().apply();SOURCE_OVERRIDES.clear();COMPOSITE_MEMBER_CACHE.clear();SOURCE_PROFILES.clear();browseSessions.clear();for(String id:touched)if(!id.isEmpty())touchSourceRevisionLocked(id);return sources(Collections.emptySet());}}
