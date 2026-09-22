@@ -35,9 +35,9 @@ final class ThemeEngine {
     }
   }
 
-/** legacy：经典紫温（原 applySystemColors 原色值），默认主题 */
+/** legacy：经典紫温（原 applySystemColors 原色值），默认主题。v1.19.7 底色改 OLED 真黑（wear-ui-system.md §5：Screen=#000000，表面阶梯更清晰且省电） */
 static final Design LEGACY=new Design("legacy","原生安卓","系统默认 · 经典紫配色",
-    0xFF0B0A12,0xFF16141F,0xFF262332,0xFF262332,
+    0xFF000000,0xFF16141F,0xFF262332,0xFF262332,
     0xFFA78BFA,0xFFC494FF,0xFF8B5CF6,0xFF8FB8F0,
     0xFFF2F0F7,0xFF9A93AB,0xFFFFB4AB);
 
