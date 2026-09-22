@@ -338,9 +338,13 @@ trigger.addView(value,new LinearLayout.LayoutParams(0,dp(54),1));arrow=new Image
   void writeDownloadHistoryNow(){try{org.json.JSONArray items=new org.json.JSONArray();int start=Math.max(0,downloadEntries.size()-100);for(int i=start;i<downloadEntries.size();i++){DownloadEntry entry=downloadEntries.get(i);synchronized(entry){items.put(new org.json.JSONObject().put("type",entry.entryType).put("batchId",entry.batchId).put("batchTitle",entry.batchTitle).put("name",entry.name).put("state",entry.state).put("error",entry.error).put("percent",entry.percent).put("icon",entry.iconUrl).put("share",entry.shareUrl).put("password",entry.password).put("uri",entry.uriString).put("parent",entry.parentUriString).put("sourceSize",entry.sourceSizeText).put("expectedUpdateVersion",entry.expectedUpdateVersion).put("created",entry.createdAt).put("started",entry.startedAt).put("completed",entry.completedAt).put("doneBytes",entry.downloadedBytes).put("totalBytes",entry.totalBytes).put("verifiedTotalBytes",entry.verifiedTotalBytes).put("direct",entry.directUrl).put("resolvedAt",entry.resolvedAt).put("speed",entry.speedBps).put("eta",entry.etaSeconds).put("saveTotal",entry.saveTotal).put("saveDone",entry.saveDone).put("saveSucceeded",entry.saveSucceeded).put("saveFailed",entry.saveFailed).put("saveParallelism",entry.saveParallelism).put("savePayload",entry.savePayload).put("saveAccountKeys",entry.saveAccountKeys).put("saveCompletedKeys",entry.saveCompletedKeys).put("saveUnitPlan",entry.saveUnitPlan));}}getSharedPreferences("download_history",MODE_PRIVATE).edit().putString("items",items.toString()).commit();}catch(Exception ignored){android.util.Log.w("MainActivity", "MainActivity Exception: "+ignored.getMessage(), ignored);}}
   void flushDownloadHistoryNow(){Future<?> finalWrite=null;synchronized(downloadPersistLock){downloadPersistClosed=true;downloadPersistDirty=false;if(downloadPersistFuture!=null)downloadPersistFuture.cancel(false);downloadPersistFuture=null;}try{finalWrite=downloadPersistIo.submit(this::writeDownloadHistoryNow);finalWrite.get(4,TimeUnit.SECONDS);}catch(Exception failure){if(finalWrite!=null)finalWrite.cancel(true);downloadPersistIo.shutdownNow();try{downloadPersistIo.awaitTermination(1,TimeUnit.SECONDS);}catch(InterruptedException interrupted){Thread.currentThread().interrupt();}writeDownloadHistoryNow();return;}downloadPersistIo.shutdownNow();}
   public int dp(int v){return (int)(v*getResources().getDisplayMetrics().density+.5f);} TextView text(String s,int sp,int color){TextView v=new TextView(this);v.setText(s);v.setTextSize(sp);v.setTextColor(color);v.setGravity(Gravity.CENTER_VERTICAL);v.setFontFeatureSettings("kern");return v;}
+
+  /** v1.19.7 字重角色（wear-ui-system.md §6）：标题靠字重不靠放大。weight≥650→BOLD，≥500→sans-serif-medium，0 不动。 */
+  TextView text(String s,int sp,int color,int weight){TextView v=text(s,sp,color);if(weight>=650)v.setTypeface(android.graphics.Typeface.DEFAULT,android.graphics.Typeface.BOLD);else if(weight>=500)v.setTypeface(Typeface.create("sans-serif-medium",Typeface.NORMAL));return v;}
+  /** v1.19.7 形状 Token 归档（wear-ui-system.md §4）：radius≥24→26(Panel)，14–23→20(Card)，5–13→8(Micro 内嵌小块)，<5 原样(指示条)。历史 14 种圆角经此收敛为四档+指示条，调用点零改动。 */
+  public GradientDrawable solidShape(int color,int radius){GradientDrawable g=new GradientDrawable();g.setColor(color);g.setCornerRadius(dp(radius>=24?26:radius>=14?20:radius>=5?8:radius));return g;}
   String friendlyError(Throwable error){String raw=error==null||error.getMessage()==null?"":error.getMessage().trim(),lower=raw.toLowerCase(Locale.ROOT);if(raw.contains("分享已取消"))return"分享已取消";if(raw.contains("不受信任")||raw.contains("跳转"))return"该源已失效或跳转异常";if(raw.contains("超时")||lower.contains("timeout")||lower.contains("timed out"))return"连接超时，请稍后重试";if(raw.contains("密码"))return raw;if(raw.contains("过快")||raw.contains("频率")||raw.contains("受限"))return"请求频率受限，请稍后重试";if(raw.contains("ACW"))return"蓝奏验证暂不可用，请稍后重试";if(lower.contains("socket")||lower.contains("connect")||lower.contains("host")||raw.contains("网络"))return"网络连接异常，请稍后重试";if(raw.startsWith("请输入")||raw.startsWith("无法")||raw.startsWith("未获得")||raw.startsWith("没有"))return raw;return"操作失败，请稍后重试";}
   GradientDrawable shape(int color,int radius){GradientDrawable g=new GradientDrawable();g.setColor(color);g.setCornerRadius(dp(radius));g.setStroke(dp(1),BORDER);return g;}
-  public GradientDrawable solidShape(int color,int radius){GradientDrawable g=new GradientDrawable();g.setColor(color);g.setCornerRadius(dp(radius));return g;}
   public Drawable filterRipple(Drawable content){
     // v1.5.0 苹果按压态（研究 R2 规格表#1）：无涟漪——按下「即时」叠 16% 黑（反馈是状态不是动画），松手即回；legacy 维持 Material 涟漪
     if(ThemeEngine.isApple(this)){
@@ -354,14 +358,41 @@ trigger.addView(value,new LinearLayout.LayoutParams(0,dp(54),1));arrow=new Image
     return new RippleDrawable(android.content.res.ColorStateList.valueOf(ThemeEngine.tint(PRIMARY,42)),content,null);
   }
   /** v1.5.0 苹果按压缩放（研究 R2 规格表#2）：按下 0.97（0ms），松手 220ms 弱过冲回弹 (0.2,0.9,0.3,1.05)；只对主交互面启用，点击事件不受影响 */
+  /* v1.19.7 升级为全主题按压反馈（wear-ui-system.md §3：主反馈=scale 形变+回位，ripple 降辅助）。
+     原 v1.5.0 版仅苹果主题生效，LEGACY 紫主题按下毫无反馈=廉价感主因之一。统一按下 0.96；
+     回位：苹果主题沿用 v1.5.0 调校曲线（220ms 微 overshoot），其余主题用 MotionTokens
+     SPATIAL_DEFAULT 弹簧（stiffness 350 / damping 0.75，dynamicanimation §10 已批准）。 */
   public void applePressScale(View v){
-    if(v==null||!ThemeEngine.isApple(this))return;
+    if(v==null)return;
     v.setOnTouchListener((view,event)->{
       if(!motionEnabled())return false;
-      if(event.getActionMasked()==android.view.MotionEvent.ACTION_DOWN){view.animate().cancel();view.setScaleX(0.97f);view.setScaleY(0.97f);}
-      else if(event.getActionMasked()==android.view.MotionEvent.ACTION_UP||event.getActionMasked()==android.view.MotionEvent.ACTION_CANCEL){view.animate().cancel();view.animate().scaleX(1f).scaleY(1f).setDuration(220).setInterpolator(new android.view.animation.PathInterpolator(0.2f,0.9f,0.3f,1.05f)).start();}
+      if(event.getActionMasked()==android.view.MotionEvent.ACTION_DOWN){view.animate().cancel();view.setScaleX(0.96f);view.setScaleY(0.96f);}
+      else if(event.getActionMasked()==android.view.MotionEvent.ACTION_UP||event.getActionMasked()==android.view.MotionEvent.ACTION_CANCEL){
+        view.animate().cancel();
+        if(ThemeEngine.isApple(view.getContext())){view.animate().scaleX(1f).scaleY(1f).setDuration(220).setInterpolator(new android.view.animation.PathInterpolator(0.2f,0.9f,0.3f,1.05f)).start();}
+        else{SpringBack.run(view);}
+      }
       return false;
     });
+  }
+  /** v1.19.7：LEGACY 主题弹簧回位（350/0.75）。动画缓存在 view tag，避免每次 UP 新建。 */
+  static final class SpringBack{
+    static void run(View view){
+      androidx.dynamicanimation.animation.SpringAnimation sx=(androidx.dynamicanimation.animation.SpringAnimation)view.getTag(R.id.press_spring_x);
+      androidx.dynamicanimation.animation.SpringAnimation sy=(androidx.dynamicanimation.animation.SpringAnimation)view.getTag(R.id.press_spring_y);
+      if(sx==null||sy==null){
+        sx=new androidx.dynamicanimation.animation.SpringAnimation(view,androidx.dynamicanimation.animation.DynamicAnimation.SCALE_X,1f);
+        sy=new androidx.dynamicanimation.animation.SpringAnimation(view,androidx.dynamicanimation.animation.DynamicAnimation.SCALE_Y,1f);
+        // 踩坑(v1.19.7)：两个动画不能共享一个 SpringForce 实例——共享实例的 finalPosition 保持 UNSET，
+        // SpringAnimation.start() 的 sanityCheck 直接抛 "Final position ... greater than the max value"
+        // 真机即崩。每个动画独立 force 并在构造里显式给 finalPosition=1f。
+        androidx.dynamicanimation.animation.SpringForce fx=new androidx.dynamicanimation.animation.SpringForce(1f);fx.setStiffness(350f);fx.setDampingRatio(0.75f);
+        androidx.dynamicanimation.animation.SpringForce fy=new androidx.dynamicanimation.animation.SpringForce(1f);fy.setStiffness(350f);fy.setDampingRatio(0.75f);
+        sx.setSpring(fx);sy.setSpring(fy);
+        view.setTag(R.id.press_spring_x,sx);view.setTag(R.id.press_spring_y,sy);
+      }
+      sx.start();sy.start();
+    }
   }
   void resetButtonChrome(Button b){b.setAllCaps(false);b.setMinWidth(0);b.setMinimumWidth(0);b.setMinHeight(dp(44));b.setMinimumHeight(dp(44));b.setPadding(dp(12),0,dp(12),0);b.setStateListAnimator(null);applePressScale(b);}
   void styleDialogButton(Button b,boolean emphasized){if(b==null)return;resetButtonChrome(b);b.setTextSize(13);b.setTextColor(emphasized?PRIMARY:MUTED);b.setBackground(filterRipple(new ColorDrawable(Color.TRANSPARENT)));b.setGravity(Gravity.CENTER);}
@@ -373,7 +404,7 @@ trigger.addView(value,new LinearLayout.LayoutParams(0,dp(54),1));arrow=new Image
   LinearLayout settingsRowShell(){LinearLayout row=new LinearLayout(this);row.setGravity(Gravity.CENTER_VERTICAL);row.setPadding(dp(10),0,dp(8),0);row.setMinimumHeight(settingsRowHeight());return row;}
   LinearLayout.LayoutParams settingsIconBox(){return new LinearLayout.LayoutParams(dp(28),dp(28));}
   ImageView settingsLeadingIcon(int icon){ImageView image=new ImageView(this);image.setImageResource(icon);image.setColorFilter(PRIMARY);image.setScaleType(ImageView.ScaleType.CENTER_INSIDE);image.setPadding(dp(2),dp(2),dp(2),dp(2));image.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);return image;}
-  TextView settingsRowTitle(String label){TextView title=text(label,14,TEXT);title.setGravity(Gravity.CENTER_VERTICAL);title.setPadding(dp(12),0,dp(8),0);return title;}
+  TextView settingsRowTitle(String label){TextView title=text(label,14,TEXT,560);title.setGravity(Gravity.CENTER_VERTICAL);title.setPadding(dp(12),0,dp(8),0);return title;}
   View settingsAction(int icon,String label,View.OnClickListener click){LinearLayout row=settingsRowShell();row.setClickable(true);row.setFocusable(true);row.setBackground(filterRipple(new ColorDrawable(Color.TRANSPARENT)));row.setContentDescription(label);row.setOnClickListener(click);ImageView image=settingsLeadingIcon(icon);row.addView(image,settingsIconBox());TextView title=settingsRowTitle(label);row.addView(title,new LinearLayout.LayoutParams(0,-1,1));return row;}
   TextView recoveryOption(String label,Runnable action){TextView option=text(label,12,TEXT);option.setGravity(Gravity.CENTER);option.setPadding(dp(10),0,dp(10),0);option.setMinWidth(dp(56));option.setClickable(true);option.setFocusable(true);option.setBackground(filterRipple(new ColorDrawable(Color.TRANSPARENT)));option.setContentDescription(label);option.setOnClickListener(v->{if(!motionEnabled()){action.run();return;}option.animate().cancel();option.animate().alpha(.55f).scaleX(.96f).scaleY(.96f).setDuration(70).withEndAction(()->option.animate().alpha(1f).scaleX(1f).scaleY(1f).setDuration(90).withEndAction(action).start()).start();});return option;}
   View recoveryGroup(){LinearLayout group=settingsRowShell();ImageView icon=settingsLeadingIcon(R.drawable.ic_refresh);group.addView(icon,settingsIconBox());TextView title=settingsRowTitle("恢复");group.addView(title,new LinearLayout.LayoutParams(0,-1,1));LinearLayout actions=new LinearLayout(this);actions.setGravity(Gravity.END|Gravity.CENTER_VERTICAL);GradientDrawable boundary=solidShape(SURFACE,16);boundary.setStroke(dp(1),DIV);actions.setBackground(boundary);actions.setClipToOutline(true);String[] labels=new String[]{"所有列表","默认设置"};Runnable[] callbacks=new Runnable[]{this::confirmResetAllSources,this::restoreSettingsDefaults};for(int i=0;i<labels.length;i++){if(i>0){View divider=new View(this);divider.setBackgroundColor(DIV);actions.addView(divider,new LinearLayout.LayoutParams(dp(1),dp(28)));}actions.addView(recoveryOption(labels[i],callbacks[i]),new LinearLayout.LayoutParams(-2,dp(56)));}group.addView(actions,new LinearLayout.LayoutParams(-2,dp(56)));group.setContentDescription("恢复：所有列表、默认设置");return group;}
@@ -401,7 +432,7 @@ trigger.addView(value,new LinearLayout.LayoutParams(0,dp(54),1));arrow=new Image
   void selectRoundedDownloadFilter(LinearLayout strip,TextView target){for(int i=0;i<strip.getChildCount();i++){TextView filter=(TextView)strip.getChildAt(i);boolean selected=filter==target;filter.setSelected(selected);filter.setTextColor(selected?BG:MUTED);filter.setBackground(filterRipple(solidShape(selected?PRIMARY:SURFACE,16)));filter.setContentDescription(filter.getText()+(selected?"，已选择":""));if(selected&&motionEnabled()){filter.animate().cancel();filter.setScaleX(.92f);filter.setScaleY(.92f);filter.animate().scaleX(1f).scaleY(1f).setDuration(140).start();}}}
   void transitionDownloadFilter(Runnable update){int token=++downloadFilterGeneration;if(downloadList==null){update.run();return;}downloadList.animate().cancel();if(!motionEnabled()){downloadList.setAlpha(1f);update.run();return;}downloadList.animate().alpha(0f).setDuration(90).withEndAction(()->{if(token!=downloadFilterGeneration)return;update.run();downloadList.setAlpha(0f);downloadList.animate().alpha(1f).setDuration(130).start();}).start();}
   void transitionSourceFilter(Runnable update){int token=++sourceFilterGeneration;if(sourceGrid==null){update.run();return;}sourceGrid.animate().cancel();if(!motionEnabled()){sourceGrid.setAlpha(1f);update.run();return;}sourceGrid.animate().alpha(0f).setDuration(90).withEndAction(()->{if(token!=sourceFilterGeneration)return;update.run();sourceGrid.setAlpha(0f);sourceGrid.animate().alpha(1f).setDuration(130).start();}).start();}
-  public TextView primaryHeader(String title){LinearLayout header=new LinearLayout(this);pageHeaderRow=header;header.setGravity(Gravity.CENTER_VERTICAL);TextView heading=text(title,22,TEXT);heading.setPadding(dp(4),0,0,0);header.addView(heading,new LinearLayout.LayoutParams(0,dp(52),1));root.addView(header,new LinearLayout.LayoutParams(-1,dp(56)));return heading;}
+  public TextView primaryHeader(String title){LinearLayout header=new LinearLayout(this);pageHeaderRow=header;header.setGravity(Gravity.CENTER_VERTICAL);TextView heading=text(title,22,TEXT,700);heading.setPadding(dp(4),0,0,0);header.addView(heading,new LinearLayout.LayoutParams(0,dp(52),1));root.addView(header,new LinearLayout.LayoutParams(-1,dp(56)));return heading;}
   EditText pageSearch(java.util.function.Consumer<String> action){FrameLayout box=new FrameLayout(this);box.setBackground(shape(SURFACE,14));EditText input=new EditText(this);input.setSingleLine();input.setTextColor(TEXT);input.setHintTextColor(MUTED);input.setHint("搜索");input.setTextSize(14);input.setBackgroundColor(Color.TRANSPARENT);input.setPadding(dp(14),0,dp(52),0);input.setImeOptions(EditorInfo.IME_ACTION_SEARCH);box.addView(input,new FrameLayout.LayoutParams(-1,-1));ImageButton find=iconButton(R.drawable.ic_search,"筛选");FrameLayout.LayoutParams fp=new FrameLayout.LayoutParams(dp(44),dp(44),Gravity.END|Gravity.CENTER_VERTICAL);box.addView(find,fp);root.addView(box,new LinearLayout.LayoutParams(-1,dp(48)));Runnable run=()->action.accept(input.getText().toString().trim());find.setOnClickListener(v->run.run());input.setOnEditorActionListener((v,a,e)->{run.run();return true;});input.addTextChangedListener(new TextWatcher(){public void beforeTextChanged(CharSequence s,int start,int count,int after){}public void onTextChanged(CharSequence s,int start,int before,int count){run.run();}public void afterTextChanged(Editable e){}});return input;}
   int itemColumns(){int width=root!=null&&root.getWidth()>0?root.getWidth():getResources().getDisplayMetrics().widthPixels,height=root!=null&&root.getHeight()>0?root.getHeight():getResources().getDisplayMetrics().heightPixels;return width>height||width>=dp(600)?4:2;}
   GridLayout newItemGrid(int columns){GridLayout grid=new GridLayout(this);grid.setColumnCount(columns);grid.setAlignmentMode(GridLayout.ALIGN_BOUNDS);return grid;}
@@ -488,7 +519,7 @@ indicator.setScaleX(.45f);indicator.setAlpha(.55f);indicator.post(()->indicator.
         TextView chip=text(lib.title,13,TEXT);chip.setMaxLines(1);chip.setEllipsize(android.text.TextUtils.TruncateAt.END);
         chip.setTypeface(android.graphics.Typeface.DEFAULT,android.graphics.Typeface.BOLD);
         GradientDrawable chipBg=solidShape(SURFACE,21);chipBg.setStroke(dp(1),BORDER);chip.setBackground(chipBg);
-        chip.setPadding(dp(14),dp(10),dp(14),dp(10));chip.setClickable(true);chip.setFocusable(true);
+        chip.setPadding(dp(14),dp(10),dp(14),dp(10));chip.setClickable(true);chip.setFocusable(true);applePressScale(chip);// v1.19.7 库胶囊按压形变
         chip.setContentDescription("打开软件库 "+lib.title);
         chip.setOnClickListener(v->{pageDirection=1;openRecommendedHome(lib);});
         LinearLayout.LayoutParams chipLp=new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT,dp(42));
@@ -754,7 +785,7 @@ content=new LinearLayout(this);content.setOrientation(LinearLayout.VERTICAL);pag
     LinearLayout item=new LinearLayout(this);item.setOrientation(LinearLayout.VERTICAL);item.setPadding(dp(7),dp(6),dp(7),dp(5));item.setBackgroundColor(Color.TRANSPARENT);item.setClickable(true);item.setFocusable(true);
     TextView sourceBadge=text("",10,PRIMARY);sourceBadge.setMaxLines(1);sourceBadge.setEllipsize(android.text.TextUtils.TruncateAt.END);sourceBadge.setPadding(dp(9),0,0,0);sourceBadge.setVisibility(View.GONE);
     LinearLayout top=new LinearLayout(this);top.setGravity(Gravity.CENTER_VERTICAL);ImageView icon=new ImageView(this);icon.setScaleType(ImageView.ScaleType.CENTER_CROP);icon.setBackground(solidShape(BG,8));icon.setClipToOutline(true);top.addView(icon,new LinearLayout.LayoutParams(dp(38),dp(38)));
-    TextView title=text("",14,TEXT);title.setMaxLines(2);title.setPadding(dp(9),0,0,0);top.addView(title,new LinearLayout.LayoutParams(0,dp(48),1));CheckBox check=new CheckBox(this);check.setClickable(false);check.setFocusable(false);top.addView(check,new LinearLayout.LayoutParams(dp(32),dp(44)));
+    TextView title=text("",15,TEXT,580);title.setMaxLines(2);title.setPadding(dp(9),0,0,0);top.addView(title,new LinearLayout.LayoutParams(0,dp(48),1));CheckBox check=new CheckBox(this);check.setClickable(false);check.setFocusable(false);top.addView(check,new LinearLayout.LayoutParams(dp(32),dp(44)));
     item.addView(sourceBadge,new LinearLayout.LayoutParams(-1,-2));
     item.addView(top,new LinearLayout.LayoutParams(-1,0,1));TextView meta=text("",11,MUTED);meta.setMaxLines(1);meta.setEllipsize(android.text.TextUtils.TruncateAt.END);item.addView(meta,new LinearLayout.LayoutParams(-1,dp(24)));ItemCard card=new ItemCard(x,icon,title,meta,sourceBadge,check);item.setTag(card);bindItemCard(item,x);
     item.setOnClickListener(v->{Models.Item value=((ItemCard)v.getTag()).item;if(value.url.startsWith("placeholder:")){showNotice("目录仍在解析，请稍候",false);return;}if(selectionMode){toggleSelection(value);return;}if(value.sourceEntry)openSourceSearchResult(value);else if(value.folder)openNestedFolder(value);else confirmDownload(value);});item.setOnLongClickListener(v->{Models.Item value=((ItemCard)v.getTag()).item;if(value.url.startsWith("placeholder:"))return true;enterSelection();toggleSelection(value);return true;});return item;

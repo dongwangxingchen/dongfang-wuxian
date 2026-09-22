@@ -28,8 +28,8 @@ android {
   applicationId = "dfwx.dongdang"
   minSdk = 26      // v1.8.0：24→26，RikkaHub 模块（convention minSdk 26）清单合并要求
   targetSdk = 37   // v1.8.0：对齐上游 RikkaHub 2.5.1
-  versionCode = 1039005
-  versionName = "1.19.6"
+  versionCode = 1039006
+  versionName = "1.19.7"
  }
  compileOptions { sourceCompatibility = JavaVersion.VERSION_17; targetCompatibility = JavaVersion.VERSION_17 }
  packaging {
@@ -90,6 +90,8 @@ dependencies {
  implementation("androidx.activity:activity:1.13.0")   // v1.10.0 内嵌 AI 页：MainActivity 需作为 Compose 的 OnBackPressedDispatcherOwner（版本对齐上游 catalog activityCompose）
  implementation("dev.rikka.shizuku:api:13.1.5")
  implementation("dev.rikka.shizuku:provider:13.1.5")
+ // v1.19.7：弹簧按压反馈基座（wear-ui-system.md §10 a 类，用户 2026-09-22 批准；1.1.0 已在 gradle 缓存，rikkahub 传递同源）
+ implementation("androidx.dynamicanimation:dynamicanimation:1.1.0")
  compileOnly("androidx.annotation:annotation:1.3.0")
  // Robolectric JVM 点击测试（与 rikkahub-app 同版本，测试放 src/test/java/cc/nkbr/lanzouplus/）
  testImplementation(libs.junit)
