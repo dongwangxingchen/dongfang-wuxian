@@ -32,10 +32,29 @@ public class App extends me.rerere.rikkahub.RikkaHubApp {
 
     @Override
     protected void attachBaseContext(android.content.Context base) {
-        super.attachBaseContext(base);
+        super.attachBaseContext(wrapSimplifiedChinese(base));
         // 日志器尽量早装：ContentProvider 比 Application.onCreate 更早执行，
         // 崩在 Provider（如 FirebaseInitProvider）时 onCreate 里的日志器来不及装。
         installCrashLogger();
+    }
+
+    /**
+     * v1.19.9 整包默认简体中文：vendor（RikkaHub）资源跟随系统语言，系统是英文时 AI 页变英文
+     * （主 app Java 字符串硬编码中文才显得中英混合）。官方 per-app language 的 API<33 路径
+     * 需要 appcompat 依赖（项目禁），改用 createConfigurationContext 包装——零依赖全版本生效。
+     * 各 Activity 需在自身 attachBaseContext 里同样包装（见 MainActivity）。
+     */
+    public static android.content.Context wrapSimplifiedChinese(android.content.Context base) {
+        try {
+            android.content.res.Configuration config = new android.content.res.Configuration(base.getResources().getConfiguration());
+            java.util.Locale zh = java.util.Locale.SIMPLIFIED_CHINESE;
+            config.setLocale(zh);
+            config.setLocales(new android.os.LocaleList(zh));
+            return base.createConfigurationContext(config);
+        } catch (Throwable t) {
+            android.util.Log.w("DfwxApp", "wrapSimplifiedChinese failed, fallback to system locale", t);
+            return base;
+        }
     }
 
     @Override

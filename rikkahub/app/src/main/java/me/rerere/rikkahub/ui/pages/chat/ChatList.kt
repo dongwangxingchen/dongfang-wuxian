@@ -313,13 +313,18 @@ private fun ChatListNormal(
                     .padding(top = innerPadding.calculateTopPadding()),
             ) {
             // [DFWX-P19] 空聊天占位：上游无空态设计，空会话时 LazyColumn 只剩滚动 Spacer，整页空白
+            // [DFWX-P20] v1.19.9 居中改贴输入框：键盘弹出时 viewport 变矮，居中文案上下全是空白；
+            // 对齐 ChatGPT/谷歌 Gemini 惯例——空态文案沉底（距输入框约 24dp），随键盘一起浮上来
             if (conversation.messageNodes.isEmpty()) {
                 item(key = "DfwxEmptyChatState") {
                     Box(
                         modifier = Modifier.fillParentMaxSize(),
-                        contentAlignment = Alignment.Center,
+                        contentAlignment = Alignment.BottomCenter,
                     ) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier.padding(bottom = 24.dp),
+                        ) {
                             Text(
                                 text = "开始你的对话",
                                 style = MaterialTheme.typography.titleMedium,
