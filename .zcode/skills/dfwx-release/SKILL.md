@@ -26,10 +26,20 @@ description: 《东方无限》发版红线与验收清单(源自 v1.18.0 误发
 - gofile 在本机网络不通,勿用
 - 发 APK 必须履行 AGPL-3.0 同协议源码义务;README 的上游 RikkaHub 署名不得移除
 
-## 命名与归档
+## 命名与归档(2026-09-22 用户红线:描述性后缀=画蛇添足,禁加)
 
-- APK 命名:`东方无限-vX.Y.Z-release-<主题>版.apk`
+- 本地归档命名:`东方无限-vX.Y.Z.apk`(无主题后缀)
+- GitHub Release:标题=纯 `vX.Y.Z`,资产=`dongfang-wuxian-vX.Y.Z.apk`,说明一两句人话即可;**"修复版/治理版/升级版/体验版"等描述性后缀标题和资产都禁**(用户原话:只会让别人知道这是 AI 做的)
 - 归档到 `~/heiyao/黑曜/03-构建产物/`,不删旧 APK
+
+## 发版前自测门禁(2026-09-22 增,v1.19.8 真机卡死事故后;全过才许发)
+
+1. 全量 `:app:testEmptyDebugUnitTest`(只跑 HomeShotsJvmTest 会漏 LibrariesCatalogJvmTest 这类断言过期)
+2. 模拟器一律装 release 包(buildTypes 静态声明 debug=x86_64 装不进 arm64 模拟器);启动用 `am start -n dfwx.dongdang/cc.nkbr.lanzouplus.MainActivity`(monkey 会把应用挤出前台,`-n pkg/.MainActivity` 会拼错类名)
+3. 静态页(设置页)gfxinfo 指标:jank% 与 p90/p95/p99 相比上一版有异常恶化必须解释后才许发;网络页(软件库/AI)数字噪声大,不可用作构建对比
+4. CPU 饥饿模拟(adb shell nohup sh while 循环×3)+连点压力+monkey 之后,logcat 断言无 ANR/FATAL
+5. **只测手机视口(2026-09-24 用户指令)**:模拟器=AVD `dfwx-phone34`(1080x2400,GPU host 渲染+4GB 内存,配置见 dfwx-emulator 技能);手表模拟器已全部删除(用户真手表是方的,圆表镜像与真机不符,禁止再建再测);App 页面天然自适应手机屏,截图过目即可,无"黑框"问题(圆表遮罩已随圆表镜像删除)
+6. 真机验收铁律不变:模拟器全过≠真机可用,发完必须等用户真机反馈
 
 ## 排障速查
 
