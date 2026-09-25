@@ -372,8 +372,17 @@ trigger.addView(value,new LinearLayout.LayoutParams(0,dp(54),1));arrow=new Image
     if(v==null)return;
     v.setOnTouchListener((view,event)->{
       if(!motionEnabled())return false;
-      if(event.getActionMasked()==android.view.MotionEvent.ACTION_DOWN){view.animate().cancel();view.setScaleX(0.96f);view.setScaleY(0.96f);}
-      else if(event.getActionMasked()==android.view.MotionEvent.ACTION_UP||event.getActionMasked()==android.view.MotionEvent.ACTION_CANCEL){view.animate().cancel();view.animate().scaleX(1f).scaleY(1f).setDuration(220).setInterpolator(new android.view.animation.PathInterpolator(0.2f,0.9f,0.3f,1.05f)).start();}
+      android.graphics.drawable.Drawable bg=view.getBackground();
+      if(event.getActionMasked()==android.view.MotionEvent.ACTION_DOWN){
+        view.animate().cancel();view.setScaleX(0.96f);view.setScaleY(0.96f);
+        // v1.21.0 按压提亮（06/02 配方）：白 8% SRC_ATOP 只作用于背景不透明像素，透明底不加灰罩；
+        // 瞬时态变（无动画），零时长代价，UP/CANCEL 即清。
+        if(bg!=null)bg.setColorFilter(0x14FFFFFF,android.graphics.PorterDuff.Mode.SRC_ATOP);
+      }else if(event.getActionMasked()==android.view.MotionEvent.ACTION_UP||event.getActionMasked()==android.view.MotionEvent.ACTION_CANCEL){
+        view.animate().cancel();
+        if(bg!=null)bg.clearColorFilter();
+        view.animate().scaleX(1f).scaleY(1f).setDuration(220).setInterpolator(new android.view.animation.PathInterpolator(0.2f,0.9f,0.3f,1.05f)).start();
+      }
       return false;
     });
   }
@@ -525,18 +534,19 @@ indicator.setScaleX(.45f);indicator.setAlpha(.55f);indicator.post(()->indicator.
   void adaptPrimaryShell(){if(primaryShell==null||primaryDestination<0)return;primaryShell.removeAllViews();primaryNav=makePrimaryNav(primaryDestination,wideNavigation());composePrimaryShell();}
   void refreshAdaptiveLayout(){if(root==null)return;boolean wide=wideNavigation();if(primaryShell!=null&&primaryDestination>=0&&primaryShellWide!=wide)adaptPrimaryShell();reflowVisibleLayouts();}
   void animatePage(View previous,View next,int direction){
-    // v1.4.0 主题动效性格分支（v1.5.0 起两主题）：apple=iOS push 视差（新页 33%→0、旧页 -18%，420ms sheet 曲线）；legacy=Material（出快于入：入 225ms、出 195ms）；direction==0 保留淡入淡出
-    next.animate().cancel();next.setTranslationX(0);next.setAlpha(1f);if(previous==null){next.setEnabled(true);return;}previous.animate().cancel();previous.setTranslationX(0);previous.setAlpha(1f);previous.setEnabled(false);next.setEnabled(false);/** F4:260ms 超时兜底——正常 endAction 与兜底幂等;修复动画被打断后结算丢失导致的旧页残留/新页整页不可点 */ui.postDelayed(()->{if(pageFrame==next)settlePageTransition();},600);if(!motionEnabled()){settlePageTransition();return;}if(direction==0||weakDevice){next.setAlpha(0f);next.post(()->{if(pageFrame!=next)return;previous.animate().alpha(0f).setDuration(140).start();next.animate().alpha(1f).setDuration(190).withEndAction(()->finishPageTransition(previous,next)).start();});return;}
-    if(ThemeEngine.isApple(this)){
-      // v1.5.0 苹果转场（研究 R2 规格表）：push 400ms (0.32,0.72,0.36,1) 新页满幅滑入、旧页 -30% 视差；pop 350ms 反向；临界阻尼不过冲
-      int distance=Math.max(pageHost.getWidth(),Math.max(getResources().getDisplayMetrics().widthPixels,dp(320)));
-      android.view.animation.Interpolator sheet=new android.view.animation.PathInterpolator(0.32f,0.72f,0.36f,1f);
-      if(direction<0){previous.post(()->{if(pageFrame!=next)return;previous.animate().translationX(distance).setDuration(350).setInterpolator(sheet).withEndAction(()->finishPageTransition(previous,next)).start();next.setTranslationX(-distance*0.30f);next.animate().translationX(0f).setDuration(350).setInterpolator(sheet).start();});return;}
-      next.setTranslationX(distance);previous.setTranslationX(0f);
-      next.post(()->{if(pageFrame!=next)return;previous.animate().translationX(-distance*0.30f).setDuration(400).setInterpolator(sheet).start();next.animate().translationX(0f).setDuration(400).setInterpolator(sheet).withEndAction(()->finishPageTransition(previous,next)).start();});return;}
-    int distance=Math.max(pageHost.getWidth(),Math.max(getResources().getDisplayMetrics().widthPixels,dp(320)));if(direction<0){previous.post(()->{if(pageFrame!=next)return;previous.animate().translationX(distance).setDuration(195).setInterpolator(new android.view.animation.PathInterpolator(0.4f,0f,1f,1f)).withEndAction(()->finishPageTransition(previous,next)).start();});return;}next.setTranslationX(distance);next.post(()->{if(pageFrame!=next)return;next.animate().translationX(0f).setDuration(225).setInterpolator(new android.view.animation.PathInterpolator(0f,0f,0.2f,1f)).withEndAction(()->finishPageTransition(previous,next)).start();});}
+    // v1.21.0 转场重写（20260924 报告·方向 D 落地，用户反馈"切换动画是透明的"）：推入/返回=sharedAxis
+    // 30dp 同轴滑+淡（出 180ms accel、入 300ms emphasized，方向随操作语义对称）；切 tab/原位=fadeThrough
+    // （旧页淡出 90ms，新页 92%→1 缩放淡入 210ms）；弱机保底=交叉淡化+新页 96%→1 缩放（仍是纵深淡入，不再纯透明）。
+    // 铁律：全部有界 VPA ≤300ms（v1.19.7 弱机事故教训）；600ms 兜底结算幂等。
+    next.animate().cancel();next.setTranslationX(0);next.setScaleX(1f);next.setScaleY(1f);next.setAlpha(1f);if(previous==null){next.setEnabled(true);return;}previous.animate().cancel();previous.setTranslationX(0);previous.setScaleX(1f);previous.setScaleY(1f);previous.setAlpha(1f);previous.setEnabled(false);next.setEnabled(false);/** F4:260ms 超时兜底——正常 endAction 与兜底幂等;修复动画被打断后结算丢失导致的旧页残留/新页整页不可点 */ui.postDelayed(()->{if(pageFrame==next)settlePageTransition();},600);if(!motionEnabled()){settlePageTransition();return;}
+    android.view.animation.Interpolator emphasized=new android.view.animation.PathInterpolator(0.05f,0.7f,0.1f,1f),accel=new android.view.animation.PathInterpolator(0.3f,0f,0.8f,0.15f);
+    if(direction==0){next.setAlpha(0f);next.setScaleX(0.92f);next.setScaleY(0.92f);next.post(()->{if(pageFrame!=next)return;previous.animate().alpha(0f).setDuration(90).start();next.animate().alpha(1f).scaleX(1f).scaleY(1f).setDuration(210).setInterpolator(emphasized).withEndAction(()->finishPageTransition(previous,next)).start();});return;}
+    if(weakDevice){next.setAlpha(0f);next.setScaleX(0.96f);next.setScaleY(0.96f);next.post(()->{if(pageFrame!=next)return;previous.animate().alpha(0f).setDuration(140).start();next.animate().alpha(1f).scaleX(1f).scaleY(1f).setDuration(190).withEndAction(()->finishPageTransition(previous,next)).start();});return;}
+    int slide=dp(30);next.setAlpha(0f);
+    if(direction<0){next.setTranslationX(-slide);previous.post(()->{if(pageFrame!=next)return;previous.animate().translationX(slide).alpha(0f).setDuration(180).setInterpolator(accel).start();next.animate().translationX(0f).alpha(1f).setDuration(300).setInterpolator(emphasized).withEndAction(()->finishPageTransition(previous,next)).start();});return;}
+    next.setTranslationX(slide);previous.post(()->{if(pageFrame!=next)return;previous.animate().translationX(-slide).alpha(0f).setDuration(180).setInterpolator(accel).start();next.animate().translationX(0f).alpha(1f).setDuration(300).setInterpolator(emphasized).withEndAction(()->finishPageTransition(previous,next)).start();});}
   void finishPageTransition(View previous,View next){if(pageFrame!=next)return;settlePageTransition();}
-  void settlePageTransition(){if(pageHost==null||pageFrame==null)return;for(int i=pageHost.getChildCount()-1;i>=0;i--)pageHost.getChildAt(i).animate().cancel();for(int i=pageHost.getChildCount()-1;i>=0;i--)if(pageHost.getChildAt(i)!=pageFrame)pageHost.removeViewAt(i);pageFrame.setTranslationX(0);pageFrame.setAlpha(1f);pageFrame.setEnabled(true);}
+  void settlePageTransition(){if(pageHost==null||pageFrame==null)return;for(int i=pageHost.getChildCount()-1;i>=0;i--)pageHost.getChildAt(i).animate().cancel();for(int i=pageHost.getChildCount()-1;i>=0;i--)if(pageHost.getChildAt(i)!=pageFrame)pageHost.removeViewAt(i);pageFrame.setTranslationX(0);pageFrame.setScaleX(1f);pageFrame.setScaleY(1f);pageFrame.setAlpha(1f);pageFrame.setEnabled(true);}
   boolean homeSearchConfigurationActive(){return pageKind==0&&primaryDestination==0&&homeStage!=null&&homeSearchBox!=null&&homeHistory!=null&&(homeSearchFocused||homeSearchRequested);}
   void restoreHomeSearchForConfiguration(int session,int scrollY,boolean historyOnly){homeSearchRequested=true;homeSearchHistoryOnly=historyOnly;showHomeLanding();showHomeSearchMode(false);if(!historyOnly)refreshSearchUi(session);ScrollView restored=pageScroll;if(restored!=null)restored.post(()->{if(session==searchGeneration&&pageKind==0&&homeSearchFocused)restored.scrollTo(0,Math.max(0,scrollY));});}
   @Override public void onConfigurationChanged(android.content.res.Configuration next){boolean restoreSearch=homeSearchConfigurationActive(),restoreSettings=pageKind==4&&primaryDestination==3;int session=searchGeneration,scrollY=pageScroll==null?0:pageScroll.getScrollY();boolean historyOnly=homeSearchHistoryOnly;int old=BG;super.onConfigurationChanged(next);applySystemColors();if(host!=null)host.requestApplyInsets();suppressUiMotion=true;try{settlePageTransition();if(restoreSettings)showSettings();else if(restoreSearch)restoreHomeSearchForConfiguration(session,scrollY,historyOnly);else if(old!=BG){invalidateRetainedSourceListPage();if(getPreferences(0).getBoolean("accepted",false))restorePageForTheme();}else{adaptPrimaryShell();if(root!=null)root.post(this::reflowVisibleLayouts);}}finally{suppressUiMotion=false;}}
