@@ -86,7 +86,7 @@ public class SupportActivity extends Activity {
     page.addView(top,new LinearLayout.LayoutParams(-1,dp(44)));
     // 大标题 + 副标
     TextView title=text("支持 "+MainActivity.PRODUCT_NAME,24,TEXT);
-    title.setTypeface(Typeface.DEFAULT,Typeface.BOLD);title.setIncludeFontPadding(false);
+    title.setTypeface(AppFonts.bold(this));title.setIncludeFontPadding(false);
     page.addView(title,new LinearLayout.LayoutParams(-2,dp(40)));
     TextView subtitle=text("诚信付费 ￥5 · 一次付清 · 承诺永久更新",13,MUTED);
     subtitle.setPadding(dp(2),dp(2),0,dp(12));
@@ -95,7 +95,7 @@ public class SupportActivity extends Activity {
     LinearLayout letterCard=card();
     TextView letter=new TextView(this);
     letter.setText("这个应用没有广告，也不强制付费。\n维护和更新都需要成本，我想高质量地一直做下去。\n还在读书、暂时没有收入的朋友，点击下方按钮直接使用即可；\n如果力所能及，这 5 元会成为我继续更新的动力和底气。\n谢谢你的支持。");
-    letter.setTextColor(TEXT);letter.setTextSize(14);letter.setLineSpacing(dp(4),1f);
+    letter.setTextColor(TEXT);letter.setTextSize(14);letter.setLineSpacing(dp(4),1f);letter.setTypeface(AppFonts.normal(this));
     letter.setPadding(dp(16),dp(14),dp(16),dp(14));
     letterCard.addView(letter,new LinearLayout.LayoutParams(-1,-2));
     page.addView(letterCard,new LinearLayout.LayoutParams(-1,-2));
@@ -105,10 +105,10 @@ public class SupportActivity extends Activity {
     page.addView(benefitRow("🤖","AI 对话不限次 · 一次付费长期有效"),new LinearLayout.LayoutParams(-1,dp(34)));
     // 价格大字（成熟付费页惯例：价格必须一眼可见）+ 永久更新承诺
     LinearLayout price=new LinearLayout(this);price.setGravity(Gravity.CENTER_VERTICAL);
-    TextView amount=text("￥5",30,PRIMARY);amount.setTypeface(Typeface.DEFAULT,Typeface.BOLD);
+    TextView amount=text("￥5",30,PRIMARY);amount.setTypeface(AppFonts.bold(this));
     price.addView(amount,new LinearLayout.LayoutParams(-2,-2));
     LinearLayout priceCol=new LinearLayout(this);priceCol.setOrientation(LinearLayout.VERTICAL);
-    TextView priceNote1=text("诚信付费 · 一次付清",14,TEXT);priceNote1.setTypeface(Typeface.DEFAULT,Typeface.BOLD);
+    TextView priceNote1=text("诚信付费 · 一次付清",14,TEXT);priceNote1.setTypeface(AppFonts.bold(this));
     TextView priceNote2=text("承诺永久更新 · 绝不停更",11,MUTED);
     priceCol.addView(priceNote1,new LinearLayout.LayoutParams(-2,-2));
     LinearLayout.LayoutParams note2Lp=new LinearLayout.LayoutParams(-2,-2);note2Lp.topMargin=dp(2);
@@ -122,7 +122,7 @@ public class SupportActivity extends Activity {
     // 主 CTA：第一人称动词句，零验证解锁（v1.5.1 删「复制金额」小按钮——重复无用，减小字）
     Button confirm=new Button(this);
     confirm.setText("诚信付费，解锁全部权限");
-    confirm.setAllCaps(false);confirm.setTextSize(15);confirm.setTypeface(Typeface.DEFAULT,Typeface.BOLD);
+    confirm.setAllCaps(false);confirm.setTextSize(15);confirm.setTypeface(AppFonts.bold(this));
     confirm.setTextColor(BG);
     GradientDrawable cta=solidShape(PRIMARY,24);
     confirm.setBackground(ripple(cta));
@@ -157,11 +157,11 @@ public class SupportActivity extends Activity {
     heart.setGravity(Gravity.CENTER);
     page.addView(heart,new LinearLayout.LayoutParams(-1,dp(96)));
     TextView title=text("已解锁 · 谢谢你",24,TEXT);
-    title.setTypeface(Typeface.DEFAULT,Typeface.BOLD);title.setGravity(Gravity.CENTER);
+    title.setTypeface(AppFonts.bold(this));title.setGravity(Gravity.CENTER);
     title.setPadding(0,dp(12),0,0);
     page.addView(title,new LinearLayout.LayoutParams(-1,dp(44)));
     // 诚信徽章（研究 M3：支持后即时反馈=动效+徽章；静态徽章，无循环动画，不画蛇添足）
-    TextView badge=text("诚信支持者",12,PRIMARY);badge.setTypeface(Typeface.DEFAULT,Typeface.BOLD);
+    TextView badge=text("诚信支持者",12,PRIMARY);badge.setTypeface(AppFonts.bold(this));
     GradientDrawable badgeBg=solidShape(ThemeEngine.tint(PRIMARY,28),20);
     badge.setBackground(badgeBg);badge.setPadding(dp(14),dp(5),dp(14),dp(5));
     LinearLayout badgeWrap=new LinearLayout(this);badgeWrap.setGravity(Gravity.CENTER);
@@ -228,7 +228,7 @@ public class SupportActivity extends Activity {
   }
 
   TextView text(String s,int sp,int color){
-    TextView v=new TextView(this);v.setText(s);v.setTextSize(sp);v.setTextColor(color);v.setFontFeatureSettings("kern");return v;
+    TextView v=new TextView(this);v.setText(s);v.setTextSize(sp);v.setTextColor(color);v.setFontFeatureSettings("kern");v.setTypeface(AppFonts.normal(this));return v;
   }
   TextView tool(String s,int sp){
     TextView v=text(s,sp,TEXT);v.setGravity(Gravity.CENTER);v.setClickable(true);v.setFocusable(true);
