@@ -5,8 +5,8 @@ import android.content.SharedPreferences;
 import android.graphics.Color;
 
 /** 主题引擎：设计 token 的唯一真源（单文件、零第三方依赖）。
- *  <p>v1.21.3 起仅一主题（用户指令：「高级苹果」整体下架，外观区改放字体切换）：
- *  <p>legacy = 「原生安卓」：经典紫配色（默认主题，也是唯一主题）。
+ *  <p>v1.21.3 起仅一主题 legacy = 「原生安卓」经典紫（默认主题，也是唯一主题）；
+ *  v1.21.5 清除「高级苹果」全部代码残留（弹窗/导航/LumaSwitch/状态栏的 apple 分支、isApple、GlassNavBar）。
  *  <p>所有色值经此表解析，MainActivity.applySystemColors() 只在启动/切换时从本引擎取值，
  *  其余 UI 组件一律通过 MainActivity 的 token 字段取色，保证一套色板贯穿全 App（含 ToolHost/AiChat）。 */
 final class ThemeEngine {
@@ -78,8 +78,6 @@ static int selectedFill(int primary){return tint(primary,30);}
   }
   static String label(Context c){return byId(activeId(c)).label;}
   static String tagline(Context c){return byId(activeId(c)).tagline;}
-  /** 主题性格判断：v1.21.3 起恒 false（apple 已移除）；调用点（弹窗/导航/LumaSwitch 的 apple 分支）保留不删，属不可达的过渡代码，行为与 legacy 完全一致 */
-  static boolean isApple(Context c){return "apple".equals(activeId(c));}
   static boolean isLegacy(Context c){return "legacy".equals(activeId(c));}
 
   /** v1.5.0 删 nova、v1.21.3 删 apple：未知 id 一律落回 legacy */

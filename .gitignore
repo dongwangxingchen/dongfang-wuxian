@@ -42,9 +42,6 @@ Screenshot_*.jpg
 # 工具状态不入库
 .mimosa/
 
-# 字体管线中间产物（17MB 源 VF 与子集临时文件不入库；成品在 assets/fonts/）
-tools/fontsrc/
-tools/fontbuild/
 .serena/
 .kotlin/
 
