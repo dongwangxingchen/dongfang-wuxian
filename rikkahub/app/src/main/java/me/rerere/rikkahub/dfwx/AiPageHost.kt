@@ -33,10 +33,12 @@ import org.koin.compose.koinInject
  * 本侧直接监听该偏好驱动重组，缓存复用的 ComposeView 无需销毁重建、界面状态不丢。
  * ① Material 文本（标题/按钮/输入框/菜单）：把思源黑体 VF（wght 100-900）从宿主 assets 复制到 filesDir，
  *   经 Font(file, weight) 按 wght 轴实例化构建 Typography 注入 RikkaHubEmbed（API 26+ 真·字重轴）；
+ *   v1.21.4 起 Latin 层挂 Space Grotesk（Claude UI 字体 Styrene B 的开源最近似平替）打头，思源兜底中文，
+ *   与宿主 AppFonts 双字体链同构；两份字体均为归一行高 1.20 的重做子集。
  * ② 聊天气泡：ChatList 内层 ChatFontProvider 只认 displaySetting（外层 CompositionLocal 覆盖不过它），
  *   故走 RikkaHub 自带「聊天字体=自定义」机制——displaySetting 同步为 CUSTOM 指向同一份 filesDir 副本
- *   （loadCustomFontFamily 取默认字重 400，粗体由合成加粗兜底）；系统字体时只回收我们写入的 CUSTOM，
- *   不碰用户在 AI 设置里手动选的其他聊天字体。
+ *   （loadCustomFontFamily 取默认字重 400；子集默认实例已归一 400，粗体由合成加粗兜底）；系统字体时只回收
+ *   我们写入的 CUSTOM，不碰用户在 AI 设置里手动选的其他聊天字体。
  * 字体复制失败/缺失时一律回退系统字体，绝不让字体问题崩 app。
  */
 fun createRikkaHubEmbedView(activity: ComponentActivity): android.view.View {
@@ -48,6 +50,7 @@ fun createRikkaHubEmbedView(activity: ComponentActivity): android.view.View {
     val prefs = activity.getSharedPreferences(DFWX_FONT_PREFS, Context.MODE_PRIVATE)
     val notoChoice = mutableStateOf(prefs.getInt(DFWX_FONT_KEY, 0) == 1)
     val notoFile = mutableStateOf<File?>(null)
+    val latinFile = mutableStateOf<File?>(null)
     view.setContent {
         // [DFWX PATCH P24] 宿主字体选择 → Compose 状态：notoChoice 跟随偏好，notoFile 只有副本就绪才非空
         DisposableEffect(prefs) {
@@ -62,18 +65,25 @@ fun createRikkaHubEmbedView(activity: ComponentActivity): android.view.View {
             LaunchedEffect(notoChoice.value) {
                 if (notoChoice.value) {
                     dfwxSetChatFontCustom(activity, settingsStore)
+                    val latin = dfwxEnsureFontFile(activity, DFWX_CHAT_FONT_LATIN_FILE, DFWX_CHAT_FONT_LATIN_ASSET)
                     val file = dfwxEnsureNotoFontFile(activity)
-                    view.post { notoFile.value = file }
+                    view.post {
+                        latinFile.value = latin
+                        notoFile.value = file
+                    }
                 } else {
                     dfwxResetChatFontCustom(settingsStore)
-                    view.post { notoFile.value = null }
+                    view.post {
+                        latinFile.value = null
+                        notoFile.value = null
+                    }
                 }
             }
             RikkaHubEmbed(
                 activity = activity,
                 onBackStackReady = { },
                 onOpenUsageAccessSettings = { activity.openUsageAccessSettings() },
-                dfwxTypography = dfwxTypography(notoFile.value),
+                dfwxTypography = dfwxTypography(notoFile.value, latinFile.value),
             )
         }
     }
@@ -89,23 +99,30 @@ fun createRikkaHubEmbedView(activity: ComponentActivity): android.view.View {
 private const val DFWX_FONT_PREFS = "ui_prefs_v1"
 private const val DFWX_FONT_KEY = "font_choice"
 private const val DFWX_CHAT_FONT_DIR = "dfwx"
-private const val DFWX_CHAT_FONT_FILE = "NotoSansSC-VF.ttf"
+// 文件名带子集版本号：v1.21.3 曾按「存在即跳过」缓存过旧子集（1.448 行高/缺 ¥），改名强制重拷（旧文件残留无害）
+private const val DFWX_CHAT_FONT_FILE = "NotoSansSC-VF.2.ttf"
 private const val DFWX_CHAT_FONT_ASSET = "fonts/NotoSansSC-VF.ttf"
+private const val DFWX_CHAT_FONT_LATIN_FILE = "SpaceGrotesk-VF.ttf"
+private const val DFWX_CHAT_FONT_LATIN_ASSET = "fonts/SpaceGrotesk-VF.ttf"
 
-/** [DFWX PATCH P24] 确保思源黑体 VF 在 filesDir 就绪（从宿主 assets 复制，同一 APK），返回就绪文件；失败返回 null 回退系统字体。 */
-private suspend fun dfwxEnsureNotoFontFile(context: Context): File? = withContext(Dispatchers.IO) {
-    runCatching {
-        val dir = File(context.filesDir, DFWX_CHAT_FONT_DIR)
-        val target = File(dir, DFWX_CHAT_FONT_FILE)
-        if (!target.isFile || target.length() <= 0L) {
-            dir.mkdirs()
-            context.assets.open(DFWX_CHAT_FONT_ASSET).use { input ->
-                target.outputStream().use { output -> input.copyTo(output) }
+/** [DFWX PATCH P24 v1.21.4] 确保 assets 字体在 filesDir 就绪（从宿主 assets 复制，同一 APK），返回就绪文件；失败返回 null。 */
+private suspend fun dfwxEnsureFontFile(context: Context, fileName: String, assetPath: String): File? =
+    withContext(Dispatchers.IO) {
+        runCatching {
+            val dir = File(context.filesDir, DFWX_CHAT_FONT_DIR)
+            val target = File(dir, fileName)
+            if (!target.isFile || target.length() <= 0L) {
+                dir.mkdirs()
+                context.assets.open(assetPath).use { input ->
+                    target.outputStream().use { output -> input.copyTo(output) }
+                }
             }
-        }
-        target.takeIf { it.isFile && it.length() > 0L }
-    }.getOrNull()
-}
+            target.takeIf { it.isFile && it.length() > 0L }
+        }.getOrNull()
+    }
+
+private suspend fun dfwxEnsureNotoFontFile(context: Context): File? =
+    dfwxEnsureFontFile(context, DFWX_CHAT_FONT_FILE, DFWX_CHAT_FONT_ASSET)
 
 /** [DFWX PATCH P24] 聊天气泡字体走 RikkaHub 自带「聊天字体=自定义」（ChatList 内层 ChatFontProvider 只认 displaySetting）。 */
 private suspend fun dfwxSetChatFontCustom(context: Context, store: SettingsStore) {
@@ -145,21 +162,31 @@ private suspend fun dfwxResetChatFontCustom(store: SettingsStore) {
     }
 }
 
-/** [DFWX PATCH P24] 思源黑体 Typography：全部 Material 样式换 fontFamily，Font(file, weight) 按最近字重解析
- *  （API 26+ 经 FontVariation 实例化 wght 轴）；系统字体（null）维持上游默认。 */
+/** [DFWX PATCH P24 v1.21.4] 思源模式 Typography：全部 Material 样式换 fontFamily。
+ *  Latin 层 Space Grotesk 打头 + 思源兜底中文（与宿主 AppFonts 链同构；Compose 按字形覆盖逐字选字体），
+ *  Font(file, weight) 按 wght 轴实例化（FontVariation.Settings 默认随 weight 生成）；系统字体（null）维持上游默认。 */
 @Composable
-private fun dfwxTypography(file: File?): Typography {
+private fun dfwxTypography(file: File?, latin: File?): Typography {
     val base = remember { Typography() }
-    return remember(file) {
+    return remember(file, latin) {
         if (file == null) {
             base
         } else {
-            val family = FontFamily(
-                Font(file, weight = FontWeight.Normal),
-                Font(file, weight = FontWeight.Medium),
-                Font(file, weight = FontWeight.SemiBold),
-                Font(file, weight = FontWeight.Bold),
-            )
+            val family = if (latin == null) {
+                FontFamily(
+                    Font(file, weight = FontWeight.Normal),
+                    Font(file, weight = FontWeight.Medium),
+                    Font(file, weight = FontWeight.SemiBold),
+                    Font(file, weight = FontWeight.Bold),
+                )
+            } else {
+                FontFamily(
+                    Font(latin, weight = FontWeight.Normal), Font(file, weight = FontWeight.Normal),
+                    Font(latin, weight = FontWeight.Medium), Font(file, weight = FontWeight.Medium),
+                    Font(latin, weight = FontWeight.SemiBold), Font(file, weight = FontWeight.SemiBold),
+                    Font(latin, weight = FontWeight.Bold), Font(file, weight = FontWeight.Bold),
+                )
+            }
             Typography(
                 displayLarge = base.displayLarge.copy(fontFamily = family),
                 displayMedium = base.displayMedium.copy(fontFamily = family),

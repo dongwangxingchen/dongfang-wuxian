@@ -36,10 +36,17 @@ verification/
 # 构建日志与临时截图不入库
 *_log.txt
 *_log2.txt
+tools/*.log
 Screenshot_*.jpg
 
 # 工具状态不入库
 .mimosa/
+
+# 字体管线中间产物（17MB 源 VF 与子集临时文件不入库；成品在 assets/fonts/）
+tools/fontsrc/
+tools/fontbuild/
+.serena/
+.kotlin/
 
 # 快照由 Paparazzi 生成，不入库
 app/src/test/snapshots/
