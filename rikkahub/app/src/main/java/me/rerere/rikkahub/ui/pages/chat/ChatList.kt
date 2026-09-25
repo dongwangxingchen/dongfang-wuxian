@@ -304,7 +304,14 @@ private fun ChatListNormal(
         ChatFontProvider(displaySetting = settings.displaySetting) {
             LazyColumn(
                 state = state,
-                contentPadding = PaddingValues(16.dp) + PaddingValues(bottom = 32.dp + innerPadding.calculateBottomPadding()),
+                // [DFWX-P21] 空态去掉 32dp：那是消息列表滚底呼吸空间，对空态照样生效，会把贴底文案
+                // 连同 24dp padding 一起抬离输入框（实测收起/弹出键盘缝恒定 69dp）；空态只留
+                // innerPadding.bottom，Box 底正好贴 bottomBar 顶，由 Column 的 24dp 提供贴合间距
+                contentPadding = if (conversation.messageNodes.isEmpty()) {
+                    PaddingValues(16.dp) + PaddingValues(bottom = innerPadding.calculateBottomPadding())
+                } else {
+                    PaddingValues(16.dp) + PaddingValues(bottom = 32.dp + innerPadding.calculateBottomPadding())
+                },
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(12.dp),
                 modifier = Modifier
@@ -323,7 +330,8 @@ private fun ChatListNormal(
                     ) {
                         Column(
                             horizontalAlignment = Alignment.CenterHorizontally,
-                            modifier = Modifier.padding(bottom = 24.dp),
+                            // [DFWX-P21] 10dp 而非 24dp：加上文字行盒与卡片内边距后，视觉缝正好 ≈24dp（实测 116→74px）
+                            modifier = Modifier.padding(bottom = 10.dp),
                         ) {
                             Text(
                                 text = "开始你的对话",
