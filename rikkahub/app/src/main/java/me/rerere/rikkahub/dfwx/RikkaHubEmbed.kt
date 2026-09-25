@@ -17,8 +17,11 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.MaterialExpressiveTheme
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.MotionScheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.Typography
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -134,10 +137,14 @@ fun RikkaHubEmbed(
     activity: Context,
     onBackStackReady: (MutableList<NavKey>) -> Unit,
     onOpenUsageAccessSettings: () -> Unit,
+    dfwxTypography: Typography? = null,
 ) {
     // [DFWX PATCH P18] 宿主是深色东方风格：内嵌页永远强制深色（不随系统浅色变白），
     // 并把老版本升级遗留的上游默认主题 "sakura" 一次性迁到 "dfwx"（用户主动选过的其他主题不动）
     RikkahubTheme(colorMode = ColorMode.DARK) {
+        // [DFWX PATCH P24 v1.21.3] 全站字体：宿主传入思源黑体 Typography 时嵌套覆盖（色板/动效沿用上层，只换字体）；
+        // null = 系统字体，维持上游默认 Typography。必须放在本层——RikkaHubTheme 会把 typography 重置为上游默认。
+        DfwxTypographyOverride(dfwxTypography) {
         val okHttpClient: OkHttpClient = koinInject()
         setSingletonImageLoaderFactory { context ->
             ImageLoader.Builder(context)
@@ -417,5 +424,22 @@ fun RikkaHubEmbed(
                 }
             }
         }
+    }
+    }
+}
+
+/** [DFWX PATCH P24 v1.21.3] 仅换字体不换色板：typography=null（系统字体）时直通，否则嵌套 MaterialExpressiveTheme
+ *  覆盖 Typography（colorScheme/motionScheme 显式沿用上层，避免 MaterialTheme 空参重置回浅色默认）。 */
+@Composable
+private fun DfwxTypographyOverride(typography: Typography?, content: @Composable () -> Unit) {
+    if (typography == null) {
+        content()
+    } else {
+        MaterialExpressiveTheme(
+            colorScheme = MaterialTheme.colorScheme,
+            typography = typography,
+            motionScheme = MotionScheme.expressive(),
+            content = content,
+        )
     }
 }

@@ -60,12 +60,13 @@ public class IntegrityPayButton extends FrameLayout {
     title.setText(paid ? "已诚信付费 ✓" : "诚信付费 · 自愿");
     title.setTextColor(onPrimary);
     title.setTextSize(16);
-    title.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+    title.setTypeface(AppFonts.bold(getContext()));
     box.addView(title, new LinearLayout.LayoutParams(-2, -2));
     TextView sub = new TextView(context);
     sub.setText(paid ? "感谢支持 · 全部权限已开放" : "￥5 · 学生免费 · 不付费也可完整使用");
     sub.setTextColor(onPrimarySub);
     sub.setTextSize(11);
+    sub.setTypeface(AppFonts.normal(getContext()));
     LinearLayout.LayoutParams subLp = new LinearLayout.LayoutParams(-2, -2);
     subLp.topMargin = Math.round(density * 3);
     box.addView(sub, subLp);

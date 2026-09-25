@@ -5,9 +5,8 @@ import android.content.SharedPreferences;
 import android.graphics.Color;
 
 /** 主题引擎：设计 token 的唯一真源（单文件、零第三方依赖）。
- *  <p>v1.5.0 起仅两主题（用户指令：删除「高级材质」nova）：
- *  <p>legacy = 「原生安卓」：经典紫配色（默认主题）。
- *  <p>apple  = 「高级苹果」：iOS 质感（分组白卡 + systemBlue + 快脆弹簧）。
+ *  <p>v1.21.3 起仅一主题（用户指令：「高级苹果」整体下架，外观区改放字体切换）：
+ *  <p>legacy = 「原生安卓」：经典紫配色（默认主题，也是唯一主题）。
  *  <p>所有色值经此表解析，MainActivity.applySystemColors() 只在启动/切换时从本引擎取值，
  *  其余 UI 组件一律通过 MainActivity 的 token 字段取色，保证一套色板贯穿全 App（含 ToolHost/AiChat）。 */
 final class ThemeEngine {
@@ -41,16 +40,9 @@ static final Design LEGACY=new Design("legacy","原生安卓","系统默认 · �
     0xFFA78BFA,0xFFC494FF,0xFF8B5CF6,0xFF8FB8F0,
     0xFFF2F0F7,0xFF9A93AB,0xFFFFB4AB);
 
-/** apple：v1.4.0「高级苹果」——iOS 13–15 经典质感（非 iOS 26）：分组灰底白卡 + systemBlue + 分隔线描边。
- *  色值来源 iOS 官方资产目录（systemGroupedBackground/secondarySystemGroupedBackground/systemBlue/systemIndigo/
- *  opaqueSeparator/secondaryLabel 白底合成/systemRed），研究依据 07-研究报告/高级苹果主题与质感动效-深度研究汇总-v1.4.0.md §1.1。
- *  性格：浅色分组体系 + 无阴影分层 + 按压去 ripple（scale+变暗）+ 快脆弹簧。 */
-static final Design APPLE=new Design("apple","高级苹果","iOS 质感 · 系统蓝 · 分组白卡",
-    0xFFF2F2F7,0xFFFFFFFF,0xFFF2F2F7,0xFFC6C6C8,
-    0xFF007AFF,0xFF0066D6,0xFFE5F0FF,0xFF5856D6,
-    0xFF000000,0xFF8A8A8E,0xFFFF3B30);
+// v1.21.3：「高级苹果」（apple，iOS 13–15 质感，v1.4.0–v1.21.2）整体移除；存量 apple 偏好在 activeId 读取时一次性迁回 legacy。
 
-static final Design[] ALL={LEGACY,APPLE};
+static final Design[] ALL={LEGACY};
 
 /** 把品牌色（或任意色）按 alpha 合成半透明底，随主题自动联动（选中底/徽标底/气泡底等） */
 static int tint(int color,int alpha){return Color.argb(alpha,Color.red(color),Color.green(color),Color.blue(color));}
@@ -73,7 +65,7 @@ static int selectedFill(int primary){return tint(primary,30);}
       id="legacy";
       try{SharedPreferences.Editor e=p.edit();if(e!=null)e.putBoolean(KEY_MIGRATED_131,true).putString(KEY_THEME,id).apply();}catch(Throwable ignored){android.util.Log.w("ThemeEngine.java", "ThemeEngine.java Throwable: "+ignored.getMessage(), ignored);}
     }
-    if("nova".equals(id)){// v1.5.0 删主题迁移：nova 已不存在，落回 legacy 并写盘
+    if("nova".equals(id)||"apple".equals(id)){// v1.5.0 删 nova、v1.21.3 删 apple 的删主题迁移：已不存在，落回 legacy 并写盘
       id="legacy";
       try{SharedPreferences.Editor e=p.edit();if(e!=null)e.putString(KEY_THEME,id).apply();}catch(Throwable ignored){android.util.Log.w("ThemeEngine.java", "ThemeEngine.java Throwable: "+ignored.getMessage(), ignored);}
     }
@@ -86,11 +78,11 @@ static int selectedFill(int primary){return tint(primary,30);}
   }
   static String label(Context c){return byId(activeId(c)).label;}
   static String tagline(Context c){return byId(activeId(c)).tagline;}
-  /** 主题性格判断（v1.4.0 动效分支用）：apple=快脆弹簧去ripple；legacy=Material规整 */
+  /** 主题性格判断：v1.21.3 起恒 false（apple 已移除）；调用点（弹窗/导航/LumaSwitch 的 apple 分支）保留不删，属不可达的过渡代码，行为与 legacy 完全一致 */
   static boolean isApple(Context c){return "apple".equals(activeId(c));}
   static boolean isLegacy(Context c){return "legacy".equals(activeId(c));}
 
-  /** v1.5.0：nova「高级材质」主题整体删除，存量用户的 nova 偏好一次性迁回 legacy */
+  /** v1.5.0 删 nova、v1.21.3 删 apple：未知 id 一律落回 legacy */
   static Design byId(String id){for(Design d:ALL)if(d.id.equals(id))return d;return LEGACY;}
   static Design active(Context c){return byId(activeId(c));}
   /** 当前主题的选中态底色（v1.3.0 起按主色动态合成，避免硬编码紫） */

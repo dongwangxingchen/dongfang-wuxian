@@ -81,7 +81,7 @@ final class ToolHost {
     LinearLayout box=new LinearLayout(ctx);box.setGravity(Gravity.CENTER_VERTICAL);GradientDrawable bg=solid(act.SURFACE());bg.setStroke(act.dp(1),act.DIV());
     box.setBackground(ripple(bg));box.setPadding(act.dp(12),0,act.dp(12),0);
     ImageView icon=new ImageView(ctx);icon.setImageResource(R.drawable.ic_tool_search);icon.setColorFilter(act.MUTED());box.addView(icon,new LinearLayout.LayoutParams(act.dp(20),act.dp(20)));
-    EditText input=new EditText(ctx);input.setHint("搜索工具…");input.setHintTextColor(act.MUTED());input.setTextColor(act.TEXT());input.setTextSize(14);
+    EditText input=new EditText(ctx);input.setHint("搜索工具…");input.setHintTextColor(act.MUTED());input.setTextColor(act.TEXT());input.setTextSize(14);input.setTypeface(AppFonts.normal(ctx));
     input.setBackground(null);input.setSingleLine(true);input.setImeOptions(EditorInfo.IME_ACTION_SEARCH);input.setPadding(act.dp(10),act.dp(12),act.dp(10),act.dp(12));
     box.addView(input,new LinearLayout.LayoutParams(0,act.dp(48),1));
     LinearLayout.LayoutParams params=new LinearLayout.LayoutParams(-1,-2);params.setMargins(0,0,0,act.dp(10));
@@ -90,7 +90,7 @@ final class ToolHost {
 
   TextView tabChip(String label,boolean active){
     TextView chip=new TextView(ctx);chip.setText(label);chip.setTextSize(13);chip.setGravity(Gravity.CENTER);
-    chip.setTextColor(active?act.PRIMARY():act.MUTED());chip.setTypeface(android.graphics.Typeface.DEFAULT,android.graphics.Typeface.BOLD);
+    chip.setTextColor(active?act.PRIMARY():act.MUTED());chip.setTypeface(AppFonts.bold(ctx));
     chip.setBackground(ripple(solid(active?ThemeEngine.selectedFill(ctx):Color.TRANSPARENT)));chip.setContentDescription(label+(active?"，已选中":""));
     return chip;
   }
@@ -123,11 +123,11 @@ final class ToolHost {
     for(String id:hot){
       LinearLayout row=new LinearLayout(ctx);row.setGravity(Gravity.CENTER_VERTICAL);row.setClickable(true);row.setFocusable(true);
       row.setBackground(ripple(new ColorDrawable(Color.TRANSPARENT)));row.setPadding(act.dp(10),0,act.dp(8),0);
-      TextView no=text("#"+rank,13,rank<=3?act.PRIMARY():act.MUTED());no.setTypeface(android.graphics.Typeface.DEFAULT,android.graphics.Typeface.BOLD);no.setMinWidth(act.dp(34));
+      TextView no=text("#"+rank,13,rank<=3?act.PRIMARY():act.MUTED());no.setTypeface(AppFonts.bold(ctx));no.setMinWidth(act.dp(34));
       row.addView(no,new LinearLayout.LayoutParams(-2,act.dp(56)));
       row.addView(toolIconView(id,act.dp(30)),new LinearLayout.LayoutParams(act.dp(30),act.dp(30)));
       LinearLayout copy=new LinearLayout(ctx);copy.setOrientation(LinearLayout.VERTICAL);copy.setPadding(act.dp(12),0,0,0);
-      TextView name=text(Toolbox.toolName(id),15,act.TEXT());name.setTypeface(android.graphics.Typeface.DEFAULT,android.graphics.Typeface.BOLD);copy.addView(name,new LinearLayout.LayoutParams(-1,act.dp(26)));
+      TextView name=text(Toolbox.toolName(id),15,act.TEXT());name.setTypeface(AppFonts.bold(ctx));copy.addView(name,new LinearLayout.LayoutParams(-1,act.dp(26)));
       TextView desc=text(Toolbox.toolDesc(id),11,act.MUTED());desc.setSingleLine(true);desc.setEllipsize(TextUtils.TruncateAt.END);copy.addView(desc,new LinearLayout.LayoutParams(-1,act.dp(20)));
       row.addView(copy,new LinearLayout.LayoutParams(0,act.dp(56),1));
       String id0=id;row.setOnClickListener(v->act.openTool(id0));
@@ -155,7 +155,7 @@ final class ToolHost {
     LinearLayout header=new LinearLayout(ctx);header.setGravity(Gravity.CENTER_VERTICAL);header.setPadding(act.dp(14),act.dp(4),act.dp(10),act.dp(4));
     header.setClickable(true);header.setFocusable(true);header.setBackground(ripple(new ColorDrawable(Color.TRANSPARENT)));
     LinearLayout copy=new LinearLayout(ctx);copy.setOrientation(LinearLayout.VERTICAL);
-    TextView title=text(category,15,act.TEXT());title.setTypeface(android.graphics.Typeface.DEFAULT,android.graphics.Typeface.BOLD);copy.addView(title,new LinearLayout.LayoutParams(-1,act.dp(28)));
+    TextView title=text(category,15,act.TEXT());title.setTypeface(AppFonts.bold(ctx));copy.addView(title,new LinearLayout.LayoutParams(-1,act.dp(28)));
     LinearLayout titleRow=new LinearLayout(ctx);titleRow.setGravity(Gravity.CENTER_VERTICAL);titleRow.addView(copy,new LinearLayout.LayoutParams(0,-2,1));
     TextView badge=text(ids.size()+" 个",10,act.PRIMARY());
     GradientDrawable pill=solid(ThemeEngine.tint(act.PRIMARY(),30));pill.setCornerRadius(act.dp(20));badge.setBackground(pill);badge.setPadding(act.dp(10),act.dp(2),act.dp(10),act.dp(2));
@@ -216,7 +216,7 @@ final class ToolHost {
     LinearLayout header=new LinearLayout(ctx);header.setGravity(Gravity.CENTER_VERTICAL);
     ImageButton back=act.iconButton(R.drawable.ic_back,"返回工具箱");back.setOnClickListener(v->{act.setPageDirection(-1);act.popToolBack();});header.addView(back,new LinearLayout.LayoutParams(act.dp(48),act.dp(48)));
     LinearLayout copy=new LinearLayout(ctx);copy.setOrientation(LinearLayout.VERTICAL);copy.setPadding(act.dp(8),0,0,0);
-    TextView heading=text(title,19,act.TEXT());heading.setTypeface(android.graphics.Typeface.DEFAULT,android.graphics.Typeface.BOLD);copy.addView(heading,new LinearLayout.LayoutParams(-1,act.dp(30)));
+    TextView heading=text(title,19,act.TEXT());heading.setTypeface(AppFonts.bold(ctx));copy.addView(heading,new LinearLayout.LayoutParams(-1,act.dp(30)));
     TextView sub=text(Toolbox.toolDesc(id),11,act.MUTED());sub.setSingleLine(true);sub.setEllipsize(TextUtils.TruncateAt.END);copy.addView(sub,new LinearLayout.LayoutParams(-1,act.dp(20)));
     header.addView(copy,new LinearLayout.LayoutParams(0,act.dp(52),1));
     act.root().addView(header,new LinearLayout.LayoutParams(-1,act.dp(54)));
@@ -241,7 +241,7 @@ final class ToolHost {
         for(int i=0;i<statLabels.length;i++){
           LinearLayout cell=new LinearLayout(ctx);cell.setOrientation(LinearLayout.VERTICAL);cell.setGravity(Gravity.CENTER);
           GradientDrawable cellBg=solid(act.SURFACE());cellBg.setCornerRadius(act.dp(12));cell.setBackground(cellBg);
-          TextView num=text("0",17,act.TEXT());num.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);num.setGravity(Gravity.CENTER);num.setIncludeFontPadding(false);
+          TextView num=text("0",17,act.TEXT());num.setTypeface(AppFonts.bold(ctx));num.setGravity(Gravity.CENTER);num.setIncludeFontPadding(false);
           TextView lab=text(statLabels[i],11,act.MUTED());lab.setGravity(Gravity.CENTER);
           cell.addView(num,new LinearLayout.LayoutParams(-1,-2));cell.addView(lab,new LinearLayout.LayoutParams(-1,-2));
           android.widget.GridLayout.LayoutParams clp=new android.widget.GridLayout.LayoutParams(
@@ -339,10 +339,10 @@ final class ToolHost {
 
   void calculator(LinearLayout body){
     // —— 显示区：可编辑表达式行 + 大字结果行（点结果复制）——
-    EditText expr=new EditText(ctx);expr.setSingleLine(true);expr.setTextSize(18);expr.setTextColor(act.TEXT());expr.setHintTextColor(act.MUTED());expr.setHint("点按下方按键，或直接输入");
+    EditText expr=new EditText(ctx);expr.setSingleLine(true);expr.setTextSize(18);expr.setTextColor(act.TEXT());expr.setHintTextColor(act.MUTED());expr.setTypeface(AppFonts.normal(ctx));expr.setHint("点按下方按键，或直接输入");
     expr.setGravity(Gravity.END|Gravity.CENTER_VERTICAL);expr.setBackground(solid(act.SURFACE()));expr.setPadding(act.dp(16),0,act.dp(16),0);expr.setMinHeight(act.dp(60));expr.setCursorVisible(true);
     LinearLayout.LayoutParams exprParams=new LinearLayout.LayoutParams(-1,act.dp(60));exprParams.setMargins(0,0,0,act.dp(8));body.addView(expr,exprParams);
-    TextView live=text("0",36,act.TEXT());live.setTypeface(android.graphics.Typeface.DEFAULT,android.graphics.Typeface.BOLD);live.setGravity(Gravity.END|Gravity.CENTER_VERTICAL);
+    TextView live=text("0",36,act.TEXT());live.setTypeface(AppFonts.bold(ctx));live.setGravity(Gravity.END|Gravity.CENTER_VERTICAL);
     live.setBackground(solid(act.SURFACE()));live.setPadding(act.dp(16),0,act.dp(16),0);live.setMinHeight(act.dp(92));
     body.addView(live,new LinearLayout.LayoutParams(-1,act.dp(92)));// v1.6.2：显示区放大（真机反馈「像手表界面」：48/60dp→60/92dp）
     live.setClickable(true);live.setFocusable(true);live.setContentDescription("计算结果，点按复制");
@@ -367,7 +367,7 @@ final class ToolHost {
       pad.addView(row,new LinearLayout.LayoutParams(-1,-2));
       for(int c=0;c<4;c++){
         final String k=labels[c];
-        TextView key=new TextView(ctx);key.setText(k);key.setTextSize(23);key.setGravity(Gravity.CENTER);
+        TextView key=new TextView(ctx);key.setText(k);key.setTextSize(23);key.setGravity(Gravity.CENTER);key.setTypeface(AppFonts.normal(ctx));
         key.setMinHeight(act.dp(68));key.setMinimumHeight(act.dp(68));key.setClickable(true);key.setFocusable(true);key.setContentDescription(des[c]);
         final boolean operator=k.equals("÷")||k.equals("×")||k.equals("−")||k.equals("+");
         final boolean soft=k.equals("C")||k.equals("⌫")||k.equals("(")||k.equals(")")||k.equals("±");
@@ -420,7 +420,7 @@ final class ToolHost {
     display.addView(fromLine,new LinearLayout.LayoutParams(-1,-2));
     LinearLayout toLine=new LinearLayout(ctx);toLine.setOrientation(LinearLayout.VERTICAL);toLine.setGravity(Gravity.END);
     LinearLayout.LayoutParams toLineLp=new LinearLayout.LayoutParams(-1,-2);toLineLp.topMargin=act.dp(18);// v1.7.3：两行数字间距加大（Unitto 的输入/输出是明确分离的两个区块）
-    TextView toValue=text("",40,act.PRIMARY());toValue.setGravity(Gravity.END);toValue.setSingleLine(true);toValue.setTypeface(android.graphics.Typeface.DEFAULT,android.graphics.Typeface.BOLD);
+    TextView toValue=text("",40,act.PRIMARY());toValue.setGravity(Gravity.END);toValue.setSingleLine(true);toValue.setTypeface(AppFonts.bold(ctx));
     toValue.setContentDescription("换算结果，点按复制");
     toLine.addView(toValue,new LinearLayout.LayoutParams(-1,-2));
     TextView toUnitLabel=text("",13,act.MUTED());toUnitLabel.setGravity(Gravity.END);LinearLayout.LayoutParams toUnitLp=new LinearLayout.LayoutParams(-1,-2);toUnitLp.topMargin=act.dp(2);toLine.addView(toUnitLabel,toUnitLp);
@@ -428,7 +428,7 @@ final class ToolHost {
     toValue.setClickable(true);toValue.setFocusable(true);
     toValue.setOnClickListener(v->{String value=toValue.getText().toString().trim();if(value.isEmpty())return;copy(value);act.showNotice("已复制",false);});
     body.addView(display,new LinearLayout.LayoutParams(-1,-2));
-    final EditText value=new EditText(ctx);value.setText("1");value.setSingleLine(true);value.setTextColor(act.TEXT());value.setHintTextColor(act.MUTED());value.setHint("输入数值");value.setTextSize(16);
+    final EditText value=new EditText(ctx);value.setText("1");value.setSingleLine(true);value.setTextColor(act.TEXT());value.setHintTextColor(act.MUTED());value.setHint("输入数值");value.setTextSize(16);value.setTypeface(AppFonts.normal(ctx));
     value.setInputType(InputType.TYPE_CLASS_NUMBER|InputType.TYPE_NUMBER_FLAG_DECIMAL|InputType.TYPE_NUMBER_FLAG_SIGNED);
     value.setBackground(solid(act.SURFACE2()));value.setPadding(act.dp(14),0,act.dp(14),0);value.setMinHeight(act.dp(52));
     LinearLayout.LayoutParams valueLp=new LinearLayout.LayoutParams(-1,act.dp(52));valueLp.topMargin=act.dp(10);body.addView(value,valueLp);
@@ -607,7 +607,7 @@ final class ToolHost {
     LinearLayout wrap=new LinearLayout(ctx);wrap.setOrientation(LinearLayout.VERTICAL);wrap.setGravity(Gravity.CENTER);
     GradientDrawable bg=solid(act.SURFACE());bg.setStroke(act.dp(1),act.DIV());wrap.setBackground(ripple(bg));
     TextView name=text(label,12,act.MUTED());name.setGravity(Gravity.CENTER);wrap.addView(name,new LinearLayout.LayoutParams(-1,act.dp(24)));
-    TextView value=text("0",56,act.TEXT());value.setTypeface(android.graphics.Typeface.create("sans-serif-light",android.graphics.Typeface.NORMAL));value.setGravity(Gravity.CENTER);// v1.7.6：34->56sp 细体（对齐 Google 课程规格 56sp sans-serif-light，远距离可读）
+    TextView value=text("0",56,act.TEXT());value.setTypeface(AppFonts.light(ctx));value.setGravity(Gravity.CENTER);// v1.7.6：34->56sp 细体（对齐 Google 课程规格 56sp sans-serif-light，远距离可读）
     wrap.addView(value,new LinearLayout.LayoutParams(-1,act.dp(64)));
     // 返回内层分数 TextView；用 tag 关联外壳
     value.setTag(wrap);return value;
@@ -619,7 +619,7 @@ final class ToolHost {
     // 补齐三个交互缺失——①点击日期无反馈 ②无「回到今天」③无年月快速跳转；并加节气/节日标记
     java.util.Calendar today=java.util.Calendar.getInstance();
     final int[] cursor={today.get(java.util.Calendar.YEAR),today.get(java.util.Calendar.MONTH)};
-    TextView title=text("",16,act.TEXT());title.setTypeface(android.graphics.Typeface.DEFAULT,android.graphics.Typeface.BOLD);title.setGravity(Gravity.CENTER);
+    TextView title=text("",16,act.TEXT());title.setTypeface(AppFonts.bold(ctx));title.setGravity(Gravity.CENTER);
     TextView detail=text("点按日期查看详情",12,act.MUTED());detail.setGravity(Gravity.CENTER);detail.setPadding(act.dp(8),act.dp(8),act.dp(8),act.dp(4));
     GridLayout grid=new GridLayout(ctx);grid.setColumnCount(7);
     final Runnable[] renderRef={(Runnable)null};
@@ -671,7 +671,7 @@ final class ToolHost {
     // v1.7.7：点标题弹年月选择（对齐主流做法，避免逐月翻）
     title.setClickable(true);title.setFocusable(true);title.setBackground(ripple(new ColorDrawable(Color.TRANSPARENT)));
     title.setOnClickListener(v->{
-      EditText input=new EditText(ctx);input.setSingleLine(true);input.setTextColor(act.TEXT());input.setHintTextColor(act.MUTED());input.setHint("如 2026-9");input.setTextSize(16);
+      EditText input=new EditText(ctx);input.setSingleLine(true);input.setTextColor(act.TEXT());input.setHintTextColor(act.MUTED());input.setHint("如 2026-9");input.setTextSize(16);input.setTypeface(AppFonts.normal(ctx));
       input.setText(cursor[0]+"-"+(cursor[1]+1));
       LinearLayout panel=new LinearLayout(ctx);panel.setOrientation(LinearLayout.VERTICAL);panel.setPadding(act.dp(22),act.dp(8),act.dp(22),0);
       TextView hint=text("输入 年-月 快速跳转，例如 2026-9",12,act.MUTED());hint.setPadding(0,0,0,act.dp(8));panel.addView(hint,new LinearLayout.LayoutParams(-1,-2));
@@ -733,7 +733,7 @@ final class ToolHost {
     TextView hint=text("加密级安全随机生成；强度按字符池熵值估算。",12,act.MUTED());hint.setPadding(0,0,0,act.dp(8));body.addView(hint,new LinearLayout.LayoutParams(-1,-2));
     LinearLayout lenRow=new LinearLayout(ctx);lenRow.setGravity(Gravity.CENTER_VERTICAL);
     TextView lenLabel=text("长度",13,act.TEXT());lenRow.addView(lenLabel,new LinearLayout.LayoutParams(-2,-2));
-    TextView lenValue=text("16",15,act.PRIMARY());lenValue.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
+    TextView lenValue=text("16",15,act.PRIMARY());lenValue.setTypeface(AppFonts.bold(ctx));
     LinearLayout.LayoutParams lvLp=new LinearLayout.LayoutParams(-2,-2);lvLp.leftMargin=act.dp(10);lenRow.addView(lenValue,lvLp);
     TextView lenRange=text("（8-64）",11,act.MUTED());
     LinearLayout.LayoutParams lrLp=new LinearLayout.LayoutParams(-2,-2);lrLp.leftMargin=act.dp(6);lenRow.addView(lenRange,lrLp);
@@ -755,7 +755,7 @@ final class ToolHost {
       strengthBar.addView(segs[i],sp);segs[i].setBackground(sg);}
     body.addView(strengthBar,new LinearLayout.LayoutParams(-1,-2));
     LinearLayout gradeRow=new LinearLayout(ctx);gradeRow.setGravity(Gravity.CENTER_VERTICAL);
-    TextView grade=text("—",13,act.MUTED());grade.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
+    TextView grade=text("—",13,act.MUTED());grade.setTypeface(AppFonts.bold(ctx));
     gradeRow.addView(grade,new LinearLayout.LayoutParams(-2,-2));
     TextView bits=text("",11,act.MUTED());
     LinearLayout.LayoutParams bitsLp=new LinearLayout.LayoutParams(-2,-2);bitsLp.leftMargin=act.dp(10);gradeRow.addView(bits,bitsLp);
@@ -926,7 +926,7 @@ final class ToolHost {
     TextView[] nameViews=new TextView[algos.length];
     for(int i=0;i<algos.length;i++){
       LinearLayout row=new LinearLayout(ctx);row.setOrientation(LinearLayout.VERTICAL);row.setPadding(act.dp(12),act.dp(8),act.dp(12),act.dp(8));row.setBackground(solid(act.SURFACE()));row.setClickable(true);row.setFocusable(true);
-      TextView name=text(algos[i],12,act.PRIMARY());name.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
+      TextView name=text(algos[i],12,act.PRIMARY());name.setTypeface(AppFonts.bold(ctx));
       TextView hex=text("—",13,act.TEXT());hex.setTypeface(android.graphics.Typeface.MONOSPACE);
       LinearLayout.LayoutParams hp=new LinearLayout.LayoutParams(-1,-2);hp.topMargin=act.dp(2);row.addView(name,new LinearLayout.LayoutParams(-1,-2));row.addView(hex,hp);
       LinearLayout.LayoutParams rp=new LinearLayout.LayoutParams(-1,-2);rp.topMargin=i==0?act.dp(4):act.dp(8);body.addView(row,rp);
@@ -1122,7 +1122,7 @@ final class ToolHost {
 
   LinearLayout checkRow(LinearLayout parent){LinearLayout row=new LinearLayout(ctx);row.setGravity(Gravity.CENTER_VERTICAL);row.setPadding(0,act.dp(8),0,0);parent.addView(row,new LinearLayout.LayoutParams(-1,act.dp(44)));return row;}
   CheckBox checkInline(LinearLayout parent,String label,boolean checked){
-    CheckBox box=new CheckBox(ctx);box.setText(label);box.setTextColor(act.TEXT());box.setTextSize(12);box.setChecked(checked);box.setPadding(act.dp(4),0,act.dp(4),0);
+    CheckBox box=new CheckBox(ctx);box.setText(label);box.setTextColor(act.TEXT());box.setTextSize(12);box.setChecked(checked);box.setPadding(act.dp(4),0,act.dp(4),0);box.setTypeface(AppFonts.normal(ctx));
     parent.addView(box,new LinearLayout.LayoutParams(-2,-2));return box;
   }
   LinearLayout listCard(){LinearLayout card=new LinearLayout(ctx);card.setOrientation(LinearLayout.VERTICAL);GradientDrawable bg=solid(act.SURFACE());bg.setStroke(act.dp(1),act.DIV());card.setBackground(bg);card.setClipToOutline(true);card.setPadding(act.dp(4),act.dp(4),act.dp(4),act.dp(6));LinearLayout.LayoutParams params=new LinearLayout.LayoutParams(-1,-2);params.setMargins(0,0,0,act.dp(10));card.setLayoutParams(params);return card;}
@@ -1158,7 +1158,7 @@ final class ToolHost {
     LinearLayout box=new LinearLayout(ctx);box.setOrientation(LinearLayout.VERTICAL);box.setVisibility(View.GONE);box.setTag("tool-result-box");parent.addView(box,new LinearLayout.LayoutParams(-1,-2));
     TextView label=text("结果",11,act.MUTED());label.setPadding(0,act.dp(4),0,act.dp(2));box.addView(label,new LinearLayout.LayoutParams(-1,-2));
     android.widget.FrameLayout wrap=new android.widget.FrameLayout(ctx);
-    TextView output=new TextView(ctx);output.setTextColor(act.TEXT());output.setTextSize(13);output.setTextIsSelectable(true);output.setLineSpacing(act.dp(2),1f);
+    TextView output=new TextView(ctx);output.setTextColor(act.TEXT());output.setTextSize(13);output.setTextIsSelectable(true);output.setLineSpacing(act.dp(2),1f);output.setTypeface(AppFonts.normal(ctx));
     output.setBackground(solid(act.SURFACE()));output.setPadding(act.dp(12),act.dp(10),act.dp(56),act.dp(10));output.setMinHeight(act.dp(44));
     wrap.addView(output,new android.widget.FrameLayout.LayoutParams(-1,-2));
     TextView copyBtn=text("复制",11,act.PRIMARY());copyBtn.setGravity(Gravity.CENTER);copyBtn.setClickable(true);copyBtn.setFocusable(true);copyBtn.setPadding(act.dp(12),0,act.dp(12),0);
@@ -1180,7 +1180,7 @@ final class ToolHost {
   View gap(int heightDp){View v=new View(ctx);v.setLayoutParams(new LinearLayout.LayoutParams(-1,heightDp));return v;}
   void output(LinearLayout parent,String value){if(parent==null)return;View found=parent.findViewWithTag("tool-output");if(found instanceof TextView){((TextView)found).setText(value);if(act.motionEnabled()){found.setAlpha(.4f);found.animate().alpha(1f).setDuration(150).start();}}View box=parent.findViewWithTag("tool-result-box");if(box!=null)box.setVisibility(View.VISIBLE);}
   void copy(String value){android.content.ClipboardManager clipboard=(android.content.ClipboardManager)act.getSystemService(android.content.Context.CLIPBOARD_SERVICE);if(clipboard!=null)clipboard.setPrimaryClip(android.content.ClipData.newPlainText("东方无限工具结果",value));act.showNotice("已复制",false);}
-  TextView text(String s,int sp,int color){TextView v=new TextView(ctx);v.setText(s);v.setTextSize(sp);v.setTextColor(color);v.setGravity(Gravity.CENTER_VERTICAL);return v;}
+  TextView text(String s,int sp,int color){TextView v=new TextView(ctx);v.setText(s);v.setTextSize(sp);v.setTextColor(color);v.setGravity(Gravity.CENTER_VERTICAL);v.setTypeface(AppFonts.normal(ctx));return v;}
   GradientDrawable solid(int color){return act.solidShape(color,14);}
   Drawable ripple(Drawable content){return act.filterRipple(content);}
   /** 按压缩放反馈（fast spring 感：90ms 缩到 0.96，90ms 回弹） */
@@ -1200,7 +1200,7 @@ final class ToolHost {
   //—— 设备信息页部件：小节标题 + 键值卡片 ——
 
   TextView infoSection(android.content.Context context,String title){
-    TextView label=text(title,12,act.PRIMARY());label.setTypeface(android.graphics.Typeface.DEFAULT,android.graphics.Typeface.BOLD);
+    TextView label=text(title,12,act.PRIMARY());label.setTypeface(AppFonts.bold(ctx));
     label.setPadding(act.dp(4),act.dp(8),0,act.dp(4));label.setContentDescription(title+"信息组");
     return label;
   }
@@ -1239,7 +1239,7 @@ final class ToolHost {
 
   void stopwatch(LinearLayout body){
     final android.os.Handler handler=new android.os.Handler(android.os.Looper.getMainLooper());
-    TextView clock=text("00:00.0",32,act.TEXT());clock.setTypeface(android.graphics.Typeface.DEFAULT,android.graphics.Typeface.BOLD);clock.setGravity(Gravity.CENTER);
+    TextView clock=text("00:00.0",32,act.TEXT());clock.setTypeface(AppFonts.bold(ctx));clock.setGravity(Gravity.CENTER);
     GradientDrawable clockBg=solid(act.SURFACE());clockBg.setStroke(act.dp(1),act.DIV());clock.setBackground(clockBg);
     clock.setPadding(act.dp(12),act.dp(24),act.dp(12),act.dp(24));
     body.addView(clock,new LinearLayout.LayoutParams(-1,-2));
