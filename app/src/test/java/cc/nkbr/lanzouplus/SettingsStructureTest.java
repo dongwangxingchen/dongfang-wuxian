@@ -24,7 +24,9 @@ import static org.junit.Assert.assertTrue;
 public class SettingsStructureTest {
 
   private static View sectionContent(View section) {
-    return ((ViewGroup) section).getChildAt(1);
+    // 四分区 = [header, content]；底部关于区卡片无 header，content 即唯一子视图
+    ViewGroup g = (ViewGroup) section;
+    return g.getChildAt(g.getChildCount() > 1 ? 1 : 0);
   }
 
   private static int visibleRows(View content) {
@@ -48,12 +50,13 @@ public class SettingsStructureTest {
         && ((ViewGroup) activity.root.getChildAt(1)).getChildAt(0) instanceof EditText);
     assertTrue(activity.root.getChildAt(2) instanceof ScrollView);
 
-    // 四分区注册；常用默认展开，其余收起
-    assertEquals(4, activity.settingsSearchSections.size());
+    // 五区注册（四分区 + 底部关于区卡片）；常用默认展开，其余收起，底部卡片内容常显
+    assertEquals(5, activity.settingsSearchSections.size());
     assertEquals(View.VISIBLE, sectionContent(activity.settingsSearchSections.get(0)).getVisibility());
     assertEquals(View.GONE, sectionContent(activity.settingsSearchSections.get(1)).getVisibility());
     assertEquals(View.GONE, sectionContent(activity.settingsSearchSections.get(2)).getVisibility());
     assertEquals(View.GONE, sectionContent(activity.settingsSearchSections.get(3)).getVisibility());
+    assertEquals(View.VISIBLE, sectionContent(activity.settingsSearchSections.get(4)).getVisibility());
 
     // 搜索「识别并发」：只性能分区命中，其余整组隐藏，不出现空态
     EditText input = activity.settingsSearchInput;
@@ -67,11 +70,12 @@ public class SettingsStructureTest {
     assertEquals(View.GONE, activity.settingsSearchEmpty.getVisibility());
     assertTrue("性能分区应命中至少 1 行（下载面板整块可见）", visibleRows(sectionContent(activity.settingsSearchSections.get(1))) >= 1);
 
-    // 搜索「崩溃日志」：只数据与关于命中
+    // 搜索「崩溃日志」：命中底部关于区（已从数据与关于移出）
     input.setText("崩溃日志");
     ShadowLooper.idleMainLooper(400, java.util.concurrent.TimeUnit.MILLISECONDS);
     assertEquals(View.GONE, activity.settingsSearchSections.get(0).getVisibility());
-    assertEquals(View.VISIBLE, activity.settingsSearchSections.get(3).getVisibility());
+    assertEquals(View.GONE, activity.settingsSearchSections.get(3).getVisibility());
+    assertEquals(View.VISIBLE, activity.settingsSearchSections.get(4).getVisibility());
 
     // 无命中：全部隐藏 + 空态出现
     input.setText("绝不存在的关键词xyz");
@@ -87,6 +91,7 @@ public class SettingsStructureTest {
     assertEquals(View.GONE, sectionContent(activity.settingsSearchSections.get(1)).getVisibility());
     assertEquals(View.GONE, sectionContent(activity.settingsSearchSections.get(2)).getVisibility());
     assertEquals(View.GONE, sectionContent(activity.settingsSearchSections.get(3)).getVisibility());
+    assertEquals(View.VISIBLE, sectionContent(activity.settingsSearchSections.get(4)).getVisibility());
     assertEquals(View.GONE, activity.settingsSearchEmpty.getVisibility());
   }
 }
