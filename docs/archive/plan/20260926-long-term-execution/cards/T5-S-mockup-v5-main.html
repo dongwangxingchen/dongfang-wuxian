@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>T5-S v5 主页 · 仿 Breezy Weather 设置页</title>
+<style>
+  /* ============ v5 视觉模板：Breezy Weather 05-settings 实测数值 ============
+     bg #131313 / 卡 #1C2024 / 圆角 28 / 外边距 16 / 组间 16 / 同组缝 2
+     单行卡 88 高 / 双行副题卡 112 / 标题 16sp 600 #FFF / 副题 14sp #B4B7BE
+     图标 24dp 距卡左 18 / 文字距图标 18 / 零描边 零投影 零分隔线
+     紫色只作控件点缀：#A78BFA 主 / #C494FF 亮                                    */
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-font-smoothing:antialiased; }
+  body { background:#131313; width:390px; font-family:"PingFang SC","Helvetica Neue",sans-serif; }
+  .screen { width:390px; background:#131313; padding-bottom:28px; }
+
+  /* 顶栏 */
+  .topbar { height:56px; display:flex; align-items:center; padding:0 12px; }
+  .topbar svg { width:24px; height:24px; }
+
+  /* 大标题（Breezy：28sp Regular，左 16 边距） */
+  .h1 { font-size:28px; font-weight:500; color:#FFFFFF; letter-spacing:.2px; padding:20px 16px 18px; }
+
+  /* 搜索框：同卡面色，胶囊 24 半径，48 高 */
+  .search { margin:2px 16px 4px; height:48px; border-radius:24px; background:#1C2024;
+            display:flex; align-items:center; padding:0 16px; }
+  .search svg { width:20px; height:20px; flex:none; }
+  .search span { margin-left:12px; font-size:15px; color:#8A9099; }
+
+  /* 图标+标题+副题 入口行（Breezy 实测：图距左 18 / 文距图 18 / 上 20 下 22） */
+  .entry { margin:0 16px; background:#1C2024; border-radius:28px;
+           padding:20px 16px 22px 18px; display:flex; align-items:flex-start; }
+  .entry svg { width:24px; height:24px; flex:none; margin-top:9px; }
+  .entry .tx { margin-left:18px; min-width:0; }
+  .entry .t { font-size:16px; font-weight:600; color:#FFFFFF; line-height:22px; }
+  .entry .s { margin-top:4px; font-size:14px; color:#B4B7BE; line-height:22px; }
+  /* 同组卡缝 2px；组间 16px */
+  .group > .entry + .entry { margin-top:2px; }
+  .gap16 { height:16px; }
+
+  /* 展开组卡：一张大卡装多行（行内不画线，Breezy 同款干净） */
+  .rows { margin:0 16px; background:#1C2024; border-radius:28px; padding:6px 16px; }
+  .row { display:flex; align-items:center; padding:13px 2px; }
+  .row .tx { flex:1; min-width:0; margin-right:12px; }
+  .row .t { font-size:16px; font-weight:600; color:#FFFFFF; line-height:22px; }
+  .row .s { margin-top:2px; font-size:13px; color:#B4B7BE; line-height:19px; }
+
+  /* 性能模式卡（展开的选择器卡） */
+  .mode { margin:0 16px; background:#1C2024; border-radius:28px; padding:20px 18px 18px; }
+  .mode .head { display:flex; align-items:flex-start; }
+  .mode .head svg { width:24px; height:24px; flex:none; margin-top:9px; }
+  .mode .head .tx { margin-left:18px; }
+  .mode .t { font-size:16px; font-weight:600; color:#FFF; line-height:22px; }
+  .mode .s { margin-top:4px; font-size:14px; color:#B4B7BE; line-height:22px; }
+
+  /* 三档胶囊选择器（形态2：胶囊滑动） */
+  .seg { margin-top:14px; height:44px; border-radius:22px; background:#14171C;
+         position:relative; display:flex; }
+  .seg .thumb { position:absolute; top:3px; width:calc(33.333% - 6px); height:38px;
+                border-radius:19px; background:#3F4650;
+                box-shadow:inset 0 1px 0 rgba(255,255,255,.07); }
+  .seg .opt { position:relative; flex:1; display:flex; align-items:center; justify-content:center;
+              font-size:14px; color:#9BA1AC; font-weight:500; }
+  .seg .opt.on { color:#FFFFFF; font-weight:600; }
+  .foot { margin-top:10px; font-size:12px; color:#8A9099; line-height:17px; }
+
+  /* 开关 52×32：关=轨#3A3F47/thumb16#9BA1AC；开=轨#A78BFA/thumb24#1D1430 */
+  .sw { width:52px; height:32px; border-radius:16px; flex:none; position:relative; }
+  .sw.off { background:#3A3F47; }
+  .sw.off i { position:absolute; left:8px; top:8px; width:16px; height:16px; border-radius:50%; background:#9BA1AC; }
+  .sw.on  { background:#A78BFA; }
+  .sw.on  i { position:absolute; left:20px; top:4px; width:24px; height:24px; border-radius:50%; background:#1D1430; }
+</style>
+</head>
+<body>
+<div class="screen">
+
+  <div class="topbar">
+    <svg viewBox="0 0 24 24" fill="none" stroke="#DFE3E8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
+  </div>
+  <div class="h1">设置</div>
+
+  <!-- 搜索 -->
+  <div class="search">
+    <svg viewBox="0 0 24 24" fill="none" stroke="#8A9099" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+    <span>搜索设置项</span>
+  </div>
+
+  <div class="gap16"></div>
+
+  <!-- 性能模式：展开的三档选择器 -->
+  <div class="mode">
+    <div class="head">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#DFE3E8" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4a9 9 0 0 0-9 9c0 1.8.5 3.5 1.4 4.9.3.4.8.6 1.3.6h12.6c.5 0 1-.2 1.3-.6A8.96 8.96 0 0 0 21 13a9 9 0 0 0-9-9z"/><path d="M12 13l4-4.5"/><circle cx="12" cy="13" r="1.6" fill="#DFE3E8" stroke="none"/></svg>
+      <div class="tx">
+        <div class="t">性能模式</div>
+        <div class="s">整体流畅度与耗电的平衡</div>
+      </div>
+    </div>
+    <div class="seg">
+      <div class="thumb" style="left:calc(33.333% + 3px)"></div>
+      <div class="opt">高性能</div>
+      <div class="opt on">均衡</div>
+      <div class="opt">节能</div>
+    </div>
+    <div class="foot">预加载与动画全开；节能档自动关闭低动效</div>
+  </div>
+
+  <div class="gap16"></div>
+
+  <!-- 常用开关：一张卡三行 -->
+  <div class="rows">
+    <div class="row">
+      <div class="tx">
+        <div class="t">批量下载逐项显示</div>
+        <div class="s">每个下载任务单独显示进度与操作</div>
+      </div>
+      <div class="sw on"><i></i></div>
+    </div>
+    <div class="row">
+      <div class="tx">
+        <div class="t">文件夹递归展开</div>
+        <div class="s">打开分享时一次性展开全部子文件夹</div>
+      </div>
+      <div class="sw on"><i></i></div>
+    </div>
+    <div class="row">
+      <div class="tx">
+        <div class="t">自动更新索引</div>
+        <div class="s">启动时后台刷新已存分享的文件列表</div>
+      </div>
+      <div class="sw off"><i></i></div>
+    </div>
+  </div>
+
+  <div class="gap16"></div>
+
+  <!-- 高级与关于：Breezy 入口组（卡缝 2） -->
+  <div class="group">
+    <div class="entry">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#DFE3E8" stroke-width="1.7" stroke-linecap="round"><path d="M4 8h10M18 8h2M4 16h2M10 16h10"/><circle cx="16" cy="8" r="2.2"/><circle cx="8" cy="16" r="2.2"/></svg>
+      <div class="tx">
+        <div class="t">性能与网络</div>
+        <div class="s">并发数、超时、抓取深度与 UA 设置</div>
+      </div>
+    </div>
+    <div class="entry">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#DFE3E8" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="6" rx="7" ry="3"/><path d="M5 6v6c0 1.66 3.13 3 7 3s7-1.34 7-3V6"/><path d="M5 12v6c0 1.66 3.13 3 7 3s7-1.34 7-3v-6"/></svg>
+      <div class="tx">
+        <div class="t">数据与缓存</div>
+        <div class="s">清理缓存 326 MB · 导入导出</div>
+      </div>
+    </div>
+    <div class="entry">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#DFE3E8" stroke-width="1.7" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><circle cx="12" cy="8" r="0.5" fill="#DFE3E8"/></svg>
+      <div class="tx">
+        <div class="t">关于</div>
+        <div class="s">版本 1.19.9 · 检查更新 · 隐私政策</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

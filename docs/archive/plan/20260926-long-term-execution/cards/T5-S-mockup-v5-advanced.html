@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>T5-S v5 高级页 · 性能与网络</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-font-smoothing:antialiased; }
+  body { background:#131313; width:390px; font-family:"PingFang SC","Helvetica Neue",sans-serif; }
+  .screen { width:390px; background:#131313; padding-bottom:28px; }
+  .topbar { height:56px; display:flex; align-items:center; padding:0 12px; }
+  .topbar svg { width:24px; height:24px; }
+  .h1 { font-size:28px; font-weight:500; color:#FFFFFF; letter-spacing:.2px; padding:20px 16px 22px; }
+
+  .card { margin:0 16px 16px; background:#1C2024; border-radius:28px; padding:20px 18px 20px; }
+  .card .t { font-size:16px; font-weight:600; color:#FFF; line-height:22px; }
+  .card .s { margin-top:4px; font-size:14px; color:#B4B7BE; line-height:22px; }
+  .valrow { display:flex; align-items:baseline; justify-content:space-between; }
+  .val { font-size:15px; font-weight:600; color:#C494FF; }
+
+  /* M3 滑条：轨 16 高 / 填充 #A78BFA / 竖条 handle 4×44 #C494FF / stop 圆点 */
+  .slider { margin-top:18px; position:relative; height:44px; display:flex; align-items:center; }
+  .track { width:100%; height:16px; border-radius:8px; background:#3E434D; overflow:hidden; }
+  .fill { height:100%; background:#A78BFA; border-radius:8px; }
+  .handle { position:absolute; top:0; width:4px; height:44px; border-radius:2px; background:#C494FF; }
+  .ticks { margin-top:8px; display:flex; justify-content:space-between; }
+  .ticks span { font-size:11px; color:#7C828C; }
+  .foot { margin-top:12px; font-size:12px; color:#8A9099; line-height:17px; }
+
+  /* 简单值行 */
+  .vrow { display:flex; align-items:center; padding:13px 2px; }
+  .vrow .tx { flex:1; }
+  .vrow .vt { font-size:16px; font-weight:600; color:#FFF; line-height:22px; }
+  .vrow .vv { font-size:14px; font-weight:600; color:#C494FF; }
+
+  .sw { width:52px; height:32px; border-radius:16px; flex:none; position:relative; }
+  .sw.on i { position:absolute; left:20px; top:4px; width:24px; height:24px; border-radius:50%; background:#1D1430; }
+  .sw.on { background:#A78BFA; }
+</style>
+</head>
+<body>
+<div class="screen">
+
+  <div class="topbar">
+    <svg viewBox="0 0 24 24" fill="none" stroke="#DFE3E8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
+  </div>
+  <div class="h1">性能与网络</div>
+
+  <!-- 同时下载数 -->
+  <div class="card">
+    <div class="valrow"><div class="t">同时下载数</div><div class="val">6</div></div>
+    <div class="s">并发任务上限，过高易触发限流</div>
+    <div class="slider">
+      <div class="track"><div class="fill" style="width:23%"></div></div>
+      <div class="handle" style="left:calc(23% - 2px)"></div>
+    </div>
+    <div class="ticks"><span>1</span><span>3</span><span>5</span><span>10</span><span>20</span><span>50</span><span>100</span><span>∞</span></div>
+    <div class="foot">请求链放大器 · 节能档强制关闭</div>
+  </div>
+
+  <!-- 单源最高展开页数 -->
+  <div class="card">
+    <div class="valrow"><div class="t">单源最高展开页数</div><div class="val">100</div></div>
+    <div class="s">展开越深越耗时，按源站速度调整</div>
+    <div class="slider">
+      <div class="track"><div class="fill" style="width:86%"></div></div>
+      <div class="handle" style="left:calc(86% - 2px)"></div>
+    </div>
+    <div class="ticks"><span>1</span><span>3</span><span>5</span><span>10</span><span>20</span><span>50</span><span>100</span><span>∞</span></div>
+  </div>
+
+  <!-- 连接行为 -->
+  <div class="card" style="padding-top:8px; padding-bottom:8px;">
+    <div class="vrow">
+      <div class="tx"><div class="vt">连接超时</div></div>
+      <div class="vv">15 秒</div>
+    </div>
+    <div class="vrow">
+      <div class="tx"><div class="vt">失败重试次数</div></div>
+      <div class="vv">3 次</div>
+    </div>
+    <div class="vrow">
+      <div class="tx">
+        <div class="vt">UA 掩码</div>
+        <div class="s" style="margin-top:2px; font-size:13px; color:#B4B7BE; line-height:19px;">伪装为桌面浏览器标识，绕过部分限制</div>
+      </div>
+      <div class="sw on"><i></i></div>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>东方无限 · 设置页重做 视觉稿 v7（v6 + 文案去 AI 味）</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-font-smoothing:antialiased}
+  :root{
+    --bg:#000000;
+    --s-low:#0F0E13;
+    --s-high:#17151F;
+    --stroke:rgba(255,255,255,.10);
+    --stroke-2:rgba(255,255,255,.06);
+    --primary:#A78BFA;
+    --primary-hi:#C4B5FD;
+    --sel:rgba(167,139,250,.20);
+    --text:#F2F0F7;
+    --t2:rgba(242,240,247,.66);
+    --t3:rgba(242,240,247,.40);
+    --ok:#4ADE80;
+  }
+  body{
+    background:#1a1a1a;
+    font-family:-apple-system,"PingFang SC","Helvetica Neue",sans-serif;
+    display:flex;flex-direction:column;align-items:center;
+    padding:28px 0 60px;gap:26px;
+  }
+  .cap{color:#8a8a8a;font-size:12px;letter-spacing:.06em}
+  .phone{
+    width:390px;background:var(--bg);border-radius:34px;overflow:hidden;
+    box-shadow:0 24px 70px rgba(0,0,0,.75), 0 0 0 1px rgba(255,255,255,.07);
+  }
+  .statusbar{
+    height:44px;display:flex;align-items:center;justify-content:space-between;
+    padding:0 24px;color:var(--text);font-size:13px;font-weight:600;
+  }
+  .sb-r{display:flex;gap:5px;align-items:center;opacity:.9}
+  .sb-r i{display:block;width:3px;border-radius:1px;background:var(--text)}
+  .page{padding:4px 16px 40px}
+
+  /* ---------- 页面标题 ---------- */
+  h1{color:var(--text);font-size:26px;font-weight:700;letter-spacing:-.02em;padding:6px 2px 16px}
+
+  /* ---------- 搜索框（新增） ---------- */
+  .searchbox{
+    height:48px;border-radius:24px;background:var(--s-low);
+    border:1px solid var(--stroke);
+    display:flex;align-items:center;gap:10px;padding:0 16px;margin-bottom:18px;
+  }
+  .searchbox svg{flex:none;stroke:var(--t3);width:19px;height:19px}
+  .searchbox span{color:var(--t3);font-size:15px}
+
+  /* ---------- 卡片 ---------- */
+  .card{
+    background:var(--s-low);border:1px solid var(--stroke);
+    border-radius:20px;margin-bottom:12px;overflow:hidden;
+  }
+  .card-hi{background:var(--s-high)}
+  .hd{display:flex;align-items:center;gap:12px;padding:16px;cursor:default}
+  .hd .ico{
+    width:32px;height:32px;border-radius:10px;flex:none;
+    display:flex;align-items:center;justify-content:center;
+    background:var(--sel);border:1px solid rgba(167,139,250,.28);
+  }
+  .hd .ico svg{width:17px;height:17px;stroke:var(--primary-hi)}
+  .hd .tt{flex:1;min-width:0}
+  .hd .tt .a{color:var(--text);font-size:16px;font-weight:600;letter-spacing:-.01em}
+  .hd .tt .b{color:var(--t3);font-size:12px;margin-top:3px}
+  .chev{flex:none;stroke:var(--t3);width:16px;height:16px;transition:transform .2s}
+
+  /* ---------- 行 ---------- */
+  .rows{padding:0 8px 8px}
+  .row{
+    height:56px;display:flex;align-items:center;gap:12px;
+    padding:0 8px 0 10px;border-radius:12px;
+  }
+  .row + .row{position:relative}
+  .row + .row::before{
+    content:"";position:absolute;left:46px;right:8px;top:0;height:1px;
+    background:var(--stroke-2);
+  }
+  .row .ic{flex:none;width:24px;height:24px;display:flex;align-items:center;justify-content:center}
+  .row .ic svg{width:20px;height:20px;stroke:var(--primary)}
+  .row .t{flex:1;color:var(--text);font-size:15px;font-weight:550;letter-spacing:-.005em}
+  .row .v{color:var(--primary);font-size:13px;font-weight:550;max-width:150px;
+          overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .row .v.dim{color:var(--t3);font-weight:500}
+
+  /* ---------- 开关 ---------- */
+  .sw{flex:none;width:52px;height:28px;border-radius:14px;position:relative;
+      background:rgba(255,255,255,.10);border:1px solid var(--stroke);transition:background .2s}
+  .sw .knob{position:absolute;top:2px;left:2px;width:22px;height:22px;border-radius:50%;
+      background:#8b8798;transition:left .19s,background .19s}
+  .sw.on{background:var(--sel);border-color:rgba(167,139,250,.45)}
+  .sw.on .knob{left:26px;background:var(--primary-hi)}
+
+  /* ---------- 三档性能选择器（新增） ---------- */
+  .tierwrap{padding:0 8px 10px}
+  .tier{
+    display:flex;background:var(--s-high);border:1px solid var(--stroke);
+    border-radius:16px;padding:4px;gap:4px;
+  }
+  .seg{
+    flex:1;height:46px;border-radius:12px;display:flex;align-items:center;
+    justify-content:center;gap:6px;color:var(--t2);font-size:14px;font-weight:550;
+  }
+  .seg svg{width:16px;height:16px;stroke:currentColor}
+  .seg.on{
+    background:var(--sel);border:1px solid rgba(167,139,250,.42);
+    color:var(--primary-hi);font-weight:650;
+  }
+  .tiernote{
+    margin:10px 2px 2px;padding:11px 13px;border-radius:12px;
+    background:rgba(167,139,250,.07);border:1px solid rgba(167,139,250,.16);
+  }
+  .tiernote .l1{color:var(--t2);font-size:12px;line-height:1.5}
+  .tiernote .l1 b{color:var(--primary-hi);font-weight:600}
+  .tiernote .l2{color:var(--t3);font-size:11px;margin-top:5px;line-height:1.5}
+
+  /* ---------- 子行（低动效） ---------- */
+  .sub{padding-left:16px}
+  .sub .row .t{font-size:14px}
+
+  /* ---------- 滑条 ---------- */
+  .srow{padding:12px 10px 6px}
+  .srow .top{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:10px}
+  .srow .top .a{color:var(--text);font-size:14px;font-weight:550}
+  .srow .top .b{color:var(--primary);font-size:13px;font-weight:600}
+  .track{height:4px;border-radius:2px;background:rgba(255,255,255,.12);position:relative}
+  .track .fill{position:absolute;left:0;top:0;height:4px;border-radius:2px;background:var(--primary)}
+  .track .thumb{position:absolute;top:-7px;width:18px;height:18px;border-radius:50%;
+      background:var(--primary-hi);box-shadow:0 2px 6px rgba(0,0,0,.5)}
+  .ticks{display:flex;justify-content:space-between;margin-top:7px}
+  .ticks span{color:var(--t3);font-size:10.5px}
+
+  /* ---------- 危险操作 ---------- */
+  .danger{display:flex;gap:8px;padding:6px 8px 10px}
+  .dbtn{flex:1;height:46px;border-radius:14px;background:var(--s-high);
+        border:1px solid var(--stroke);display:flex;align-items:center;justify-content:center;
+        color:var(--t2);font-size:13.5px;font-weight:550}
+  .dbtn.red{color:#FCA5A5;border-color:rgba(248,113,113,.28);background:rgba(248,113,113,.08)}
+
+  /* ---------- 变体对比 ---------- */
+  .variants{width:390px;display:flex;flex-direction:column;gap:14px}
+  .vcard{background:var(--bg);border-radius:20px;padding:16px;border:1px solid rgba(255,255,255,.08)}
+  .vlabel{color:#9a9a9a;font-size:12px;margin-bottom:12px;letter-spacing:.04em}
+  .vlabel b{color:#ddd;font-weight:600}
+  .pill{display:flex;background:var(--s-high);border:1px solid var(--stroke);
+        border-radius:28px;padding:5px;gap:5px}
+  .pill .seg{height:44px;border-radius:22px}
+  .chips{display:flex;gap:8px}
+  .chip{flex:1;height:46px;border-radius:14px;display:flex;align-items:center;justify-content:center;
+        gap:6px;background:var(--s-low);border:1px solid var(--stroke);color:var(--t2);
+        font-size:14px;font-weight:550}
+  .chip.on{background:var(--sel);border-color:rgba(167,139,250,.42);color:var(--primary-hi);font-weight:650}
+  .chip svg{width:16px;height:16px;stroke:currentColor}
+  .slider3{display:flex;background:var(--s-high);border:1px solid var(--stroke);
+        border-radius:16px;padding:4px;position:relative}
+  .slider3 .seg{flex:1;height:46px;border-radius:12px;z-index:2}
+  .slider3 .glider{position:absolute;top:4px;bottom:4px;left:4px;width:calc((100% - 8px)/3);
+        border-radius:12px;background:var(--sel);border:1px solid rgba(167,139,250,.42);z-index:1}
+  .legend{color:#7a7a7a;font-size:11px;line-height:1.6;margin-top:10px}
+</style>
+</head>
+<body>
+
+<div class="cap">v6 · v1 构图 + 形态3 独立芯片 · 软件现有配色</div>
+
+<div class="phone">
+  <div class="statusbar">
+    <span>9:41</span>
+    <div class="sb-r">
+      <i style="height:6px"></i><i style="height:9px"></i><i style="height:11px"></i>
+      <svg width="17" height="12" viewBox="0 0 17 12" fill="none" style="margin-left:4px">
+        <rect x="0.5" y="0.5" width="13" height="11" rx="3" stroke="#F2F0F7" opacity=".5"/>
+        <rect x="2" y="2" width="9" height="8" rx="1.5" fill="#F2F0F7"/>
+        <path d="M15.5 4v4a2 2 0 0 0 0-4z" fill="#F2F0F7" opacity=".6"/>
+      </svg>
+    </div>
+  </div>
+
+  <div class="page">
+    <h1>设置</h1>
+
+    <!-- 搜索框 -->
+    <div class="searchbox">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round">
+        <circle cx="11" cy="11" r="7"/><path d="M16.5 16.5 21 21"/>
+      </svg>
+      <span>搜索设置</span>
+    </div>
+
+    <!-- ===== 常用（默认展开） ===== -->
+    <section class="card">
+      <div class="hd">
+        <div class="ico">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3 7.5A1.5 1.5 0 0 1 4.5 6h4l2 2.5h7A1.5 1.5 0 0 1 19 10v7.5A1.5 1.5 0 0 1 17.5 19h-13A1.5 1.5 0 0 1 3 17.5z"/>
+          </svg>
+        </div>
+        <div class="tt">
+          <div class="a">常用</div>
+          <div class="b">下载、搜索、浏览</div>
+        </div>
+        <svg class="chev" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="m6 9 6 6 6-6"/>
+        </svg>
+      </div>
+      <div class="rows">
+        <div class="row">
+          <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v11m0 0 4-4m-4 4-4-4"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg></div>
+          <div class="t">下载路径</div>
+          <div class="v">Download/东方无限</div>
+          <svg class="chev" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg>
+        </div>
+        <div class="row">
+          <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M16.5 16.5 21 21"/></svg></div>
+          <div class="t">搜索模式</div>
+          <div class="v">目录 + 本地索引</div>
+          <svg class="chev" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg>
+        </div>
+        <div class="row">
+          <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6.5A1.5 1.5 0 0 1 4.5 5h3L9 7h6.5A1.5 1.5 0 0 1 17 8.5V13"/><path d="M7 19h12.5A1.5 1.5 0 0 0 21 17.5V12"/></svg></div>
+          <div class="t">文件夹递归</div>
+          <div class="sw"><div class="knob"></div></div>
+        </div>
+        <div class="row">
+          <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14m0 0 5-5m-5 5-5-5"/></svg></div>
+          <div class="t">浏览时自动加载更多</div>
+          <div class="sw on"><div class="knob"></div></div>
+        </div>
+        <div class="row">
+          <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="3" width="12" height="18" rx="2.5"/><path d="M12 8v6m0 0 2.5-2.5M12 14l-2.5-2.5"/></svg></div>
+          <div class="t">下载完成后自动安装</div>
+          <div class="sw"><div class="knob"></div></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 性能模式（新三档） ===== -->
+    <section class="card">
+      <div class="hd">
+        <div class="ico">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M13 3 5 14h5l-1 7 8-11h-5z"/>
+          </svg>
+        </div>
+        <div class="tt">
+          <div class="a">性能模式</div>
+          <div class="b">下载与动效的总开关</div>
+        </div>
+        <svg class="chev" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+      </div>
+
+      <div class="tierwrap">
+        <div class="chips">
+          <div class="chip on">
+            <svg viewBox="0 0 24 24" fill="none" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M13 3 5 14h5l-1 7 8-11h-5z"/></svg>
+            高性能
+          </div>
+          <div class="chip">
+            <svg viewBox="0 0 24 24" fill="none" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v16M6 8h12M8 20h8"/></svg>
+            均衡
+          </div>
+          <div class="chip">
+            <svg viewBox="0 0 24 24" fill="none" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M20 4c0 9-4 13-9 13a5 5 0 0 1 0-10c3 0 4-1 4-3z"/></svg>
+            节能
+          </div>
+        </div>
+        <div class="tiernote">
+          <div class="l1">下载最快，请求也最密，更容易被蓝奏云限速。<b>App 会自动把控节奏</b>，一般不用管。</div>
+          <div class="l2">同时下载 自动 ｜ 单源翻页 无限 ｜ 预翻页 1 页 ｜ 动效 全开</div>
+        </div>
+      </div>
+
+      <div class="sub">
+        <div class="row">
+          <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12a8 8 0 1 1 8 8"/><path d="M4 20v-4h4"/></svg></div>
+          <div class="t">节能时降低动效</div>
+          <div class="sw on"><div class="knob"></div></div>
+        </div>
+      </div>
+      <div class="rows">
+        <div class="row">
+          <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round"><path d="M4 7h10M4 12h16M4 17h7"/><circle cx="17" cy="7" r="2"/><circle cx="13" cy="17" r="2"/></svg></div>
+          <div class="t">查看本档生效的细项</div>
+          <div class="v dim">14 项</div>
+          <svg class="chev" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 高级（默认收起） ===== -->
+    <section class="card">
+      <div class="hd">
+        <div class="ico" style="background:rgba(255,255,255,.06);border-color:var(--stroke)">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="stroke:var(--t2)">
+            <path d="M4 8h9M17 8h3M4 16h3M11 16h9"/><circle cx="15" cy="8" r="2"/><circle cx="9" cy="16" r="2"/>
+          </svg>
+        </div>
+        <div class="tt">
+          <div class="a">高级</div>
+          <div class="b">速度、索引、网络与安装</div>
+        </div>
+        <svg class="chev" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+      </div>
+    </section>
+
+    <!-- ===== 数据与关于（默认收起） ===== -->
+    <section class="card">
+      <div class="hd">
+        <div class="ico" style="background:rgba(255,255,255,.06);border-color:var(--stroke)">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="stroke:var(--t2)">
+            <ellipse cx="12" cy="6" rx="7" ry="3"/><path d="M5 6v12c0 1.7 3.1 3 7 3s7-1.3 7-3V6"/><path d="M5 12c0 1.7 3.1 3 7 3s7-1.3 7-3"/>
+          </svg>
+        </div>
+        <div class="tt">
+          <div class="a">数据与关于</div>
+          <div class="b">源管理、备份与应用信息</div>
+        </div>
+        <svg class="chev" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+      </div>
+    </section>
+  </div>
+</div>
+
+<div class="cap" style="margin-top:6px">「高级」展开后的样子</div>
+
+<div class="phone">
+  <div class="statusbar">
+    <span>9:41</span>
+    <div class="sb-r">
+      <i style="height:6px"></i><i style="height:9px"></i><i style="height:11px"></i>
+    </div>
+  </div>
+  <div class="page">
+    <section class="card">
+      <div class="hd">
+        <div class="ico" style="background:rgba(255,255,255,.06);border-color:var(--stroke)">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="stroke:var(--t2)">
+            <path d="M4 8h9M17 8h3M4 16h3M11 16h9"/><circle cx="15" cy="8" r="2"/><circle cx="9" cy="16" r="2"/>
+          </svg>
+        </div>
+        <div class="tt">
+          <div class="a">高级</div>
+          <div class="b">速度、索引、网络与安装</div>
+        </div>
+        <svg class="chev" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="transform:rotate(180deg)"><path d="m6 9 6 6 6-6"/></svg>
+      </div>
+
+      <div class="rows">
+        <div class="row" style="height:44px">
+          <div class="t" style="color:var(--t3);font-size:12px;font-weight:600;letter-spacing:.04em">搜索与翻页</div>
+        </div>
+        <div class="srow">
+          <div class="top"><div class="a">搜索线程数</div><div class="b">自动</div></div>
+          <div class="track"><div class="fill" style="width:100%"></div><div class="thumb" style="left:calc(100% - 9px)"></div></div>
+          <div class="ticks"><span>1</span><span>4</span><span>8</span><span>自动</span></div>
+        </div>
+        <div class="srow">
+          <div class="top"><div class="a">单源最高展开页数</div><div class="b">无限</div></div>
+          <div class="track"><div class="fill" style="width:100%"></div><div class="thumb" style="left:calc(100% - 9px)"></div></div>
+          <div class="ticks"><span>1</span><span>5</span><span>20</span><span>无限</span></div>
+        </div>
+        <div class="srow">
+          <div class="top"><div class="a">慢源超时</div><div class="b">15 秒</div></div>
+          <div class="track"><div class="fill" style="width:25%"></div><div class="thumb" style="left:calc(25% - 9px)"></div></div>
+          <div class="ticks"><span>1s</span><span>15s</span><span>30s</span><span>不限</span></div>
+        </div>
+      </div>
+
+      <div class="rows" style="border-top:1px solid var(--stroke-2);padding-top:8px">
+        <div class="row" style="height:44px">
+          <div class="t" style="color:var(--t3);font-size:12px;font-weight:600;letter-spacing:.04em">下载与安装</div>
+        </div>
+        <div class="srow">
+          <div class="top"><div class="a">同时下载</div><div class="b">自动</div></div>
+          <div class="track"><div class="fill" style="width:100%"></div><div class="thumb" style="left:calc(100% - 9px)"></div></div>
+          <div class="ticks"><span>1</span><span>2</span><span>4</span><span>自动</span></div>
+        </div>
+        <div class="srow">
+          <div class="top"><div class="a">同时安装</div><div class="b">自动</div></div>
+          <div class="track"><div class="fill" style="width:100%"></div><div class="thumb" style="left:calc(100% - 9px)"></div></div>
+          <div class="ticks"><span>1</span><span>2</span><span>4</span><span>自动</span></div>
+        </div>
+      </div>
+
+      <div class="rows" style="border-top:1px solid var(--stroke-2);padding-top:8px">
+        <div class="row" style="height:44px">
+          <div class="t" style="color:var(--t3);font-size:12px;font-weight:600;letter-spacing:.04em">索引与缓存</div>
+        </div>
+        <div class="srow">
+          <div class="top"><div class="a">索引线程</div><div class="b">自动（建议 6）</div></div>
+          <div class="track"><div class="fill" style="width:100%"></div><div class="thumb" style="left:calc(100% - 9px)"></div></div>
+          <div class="ticks"><span>1</span><span>4</span><span>8</span><span>自动</span></div>
+        </div>
+        <div class="srow">
+          <div class="top"><div class="a">索引保留时长</div><div class="b">24 小时</div></div>
+          <div class="track"><div class="fill" style="width:38%"></div><div class="thumb" style="left:calc(38% - 9px)"></div></div>
+          <div class="ticks"><span>1h</span><span>24h</span><span>30d</span><span>不限</span></div>
+        </div>
+      </div>
+
+      <div class="rows" style="border-top:1px solid var(--stroke-2);padding-top:8px">
+        <div class="row" style="height:44px">
+          <div class="t" style="color:var(--t3);font-size:12px;font-weight:600;letter-spacing:.04em">网络与兼容</div>
+        </div>
+        <div class="row">
+          <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18 15 15 0 0 1 0-18z"/></svg></div>
+          <div class="t">UA 设置</div>
+          <div class="v">已全部生效</div>
+          <svg class="chev" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg>
+        </div>
+        <div class="row">
+          <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1"/><path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1"/></svg></div>
+          <div class="t">蓝奏基础链接</div>
+          <div class="v">默认线路</div>
+          <svg class="chev" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg>
+        </div>
+        <div class="row">
+          <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0 4-4m-4 4-4-4"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg></div>
+          <div class="t">静默一键安装</div>
+          <div class="sw"><div class="knob"></div></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 数据与关于 展开 -->
+    <section class="card">
+      <div class="hd">
+        <div class="ico" style="background:rgba(255,255,255,.06);border-color:var(--stroke)">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="stroke:var(--t2)">
+            <ellipse cx="12" cy="6" rx="7" ry="3"/><path d="M5 6v12c0 1.7 3.1 3 7 3s7-1.3 7-3V6"/><path d="M5 12c0 1.7 3.1 3 7 3s7-1.3 7-3"/>
+          </svg>
+        </div>
+        <div class="tt">
+          <div class="a">数据与关于</div>
+          <div class="b">源管理、备份与应用信息</div>
+        </div>
+        <svg class="chev" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="transform:rotate(180deg)"><path d="m6 9 6 6 6-6"/></svg>
+      </div>
+      <div class="rows">
+        <div class="row">
+          <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6.5A1.5 1.5 0 0 1 4.5 5h4L10 7h9.5A1.5 1.5 0 0 1 21 8.5v9A1.5 1.5 0 0 1 19.5 19h-15A1.5 1.5 0 0 1 3 17.5z"/></svg></div>
+          <div class="t">源管理</div>
+          <div class="v dim">12 个</div>
+          <svg class="chev" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg>
+        </div>
+        <div class="row">
+          <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 16v-5m0-3.5v.5"/></svg></div>
+          <div class="t">关于东方无限</div>
+          <svg class="chev" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg>
+        </div>
+        <div class="row">
+          <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 4 6.5v5c0 4.6 3.2 8.3 8 9.5 4.8-1.2 8-4.9 8-9.5v-5z"/></svg></div>
+          <div class="t">参考与致谢</div>
+          <svg class="chev" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg>
+        </div>
+      </div>
+      <div class="danger">
+        <div class="dbtn">恢复所有列表</div>
+        <div class="dbtn red">恢复默认设置</div>
+      </div>
+    </section>
+  </div>
+</div>
+
+</body>
+</html>

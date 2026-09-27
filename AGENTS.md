@@ -20,8 +20,8 @@
 - 双区结构：`rikkahub/` 是 vendor 区（RikkaHub 上游源码 + DFWX PATCH 薄层，改动必须记 `rikkahub/PATCHES.md`）；其余为主机区（纯 Java 程序化 View，无 XML 布局）。AI 对话 = Kotlin + Compose；蓝奏云/工具 = 纯 Java。
 - 构建：`JAVA_HOME=/Users/lishaowei/sdk/jdk-21.0.11.jdk/Contents/Home ~/heiyao/src/gradlew -p ~/heiyao/src :app:assembleEmptyRelease`；日常迭代调试用 `assembleDebug`；**严禁混入任何含 "Debug" 字样的任务名执行 release 构建**（v1.18.0 ABI 翻转事故）。compileSdk 37 / minSdk 26。
 - 终验：`~/Library/Android/sdk/build-tools/37.0.0/aapt dump badging` 断言 `native-code: arm64-v8a`。
-- 模拟器：AVD `dfwx-phone34`（1080x2400，GPU host + 4GB），**只测手机，手表永久停测**；模拟器一律装 release 包；启动用 `am start -n dfwx.dongdang/cc.nkbr.lanzouplus.MainActivity`。gradle 与模拟器截图严禁并行（CPU 饥饿会让 SystemUI ANR 污染证据）。
-- 发布：GitHub Release `dongwangxingchen/dongfang-wuxian`，标题=纯 `vX.Y.Z`，资产=`dongfang-wuxian-vX.Y.Z.apk`，**禁任何描述性后缀**；归档到 `~/heiyao/黑曜/03-构建产物/` 不删旧包；发版前必读 `.zcode/skills/dfwx-release/SKILL.md`。
+- 自测环境：**AVD `dfwx-phone34` 已于 2026-09-25 删除**（本机 16GB 内存不足），现行唯一自测层 = **真机 vivo V2425A**（无线 adb `192.168.1.133:5555`，Android 16 / SM8650），跑法见技能 `dfwx-emulator`；**只测手机，手表永久停测**；设备一律装 release 包（debug 只含 x86_64，真机 arm64 装不上）；启动用 `am start -n dfwx.dongdang/cc.nkbr.lanzouplus.MainActivity`。gradle 与设备截图严禁并行（CPU 饥饿会让 SystemUI ANR 污染证据）。
+- 发布：GitHub Release `dongwangxingchen/dongfang-wuxian`，标题=纯 `vX.Y.Z`，资产=`dongfang-wuxian-vX.Y.Z.apk`，**禁任何描述性后缀**；归档到 `~/heiyao/黑曜/03-构建产物/` 不删旧包；发版前必读技能 `dfwx-release`。
 - 网络现实：github.com:443 直连不通（git push 走 SSH over 443，已配）；资产上传走 `uploads.github.com`；网页抓取走代理 `curl -x http://127.0.0.1:7890`。
 - 安全红线：签名密码在 `~/heiyao/src/local.properties` 严禁外传/入脚本/入日志/local.properties 不进 git/CI；`~/heiyao/_保险箱/` 与 `~/Desktop/东方无限/交接包zip` 勿删勿动。
 
@@ -40,14 +40,30 @@
 
 ## 四、按需检索（不默认加载，按任务读对应节）
 
+> **技能路径约定**：ZCode 在 `.zcode/skills/<名>/`，WorkBuddy 在 `~/.workbuddy/skills/<名>/`。
+> 两边已同步 `dfwx-release` / `dfwx-verify` / `dfwx-emulator` / `codebase-memory-cli`，按技能名引用即可。
+
 | 任务场景 | 读哪里 |
 |---|---|
 | 手势/滚动/搜索 bug | `docs/agents/lessons.md` 六-踩坑 2026-09-21晚 / 09-22 v1.19.5 |
 | AI 对话页改动 | `lessons.md` 六-踩坑 v1.19.5②③；`rikkahub/PATCHES.md` |
-| 发版/上传 Release | `.zcode/skills/dfwx-release/SKILL.md`；`lessons.md` 六-踩坑 09-21 |
+| 发版/上传 Release | 技能 `dfwx-release`；`lessons.md` 六-踩坑 09-21 |
 | 动画/弹簧/按压 | `lessons.md` 六-踩坑 v1.19.7 / v1.19.8（覆盖结论：触摸路径禁物理弹簧，一律 VPA） |
 | 视觉/质感/圆角/字重 | `docs/design/wear-ui-system.md`（v2，token 唯一真相）；`lessons.md` 五/六 |
 | 大功能立项 | `lessons.md` 一-五阶段工作流（大规模搜证默认跳过，常规任务直接引 spec） |
-| bug 诊断 | `.zcode/skills/android-debug-triage/`；`lessons.md` 七（DfLog 结构化日志） |
+| bug 诊断 | `lessons.md` 七（DfLog 结构化日志）；`dfwx-verify`（验证阶梯） |
 | 构建问题 | `lessons.md` 三-覆盖声明 |
 | 审美选型 | `~/heiyao/黑曜/06-开源参考库/00-总索引.md`；`lessons.md` 八 |
+
+## 五、当前唯一交接入口（2026-09-27）
+
+后续 AI、WorkBuddy 和人工维护必须先读：
+
+1. `docs/plan/DFWX-MASTER-PLAN.md`
+2. `docs/plan/current-state.md`
+3. `docs/plan/decisions.md`
+4. `docs/plan/risk-register.md`
+5. `docs/tasks/README.md`
+6. 对应的 `docs/tasks/DFWX-*.md`
+
+`docs/archive/` 只保存历史计划、研究和专题资料，不能直接作为当前实施命令。开工前必须运行 `git status --short`，保护现有未提交改动；一次只接一个任务卡，不得顺手跨领域重构。任务没有测试、编译和明确证据，不得标记完成。不得读取或输出 `local.properties`，不得执行手机不可逆操作、提交、push 或发布。涉及 vendor 时必须同步更新 `rikkahub/PATCHES.md`。

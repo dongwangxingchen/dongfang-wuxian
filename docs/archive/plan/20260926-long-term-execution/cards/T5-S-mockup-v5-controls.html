@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>T5-S v5 控件特写</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-font-smoothing:antialiased; }
+  body { background:#0D0D0D; width:800px; font-family:"PingFang SC","Helvetica Neue",sans-serif; }
+  .wrap { width:800px; padding:12px; display:flex; flex-wrap:wrap; gap:16px; }
+  .tile { width:380px; background:#131313; border-radius:20px; padding:18px; }
+  .tile h3 { font-size:13px; font-weight:600; color:#8A9099; margin-bottom:14px; letter-spacing:.5px; }
+  .demo { background:#1C2024; border-radius:24px; padding:16px; display:flex; align-items:center; justify-content:center; gap:18px; min-height:96px; }
+  .lbl { margin-top:8px; font-size:11px; color:#6E747E; text-align:center; }
+
+  /* 开关 52×32 */
+  .sw { width:52px; height:32px; border-radius:16px; position:relative; flex:none; }
+  .sw.off { background:#3A3F47; }
+  .sw.off i { position:absolute; left:8px; top:8px; width:16px; height:16px; border-radius:50%; background:#9BA1AC; }
+  .sw.off.press { background:#454B54; }
+  .sw.off.press i { left:6px; top:6px; width:20px; height:20px; }
+  .sw.on { background:#A78BFA; }
+  .sw.on i { position:absolute; left:20px; top:4px; width:24px; height:24px; border-radius:50%; background:#1D1430; }
+  .sw.on.press { background:#B29CFC; }
+  .sw.on.press i { left:18px; top:2px; width:28px; height:28px; }
+
+  /* M3 滑条 */
+  .sl { width:280px; position:relative; height:44px; display:flex; align-items:center; }
+  .track { width:100%; height:16px; border-radius:8px; background:#3E434D; }
+  .fill { position:absolute; left:0; top:14px; height:16px; border-radius:8px 0 0 8px; background:#A78BFA; }
+  .handle { position:absolute; top:0; width:4px; height:44px; border-radius:2px; background:#C494FF; }
+  .stop { position:absolute; top:19px; width:6px; height:6px; border-radius:50%; background:#565B66; }
+
+  /* 三档胶囊 */
+  .seg { width:320px; height:44px; border-radius:22px; background:#14171C; position:relative; display:flex; }
+  .seg .thumb { position:absolute; top:3px; left:calc(33.333% + 3px); width:calc(33.333% - 6px); height:38px; border-radius:19px; background:#3F4650; box-shadow:inset 0 1px 0 rgba(255,255,255,.07); }
+  .seg .opt { position:relative; flex:1; display:flex; align-items:center; justify-content:center; font-size:14px; color:#9BA1AC; font-weight:500; }
+  .seg .opt.on { color:#FFF; font-weight:600; }
+
+  /* 按压态行对比 */
+  .prow { background:#1C2024; border-radius:16px; padding:12px 16px; display:flex; align-items:center; margin-top:10px; }
+  .prow .t { font-size:15px; font-weight:600; color:#FFF; flex:1; }
+  .prow.pressed { background:#262B31; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="tile">
+    <h3>开关三态 · 52×32 / 关thumb16 → 开thumb24 → 按压28</h3>
+    <div class="demo">
+      <div><div class="sw off"><i></i></div><div class="lbl">关</div></div>
+      <div><div class="sw on"><i></i></div><div class="lbl">开</div></div>
+      <div><div class="sw on press"><i></i></div><div class="lbl">开·按压</div></div>
+      <div><div class="sw off press"><i></i></div><div class="lbl">关·按压</div></div>
+    </div>
+  </div>
+
+  <div class="tile">
+    <h3>M3 滑条 · 轨16 / 竖条handle 4×44 / 停靠点</h3>
+    <div class="demo" style="flex-direction:column; gap:6px;">
+      <div class="sl">
+        <div class="track" style="background:linear-gradient(to right,#A78BFA 40%,#3E434D 40%); border-radius:8px; height:16px;"></div>
+        <div class="handle" style="left:calc(40% - 2px)"></div>
+        <div class="stop" style="left:calc(12.5% - 3px)"></div>
+        <div class="stop" style="left:calc(25% - 3px)"></div>
+      </div>
+      <div class="lbl">填充 #A78BFA · handle #C494FF · 停靠点 #565B66</div>
+    </div>
+  </div>
+
+  <div class="tile">
+    <h3>三档胶囊选择器 · 形态2</h3>
+    <div class="demo">
+      <div class="seg">
+        <div class="thumb"></div>
+        <div class="opt">高性能</div>
+        <div class="opt on">均衡</div>
+        <div class="opt">节能</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="tile">
+    <h3>按压反馈 · 预混提亮实色（Telegram 式）</h3>
+    <div class="demo" style="flex-direction:column; align-items:stretch;">
+      <div class="prow"><div class="t">常态卡内行</div><div class="lbl" style="margin:0">#1C2024</div></div>
+      <div class="prow pressed"><div class="t">按压态行（白 10% 预混）</div><div class="lbl" style="margin:0">#262B31</div></div>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>
