@@ -1,0 +1,92 @@
+package cc.nkbr.lanzouplus;
+
+import android.view.View;
+import android.view.ViewGroup;
+import android.widget.EditText;
+import android.widget.ScrollView;
+
+import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.robolectric.Robolectric;
+import org.robolectric.RobolectricTestRunner;
+import org.robolectric.annotation.Config;
+import org.robolectric.shadows.ShadowLooper;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
+
+/** T5-S 设置重做的 JVM 结构回归：四分区信息架构、内联搜索过滤与展开态恢复。
+ *  <p>位图截图在本机 Robolectric 环境不可用（native canvas 无 CJK 字形输出），
+ *  视觉验收以真机为准；本测试兜底结构与过滤逻辑。 */
+@RunWith(RobolectricTestRunner.class)
+@Config(sdk = 34, qualifiers = "w411dp-h891dp-420dpi")
+public class SettingsStructureTest {
+
+  private static View sectionContent(View section) {
+    return ((ViewGroup) section).getChildAt(1);
+  }
+
+  private static int visibleRows(View content) {
+    ViewGroup g = (ViewGroup) content;
+    int n = 0;
+    for (int i = 0; i < g.getChildCount(); i++) if (g.getChildAt(i).getVisibility() == View.VISIBLE) n++;
+    return n;
+  }
+
+  @Test
+  public void settingsStructureAndSearch() throws Exception {
+    MainActivity activity = Robolectric.buildActivity(MainActivity.class).setup().get();
+    assertNotNull(activity);
+    activity.showSettings();
+    ShadowLooper.idleMainLooper();
+
+    assertEquals(4, activity.pageKind);
+    // root = 页头 + 搜索框 + 滚动区
+    assertEquals(3, activity.root.getChildCount());
+    assertTrue(activity.root.getChildAt(1) instanceof ViewGroup
+        && ((ViewGroup) activity.root.getChildAt(1)).getChildAt(0) instanceof EditText);
+    assertTrue(activity.root.getChildAt(2) instanceof ScrollView);
+
+    // 四分区注册；常用默认展开，其余收起
+    assertEquals(4, activity.settingsSearchSections.size());
+    assertEquals(View.VISIBLE, sectionContent(activity.settingsSearchSections.get(0)).getVisibility());
+    assertEquals(View.GONE, sectionContent(activity.settingsSearchSections.get(1)).getVisibility());
+    assertEquals(View.GONE, sectionContent(activity.settingsSearchSections.get(2)).getVisibility());
+    assertEquals(View.GONE, sectionContent(activity.settingsSearchSections.get(3)).getVisibility());
+
+    // 搜索「识别并发」：只性能分区命中，其余整组隐藏，不出现空态
+    EditText input = activity.settingsSearchInput;
+    assertNotNull(input);
+    input.setText("识别并发");
+    ShadowLooper.idleMainLooper(400, java.util.concurrent.TimeUnit.MILLISECONDS);
+    assertEquals(View.GONE, activity.settingsSearchSections.get(0).getVisibility());
+    assertEquals(View.VISIBLE, activity.settingsSearchSections.get(1).getVisibility());
+    assertEquals(View.GONE, activity.settingsSearchSections.get(2).getVisibility());
+    assertEquals(View.GONE, activity.settingsSearchSections.get(3).getVisibility());
+    assertEquals(View.GONE, activity.settingsSearchEmpty.getVisibility());
+    assertTrue("性能分区应命中至少 1 行（下载面板整块可见）", visibleRows(sectionContent(activity.settingsSearchSections.get(1))) >= 1);
+
+    // 搜索「崩溃日志」：只数据与关于命中
+    input.setText("崩溃日志");
+    ShadowLooper.idleMainLooper(400, java.util.concurrent.TimeUnit.MILLISECONDS);
+    assertEquals(View.GONE, activity.settingsSearchSections.get(0).getVisibility());
+    assertEquals(View.VISIBLE, activity.settingsSearchSections.get(3).getVisibility());
+
+    // 无命中：全部隐藏 + 空态出现
+    input.setText("绝不存在的关键词xyz");
+    ShadowLooper.idleMainLooper(400, java.util.concurrent.TimeUnit.MILLISECONDS);
+    for (View section : activity.settingsSearchSections) assertEquals(View.GONE, section.getVisibility());
+    assertEquals(View.VISIBLE, activity.settingsSearchEmpty.getVisibility());
+
+    // 清空：分区全部恢复，展开态回到默认（常用开、其余收起）
+    input.setText("");
+    ShadowLooper.idleMainLooper(400, java.util.concurrent.TimeUnit.MILLISECONDS);
+    for (View section : activity.settingsSearchSections) assertEquals(View.VISIBLE, section.getVisibility());
+    assertEquals(View.VISIBLE, sectionContent(activity.settingsSearchSections.get(0)).getVisibility());
+    assertEquals(View.GONE, sectionContent(activity.settingsSearchSections.get(1)).getVisibility());
+    assertEquals(View.GONE, sectionContent(activity.settingsSearchSections.get(2)).getVisibility());
+    assertEquals(View.GONE, sectionContent(activity.settingsSearchSections.get(3)).getVisibility());
+    assertEquals(View.GONE, activity.settingsSearchEmpty.getVisibility());
+  }
+}

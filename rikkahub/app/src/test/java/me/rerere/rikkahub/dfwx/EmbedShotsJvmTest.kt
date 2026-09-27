@@ -30,7 +30,7 @@ import org.robolectric.annotation.GraphicsMode
  * [DFWX] 手表尺寸(343dp)逐页截图验收：与 EmbedSweepJvmTest 同一套真实 Embed + 导航，
  * 但跑在 w343dp-h343dp-280dpi 手表配置下，把每个页面真实渲染成 PNG 落盘供人工目检。
  * 前置坑（app 模块 ToolsShotsJvmTest 已验证）：不加 NATIVE 图形模式时 draw 是空操作，截出空图。
- * 截图输出：D:<本地目录>/build_output/ai_shots/
+ * 截图输出：<本地目录>/build_output/ai_shots/
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35], application = SweepTestApplication::class, qualifiers = "w343dp-h343dp-280dpi")
@@ -72,7 +72,7 @@ class EmbedShotsJvmTest {
 
     private fun shoot(name: String) {
         val bmp = compose.onRoot().captureToImage().asAndroidBitmap()
-        val dir = File("D:<本地目录>/build_output/ai_shots")
+        val dir = File(System.getProperty("user.home") + "<本地目录>/build_output/ai_shots")
         dir.mkdirs()
         File(dir, "$name.png").outputStream().use { bmp.compress(Bitmap.CompressFormat.PNG, 100, it) }
         println("[SHOTS] $name → ${bmp.width}x${bmp.height} 已落盘")

@@ -14,9 +14,10 @@ import java.io.File
 import java.io.FileOutputStream
 
 /**
- * [DFWX] 手表尺寸视觉验收：Robolectric 原生图形在 JVM 上真实渲染每一页并截成 PNG
- * （D:<本地目录>/build_output/tools_shots/），供逐页人工查看适配问题（文字截断/触控目标
- * 过小/溢出）。尺寸=手表：w343dp-h343dp-280dpi（600px@280dpi，与 dfwx_watch AVD 一致）。
+ * [DFWX] 工具页视觉验收：Robolectric 原生图形在 JVM 上真实渲染每一页并截成 PNG
+ * （<本地目录>/build_output/tools_shots/），供逐页人工查看适配问题（文字截断/触控目标
+ * 过小/溢出）。尺寸取手机视口（与 HomeShotsJvmTest 一致，见 dfwx-testing-stack 记忆：
+ * 手表测试已永久停止，遗留的手表 qualifier 仅为历史兼容保留）。
  * 结尾 popToolBack 落到工具列表页，一并截图。
  */
 @RunWith(RobolectricTestRunner::class)
@@ -40,7 +41,7 @@ class ToolsShotsJvmTest {
         if (w <= 0 || h <= 0) { w = 600; h = 600 }
         val bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
         decor.draw(android.graphics.Canvas(bmp))
-        val out = File("D:<本地目录>/build_output/tools_shots/$name.png")
+        val out = File(System.getProperty("user.home") + "<本地目录>/build_output/tools_shots/$name.png")
         out.parentFile.mkdirs()
         FileOutputStream(out).use { bmp.compress(Bitmap.CompressFormat.PNG, 100, it) }
         bmp.recycle()

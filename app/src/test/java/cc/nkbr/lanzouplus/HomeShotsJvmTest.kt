@@ -21,7 +21,7 @@ import java.io.FileOutputStream
  * 修复点回归目标：顶部留白上限 64dp、chips 横带随搜索位移不重叠、列表高度统一、结果卡 104dp 不裁切。
  */
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [35], qualifiers = "w448dp-h996dp-450dpi")
+@Config(sdk = [35], qualifiers = "w360dp-h800dp-560dpi")
 @GraphicsMode(GraphicsMode.Mode.NATIVE)  // 必须：LEGACY 模式 draw 是空操作，截出来全是同一张垃圾位图
 class HomeShotsJvmTest {
 
@@ -72,6 +72,39 @@ class HomeShotsJvmTest {
         activity.runSearch("测试")
         idle()
         shot(activity, "02_search_results")
+        controller.destroy()
+    }
+
+    /** v1.22.3 边距取证：首页库胶囊 + 设置页左右留白（用户反馈"左右黑边像遮挡按钮"）。
+     *  用同一 1260×2801 尺寸渲染，供像素测量与真机截图对照。 */
+    @Test fun captureMarginsForAudit() {
+        val controller = Robolectric.buildActivity(MainActivity::class.java)
+        controller.setup()
+        idle()
+        val activity = controller.get()
+        seedLibraries(activity)
+        activity.showHomeLanding()
+        idle()
+        shot(activity, "10_margin_home")
+        activity.showSettings()
+        idle()
+        shot(activity, "11_margin_settings")
+        controller.destroy()
+    }
+
+    /** v1.22.3 全页边距审计：五个主页面全部按真机 360dp 渲染，供统一边距规范比对
+     *  （首页 18dp / 设置 24dp / 其余页面各自 padding 不一致 = 用户反馈"奇怪的边距"）。 */
+    @Test fun captureAllPagesForMarginAudit() {
+        val controller = Robolectric.buildActivity(MainActivity::class.java)
+        controller.setup()
+        idle()
+        val activity = controller.get()
+        seedLibraries(activity)
+        activity.showHomeLanding(); idle(); shot(activity, "20_page_home")
+        activity.showSources(); idle(); shot(activity, "21_page_sources")
+        activity.showDownloads(); idle(); shot(activity, "22_page_downloads")
+        activity.showTools(); idle(); shot(activity, "23_page_tools")
+        activity.showSettings(); idle(); shot(activity, "24_page_settings")
         controller.destroy()
     }
 }
