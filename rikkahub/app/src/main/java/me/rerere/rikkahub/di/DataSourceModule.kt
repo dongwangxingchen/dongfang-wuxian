@@ -6,6 +6,8 @@ import io.ktor.client.engine.okhttp.OkHttp
 import io.ktor.http.HttpHeaders
 import io.pebbletemplates.pebble.PebbleEngine
 import kotlinx.serialization.json.Json
+import me.rerere.ai.provider.AiPolicyDns
+import me.rerere.ai.provider.AiUrlPolicyInterceptor
 import me.rerere.ai.provider.ProviderManager
 import me.rerere.common.http.AcceptLanguageBuilder
 import me.rerere.rikkahub.BuildConfig
@@ -192,7 +194,21 @@ val dataSourceModule = module {
     }
 
     single {
-        ProviderManager(client = get(), context = get())
+        // DFWX-NET-001: 普通外部 AI/API HTTPS-only。
+        // AI 链专用 client（基于共享 client 派生，共享连接池/超时），不影响 WebDav/Search 等非 AI 流量：
+        // - AiUrlPolicyInterceptor: 请求入口完整判定（协议/凭据/字面量 + DNS rebinding 解析校验）
+        // - network 拦截器（resolve=false）: 对每跳（含重定向 follow-up）做静态判定
+        // - AiPolicyDns: 连接前拒绝解析到本机/内网的任何一跳（重定向目标 rebinding 最终防线）
+        // - followSslRedirects(false): 不跟随 https->http 跨协议重定向（fail-closed，3xx 直接返回错误）
+        ProviderManager(
+            client = get<OkHttpClient>().newBuilder()
+                .addInterceptor(AiUrlPolicyInterceptor())
+                .addNetworkInterceptor(AiUrlPolicyInterceptor(resolve = false))
+                .dns(AiPolicyDns())
+                .followSslRedirects(false)
+                .build(),
+            context = get(),
+        )
     }
 
     single { BackupManager(context = get(), database = get(), settingsStore = get(), json = get()) }
