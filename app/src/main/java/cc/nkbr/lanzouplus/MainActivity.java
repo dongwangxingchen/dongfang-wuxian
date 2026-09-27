@@ -1634,18 +1634,16 @@ content=new LinearLayout(this);content.setOrientation(LinearLayout.VERTICAL);pag
   // T4 关于页（用户指令：独立页面不弹窗；名单/感谢语/介绍/参考/隐私/版本号，顺序按 drafts-about-page.md 结构图；感谢语用户原文一字不改）
   void showAboutPage(){primaryBase(3);pageKind=7;activeSource=null;clearFolderTrail();systemBackAction=this::showSettings;LinearLayout body=aboutBackBar("关于");
     LinearLayout peopleCard=aboutCard();
-    peopleCard.addView(aboutPersonRow(R.drawable.avatar_dongfang,"东方","制作者","使用 Zcode + GLM-5.3 Flash 全程独立开发该软件"),new LinearLayout.LayoutParams(-1,-2));
+    peopleCard.addView(aboutPersonRow(R.drawable.avatar_dongfang,"东方","制作者","一个人完成了这款软件的全部设计与开发，开发过程中使用了 Zcode 和 GLM-5.3 Flash 两个工具"),new LinearLayout.LayoutParams(-1,-2));
     peopleCard.addView(aboutDivider());
-    peopleCard.addView(aboutPersonRow(R.drawable.avatar_chenyu,"晨宇","辅助开发者","曾多次协助东方，在开发环境、理论知识方面给予指导帮助，在 AI 渠道方面提供建议和支持"),new LinearLayout.LayoutParams(-1,-2));
+    peopleCard.addView(aboutPersonRow(R.drawable.avatar_chenyu,"晨宇","辅助开发者","多次帮东方搭建开发环境、解答技术问题，在 AI 渠道的选择上给了很多建议"),new LinearLayout.LayoutParams(-1,-2));
     peopleCard.addView(aboutDivider());
-    peopleCard.addView(aboutPersonRow(R.drawable.avatar_wanyi,"晚意借北风","嗷呜小屋作者","提供嗷呜小屋软件库资源，提供极多的设计思路和灵感与建议，给予东方极大引流帮助，提供了绝对的精神动力"),new LinearLayout.LayoutParams(-1,-2));
+    peopleCard.addView(aboutPersonRow(R.drawable.avatar_wanyi,"晚意借北风","嗷呜小屋作者","为这款软件提供了嗷呜小屋软件库的资源，也给了东方很多设计灵感，还带来了不少用户"),new LinearLayout.LayoutParams(-1,-2));
     body.addView(peopleCard,aboutCardLp());
     LinearLayout thanksCard=aboutCard();TextView thanksText=text("感谢各位朋友的支持与帮助，因为有你们，我才可以更好的将我的想法实现出来。并帮助更多的人，有你们在，吾道不孤。",13,SET_T2);thanksText.setLineSpacing(dp(3),1f);thanksCard.addView(thanksText,new LinearLayout.LayoutParams(-1,-2));
     body.addView(thanksCard,aboutCardLp());
-    LinearLayout introCard=aboutCard();introCard.addView(aboutHeading("软件介绍"),new LinearLayout.LayoutParams(-1,dp(24)));TextView introText=text("东方无限是一个把「找资源」和「用工具」合在一起的本地应用。\n\n它能直接浏览和搜索多个网盘分享站的公开目录，把文件下载到本机；也能把下载好的安装包直接装上；还带了一套常用的本地工具和 AI 对话，遇到不懂的直接问。\n\n没有广告，不强制付费，不收集你的隐私。数据都留在你自己的设备上。",13,TEXT);introText.setLineSpacing(dp(3),1f);introCard.addView(introText,new LinearLayout.LayoutParams(-1,-2));introCard.addView(aboutDivider());TextView opensrc=text("本应用以 AGPL-3.0 协议开源 · 项目主页",12,PRIMARY);opensrc.setClickable(true);opensrc.setFocusable(true);opensrc.setOnClickListener(v->openInBrowser(DFWX_REPOSITORY,""));introCard.addView(opensrc,new LinearLayout.LayoutParams(-1,-2));
+    LinearLayout introCard=aboutCard();introCard.addView(aboutHeading("软件介绍"),new LinearLayout.LayoutParams(-1,dp(24)));TextView introText=text("东方无限把找资源和日常工具放进了同一个应用。\n\n你可以浏览、搜索多个网盘分享站的公开目录，把文件直接下载到手机；下载完的安装包可以直接安装；还内置了一批常用的小工具和 AI 对话，遇到不懂的问题可以直接问。\n\n没有广告，不强制付费，也不收集你的隐私，所有数据都只保存在你自己的设备上。",13,TEXT);introText.setLineSpacing(dp(3),1f);introCard.addView(introText,new LinearLayout.LayoutParams(-1,-2));introCard.addView(aboutDivider());TextView opensrc=text("东方无限以 AGPL-3.0 协议开源 · 查看源码",12,PRIMARY);opensrc.setClickable(true);opensrc.setFocusable(true);opensrc.setOnClickListener(v->openInBrowser(DFWX_REPOSITORY,""));introCard.addView(opensrc,new LinearLayout.LayoutParams(-1,-2));
     body.addView(introCard,aboutCardLp());
-    LinearLayout ackCard=aboutCard();ackCard.addView(aboutHeading("参考与致谢"),new LinearLayout.LayoutParams(-1,dp(24)));ackCard.addView(aboutDivider());ackCard.addView(buildAckListBlock(null),new LinearLayout.LayoutParams(-1,-2));
-    body.addView(ackCard,aboutCardLp());
     LinearLayout privacyCard=aboutCard();privacyCard.addView(aboutHeading("隐私政策"),new LinearLayout.LayoutParams(-1,dp(24)));privacyCard.addView(aboutDivider());privacyCard.addView(buildPrivacyPolicyPanel(),new LinearLayout.LayoutParams(-1,-2));
     body.addView(privacyCard,aboutCardLp());
     TextView verText=text(PRODUCT_NAME+"  "+BuildConfig.VERSION_NAME,12,MUTED);verText.setGravity(Gravity.CENTER);LinearLayout.LayoutParams verLp=new LinearLayout.LayoutParams(-1,-2);verLp.setMargins(0,dp(18),0,dp(6));body.addView(verText,verLp);
