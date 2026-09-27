@@ -94,4 +94,43 @@ public class SettingsStructureTest {
     assertEquals(View.VISIBLE, sectionContent(activity.settingsSearchSections.get(4)).getVisibility());
     assertEquals(View.GONE, activity.settingsSearchEmpty.getVisibility());
   }
+
+  /** T4：底部关于区三行全部改独立页面（不弹窗），返回链=systemBackAction 回设置页 */
+  @Test
+  public void aboutSectionPagesNavigation() throws Exception {
+    MainActivity activity = Robolectric.buildActivity(MainActivity.class).setup().get();
+    assertNotNull(activity);
+    activity.showSettings();
+    ShadowLooper.idleMainLooper();
+
+    ViewGroup footer = (ViewGroup) activity.settingsSearchSections.get(4);
+    ViewGroup rows = (ViewGroup) footer.getChildAt(0);
+    // footer 行顺序：0=崩溃日志 1=分隔线 2=参考与致谢 3=分隔线 4=关于东方无限
+    assertEquals(5, rows.getChildCount());
+
+    rows.getChildAt(4).performClick();
+    ShadowLooper.idleMainLooper();
+    assertEquals(7, activity.pageKind);
+    assertNotNull("关于页应注册系统返回", activity.systemBackAction);
+    Runnable aboutBack = activity.systemBackAction;
+    aboutBack.run();
+    ShadowLooper.idleMainLooper();
+    assertEquals(4, activity.pageKind);
+
+    rows.getChildAt(2).performClick();
+    ShadowLooper.idleMainLooper();
+    assertEquals(8, activity.pageKind);
+    Runnable ackBack = activity.systemBackAction;
+    ackBack.run();
+    ShadowLooper.idleMainLooper();
+    assertEquals(4, activity.pageKind);
+
+    rows.getChildAt(0).performClick();
+    ShadowLooper.idleMainLooper();
+    assertEquals(9, activity.pageKind);
+    Runnable crashBack = activity.systemBackAction;
+    crashBack.run();
+    ShadowLooper.idleMainLooper();
+    assertEquals(4, activity.pageKind);
+  }
 }
