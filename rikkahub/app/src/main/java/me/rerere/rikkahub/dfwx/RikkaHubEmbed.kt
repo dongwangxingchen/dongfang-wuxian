@@ -125,9 +125,15 @@ import org.koin.compose.koinInject
 import kotlin.uuid.Uuid
 
 /**
- * [DFWX PATCH P16] 鍙唴宓岀殑 RikkaHub 鐣岄潰鍏ュ彛锛堝涓讳笢鏂规棤闄愬簳鏍?AI"椤电洿鎺ユ壙杞斤紝
- * 涓嶅啀璺宠浆鐙珛 Activity锛夈€傚唴瀹逛笌 RouteActivity.AppRoutes 涓€涓€瀵瑰簲锛? * 鍚屾涓婃父鏃讹紝瀵圭収涓婃父 AppRoutes 鐨勫鍒犻噸鏀炬湰鏂囦欢锛堝樊寮備粎锛? *  1. settingsStore/okHttpClient 鏀逛负 koinInject 鑾峰彇锛? *  2. backStack 鐢?rememberNavBackStack 鍒涘缓鍚庣粡 onBackStackReady 鍥炶皟涓婃姤锛? *  3. OpenUsageAccessSettings 浜嬩欢涓庨煶閲忛敭妗ユ帴涓哄洖璋冨弬鏁帮紱
- *  4. 鏃?CrashHandler/SafeMode 妫€鏌ワ紙瀹夸富 Application 宸插厹搴曪級銆? *  5. 璇ョ晫闈㈣繍琛屼簬瀹夸富 Activity 鍐咃紝BackHandler 璧板涓?OnBackPressedDispatcher銆? */
+ * [DFWX PATCH P16] 可内嵌的 RikkaHub 界面入口（宿主东方无限底栏"AI"页直接承载，
+ * 不再跳转独立 Activity）。内容与 RouteActivity.AppRoutes 一一对应，同步上游时
+ * 对照上游 AppRoutes 的增删重放本文件（差异仅：
+ *  1. settingsStore/okHttpClient 改为 koinInject 获取；
+ *  2. backStack 用 rememberNavBackStack 创建后经 onBackStackReady 回调上报；
+ *  3. OpenUsageAccessSettings 事件桥接为回调参数（音量键滚动在内嵌态未桥接，见 PATCHES.md P16 登记）；
+ *  4. 无 CrashHandler/SafeMode 检查（宿主 Application 已兜底）；
+ *  5. 该界面运行于宿主 Activity 内，BackHandler 走宿主 OnBackPressedDispatcher。
+ */
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
 fun RikkaHubEmbed(
@@ -374,7 +380,7 @@ fun RikkaHubEmbed(
                     )
                     if (me.rerere.rikkahub.BuildConfig.DEBUG) {
                         Text(
-                            text = "[寮€鍙戞ā寮廬",
+                            text = "[开发模式]",
                             modifier = Modifier
                                 .align(Alignment.TopCenter)
                                 .padding(top = 4.dp),
@@ -406,7 +412,7 @@ fun RikkaHubEmbed(
                                 )
                                 if (state != null) {
                                     Text(
-                                        text = "v${state.from} 鈫?v${state.to}",
+                                        text = "v${state.from} → v${state.to}",
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
