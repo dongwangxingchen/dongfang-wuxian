@@ -30,21 +30,23 @@ final class SegmentDownloader {
   boolean cancel(){return stop(2);}
   private boolean stop(int mode){if(!terminal.request(mode))return false;HttpURLConnection connection=active;if(connection!=null)connection.disconnect();return true;}
 
-  void startResolved(String directUrl,Uri destination,long expectedTotal,Listener listener){start(directUrl,destination,expectedTotal,listener,false);}
+  void startResolved(String directUrl,Uri destination,long expectedTotal,Listener listener){start(directUrl,destination,expectedTotal,listener,0);}
   /** Downloads a trusted GitHub/official-site update URL without Lanzou resolution. */
-  void startDirect(String directUrl,Uri destination,Listener listener){start(directUrl,destination,0,listener,true);}
+  void startDirect(String directUrl,Uri destination,Listener listener){start(directUrl,destination,0,listener,1);}
+  /** Downloads a user/external HTTPS URL with redirect validation on every hop. */
+  void startExternal(String directUrl,Uri destination,long expectedTotal,Listener listener){start(directUrl,destination,expectedTotal,listener,2);}
 
-  private void start(String url,Uri destination,long expectedTotal,Listener listener,boolean guarded){
-    try{WORKERS.execute(()->runTransfer(url,destination,expectedTotal,listener,guarded));}
+  private void start(String url,Uri destination,long expectedTotal,Listener listener,int urlPolicy){
+    try{WORKERS.execute(()->runTransfer(url,destination,expectedTotal,listener,urlPolicy));}
     catch(OutOfMemoryError exhausted){listener.failed("无法下载：系统内存不足，已降低并发后请重试");}
     catch(RejectedExecutionException rejected){listener.failed("无法下载：下载任务队列不可用");}
   }
 
-  private void runTransfer(String url,Uri destination,long expectedTotal,Listener listener,boolean guarded){
+  private void runTransfer(String url,Uri destination,long expectedTotal,Listener listener,int urlPolicy){
     ACTIVE_WORKERS.incrementAndGet();
     try{
       try{android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_BACKGROUND);}catch(RuntimeException ignored){android.util.Log.w("SegmentDownloader.java", "SegmentDownloader.java RuntimeException: "+ignored.getMessage(), ignored);}
-      Transfer stats=new Transfer();Exception failure=null;try{download(url,destination,expectedTotal,listener,guarded,stats);}catch(Exception error){failure=error;}
+      Transfer stats=new Transfer();Exception failure=null;try{download(url,destination,expectedTotal,listener,urlPolicy,stats);}catch(Exception error){failure=error;}
       int outcome=terminal.claim();active=null;if(failure==null&&outcome==0){listener.completed();return;}if(stats.total>0)listener.progress(Math.min(stats.done,stats.total),stats.total);if(outcome==1)listener.paused(stats.done,stats.total);else if(outcome==2)listener.cancelled(stats.done,stats.total);else listener.failed(failureMessage(failure==null?new IOException("下载终态冲突"):failure));
     }finally{ACTIVE_WORKERS.decrementAndGet();}
   }
@@ -62,8 +64,8 @@ final class SegmentDownloader {
     @Override public void close()throws IOException{IOException failure=null;try{out.close();}catch(IOException error){failure=error;}if(owner!=null)try{owner.close();}catch(IOException error){if(failure==null)failure=error;}if(failure!=null)throw failure;}
   }
 
-  private void download(String url,Uri destination,long expectedTotal,Listener listener,boolean guarded,Transfer stats)throws Exception{
-    checkStopped();long existing=destinationLength(destination);Response response=existing>0?openResume(url,existing,expectedTotal,guarded):openFirst(url,guarded);active=response.connection;checkStopped();
+  private void download(String url,Uri destination,long expectedTotal,Listener listener,int urlPolicy,Transfer stats)throws Exception{
+    checkStopped();long existing=destinationLength(destination);Response response=existing>0?openResume(url,existing,expectedTotal,urlPolicy):openFirst(url,urlPolicy);active=response.connection;checkStopped();
     long total=response.total,done=response.start;stats.total=total;stats.done=done;
     listener.progress(done,total);
     Sink destinationOut;
@@ -82,7 +84,7 @@ final class SegmentDownloader {
         }finally{response.connection.disconnect();}
         if(written!=expected)throw new IOException(response.end+1<total?"Range 分段长度校验失败":"文件长度校验失败");
         if(done>total)throw new IOException("文件总长度校验失败");
-        if(done<total){response=openRange(url,done,total,guarded);active=response.connection;checkStopped();}
+        if(done<total){response=openRange(url,done,total,urlPolicy);active=response.connection;checkStopped();}
       }
       out.flush();
     }
@@ -113,29 +115,29 @@ final class SegmentDownloader {
     OutputStream fallback=context.getContentResolver().openOutputStream(destination,offset>0?"wa":"wt");if(fallback==null)throw seekFailure==null?new IOException("无法写入 Download 目录"):seekFailure;return new Sink(fallback,null);
   }
 
-  private Response openResume(String url,long existing,long expectedTotal,boolean guarded)throws Exception{
-    HttpURLConnection connection=open(url,"bytes="+existing+"-",guarded);int code=connection.getResponseCode();
+  private Response openResume(String url,long existing,long expectedTotal,int urlPolicy)throws Exception{
+    HttpURLConnection connection=open(url,"bytes="+existing+"-",urlPolicy);int code=connection.getResponseCode();
     if(code==206){Response response=rangeResponse(connection,existing,expectedTotal);if(response!=null)return response;connection.disconnect();throw new IOException("续传 Range 响应校验失败");}
     if(code==200)return plainResponse(connection);
-    connection.disconnect();if(code==400||code==405||code==416)return openWithoutRange(url,guarded);throw new IOException("续传请求失败 HTTP "+code);
+    connection.disconnect();if(code==400||code==405||code==416)return openWithoutRange(url,urlPolicy);throw new IOException("续传请求失败 HTTP "+code);
   }
 
-  private Response openFirst(String url,boolean guarded)throws Exception{
-    HttpURLConnection connection=open(url,"bytes=0-",guarded);int code=connection.getResponseCode();
+  private Response openFirst(String url,int urlPolicy)throws Exception{
+    HttpURLConnection connection=open(url,"bytes=0-",urlPolicy);int code=connection.getResponseCode();
     if(code==200)return plainResponse(connection);
-    if(code==206){Response response=rangeResponse(connection,0,-1);if(response!=null)return response;connection.disconnect();return openWithoutRange(url,guarded);}
-    connection.disconnect();if(code==400||code==405||code==416)return openWithoutRange(url,guarded);throw new IOException("直链请求失败 HTTP "+code);
+    if(code==206){Response response=rangeResponse(connection,0,-1);if(response!=null)return response;connection.disconnect();return openWithoutRange(url,urlPolicy);}
+    connection.disconnect();if(code==400||code==405||code==416)return openWithoutRange(url,urlPolicy);throw new IOException("直链请求失败 HTTP "+code);
   }
 
-  private Response openWithoutRange(String url,boolean guarded)throws Exception{
-    HttpURLConnection connection=open(url,null,guarded);int code=connection.getResponseCode();
+  private Response openWithoutRange(String url,int urlPolicy)throws Exception{
+    HttpURLConnection connection=open(url,null,urlPolicy);int code=connection.getResponseCode();
     if(code==200)return plainResponse(connection);
     if(code==206){Response response=rangeResponse(connection,0,-1);if(response!=null)return response;}
     connection.disconnect();throw new IOException("直链请求失败 HTTP "+code);
   }
 
-  private Response openRange(String url,long start,long total,boolean guarded)throws Exception{
-    HttpURLConnection connection=open(url,"bytes="+start+"-",guarded);int code=connection.getResponseCode();
+  private Response openRange(String url,long start,long total,int urlPolicy)throws Exception{
+    HttpURLConnection connection=open(url,"bytes="+start+"-",urlPolicy);int code=connection.getResponseCode();
     if(code==206){Response response=rangeResponse(connection,start,total);if(response!=null)return response;connection.disconnect();throw new IOException("Range 响应校验失败");}
     connection.disconnect();if(code==200)throw new IOException("服务器中途拒绝 Range 请求");throw new IOException("续传请求失败 HTTP "+code);
   }
@@ -151,9 +153,19 @@ final class SegmentDownloader {
   private static void rejectHtml(HttpURLConnection connection)throws IOException{String type=connection.getContentType();if(type!=null){type=type.toLowerCase(Locale.ROOT);if(type.contains("text/html")||type.contains("application/json"))throw new IOException("直链仍是验证页面");}}
   private static String failureMessage(Throwable error){Throwable current=error;while(current.getCause()!=null)current=current.getCause();String message=current.getMessage();if(message==null||message.trim().isEmpty())message=current.getClass().getSimpleName();return message.startsWith("无法下载：")?message:"无法下载："+message;}
 
-  private static HttpURLConnection open(String value,String range,boolean guarded)throws Exception{
-    if(!guarded){HttpURLConnection connection=connection(new URL(value),true);if(range!=null)connection.setRequestProperty("Range",range);return connection;}
-    URL url=new URL(value);for(int redirects=0;redirects<8;redirects++){if(!UpdateClient.isAllowedDownloadUrl(url))throw new IOException("更新下载地址不受信任");HttpURLConnection connection=connection(url,false);if(range!=null)connection.setRequestProperty("Range",range);int code=connection.getResponseCode();if(!redirect(code))return connection;String location=connection.getHeaderField("Location");connection.disconnect();if(location==null||location.isEmpty())throw new IOException("更新下载跳转无效");url=new URL(url,location);}throw new IOException("更新下载跳转过多");
+  private static HttpURLConnection open(String value,String range,int urlPolicy)throws Exception{
+    URL url=new URL(value);
+    if(urlPolicy==0){HttpURLConnection connection=connection(url,true);if(range!=null)connection.setRequestProperty("Range",range);return connection;}
+    for(int redirects=0;redirects<8;redirects++){
+      String reason=urlPolicy==1
+          ?(UpdateClient.isAllowedDownloadUrl(url)?"":"更新下载地址不受信任")
+          :DownloadUrlPolicy.resolvedHostRejectionReason(url);
+      if(!reason.isEmpty())throw new IOException(reason);
+      HttpURLConnection connection=connection(url,false);if(range!=null)connection.setRequestProperty("Range",range);int code=connection.getResponseCode();
+      if(!redirect(code))return connection;
+      String location=connection.getHeaderField("Location");connection.disconnect();if(location==null||location.isEmpty())throw new IOException(urlPolicy==1?"更新下载跳转无效":"外部下载跳转无效");url=new URL(url,location);
+    }
+    throw new IOException(urlPolicy==1?"更新下载跳转过多":"外部下载跳转过多");
   }
   private static HttpURLConnection connection(URL url,boolean follow)throws Exception{HttpURLConnection connection=(HttpURLConnection)url.openConnection();connection.setConnectTimeout(15000);connection.setReadTimeout(30000);connection.setInstanceFollowRedirects(follow);connection.setRequestProperty("User-Agent",UA);connection.setRequestProperty("Accept-Encoding","identity");return connection;}
   private static boolean redirect(int code){return code==301||code==302||code==303||code==307||code==308;}
