@@ -10,7 +10,7 @@ final class Models {
     boolean folder, sourceEntry;
   }
   static final class Folder {
-    String title="", publisher="", avatarUrl="", description="", saveUrl="", url="", password="", folderId="";
+    String title="", publisher="", avatarUrl="", description="", url="", password="", folderId="";
     int page=1, apiFolderCount, failedMembers;
     boolean hasMore, remoteSearch;
     long nextPageReadyAt;

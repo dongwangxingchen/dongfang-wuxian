@@ -42,7 +42,7 @@ final class ToolHost {
   /** 工具箱首页：搜索 + 「功能大全 / 热门排行」Tab + 分组折叠 chip 流 */
   void renderList(){
     act.primaryHeader("工具箱");
-    LinearLayout body=new LinearLayout(ctx);body.setOrientation(LinearLayout.VERTICAL);body.setPadding(act.dp(2),act.dp(4),act.dp(2),act.dp(16));
+    LinearLayout body=new LinearLayout(ctx);body.setOrientation(LinearLayout.VERTICAL);body.setPadding(0,act.dp(4),0,act.dp(16));// v1.22.3 边距统一：左右 2dp→0（与首页搜索框同 16dp 基准）
     // 搜索框（本地：名称/说明/关键词/分类）
     EditText search=toolSearchInput(body);
     final List<String>[] resultHolder=new List[]{null};

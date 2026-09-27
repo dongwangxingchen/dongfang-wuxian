@@ -8,10 +8,13 @@ import org.json.*;
 
 /** Minimal, blocking GitHub Release client. Call {@link #check(String)} off the UI thread. */
 final class UpdateClient {
-  static final String ASSET_NAME="LanzouPlus.apk";
-  private static final String GITHUB_LATEST="https://api.github.com/repos/nekobyran/lanzouplus/releases/latest";
-  private static final String SITE_LATEST="https://lanzouplus.nkbr.cc/latest.json";
-  private static final String SITE_APK="https://lanzouplus.nkbr.cc/download/"+ASSET_NAME;
+  /** Release assets are named {@code dongfang-wuxian-v<version>.apk}; match by prefix, not a fixed name. */
+  static final String ASSET_PREFIX="dongfang-wuxian-v";
+  private static final String REPO_PATH="dongwangxingchen/dongfang-wuxian";
+  private static final String GITHUB_LATEST="https://api.github.com/repos/"+REPO_PATH+"/releases/latest";
+  /** Optional self-hosted mirror; empty until a mirror endpoint is deployed (see docs/tasks/20260926-search-web-overhaul/backend-plan.md). */
+  private static final String SITE_LATEST="";
+  private static final String SITE_APK="";
   private static final int JSON_LIMIT=256*1024;
 
   static final class UpdateInfo {
@@ -27,9 +30,12 @@ final class UpdateClient {
   static UpdateInfo check(String currentVersion)throws IOException{
     long[] current=parseVersion(currentVersion);
     boolean china="CN".equalsIgnoreCase(Locale.getDefault().getCountry());
-    String[] endpoints=china?new String[]{SITE_LATEST,GITHUB_LATEST}:new String[]{GITHUB_LATEST,SITE_LATEST};
+    boolean hasMirror=!SITE_LATEST.isEmpty();
+    String[] endpoints;
+    if(!hasMirror)endpoints=new String[]{GITHUB_LATEST};
+    else endpoints=china?new String[]{SITE_LATEST,GITHUB_LATEST}:new String[]{GITHUB_LATEST,SITE_LATEST};
     IOException first=null;
-    for(String endpoint:endpoints)try{return parse(fetch(endpoint),current,SITE_LATEST.equals(endpoint));}catch(IOException error){if(first==null)first=error;}
+    for(String endpoint:endpoints)try{return parse(fetch(endpoint),current,hasMirror&&SITE_LATEST.equals(endpoint));}catch(IOException error){if(first==null)first=error;}
     throw new IOException("无法获取更新信息",first);
   }
 
@@ -43,7 +49,7 @@ final class UpdateClient {
     JSONObject asset=null;
     for(int i=0;i<assets.length();i++){
       JSONObject candidate=assets.optJSONObject(i);
-      if(candidate==null||!ASSET_NAME.equals(candidate.optString("name"))||!"uploaded".equals(candidate.optString("state","uploaded")))continue;
+      if(candidate==null||!isReleaseAsset(candidate.optString("name"))||!"uploaded".equals(candidate.optString("state","uploaded")))continue;
       if(asset!=null)throw new IOException("更新安装包不唯一");
       asset=candidate;
     }
@@ -57,7 +63,20 @@ final class UpdateClient {
     String version=normalizeVersion(rawTag);
     requireGithubAsset(github,rawTag);
     requireMirrorAsset(mirror);
-    return new UpdateInfo(version,release.optString("body","").trim(),github,mirror,digest,size,preferMirror);
+    return new UpdateInfo(version,release.optString("body","").trim(),github,mirror,digest,size,preferMirror&&!mirror.isEmpty());
+  }
+
+  /**
+   * Accepts exactly {@code dongfang-wuxian-v<X.Y.Z>.apk}. Descriptive suffixes are rejected on purpose:
+   * the release red line mandates a bare version in both tag and asset name, so a suffixed name is a
+   * naming violation worth surfacing rather than silently accepting.
+   */
+  private static boolean isReleaseAsset(String name){
+    if(name==null)return false;
+    String value=name.trim();
+    if(!value.startsWith(ASSET_PREFIX)||!value.endsWith(".apk"))return false;
+    String middle=value.substring(ASSET_PREFIX.length(),value.length()-4);
+    return middle.matches("(?:0|[1-9][0-9]*)\\.(?:0|[1-9][0-9]*)\\.(?:0|[1-9][0-9]*)");
   }
 
   private static JSONObject fetch(String endpoint)throws IOException{
@@ -103,22 +122,29 @@ final class UpdateClient {
 
   private static void requireGithubAsset(String value,String tag)throws IOException{
     try{
-      URL url=new URL(value);String expected="/nekobyran/lanzouplus/releases/download/"+tag+"/"+ASSET_NAME;
-      if(!"https".equalsIgnoreCase(url.getProtocol())||!"github.com".equalsIgnoreCase(url.getHost())||url.getUserInfo()!=null||!defaultHttpsPort(url)||!expected.equals(url.getPath()))throw new IOException("GitHub 安装包地址不受信任");
+      URL url=new URL(value);
+      if(!"https".equalsIgnoreCase(url.getProtocol())||!"github.com".equalsIgnoreCase(url.getHost())||url.getUserInfo()!=null||!defaultHttpsPort(url))throw new IOException("GitHub 安装包地址不受信任");
+      String path=url.getPath(),prefix="/"+REPO_PATH+"/releases/download/";
+      if(!path.startsWith(prefix)||!isReleaseAsset(lastPathSegment(path)))throw new IOException("GitHub 安装包地址不受信任");
     }catch(IOException error){throw error;}catch(Exception error){throw new IOException("GitHub 安装包地址无效",error);}
   }
 
+  /** Empty until a mirror is deployed; a non-empty mirror must be https on an owned host and carry a release asset name. */
   private static void requireMirrorAsset(String value)throws IOException{
+    if(value==null||value.isEmpty())return;
     try{
-      URL url=new URL(value);
-      if(!"https".equalsIgnoreCase(url.getProtocol())||!"lanzouplus.nkbr.cc".equalsIgnoreCase(url.getHost())||url.getUserInfo()!=null||!defaultHttpsPort(url)||!url.getPath().endsWith('/'+ASSET_NAME))throw new IOException("镜像安装包地址不受信任");
+      URL url=new URL(value);String host=url.getHost().toLowerCase(Locale.ROOT);
+      if(!"https".equalsIgnoreCase(url.getProtocol())||url.getUserInfo()!=null||!defaultHttpsPort(url)||!(host.endsWith(".nkbr.cc")||host.equals("github.com")||host.endsWith(".githubusercontent.com")))throw new IOException("镜像安装包地址不受信任");
+      if(!isReleaseAsset(lastPathSegment(url.getPath())))throw new IOException("镜像安装包地址不受信任");
     }catch(IOException error){throw error;}catch(Exception error){throw new IOException("镜像安装包地址无效",error);}
   }
+
+  private static String lastPathSegment(String path){int slash=path.lastIndexOf('/');return slash<0?path:path.substring(slash+1);}
 
   /** Redirect allowlist used by SegmentDownloader's direct update entry point. */
   static boolean isAllowedDownloadUrl(URL url){
     if(url==null||!"https".equalsIgnoreCase(url.getProtocol())||url.getUserInfo()!=null||!defaultHttpsPort(url))return false;
     String host=url.getHost().toLowerCase(Locale.ROOT);
-    return host.equals("github.com")||host.equals("githubusercontent.com")||host.endsWith(".githubusercontent.com")||host.equals("lanzouplus.nkbr.cc");
+    return host.equals("github.com")||host.equals("githubusercontent.com")||host.endsWith(".githubusercontent.com")||host.endsWith(".nkbr.cc");
   }
 }
