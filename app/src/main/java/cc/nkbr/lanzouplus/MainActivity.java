@@ -18,6 +18,8 @@ import android.view.*;
 import android.view.inputmethod.EditorInfo;
 import android.view.animation.PathInterpolator;
 import android.animation.ValueAnimator;
+import androidx.dynamicanimation.animation.DynamicAnimation;
+import androidx.dynamicanimation.animation.SpringAnimation;
 import android.widget.*;
 import java.io.*;
 import java.net.URL;
@@ -367,22 +369,35 @@ trigger.addView(value,new LinearLayout.LayoutParams(0,dp(54),1));arrow=new Image
      ②stiffness 350 软弹簧 settle 无上界，弱手表每次点击近 0.5s 逐帧重绘，连点即渲染风暴→ANR 闪退；
      ③弹簧与 VPA 两套系统同时写同一视图的 SCALE_X/Y 互相打架。
      v1.19.8 删除弹簧实现：全主题统一 v1.5.0 已真机验证数月的 VPA 曲线，时长有界必 settle。 */
+  /* v1.22.3 统一按压弹簧（用户反馈 v1.22.2 仍僵硬"点到石头上"）：wear-ui-system.md §2/§3 配方，
+     dynamicanimation 1.1.0（用户 2026-09-22 批准 a 类；v1.19.8 删弹簧时依赖行被误删，孤儿注释留存至今）。
+     DOWN=SPATIAL_FAST 800/.70 压至 0.96；UP/CANCEL=SPATIAL_DEFAULT 350/.75 由受压态弹回平衡（规范禁三段人为 bounce）。
+     同一 view 复用 SpringAnimation 实例，animateToFinalPosition 重定目标速度连续——yan-apple-design《Designing Fluid
+     Interfaces》：VPA 定时动画中断即速度硬切（brick wall），弹簧天然可中断且继承速度；快速点按/长按松手/反复按压全平滑。
+     detach 时清缓存防 view 树滞留（WeakHashMap value 持 view 强引用，靠 attach listener 摘除）。 */
+  final java.util.WeakHashMap<View,SpringAnimation[]> pressSprings=new java.util.WeakHashMap<>();
   public void applePressScale(View v){
     if(v==null)return;
     v.setOnTouchListener((view,event)->{
       if(!motionEnabled())return false;
       android.graphics.drawable.Drawable bg=view.getBackground();
       if(event.getActionMasked()==android.view.MotionEvent.ACTION_DOWN){
-        view.animate().cancel();
-        view.animate().scaleX(0.96f).scaleY(0.96f).setDuration(80).setInterpolator(new android.view.animation.PathInterpolator(0.3f,0f,0.8f,0.15f)).start();
-        // v1.22.2 下压由瞬时 setScale(0.96) 改 80ms VPA（点按"闪一下"根因=瞬时跳变+提亮），时长有界合 VPA 铁律；
-        // v1.21.0 按压提亮（06/02 配方）：白 8% SRC_ATOP 只作用于背景不透明像素，透明底不加灰罩；
-        // 瞬时态变（无动画），零时长代价，UP/CANCEL 即清。
+        SpringAnimation[] springs=pressSprings.get(view);
+        if(springs==null){
+          springs=new SpringAnimation[]{new SpringAnimation(view,DynamicAnimation.SCALE_X,1f),new SpringAnimation(view,DynamicAnimation.SCALE_Y,1f)};
+          view.addOnAttachStateChangeListener(new android.view.View.OnAttachStateChangeListener(){
+            @Override public void onViewAttachedToWindow(View attached){}
+            @Override public void onViewDetachedFromWindow(View detached){SpringAnimation[] stale=pressSprings.remove(detached);if(stale!=null)for(SpringAnimation staleSpring:stale)staleSpring.cancel();}
+          });
+          pressSprings.put(view,springs);
+        }
+        for(SpringAnimation spring:springs){spring.getSpring().setStiffness(800f).setDampingRatio(0.70f);spring.animateToFinalPosition(0.96f);}
+        // v1.21.0 按压提亮（06/02 配方）：白 8% SRC_ATOP 只作用于背景不透明像素，透明底不加灰罩；UP/CANCEL 即清。
         if(bg!=null)bg.setColorFilter(0x14FFFFFF,android.graphics.PorterDuff.Mode.SRC_ATOP);
       }else if(event.getActionMasked()==android.view.MotionEvent.ACTION_UP||event.getActionMasked()==android.view.MotionEvent.ACTION_CANCEL){
-        view.animate().cancel();
+        SpringAnimation[] springs=pressSprings.get(view);
+        if(springs!=null)for(SpringAnimation spring:springs){spring.getSpring().setStiffness(350f).setDampingRatio(0.75f);spring.animateToFinalPosition(1f);}
         if(bg!=null)bg.clearColorFilter();
-        view.animate().scaleX(1f).scaleY(1f).setDuration(220).setInterpolator(new android.view.animation.PathInterpolator(0.2f,0.9f,0.3f,1.05f)).start();
       }
       return false;
     });
