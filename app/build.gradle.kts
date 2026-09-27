@@ -28,8 +28,8 @@ android {
   applicationId = "dfwx.dongdang"
   minSdk = 26      // v1.8.0：24→26，RikkaHub 模块（convention minSdk 26）清单合并要求
   targetSdk = 37   // v1.8.0：对齐上游 RikkaHub 2.5.1
-  versionCode = 1039022
-  versionName = "1.22.2"
+  versionCode = 1039023
+  versionName = "1.22.3"
  }
  compileOptions { sourceCompatibility = JavaVersion.VERSION_17; targetCompatibility = JavaVersion.VERSION_17 }
  packaging {
@@ -91,6 +91,7 @@ dependencies {
  implementation("dev.rikka.shizuku:api:13.1.5")
  implementation("dev.rikka.shizuku:provider:13.1.5")
  // v1.19.7：弹簧按压反馈基座（wear-ui-system.md §10 a 类，用户 2026-09-22 批准；1.1.0 已在 gradle 缓存，rikkahub 传递同源）
+ implementation("androidx.dynamicanimation:dynamicanimation:1.1.0")   // v1.22.3 恢复：v1.19.8 删弹簧时误删，v1.22.2 用户反馈按压僵硬（"点到石头上"），按 §2/§3 弹簧配方统一全站按压
  compileOnly("androidx.annotation:annotation:1.3.0")
  // Robolectric JVM 点击测试（与 rikkahub-app 同版本，测试放 src/test/java/cc/nkbr/lanzouplus/）
  testImplementation(libs.junit)
