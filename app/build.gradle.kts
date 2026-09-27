@@ -8,16 +8,15 @@ val defaultAiKey: String = run {
  val f = rootProject.file("local.properties")
  if (f.exists()) f.readLines().firstOrNull { it.trim().startsWith("ai.default.key=") }?.substringAfter('=')?.trim() ?: "" else ""
 }
-// v1.9.0（问题表单#5）：签名口令不入源码，读 local.properties 的 heiyao.storePassword/heiyao.keyPassword
-// （缺失时回退原值，保证无该文件的构建环境仍可出包）。
-val heiyaoStorePassword: String = run {
+// v1.9.0（问题表单#5）：签名口令不入源码，读 local.properties 的 heiyao.storePassword/heiyao.keyPassword。
+// [DFWX-SEC-003] fail-closed：缺失时不再回退硬编码口令——release 构建直接失败并指明缺什么（见 buildTypes 门禁）；
+// CI 云构建用 -Pdfwx.unsigned 显式跳过签名出无签名包。
+fun signingSecret(name: String): String? = run {
  val f = rootProject.file("local.properties")
- if (f.exists()) f.readLines().firstOrNull { it.trim().startsWith("heiyao.storePassword=") }?.substringAfter('=')?.trim() ?: "heiyao2026" else "heiyao2026"
+ if (f.exists()) f.readLines().firstOrNull { it.trim().startsWith("$name=") }?.substringAfter('=')?.trim()?.ifEmpty { null } else null
 }
-val heiyaoKeyPassword: String = run {
- val f = rootProject.file("local.properties")
- if (f.exists()) f.readLines().firstOrNull { it.trim().startsWith("heiyao.keyPassword=") }?.substringAfter('=')?.trim() ?: "heiyao2026" else "heiyao2026"
-}
+val heiyaoStorePassword: String? = signingSecret("heiyao.storePassword")
+val heiyaoKeyPassword: String? = signingSecret("heiyao.keyPassword")
 
 android {
  namespace = "cc.nkbr.lanzouplus"
@@ -67,9 +66,29 @@ android {
    // 正式签名仍在本地出包，CI 先验证工具链）。开关关闭时行为与历史完全一致。
    val ciUnsigned = providers.gradleProperty("dfwx.unsigned").isPresent
    if (!ciUnsigned) {
+    val heiyaoKeystore = rootProject.file("../heiyao.keystore")
+    // [DFWX-SEC-003] fail-closed 门禁（configuration cache 兼容：纯配置期判断，不挂 taskGraph 钩子）：
+    // 本次构建涉及 release 任务而签名要素缺失时直接终止构建；错误只点名缺失项，绝不包含口令值。
+    // 聚合任务（build/assemble 等）也会间接产出 release 变体，一并纳入拦截。
+    val requestsRelease = gradle.startParameter.taskNames.any {
+     it.contains("Release") || it in setOf("build", "assemble", "check", "bundle", "connectedCheck", "connectedAndroidTest")
+    }
+    if (requestsRelease) {
+     val missing = buildList {
+      if (!heiyaoKeystore.isFile) add("keystore 文件 ${heiyaoKeystore.path} 不存在")
+      if (heiyaoStorePassword == null) add("local.properties 缺少 heiyao.storePassword")
+      if (heiyaoKeyPassword == null) add("local.properties 缺少 heiyao.keyPassword")
+     }
+     if (missing.isNotEmpty()) throw GradleException(
+      "DFWX-SEC-003：release 签名配置不完整，构建终止（fail-closed）。\n" +
+       missing.joinToString("\n") { "  - $it" } +
+       "\n  正式出包：在 local.properties 补齐上述签名配置后重试。" +
+       "\n  CI 测试：追加 -Pdfwx.unsigned 显式允许无签名包（不适用于正式发布）。"
+     )
+    }
     signingConfigs {
      create("heiyao") {
-      storeFile = rootProject.file("../heiyao.keystore")
+      storeFile = heiyaoKeystore
       storePassword = heiyaoStorePassword
       keyAlias = "heiyao"
       keyPassword = heiyaoKeyPassword
