@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<style>
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-font-smoothing:antialiased}
+  html,body{background:#000;width:390px;height:716px;overflow:hidden;
+    font-family:-apple-system,'PingFang SC','HarmonyOS Sans SC',sans-serif}
+  .topbar{height:56px;display:flex;align-items:center;gap:10px;padding:0 14px}
+  .topbar svg{color:#F2F0F7}
+  .topbar .t{font-size:20px;font-weight:600;color:#F2F0F7}
+  .ghead{margin:14px 20px 8px;font-size:14px;font-weight:500;color:#9A93AB;letter-spacing:.5px}
+  .card{margin:0 12px 8px;background:#16141F;border-radius:16px;overflow:hidden;
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.06)}
+  .row{display:flex;align-items:center;padding:0 16px;min-height:56px;gap:16px}
+  .row.two{min-height:72px;padding-top:8px;padding-bottom:8px}
+  .row .ic{flex:none;width:24px;height:24px;color:#9A93AB}
+  .row .mid{flex:1;min-width:0}
+  .row .tt{font-size:16px;line-height:24px;color:#F2F0F7}
+  .row .st{font-size:14px;line-height:22px;color:#9A93AB;margin-top:1px}
+  .row .val{font-size:14px;color:#9A93AB}
+  .row .val.hi{color:#C494FF}
+  .chev{flex:none;width:20px;height:20px;color:#6E6880}
+  .sw{flex:none;width:52px;height:32px;border-radius:16px;position:relative}
+  .sw.off{background:#36343B}
+  .sw.off::after{content:'';position:absolute;width:16px;height:16px;border-radius:50%;
+    background:#9A93AB;top:8px;left:8px}
+  .sw.on{background:#A78BFA}
+  .sw.on::after{content:'';position:absolute;width:24px;height:24px;border-radius:50%;
+    background:#241733;top:4px;right:4px}
+  /* 内嵌滑条面板：hairline #3A3548 + #1D1B26（研究③ 12.3-b 场景） */
+  .panel{margin:12px;border:1px solid #3A3548;background:#1D1B26;border-radius:12px;padding:14px 16px}
+  .slrow .lab{display:flex;justify-content:space-between;align-items:baseline}
+  .slrow .lab .n{font-size:14px;line-height:22px;color:#F2F0F7}
+  .slrow .lab .v{font-size:14px;color:#C494FF;font-weight:500}
+  /* M3 滑条：轨厚16、active/inactive 6px 间隙、4×44 竖条 handle、端点 stop（研究⑨ 9.1） */
+  .trackwrap{position:relative;height:44px;margin-top:2px}
+  .track{position:absolute;top:14px;left:0;right:0;height:16px;border-radius:8px;background:#433864}
+  .track .fill{position:absolute;top:0;left:0;bottom:0;border-radius:8px;background:#A78BFA}
+  .track .gap6{position:absolute;top:0;bottom:0;width:6px;background:#1D1B26}
+  .stop{position:absolute;top:6px;width:4px;height:4px;border-radius:50%;background:#5C5866}
+  .handle{position:absolute;top:0;width:4px;height:44px;border-radius:2px;background:#C494FF}
+  .divider{height:1px;background:#3A3548;margin:14px 0}
+  .ticks{display:flex;justify-content:space-between;font-size:12px;color:#9A93AB;margin-top:4px;padding:0 2px}
+</style>
+</head>
+<body>
+  <div class="topbar">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></svg>
+    <div class="t">高级</div>
+  </div>
+
+  <div class="ghead">并发与网络</div>
+  <div class="card">
+    <div class="panel">
+      <div class="slrow">
+        <div class="lab"><span class="n">同时下载</span><span class="v">6</span></div>
+        <div class="trackwrap">
+          <div class="track">
+            <div class="fill" style="width:62%"></div>
+            <div class="gap6" style="left:62%"></div>
+          </div>
+          <div class="stop" style="right:6px"></div>
+          <div class="handle" style="left:calc(62% - 2px)"></div>
+        </div>
+      </div>
+      <div class="divider"></div>
+      <div class="slrow">
+        <div class="lab"><span class="n">单源最高展开页数</span><span class="v">无限</span></div>
+        <div class="trackwrap">
+          <div class="track">
+            <div class="fill" style="width:100%"></div>
+          </div>
+          <div class="stop" style="left:6px"></div>
+          <div class="handle" style="left:calc(100% - 2px)"></div>
+        </div>
+        <div class="ticks"><span>1</span><span>3</span><span>5</span><span>10</span><span>20</span><span>50</span><span>100</span><span>∞</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="row two">
+      <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="5" rx="1"/><rect x="14" y="16" width="7" height="5" rx="1"/><path d="M6.5 8v4c0 2.2 1.8 4 4 4H14"/></svg>
+      <div class="mid"><div class="tt">文件夹递归</div><div class="st">请求链放大器 · 节能档强制关</div></div>
+      <div class="sw off"></div>
+    </div>
+    <div class="row">
+      <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12a8 8 0 1 1-2.34-5.66"/><path d="M20 3v4h-4"/></svg>
+      <div class="mid"><div class="tt">自动更新索引</div></div>
+      <div class="sw on"></div>
+    </div>
+  </div>
+
+  <div class="ghead" style="margin-top:14px">数据与关于</div>
+  <div class="card">
+    <div class="row">
+      <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M5 7h14"/><path d="M9 7V5h6v2"/><path d="M7 7l1 13h8l1-13"/></svg>
+      <div class="mid"><div class="tt">清理缓存</div></div>
+      <div class="val">23.4 MB</div>
+    </div>
+    <div class="row">
+      <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><circle cx="12" cy="8" r=".2" fill="currentColor"/></svg>
+      <div class="mid"><div class="tt">版本</div></div>
+      <div class="val">v1.19.9</div>
+    </div>
+    <div class="row">
+      <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h9l4 4v14H6z"/><path d="M14 3v5h5"/><path d="M9 13h7"/><path d="M9 17h5"/></svg>
+      <div class="mid"><div class="tt">隐私政策</div></div>
+      <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
+    </div>
+  </div>
+</body>
+</html>

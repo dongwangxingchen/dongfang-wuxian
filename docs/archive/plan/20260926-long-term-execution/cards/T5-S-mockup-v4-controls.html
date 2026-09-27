@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<style>
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-font-smoothing:antialiased}
+  html,body{background:#000;width:390px;height:500px;overflow:hidden;
+    font-family:-apple-system,'PingFang SC','HarmonyOS Sans SC',sans-serif}
+  .head{padding:20px 20px 12px;font-size:14px;font-weight:500;color:#9A93AB;letter-spacing:.5px}
+  .grid{display:flex;flex-wrap:wrap;gap:12px;padding:0 16px}
+  .cell{width:173px;height:200px;background:#16141F;border-radius:16px;
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.06);
+    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px}
+  .cell .lab{font-size:11px;color:#6E6880;letter-spacing:.3px}
+  .cap{font-size:12px;line-height:18px;color:#9A93AB;align-self:flex-start}
+  /* 开关三态 */
+  .swrow{display:flex;align-items:center;gap:14px}
+  .sw{width:52px;height:32px;border-radius:16px;position:relative}
+  .sw.off{background:#36343B}
+  .sw.off::after{content:'';position:absolute;width:16px;height:16px;border-radius:50%;background:#9A93AB;top:8px;left:8px}
+  .sw.on{background:#A78BFA}
+  .sw.on::after{content:'';position:absolute;width:24px;height:24px;border-radius:50%;background:#241733;top:4px;right:4px}
+  .sw.on.press{background:#C494FF}
+  .sw.on.press::after{width:28px;height:28px;top:2px;right:2px}
+  /* M3 滑条拖动态 */
+  .trackwrap{position:relative;height:44px;width:141px}
+  .track{position:absolute;top:14px;left:0;right:0;height:16px;border-radius:8px;background:#433864}
+  .track .fill{position:absolute;top:0;left:0;bottom:0;width:56%;border-radius:8px;background:#A78BFA}
+  .track .gap6{position:absolute;top:0;bottom:0;left:56%;width:6px;background:#16141F}
+  .stop{position:absolute;top:6px;right:6px;width:4px;height:4px;border-radius:50%;background:#5C5866}
+  .handle{position:absolute;top:0;left:calc(56% - 2px);width:4px;height:44px;border-radius:2px;background:#C494FF}
+  .handle.press{width:8px;left:calc(56% - 4px)}
+  /* 三档选择器：节能选中 + 按压预混态示意 */
+  .seg{display:flex;position:relative;background:#1D1B26;border-radius:20px;height:40px;width:141px}
+  .seg .thumb{position:absolute;right:0;top:0;width:33.34%;height:40px;background:#4A4458;border-radius:20px;
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.08)}
+  .seg .opt{flex:1;display:flex;align-items:center;justify-content:center;gap:4px;
+    font-size:13px;font-weight:500;color:#9A93AB;position:relative;z-index:1}
+  .seg .opt.sel{color:#fff}
+  /* 行按压对比（白 10% 预混 = #2B2836） */
+  .rowdemo{width:151px;border-radius:12px;overflow:hidden}
+  .r{display:flex;align-items:center;gap:10px;padding:0 12px;height:48px}
+  .r .tt{font-size:13px;color:#F2F0F7;white-space:nowrap}
+  .r.press{background:#2B2836}
+  .r .mini{width:36px;height:20px;border-radius:10px;position:relative;flex:none}
+  .r .mini.on{background:#A78BFA}
+  .r .mini.on::after{content:'';position:absolute;width:14px;height:14px;border-radius:50%;background:#241733;top:3px;right:3px}
+  .r .mini.off{background:#36343B}
+  .r .mini.off::after{content:'';position:absolute;width:12px;height:12px;border-radius:50%;background:#9A93AB;top:4px;left:4px}
+</style>
+</head>
+<body>
+  <div class="head">控件特写 · 全部数值出自研究卡 §9–§12</div>
+  <div class="grid">
+    <div class="cell">
+      <div class="swrow">
+        <div class="sw off"></div>
+        <div class="sw on"></div>
+        <div class="sw on press"></div>
+      </div>
+      <div class="cap">开关 52×32<br>关 thumb16 · 开 24 · 按 28<br>按压轨道亮一档</div>
+    </div>
+    <div class="cell">
+      <div class="trackwrap">
+        <div class="track"><div class="fill"></div><div class="gap6"></div></div>
+        <div class="stop"></div>
+        <div class="handle"></div>
+      </div>
+      <div class="cap">M3 滑条<br>轨 16 · 竖条 handle 4×44<br>间隙 6 · 端点 stop 3:1</div>
+    </div>
+    <div class="cell">
+      <div class="seg">
+        <div class="thumb"></div>
+        <div class="opt">高</div>
+        <div class="opt">均衡</div>
+        <div class="opt sel">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg>
+          节能
+        </div>
+      </div>
+      <div class="cap">三档选择器<br>容器 #1D1B26 滑块 #4A4458<br>内高光白 8%</div>
+    </div>
+    <div class="cell">
+      <div class="rowdemo">
+        <div class="r"><div class="tt">加载更多</div><div class="mini on" style="margin-left:auto"></div></div>
+        <div class="r press"><div class="tt" style="color:#fff">外部打开</div><div class="mini off" style="margin-left:auto"></div></div>
+      </div>
+      <div class="cap">按压 = 白 10% 预混<br>100–150ms 减速曲线<br>无投影 · 无 shadowLayer</div>
+    </div>
+  </div>
+</body>
+</html>

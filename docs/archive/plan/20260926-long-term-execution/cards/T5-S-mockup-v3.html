@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>东方无限 · 设置页 v3（M3 官方规范 · 纯色分层）</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-font-smoothing:antialiased}
+  :root{
+    /* Material 3 官方 dark baseline token —— 全部纯色，无渐变 */
+    --bg:#000000;                 /* OLED 真黑（项目已定） */
+    --surf:#1D1B20;               /* surfaceContainerLow  — 普通卡片 */
+    --surf-hi:#232028;            /* surfaceContainer     — 重点卡片 */
+    --surf-input:#14121A;         /* 输入框 */
+    --surf-track:#36343B;         /* surfaceContainerHighest — 轨道/凹槽 */
+    --outline:#49454F;            /* outlineVariant */
+    --outline-strong:#938F99;     /* outline */
+    --primary:#D0BCFF;            /* M3 dark primary */
+    --on-primary:#381E72;
+    --primary-cont:#4F378B;
+    --on-primary-cont:#EADDFF;
+    --sec-cont:#4A4458;           /* secondaryContainer — 选中态 */
+    --on-sec-cont:#E8DEF8;
+    --on-surf:#E6E1E5;
+    --on-surf-var:#CAC4D0;
+  }
+  body{
+    background:#111;
+    font-family:-apple-system,"PingFang SC","Helvetica Neue",sans-serif;
+    display:flex;flex-direction:column;align-items:center;
+    padding:30px 0 64px;gap:26px;
+  }
+  .cap{color:#8f8f8f;font-size:12px;letter-spacing:.06em}
+  .phone{
+    width:390px;background:var(--bg);border-radius:36px;overflow:hidden;
+    box-shadow:0 24px 70px rgba(0,0,0,.75), 0 0 0 1px rgba(255,255,255,.06);
+  }
+  .statusbar{
+    height:46px;display:flex;align-items:center;justify-content:space-between;
+    padding:0 24px;color:var(--on-surf);font-size:13px;font-weight:600;
+    font-variant-numeric:tabular-nums;
+  }
+  .sb-r{display:flex;gap:5px;align-items:center;opacity:.9}
+  .sb-r i{display:block;width:3px;border-radius:1px;background:var(--on-surf)}
+  .page{padding:0 16px 44px}
+
+  h1{color:var(--on-surf);font-size:28px;font-weight:600;letter-spacing:-.02em;padding:8px 4px 18px}
+
+  /* ---------- 搜索框（M3 search bar） ---------- */
+  .searchbox{
+    height:52px;border-radius:26px;background:var(--surf-input);
+    display:flex;align-items:center;gap:12px;padding:0 18px;margin-bottom:18px;
+  }
+  .searchbox svg{flex:none;stroke:var(--on-surf-var);width:20px;height:20px}
+  .searchbox span{color:var(--on-surf-var);font-size:15px}
+
+  /* ---------- 卡片：纯色 + 亮度分层，无描边无渐变无阴影 ---------- */
+  .card{background:var(--surf);border-radius:16px;margin-bottom:12px;overflow:hidden}
+  .card.hi{background:var(--surf-hi)}
+
+  .hd{display:flex;align-items:center;gap:16px;padding:16px}
+  .hd .ico{
+    width:40px;height:40px;border-radius:20px;flex:none;      /* M3 圆形 tonal 容器 */
+    display:flex;align-items:center;justify-content:center;
+    background:var(--primary-cont);
+  }
+  .hd .ico svg{width:21px;height:21px;stroke:var(--on-primary-cont);stroke-width:1.8}
+  .hd .ico.mute{background:var(--surf-track)}
+  .hd .ico.mute svg{stroke:var(--on-surf-var)}
+  .hd .tt{flex:1;min-width:0}
+  .hd .tt .a{color:var(--on-surf);font-size:16px;font-weight:500;letter-spacing:-.01em}
+  .hd .tt .b{color:var(--on-surf-var);font-size:13px;margin-top:3px}
+  .chev{flex:none;stroke:var(--on-surf-var);width:20px;height:20px}
+
+  /* ---------- 行（M3 list item） ---------- */
+  .rows{padding:0 6px 8px}
+  .row{height:58px;display:flex;align-items:center;gap:16px;padding:0 12px;border-radius:12px}
+  .row .ic{flex:none;width:24px;height:24px;display:flex;align-items:center;justify-content:center}
+  .row .ic svg{width:22px;height:22px;stroke:var(--on-surf-var);stroke-width:1.7}
+  .row .t{flex:1;color:var(--on-surf);font-size:16px;font-weight:400;letter-spacing:-.005em}
+  .row .v{
+    color:var(--primary);font-size:14px;font-weight:500;letter-spacing:-.002em;
+    font-variant-numeric:tabular-nums;max-width:150px;
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  }
+  .row .v.dim{color:var(--on-surf-var);font-weight:400}
+
+  /* ---------- M3 Switch（官方形态：52×32 轨道 + 16/24 滑块） ---------- */
+  .sw{flex:none;width:52px;height:32px;border-radius:16px;position:relative;background:var(--surf-track)}
+  .sw .knob{
+    position:absolute;top:8px;left:8px;width:16px;height:16px;border-radius:50%;
+    background:var(--outline-strong);
+  }
+  .sw.on{background:var(--primary)}
+  .sw.on .knob{top:4px;left:24px;width:24px;height:24px;background:var(--on-primary)}
+
+  /* ---------- 三档选择器（M3 segmented button 配色 + 滑动块） ---------- */
+  .tierwrap{padding:0 16px 14px}
+  .tier{
+    display:flex;position:relative;height:48px;border-radius:24px;
+    background:var(--surf-track);
+  }
+  .glider{
+    position:absolute;top:0;left:0;height:48px;width:calc(100%/3);
+    border-radius:24px;background:var(--sec-cont);
+    transition:transform .3s cubic-bezier(.2,0,0,1);
+  }
+  .seg{
+    flex:1;display:flex;align-items:center;justify-content:center;gap:7px;
+    color:var(--on-surf-var);font-size:14.5px;font-weight:500;
+    position:relative;z-index:1;letter-spacing:-.005em;
+  }
+  .seg.on{color:var(--on-sec-cont);font-weight:600}
+  .seg .ck{width:17px;height:17px;stroke:currentColor;stroke-width:2.2;display:none}
+  .seg.on .ck{display:block}
+
+  .tiernote{margin:14px 0 0;padding:14px 16px;border-radius:14px;background:var(--surf-input)}
+  .tiernote .l1{color:var(--on-surf-var);font-size:13px;line-height:1.55}
+  .tiernote .l1 b{color:var(--on-surf);font-weight:600}
+  .tiernote .l2{
+    color:var(--on-surf-var);font-size:12.5px;margin-top:7px;line-height:1.6;opacity:.85;
+    font-variant-numeric:tabular-nums;
+  }
+
+  .sub{padding-left:14px}
+  .sub .row{height:56px}
+
+  /* ---------- M3 Slider（4dp 轨道 + 20dp 滑块，纯色） ---------- */
+  .srow{padding:14px 12px 6px}
+  .srow .top{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:16px}
+  .srow .top .a{color:var(--on-surf);font-size:15px;font-weight:400}
+  .srow .top .b{color:var(--primary);font-size:14px;font-weight:500;font-variant-numeric:tabular-nums}
+  .track{height:4px;border-radius:2px;background:var(--outline);position:relative}
+  .track .fill{position:absolute;left:0;top:0;height:4px;border-radius:2px;background:var(--primary)}
+  .track .thumb{
+    position:absolute;top:-8px;width:20px;height:20px;border-radius:50%;
+    background:var(--primary);box-shadow:0 1px 3px rgba(0,0,0,.5);
+  }
+  .ticks{display:flex;justify-content:space-between;margin-top:11px}
+  .ticks span{color:var(--on-surf-var);font-size:11px;font-variant-numeric:tabular-nums;opacity:.9}
+
+  .eyebrow{
+    height:44px;display:flex;align-items:center;padding-left:18px;
+    color:var(--on-surf-var);font-size:12.5px;font-weight:600;letter-spacing:.02em;
+  }
+
+  /* ---------- 危险操作（M3 按钮：描边式 + error 语义） ---------- */
+  .danger{display:flex;gap:10px;padding:8px 12px 14px}
+  .dbtn{
+    flex:1;height:46px;border-radius:23px;display:flex;align-items:center;justify-content:center;
+    font-size:14px;font-weight:500;letter-spacing:-.003em;
+    border:1px solid var(--outline);color:var(--on-surf-var);
+  }
+  .dbtn.red{border-color:#F2B8B5;color:#F2B8B5}
+
+  /* ---------- 对比区 ---------- */
+  .compare{width:390px;display:flex;flex-direction:column;gap:14px}
+  .ccard{background:#1A1A1A;border-radius:18px;padding:18px;border:1px solid rgba(255,255,255,.07)}
+  .clabel{color:#9a9a9a;font-size:11.5px;margin-bottom:14px;letter-spacing:.05em;font-weight:600}
+  .pair{display:flex;gap:14px}
+  .col{flex:1;min-width:0}
+  .col .tag{font-size:10.5px;color:#6f6f6f;margin-bottom:10px;letter-spacing:.06em;font-weight:600}
+  .col .tag.new{color:#D0BCFF}
+  .note{color:#6f6f6f;font-size:11px;line-height:1.7;margin-top:11px}
+  .note b{color:#9a9a9a;font-weight:600}
+
+  /* v1 复刻（塑料感：纯色+硬描边+均匀） */
+  .m1-card{border-radius:16px;padding:14px;background:#0F0E13;border:1px solid rgba(255,255,255,.10)}
+  .m1-sw{width:46px;height:26px;border-radius:13px;background:rgba(167,139,250,.20);border:1px solid rgba(167,139,250,.45);position:relative;margin-left:auto}
+  .m1-sw .k{position:absolute;top:2px;left:22px;width:20px;height:20px;border-radius:50%;background:#C4B5FD}
+  /* v3 复刻（M3 纯色分层） */
+  .m3-card{border-radius:16px;padding:14px;background:#1D1B20}
+  .m3-sw{width:52px;height:32px;border-radius:16px;background:#D0BCFF;position:relative;margin-left:auto}
+  .m3-sw .k{position:absolute;top:4px;left:24px;width:24px;height:24px;border-radius:50%;background:#381E72}
+  .m3-ic{width:36px;height:36px;border-radius:18px;background:#4F378B}
+</style>
+</head>
+<body>
+
+<div class="cap">设置页 v3 · Material 3 官方规范（纯色分层，零渐变零发光）</div>
+
+<div class="phone">
+  <div class="statusbar">
+    <span>9:41</span>
+    <div class="sb-r">
+      <i style="height:6px"></i><i style="height:9px"></i><i style="height:11px"></i>
+      <svg width="17" height="12" viewBox="0 0 17 12" fill="none" style="margin-left:4px">
+        <rect x="0.5" y="0.5" width="13" height="11" rx="3" stroke="#E6E1E5" opacity=".45"/>
+        <rect x="2" y="2" width="9" height="8" rx="1.5" fill="#E6E1E5"/>
+        <path d="M15.5 4v4a2 2 0 0 0 0-4z" fill="#E6E1E5" opacity=".55"/>
+      </svg>
+    </div>
+  </div>
+
+  <div class="page">
+    <h1>设置</h1>
+
+    <div class="searchbox">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round">
+        <circle cx="11" cy="11" r="7"/><path d="M16.5 16.5 21 21"/>
+      </svg>
+      <span>搜索设置项</span>
+    </div>
+
+    <!-- 常用 -->
+    <section class="card">
+      <div class="hd">
+        <div class="ico">
+          <svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3 7.5A1.5 1.5 0 0 1 4.5 6h4l2 2.5h7A1.5 1.5 0 0 1 19 10v7.5A1.5 1.5 0 0 1 17.5 19h-13A1.5 1.5 0 0 1 3 17.5z"/>
+          </svg>
+        </div>
+        <div class="tt">
+          <div class="a">常用</div>
+          <div class="b">下载、搜索与列表浏览</div>
+        </div>
+        <svg class="chev" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+      </div>
+      <div class="rows">
+        <div class="row">
+          <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v11m0 0 4-4m-4 4-4-4"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg></div>
+          <div class="t">下载路径</div>
+          <div class="v">Download/东方无限</div>
+          <svg class="chev" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg>
+        </div>
+        <div class="row">
+          <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.9" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M16.5 16.5 21 21"/></svg></div>
+          <div class="t">搜索模式</div>
+          <div class="v">目录 + 本地索引</div>
+          <svg class="chev" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg>
+        </div>
+        <div class="row">
+          <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6.5A1.5 1.5 0 0 1 4.5 5h3L9 7h6.5A1.5 1.5 0 0 1 17 8.5V13"/><path d="M7 19h12.5A1.5 1.5 0 0 0 21 17.5V12"/></svg></div>
+          <div class="t">文件夹递归</div>
+          <div class="sw"><div class="knob"></div></div>
+        </div>
+        <div class="row">
+          <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14m0 0 5-5m-5 5-5-5"/></svg></div>
+          <div class="t">浏览时自动加载更多</div>
+          <div class="sw on"><div class="knob"></div></div>
+        </div>
+        <div class="row">
+          <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="3" width="12" height="18" rx="2.5"/><path d="M12 8v6m0 0 2.5-2.5M12 14l-2.5-2.5"/></svg></div>
+          <div class="t">下载完成后自动安装</div>
+          <div class="sw"><div class="knob"></div></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 性能模式 -->
+    <section class="card hi">
+      <div class="hd">
+        <div class="ico">
+          <svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M13 3 5 14h5l-1 7 8-11h-5z"/>
+          </svg>
+        </div>
+        <div class="tt">
+          <div class="a">性能模式</div>
+          <div class="b">一键切换，细项自动跟随</div>
+        </div>
+        <svg class="chev" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+      </div>
+
+      <div class="tierwrap">
+        <div class="tier">
+          <div class="glider"></div>
+          <div class="seg on">
+            <svg class="ck" viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="m5 13 4.5 4.5L19 7"/></svg>
+            高性能
+          </div>
+          <div class="seg">均衡</div>
+          <div class="seg">节能</div>
+        </div>
+        <div class="tiernote">
+          <div class="l1">当前：<b>高性能</b> — 使用设备可承受的最大并发，请求节奏由 App 自动节流，保护你的账号不被蓝奏限频。</div>
+          <div class="l2">生效中　同时下载 自动 · 单源翻页 无限 · 自动预翻 1 页 · 动效 全开</div>
+        </div>
+      </div>
+
+      <div class="sub">
+        <div class="row">
+          <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12a8 8 0 1 1 8 8"/><path d="M4 20v-4h4"/></svg></div>
+          <div class="t">节能时降低动效</div>
+          <div class="sw on"><div class="knob"></div></div>
+        </div>
+      </div>
+      <div class="rows">
+        <div class="row">
+          <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round"><path d="M4 7h10M4 12h16M4 17h7"/><circle cx="17" cy="7" r="2"/><circle cx="13" cy="17" r="2"/></svg></div>
+          <div class="t">查看本档生效的细项</div>
+          <div class="v dim">14 项</div>
+          <svg class="chev" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg>
+        </div>
+      </div>
+    </section>
+
+    <!-- 高级 -->
+    <section class="card">
+      <div class="hd">
+        <div class="ico mute">
+          <svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M4 8h9M17 8h3M4 16h3M11 16h9"/><circle cx="15" cy="8" r="2"/><circle cx="9" cy="16" r="2"/>
+          </svg>
+        </div>
+        <div class="tt">
+          <div class="a">高级</div>
+          <div class="b">并发、索引、网络与 ADB 安装</div>
+        </div>
+        <svg class="chev" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+      </div>
+    </section>
+
+    <!-- 数据与关于 -->
+    <section class="card">
+      <div class="hd">
+        <div class="ico mute">
+          <svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round">
+            <ellipse cx="12" cy="6" rx="7" ry="3"/><path d="M5 6v12c0 1.7 3.1 3 7 3s7-1.3 7-3V6"/><path d="M5 12c0 1.7 3.1 3 7 3s7-1.3 7-3"/>
+          </svg>
+        </div>
+        <div class="tt">
+          <div class="a">数据与关于</div>
+          <div class="b">恢复、资源源、致谢与应用信息</div>
+        </div>
+        <svg class="chev" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+      </div>
+    </section>
+  </div>
+</div>
+
+<div class="cap" style="margin-top:2px">高级展开 · 分组细化的滑条</div>
+
+<div class="phone">
+  <div class="statusbar">
+    <span>9:41</span>
+    <div class="sb-r"><i style="height:6px"></i><i style="height:9px"></i><i style="height:11px"></i></div>
+  </div>
+  <div class="page">
+    <section class="card">
+      <div class="hd">
+        <div class="ico mute">
+          <svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M4 8h9M17 8h3M4 16h3M11 16h9"/><circle cx="15" cy="8" r="2"/><circle cx="9" cy="16" r="2"/>
+          </svg>
+        </div>
+        <div class="tt">
+          <div class="a">高级</div>
+          <div class="b">并发、索引、网络与 ADB 安装</div>
+        </div>
+        <svg class="chev" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="transform:rotate(180deg)"><path d="m6 9 6 6 6-6"/></svg>
+      </div>
+
+      <div class="eyebrow">搜索与翻页</div>
+      <div class="rows" style="padding-top:0">
+        <div class="srow">
+          <div class="top"><div class="a">搜索线程数</div><div class="b">自动</div></div>
+          <div class="track"><div class="fill" style="width:100%"></div><div class="thumb" style="left:calc(100% - 10px)"></div></div>
+          <div class="ticks"><span>1</span><span>4</span><span>8</span><span>自动</span></div>
+        </div>
+        <div class="srow">
+          <div class="top"><div class="a">单源最高展开页数</div><div class="b">无限</div></div>
+          <div class="track"><div class="fill" style="width:100%"></div><div class="thumb" style="left:calc(100% - 10px)"></div></div>
+          <div class="ticks"><span>1</span><span>5</span><span>20</span><span>无限</span></div>
+        </div>
+        <div class="srow">
+          <div class="top"><div class="a">慢源让位时间</div><div class="b">15 秒</div></div>
+          <div class="track"><div class="fill" style="width:25%"></div><div class="thumb" style="left:calc(25% - 10px)"></div></div>
+          <div class="ticks"><span>1s</span><span>15s</span><span>30s</span><span>不限</span></div>
+        </div>
+      </div>
+
+      <div class="eyebrow">下载与安装</div>
+      <div class="rows" style="padding-top:0">
+        <div class="srow">
+          <div class="top"><div class="a">同时下载</div><div class="b">自动</div></div>
+          <div class="track"><div class="fill" style="width:100%"></div><div class="thumb" style="left:calc(100% - 10px)"></div></div>
+          <div class="ticks"><span>1</span><span>2</span><span>4</span><span>自动</span></div>
+        </div>
+      </div>
+
+      <div class="eyebrow">索引与缓存</div>
+      <div class="rows" style="padding-top:0">
+        <div class="srow">
+          <div class="top"><div class="a">单个索引最高保留</div><div class="b">24 小时</div></div>
+          <div class="track"><div class="fill" style="width:38%"></div><div class="thumb" style="left:calc(38% - 10px)"></div></div>
+          <div class="ticks"><span>1h</span><span>24h</span><span>30d</span><span>不限</span></div>
+        </div>
+      </div>
+
+      <div class="eyebrow">网络与兼容</div>
+      <div class="rows" style="padding-top:0">
+        <div class="row">
+          <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18 15 15 0 0 1 0-18z"/></svg></div>
+          <div class="t">UA 设置</div>
+          <div class="v">四段 · 全部生效</div>
+          <svg class="chev" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg>
+        </div>
+        <div class="row">
+          <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0 4-4m-4 4-4-4"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg></div>
+          <div class="t">静默一键安装</div>
+          <div class="sw"><div class="knob"></div></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="hd">
+        <div class="ico mute">
+          <svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round">
+            <ellipse cx="12" cy="6" rx="7" ry="3"/><path d="M5 6v12c0 1.7 3.1 3 7 3s7-1.3 7-3V6"/><path d="M5 12c0 1.7 3.1 3 7 3s7-1.3 7-3"/>
+          </svg>
+        </div>
+        <div class="tt">
+          <div class="a">数据与关于</div>
+          <div class="b">恢复、资源源、致谢与应用信息</div>
+        </div>
+        <svg class="chev" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="transform:rotate(180deg)"><path d="m6 9 6 6 6-6"/></svg>
+      </div>
+      <div class="rows">
+        <div class="row">
+          <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6.5A1.5 1.5 0 0 1 4.5 5h4L10 7h9.5A1.5 1.5 0 0 1 21 8.5v9A1.5 1.5 0 0 1 19.5 19h-15A1.5 1.5 0 0 1 3 17.5z"/></svg></div>
+          <div class="t">资源源管理</div>
+          <div class="v dim">12 个</div>
+          <svg class="chev" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg>
+        </div>
+        <div class="row">
+          <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 16v-5m0-3.5v.5"/></svg></div>
+          <div class="t">关于东方无限</div>
+          <svg class="chev" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg>
+        </div>
+      </div>
+      <div class="danger">
+        <div class="dbtn">恢复所有列表</div>
+        <div class="dbtn red">恢复默认设置</div>
+      </div>
+    </section>
+  </div>
+</div>
+
+<div class="cap" style="margin-top:6px">控件对比 · 左＝v1（你说塑料感）　右＝v3（M3 纯色）</div>
+
+<div class="compare">
+  <div class="ccard">
+    <div class="clabel">卡片 + 开关 + 图标容器</div>
+    <div class="pair">
+      <div class="col">
+        <div class="tag">v1</div>
+        <div class="m1-card">
+          <div style="display:flex;align-items:center;gap:10px;height:40px">
+            <div style="width:24px;height:24px;border-radius:8px;background:rgba(167,139,250,.20);border:1px solid rgba(167,139,250,.28)"></div>
+            <div style="color:#F2F0F7;font-size:13px">自动加载</div>
+            <div class="m1-sw"><div class="k"></div></div>
+          </div>
+        </div>
+        <div class="note">卡片几乎看不见（比背景亮一点点）+ <b>10% 白描边当边界</b>；开关是两块纯色</div>
+      </div>
+      <div class="col">
+        <div class="tag new">v3</div>
+        <div class="m3-card">
+          <div style="display:flex;align-items:center;gap:10px;height:40px">
+            <div class="m3-ic"></div>
+            <div style="color:#E6E1E5;font-size:13px">自动加载</div>
+            <div class="m3-sw"><div class="k"></div></div>
+          </div>
+        </div>
+        <div class="note">卡片<b>明确亮一层</b>（#1D1B20），无描边；开关用 M3 官方形态（52×32 轨道 + 24 深紫滑块）</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="ccard">
+    <div class="clabel">三档选择器（M3 segmented 配色 + 滑动块）</div>
+    <div class="tier">
+      <div class="glider"></div>
+      <div class="seg on">
+        <svg class="ck" viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="m5 13 4.5 4.5L19 7"/></svg>
+        高性能
+      </div>
+      <div class="seg">均衡</div>
+      <div class="seg">节能</div>
+    </div>
+    <div class="note">轨道＝<b>#36343B 纯色</b>；选中块＝<b>#4A4458 纯色</b>（M3 secondaryContainer）+ 前置 ✓；文字 #E8DEF8。零渐变零发光，滑动 300ms</div>
+  </div>
+
+  <div class="ccard">
+    <div class="clabel">滑条（M3 slider）</div>
+    <div class="srow" style="padding:6px 0 0">
+      <div class="top"><div class="a">慢源让位时间</div><div class="b">15 秒</div></div>
+      <div class="track"><div class="fill" style="width:25%"></div><div class="thumb" style="left:calc(25% - 10px)"></div></div>
+      <div class="ticks"><span>1s</span><span>15s</span><span>30s</span><span>不限</span></div>
+    </div>
+    <div class="note">4dp 轨道 + 20dp 纯色滑块（M3 官方尺寸），只保留一层浅阴影</div>
+  </div>
+</div>
+
+</body>
+</html>

@@ -82,6 +82,8 @@
 4. **§二 旧色板（BG #0B0A12 等）被 spec v2 §5 OLED 亮度阶梯取代**：新 UI 一律取 spec token；存量页面按 spec §11 顺序渐进迁移，迁移完成期两套并存不视为违规，但禁止新码引用旧色值常量。
 5. **快照测试路线澄清**："paparazzi 与 AGP9 不兼容已停用"不阻塞 spec §12 的 Roborazzi 视觉回归计划——Roborazzi 走 Robolectric 管线，是替代路线。
 6. **技能路由规则（防过载）**：web 向设计技能只允许"审美评审框架"用途；其规则与 spec 冲突时，一律以 `wear-ui-system.md` §9 的冲突过滤为准。UI 任务只读：AGENTS.md + spec 对应节，禁止遍历技能库找规矩。
+7. **§二"提交信息 Conventional Commits 化"条文废止（2026-09-27 审计消解）**：历史 60+ 提交均为"vX.Y.Z + 中文要点"风格，前缀条文从未执行过；规范与现实对齐——提交信息沿用"vX.Y.Z + 中文要点"，不引入 feat/fix 前缀。
+8. **2026-09-27 WorkBuddy 全仓审计（抽查 12 项全属实，报告 `docs/audit/20260927-full-audit.md`）**：关键增量——①PATCHES.md 台账断档（P20/P21/P24 代码存在未登记、P18 标记错位为强制深色、P13 零定义）；②数据库迁移弹窗用户可见乱码 `RikkaHubEmbed.kt:409`；③Firebase Analytics 仍活装配（AppModule.kt:57 + ChatVM 5 处 logEvent），P15 只摘了 crashlytics；④sqlite-android `-SNAPSHOT` 未钉版（libs.versions.toml:64）；⑤CI 零测试任务；⑥审计给出的 M-*/H-*/V-*/B-* 编号可作为对应任务卡的证据引用。
 
 ## 六、踩坑记录全文（按时间）
 
@@ -93,6 +95,24 @@
 - **2026-09-22 v1.19.6 软件库治理**：①批量导入探测会用蓝奏云页面标题覆盖传入标题落库——内置清单改名的存量同步必须按 URL 无条件强推一次(flag 版本化)，且同步要跑两次：导入前+导入后。②搜索结果 folder 条目必须固定 ic_folder 不 loadImage，meta 标"文件夹"。③"安卓机器人图标的软件"=源内 APK 自带默认 icon，APP 端改不了，改进方向是类型标注；压缩包标"不是应用,下载后需解压"。
 - **2026-09-22 v1.19.7 质感升级**：①一行式方法插行尾注释吞代码第三次——铁律重申：注释永远独立成行。②SpringForce 严禁两个 SpringAnimation 共享同一实例——共享实例的 finalPosition 保持 UNSET，start() 抛异常真机即崩。③按压反馈统一 applePressScale(v)。④视觉 token 归档：solidShape 内做 radius 映射(≥24→26 Panel,14–23→20 Card,5–13→8 Micro,<5 原样)，历史 14 种圆角收敛四档；text(s,sp,color,weight) 重载用于标题字重(≥650 BOLD,≥500 medium)，标题靠字重不靠放大。⑤视觉改动流程：先量化混乱度→只改 helper/token 一处全局生效→编译+冷启动+全 tab 疯狂点击+monkey+JVM 截图回归，五步缺一不可。
 - **2026-09-22 深夜 v1.19.8 真机卡死修复（覆盖 v1.19.7 ③的弹簧结论）**：①dynamicanimation 弹簧按压在弱真机不可用——tag 缓存的弹簧下次 ACTION_DOWN 不会被取消，连点时旧弹簧把 0.96 按压态拽回 1.0 显得"点不动"；stiffness 350 软弹簧 settle 无上界，弱手表每次点击近 0.5s 逐帧重绘，连点即渲染风暴→ANR 闪退；弹簧与 VPA 双系统同写 SCALE_X/Y 互相打架。v1.19.8 已删弹簧机制，全主题统一 VPA 曲线(220ms PathInterpolator(0.2,0.9,0.3,1.05))；**铁律：触摸路径禁用物理弹簧，按压回位一律 VPA**。②模拟器验证门禁有判别力的做法：静态页(设置页)A/B gfxinfo 对比；软件库/AI 等网络页数字噪声不可用作构建间对比；CPU 饥饿模拟+ANR/FATAL logcat 断言。③发版回归必须跑全量 :app:testEmptyDebugUnitTest。④模拟器截图"黑框"=圆屏镜像测试伪影（现已随圆表镜像删除，问题不再存在）。⑤debug 构建 ABI=x86_64 装不进 arm64 模拟器，模拟器一律装 release 包。⑥monkey 随机键会把应用挤出前台；启动一律 am start -n dfwx.dongdang/cc.nkbr.lanzouplus.MainActivity。
+
+- **2026-09-25 v1.19.9 AI 页治理与空态 v2**：①空态贴输入框"32dp 滚底空间误吃"的根因=键盘两种状态的滚底预留差值靠推算，真机双键盘态实测应为 26dp；铁律：输入框贴合类布局参数必须双键盘态真机实测，不能推算。②AI 页四项修复细节见归档 `docs/archive/tasks/perf-interaction/`；性能 backlog：RecyclerView 批量渲染、启动 IO、外壳常驻。
+- **2026-09-25 pm clear 误清豆包数据事故**：`pm clear` 误对豆包(com.bytedance.android.doubaoime)执行，用户数据丢失。铁律：**任何 adb/pm 操作前先对照禁止清单；豆包永久禁止触碰**（pm clear/卸载/force-stop 一律不做）。
+- **2026-09-26 pm clear 误清 dfwx.dongdang 用户数据事故（二次）**：验证"干净启动"改用 `am force-stop` + 重新启动应用，**不用 pm clear**；pm clear/卸载/`adb shell rm` 一律先说明并等用户明确同意。
+- **2026-09-26 真机禁盲点**：用户正在使用手机时，禁止坐标点击类自动化（盲点会点进任意界面）；只读验证（截图/日志/UI dump）优先，需要点击先请示并停下等待。
+- **2026-09-26 蓝奏云"源失效"误判翻案**：双根因——默认 UA 被蓝奏 CDN 拉黑（影响全部 84 源）+ 解锁请求少发 lx/fid/pg 字段（影响 50 源）；修复后源全部正常。铁律：**"源失效"先查 UA/请求字段再下结论，禁止删源**；同批被真机截图复核推翻的还有"无进度条""14.8GB 内存""兜底图标 URL 404"等旧结论——真机实测优于静态分析。
+
+### AI 工具链与协作环境踩坑（2026-09-27 固化）
+
+- **Mimosa hook 拦截组合 Bash 命令**：对源码/配置的写操作（git add/commit/push、gradle）会被 Mimosa 安全 hook 检查，`cmd1 && cmd2` 组合命令整条被拒。铁律：git add/commit/push 每条单独执行；`git add app/build.gradle.kts` 单独一条。
+- **Edit 前必须重新 Read**：会话中途文件可能被外部改动，拿旧内容直接 Edit 会失配或错改。
+- **行尾注释吞代码**：2026-09-21、09-22、09-25 三次踩坑（见上 v1.19.7①），铁律重申：注释永远独立成行。
+- **Robolectric 位图在本机不可用**：T5-S 设置重做时 Robolectric 无法生成位图断言，改用结构断言（view 树/文本/id）兜底。
+- **aapt/aapt2 实际路径**：`$HOME/Library/Android/sdk/build-tools/37.0.0/`；发版终验用它 `dump badging` 断言 `native-code: arm64-v8a`。
+- **设计稿出图用 headless_shell**：T5-S 设计稿截图走 headless_shell 无头截图，不是 Playwright MCP（2026-09-26 用户指定）。
+- **gh release 的 jq 表达式不能用中文键名**；Release 资产名禁中文见 2026-09-21 条。
+- **push 走 SSH over 443**：github.com:443 直连不通，`~/.ssh/config` 已配 ssh.github.com:443；push 失败勿反复重试 https。
+- **本机 shell 偶发 command not found**：Bash 会话偶发 PATH 哈希失效（mv/mkdir 等基础命令报错），用绝对路径（/bin/mv）绕过，勿误判为命令缺失。
 
 ## 七、AI 开发协议强化（2026-09-21，依据 tryallai 深度研究报告）
 
