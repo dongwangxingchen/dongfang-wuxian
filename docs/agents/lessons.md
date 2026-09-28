@@ -113,6 +113,17 @@
 - **gh release 的 jq 表达式不能用中文键名**；Release 资产名禁中文见 2026-09-21 条。
 - **push 走 SSH over 443**：github.com:443 直连不通，`~/.ssh/config` 已配 ssh.github.com:443；push 失败勿反复重试 https。
 - **本机 shell 偶发 command not found**：Bash 会话偶发 PATH 哈希失效（mv/mkdir 等基础命令报错），用绝对路径（/bin/mv）绕过，勿误判为命令缺失。
+- **Shizuku 状态检查必须离开主线程 + 带代次闸门**（ADB-001，2026-09-28）：`Shizuku.pingBinder()/checkSelfPermission()/getUid()` 都是 binder 事务，服务被 ROM 冻结时可不超时阻塞；四类回调（binder 到达/死亡/授权结果/ServiceConnection）线程不受控，慢的旧评估会覆盖新状态，导致 `ready()` 误判、静默安装失败被误报成"服务未连接"（审计 H-P1-4）。修法：单线程状态车道承载全部平台调用 + 请求领 generation 号，评估开始/绑定前/发布前三处校验，旧代次一律丢弃。v1.19.3 用"延迟 3 秒启动"只是绕开主线程 ANR，改结构才是根治。
+- **把"能捕获 bug"当作测试写完的判据**：ADB-001 的竞态用例写完先全绿，把三处代次校验临时删掉重跑，确认三个用例真的失败，再恢复；不会失败的正向用例只是装饰。其中一个用例最初在有无防护时都通过，说明它断言错了位置（实际走 CONNECTING 分支），改断言后才具备鉴别力。
+- **robots/Robolectric 原生图形偶发失败**：全量跑 `testEmptyDebugUnitTest` 时 `HomeShotsJvmTest`/`ToolsShotsJvmTest` 可能报 `FileSystemAlreadyExistsException`（字体解压）或 `RenderNode` UnsatisfiedLinkError；单独跑或重跑即过，属本机环境问题，不要误判为代码回归——先重跑一次再排查。
+
+### ZCode 子智能体成本治理（2026-09-28 固化）
+
+- **187 个子智能体每个都吃 token**：`~/.zcode/agents/*.md` 的角色 name+description 会全量进入每次会话的系统提示（187 个约 6-7k token/次），会话数一多就是纯浪费。已精简为 **10 个东方无限专用角色**。
+- **"关闭"的正确做法 = 移出加载目录**：ZCode 只扫 `~/.zcode/agents/`（**非递归到同级目录**），把定义移到 `~/.zcode/agents-disabled/` 即不再加载且随时可恢复，不要删除。
+- **防回装必须改同步脚本**：`~/.zcode/scripts/codex-agents-convert.py` 会把 `~/.codex/agents/*.toml`（175 个）重新转成 `~/.zcode/agents/*.md`。已在脚本加停用检查：`agents-disabled/<name>.md` 存在则跳过。不改脚本的话，下次 `sync-codex-shared.sh` 跑起来就全装回来了。
+- **全量备份**：`~/.zcode/backups/agents-20260928-full/`（187 个，含 12 个手写角色）。
+- 内置的 `general-purpose` / `Explore` 不在这个目录，不受影响（官方不可停用）。
 
 ## 七、AI 开发协议强化（2026-09-21，依据 tryallai 深度研究报告）
 
