@@ -11,6 +11,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+// [DFWX PATCH U4] 空闲挂起需要 snapshotFlow + first
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
@@ -21,12 +22,13 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.sp
 import androidx.compose.material3.Text
+// [DFWX PATCH U4] 空闲挂起需要 flow.first
+import kotlinx.coroutines.flow.first
 import kotlin.math.cos
 import kotlin.math.roundToInt
 import kotlin.math.sin
 import kotlin.math.sqrt
 import kotlin.random.Random
-import kotlinx.coroutines.flow.first
 
 @Composable
 fun EmojiBurstHost(
@@ -94,8 +96,8 @@ fun EmojiBurstHost(
             val damping = 0.99f
             var lastTime = withFrameNanos { it }
             while (true) {
-                // [DFWX PATCH] 上游此处无条件 while(true)+withFrameNanos：没有任何彩蛋时也逐帧空转，
-                // About 页一打开就持续烧 CPU/GPU（手表续航敏感；Robolectric 扫描也因它 60s 不空闲）。
+                // [DFWX PATCH U4] 上游此处无条件 while(true)+withFrameNanos：没有任何彩蛋时也逐帧空转，
+                // About 页一打开就持续烧 CPU/GPU（Robolectric 扫描也因它 60s 不空闲）。
                 // 空闲时挂起等第一个 burst/粒子，活跃时才恢复逐帧物理；上游同步时需保留本段。
                 if (pendingBursts.isEmpty() && particles.isEmpty()) {
                     snapshotFlow { pendingBursts.size to particles.size }

@@ -2,12 +2,8 @@ plugins { alias(libs.plugins.android.application) }
 
 tasks.withType<JavaCompile>().configureEach { options.compilerArgs.add("-g:none") }
 
-// v1.7.0 开源合规：默认 AI 渠道的 Key 不进源码。优先读 local.properties 的 ai.default.key（该文件不入 git）；
-// 未配置时注入空串，App 首启该渠道留空、由用户自行填写。
-val defaultAiKey: String = run {
- val f = rootProject.file("local.properties")
- if (f.exists()) f.readLines().firstOrNull { it.trim().startsWith("ai.default.key=") }?.substringAfter('=')?.trim() ?: "" else ""
-}
+// [DFWX AI-004] 内置 AI 渠道的构建期注入已移除（含 ai.default.key 读取、resValue 三件套）。
+// 用户拍板：不再内置任何 API；后续免费额度只在官方群聊发放，由用户自行在 AI 设置里填写渠道。
 // v1.9.0（问题表单#5）：签名口令不入源码，读 local.properties 的 heiyao.storePassword/heiyao.keyPassword。
 // [DFWX-SEC-003] fail-closed：缺失时不再回退硬编码口令——release 构建直接失败并指明缺什么（见 buildTypes 门禁）；
 // CI 云构建用 -Pdfwx.unsigned 显式跳过签名出无签名包。
@@ -27,8 +23,8 @@ android {
   applicationId = "dfwx.dongdang"
   minSdk = 26      // v1.8.0：24→26，RikkaHub 模块（convention minSdk 26）清单合并要求
   targetSdk = 37   // v1.8.0：对齐上游 RikkaHub 2.5.1
-  versionCode = 1039026
-  versionName = "1.22.6"
+  versionCode = 1039027
+  versionName = "1.22.7"
  }
  compileOptions { sourceCompatibility = JavaVersion.VERSION_17; targetCompatibility = JavaVersion.VERSION_17 }
  packaging {
@@ -52,10 +48,8 @@ android {
    // v1.9.1：应用名改用独立资源名 dfwx_app_name——rikkahub 库在 values-zh 等 6 个语言里也定义了
    // app_name="RikkaHub"，中文系统资源解析优先 values-zh，会导致桌面名字变成 RikkaHub（真机实测）。
    resValue("string", "dfwx_app_name", "东方无限")
-   // v1.8.1：内置默认 AI 渠道（RikkaHub 播种器 dfwx/BuiltinProviderSeeder 读取；Key 走 local.properties 不进源码）
-   resValue("string", "dfwx_default_ai_url", "https://www.<已停用渠道>/v1")
-   resValue("string", "dfwx_default_ai_model", "glm-5.3")
-   resValue("string", "dfwx_default_ai_key", defaultAiKey)
+   // [DFWX AI-004] 原内置渠道 resValue 三件套（dfwx_default_ai_url/_model/_key）已移除：
+   // 不再把任何中转站地址、模型或 Key 注入 APK。用户的 AI 渠道全部由用户自行配置。
   }
  }
  buildTypes {

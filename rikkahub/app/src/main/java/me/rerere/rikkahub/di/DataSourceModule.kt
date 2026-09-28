@@ -6,9 +6,10 @@ import io.ktor.client.engine.okhttp.OkHttp
 import io.ktor.http.HttpHeaders
 import io.pebbletemplates.pebble.PebbleEngine
 import kotlinx.serialization.json.Json
+import me.rerere.ai.provider.ProviderManager
+// [DFWX-NET-001] AI 链专用 URL 策略（HTTPS-only + 拒绝内网/环回/凭据）
 import me.rerere.ai.provider.AiPolicyDns
 import me.rerere.ai.provider.AiUrlPolicyInterceptor
-import me.rerere.ai.provider.ProviderManager
 import me.rerere.common.http.AcceptLanguageBuilder
 import me.rerere.rikkahub.BuildConfig
 import me.rerere.rikkahub.data.ai.AIRequestInterceptor
@@ -194,7 +195,7 @@ val dataSourceModule = module {
     }
 
     single {
-        // DFWX-NET-001: 普通外部 AI/API HTTPS-only。
+        // [DFWX-NET-001] 普通外部 AI/API HTTPS-only。
         // AI 链专用 client（基于共享 client 派生，共享连接池/超时），不影响 WebDav/Search 等非 AI 流量：
         // - AiUrlPolicyInterceptor: 请求入口完整判定（协议/凭据/字面量 + DNS rebinding 解析校验）
         // - network 拦截器（resolve=false）: 对每跳（含重定向 follow-up）做静态判定

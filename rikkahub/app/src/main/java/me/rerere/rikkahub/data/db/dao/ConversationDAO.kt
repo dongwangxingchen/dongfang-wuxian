@@ -81,6 +81,9 @@ interface ConversationDAO {
     @Query("UPDATE conversationentity SET is_pinned = :isPinned WHERE id = :id")
     suspend fun updatePinStatus(id: String, isPinned: Boolean)
 
+    @Query("UPDATE conversationentity SET assistant_id = :assistantId, folder_id = '' WHERE id = :id")
+    suspend fun updateAssistantId(id: String, assistantId: String)
+
     @Query("UPDATE conversationentity SET folder_id = :folderId WHERE id = :id")
     suspend fun updateFolderId(id: String, folderId: String)
 
@@ -89,6 +92,9 @@ interface ConversationDAO {
 
     @Query("SELECT COUNT(*) FROM conversationentity")
     suspend fun countAll(): Int
+
+    @Query("SELECT assistant_id AS assistantId, COUNT(*) AS count FROM conversationentity GROUP BY assistant_id")
+    suspend fun countByAssistant(): List<AssistantConversationCount>
 
     @Query(
         "SELECT strftime('%Y-%m-%d', create_at/1000, 'unixepoch', 'localtime') AS day, " +
@@ -101,3 +107,5 @@ interface ConversationDAO {
 }
 
 data class ConversationDayCount(val day: String, val count: Int)
+
+data class AssistantConversationCount(val assistantId: String, val count: Int)

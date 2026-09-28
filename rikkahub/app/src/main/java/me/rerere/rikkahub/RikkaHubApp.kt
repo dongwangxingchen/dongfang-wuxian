@@ -17,6 +17,7 @@ import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import me.rerere.rikkahub.data.files.FileFolders
+import me.rerere.rikkahub.data.files.SkillManager
 import java.io.File
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
@@ -25,7 +26,6 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.first
 import me.rerere.common.android.appTempFolder
-import com.whl.quickjs.android.QuickJSLoader
 import me.rerere.rikkahub.di.appModule
 import me.rerere.rikkahub.di.dataSourceModule
 import me.rerere.rikkahub.di.repositoryModule
@@ -39,6 +39,8 @@ import me.rerere.rikkahub.service.WebServerService
 import me.rerere.rikkahub.utils.CrashHandler
 import me.rerere.rikkahub.utils.DatabaseUtil
 import me.rerere.rikkahub.data.repository.WorkspaceRepository
+// [DFWX AI-004] 存量内置渠道一次性清理
+import me.rerere.rikkahub.dfwx.DfwxBuiltinProviderCleanup
 import me.rerere.workspace.WorkspaceManager
 import org.koin.android.ext.android.get
 import org.koin.android.ext.koin.androidContext
@@ -52,8 +54,9 @@ const val CHAT_COMPLETED_NOTIFICATION_CHANNEL_ID = "chat_completed"
 const val CHAT_LIVE_UPDATE_NOTIFICATION_CHANNEL_ID = "chat_live_update"
 const val WEB_SERVER_NOTIFICATION_CHANNEL_ID = "web_server"
 
-// [DFWX PATCH] class → open class：东方无限宿主的 Application（cc.nkbr.lanzouplus.App）需要继承本类
-// 以完成 Koin 等进程级初始化（库清单的 android:name 合并时不生效）。同步上游时需重放。
+// [DFWX PATCH P10] 上游为 `class RikkaHubApp : Application()`：宿主 Application
+// （cc.nkbr.lanzouplus.App）需继承本类做进程级初始化，Kotlin 类默认 final，必须 open。
+// 同步上游时重放 open 修饰符。
 open class RikkaHubApp : Application() {
     override fun onCreate() {
         super.onCreate()
@@ -75,8 +78,6 @@ open class RikkaHubApp : Application() {
             workManagerFactory()
             modules(appModule, viewModelModule, dataSourceModule, repositoryModule)
         }
-        // [DFWX PATCH P11] 东方无限：内置默认渠道播种（幂等，只播一次；见 dfwx/BuiltinProviderSeeder.kt）
-        me.rerere.rikkahub.dfwx.BuiltinProviderSeeder.seedIfNeeded(this, get<AppScope>(), get<SettingsStore>())
         this.createNotificationChannel()
 
         // set cursor window size to 32MB
@@ -84,9 +85,6 @@ open class RikkaHubApp : Application() {
 
         // install crash handler
         CrashHandler.install(this)
-
-        // Init QuickJS native library
-        QuickJSLoader.init()
 
         // delete temp files
         deleteTempFiles()
@@ -103,11 +101,19 @@ open class RikkaHubApp : Application() {
         // sync upload files to DB
         syncManagedFiles()
 
+        // Extract builtin skills from assets after install/update
+        extractBuiltinSkills()
+
         // Start WebServer if enabled in settings
         startWebServerIfEnabled()
 
         // Increment launch count
         incrementLaunchCount()
+
+        // [DFWX AI-004] 不再播种任何内置 AI 渠道（用户拍板 2026-09-28）：
+        // 内置 API 全部移除，后续免费额度只在官方群聊发放，由用户自行配置渠道。
+        // 下面的清理器负责把老版本播过的"智能中转(内置)"渠道一次性移除（保守身份证明，只删原样未改的）。
+        DfwxBuiltinProviderCleanup.removeLegacySeedIfNeeded(this, get<AppScope>(), get<SettingsStore>())
 
         // Composer.setDiagnosticStackTraceMode(ComposeStackTraceMode.Auto)
     }
@@ -115,10 +121,8 @@ open class RikkaHubApp : Application() {
     private fun incrementLaunchCount() {
         get<AppScope>().launch {
             runCatching {
-                val store = get<SettingsStore>()
-                val current = store.settingsFlowRaw.first()
-                store.update(current.copy(launchCount = current.launchCount + 1))
-                Log.i(TAG, "incrementLaunchCount: ${store.settingsFlowRaw.first().launchCount}")
+                val count = get<SettingsStore>().incrementLaunchCount()
+                Log.i(TAG, "incrementLaunchCount: $count")
             }.onFailure {
                 Log.e(TAG, "incrementLaunchCount failed", it)
             }
@@ -162,6 +166,12 @@ open class RikkaHubApp : Application() {
                     dir.deleteRecursively()
                 }
             }
+        }
+    }
+
+    private fun extractBuiltinSkills() {
+        get<AppScope>().launch(Dispatchers.IO) {
+            get<SkillManager>().ensureBuiltinSkillsExtracted()
         }
     }
 

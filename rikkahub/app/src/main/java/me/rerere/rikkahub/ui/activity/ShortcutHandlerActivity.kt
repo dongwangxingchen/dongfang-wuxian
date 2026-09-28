@@ -7,7 +7,8 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.FileProvider
-import me.rerere.rikkahub.BuildConfig
+// [DFWX PATCH P7] 移除 me.rerere.rikkahub.BuildConfig 引用：APPLICATION_ID 是 application
+// 模块专属字段，本模块转 library 后不存在；改用 Context.packageName（宿主合并后即宿主 applicationId）。
 import me.rerere.rikkahub.RouteActivity
 import java.io.File
 
@@ -42,9 +43,7 @@ class ShortcutHandlerActivity : ComponentActivity() {
 
     private fun launchCamera() {
         val imageFile = File(cacheDir, "shortcut_camera_image.jpg")
-        // [DFWX PATCH] BuildConfig.APPLICATION_ID 是 application 模块专属字段，本模块已转
-        // library（见 rikkahub/PATCHES.md P7），改用运行时 packageName（FileProvider authority
-        // 声明用 ${applicationId} 占位符，两者在运行时等价）。同步上游时需重放。
+        // [DFWX PATCH P7] 上游为 "${BuildConfig.APPLICATION_ID}.fileprovider"
         photoURI = FileProvider.getUriForFile(this, "$packageName.fileprovider", imageFile)
         photoURI?.let {
             takePictureLauncher.launch(it)

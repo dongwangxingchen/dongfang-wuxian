@@ -61,8 +61,7 @@ class EmbedShotsJvmTest {
         compose.setContent {
             RikkaHubEmbed(
                 activity = ApplicationProvider.getApplicationContext(),
-                onBackStackReady = { holder.add(it) },
-                onOpenUsageAccessSettings = {},
+                deepLinks = { holder.add(it) },
             )
         }
         compose.waitForIdle()

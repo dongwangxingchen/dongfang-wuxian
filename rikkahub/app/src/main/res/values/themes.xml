@@ -1,9 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
 
+<!-- [DFWX PATCH P14] 上游此处仅 `<style ... />` 空体：冷启动窗口底色走系统主题，
+     浅色系统下切进 AI 内嵌页会白闪。宿主机身是 OLED 纯黑底（ThemeEngine.LEGACY bg=#000000），
+     此处同步为 #000000。同步上游时重放本属性。 -->
 <style name="Theme.Rikkahub" parent="Theme.Material3.DayNight.NoActionBar">
-    <!-- [DFWX PATCH P14] 冷启动窗口底色对齐宿主深色 #0B0A12，防浅色系统下进 AI 页白闪
-         （宿主窗口为深色，Material3 DayNight 浅色默认底为亮色）。同步上游时需重放。 -->
-    <item name="android:windowBackground">#0B0A12</item>
+    <item name="android:windowBackground">#000000</item>
 </style>
 </resources>

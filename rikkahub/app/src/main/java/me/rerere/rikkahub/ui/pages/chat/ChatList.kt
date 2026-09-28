@@ -215,6 +215,8 @@ private fun ChatListNormal(
     val density = LocalDensity.current
     val activity = LocalContext.current as? me.rerere.rikkahub.RouteActivity
 
+    // [DFWX PATCH P16] 内嵌态（AppRoutes 跑在宿主 Activity 里）拿不到 RouteActivity 实例，
+    // 因此音量键滚动同时注册到进程级 VolumeKeyBridge；宿主 MainActivity 转发按键进该桥。
     DisposableEffect(Unit) {
         val listener: (Boolean) -> Boolean = { isVolumeUp ->
             if (settings.displaySetting.enableVolumeKeyScroll) {
@@ -228,8 +230,10 @@ private fun ChatListNormal(
             } else false
         }
         activity?.volumeKeyListeners?.add(listener)
+        val unregister = me.rerere.rikkahub.dfwx.VolumeKeyBridge.add(listener)
         onDispose {
             activity?.volumeKeyListeners?.remove(listener)
+            unregister()
         }
     }
 
@@ -304,9 +308,9 @@ private fun ChatListNormal(
         ChatFontProvider(displaySetting = settings.displaySetting) {
             LazyColumn(
                 state = state,
-                // [DFWX-P21] 空态去掉 32dp：那是消息列表滚底呼吸空间，对空态照样生效，会把贴底文案
-                // 连同 24dp padding 一起抬离输入框（实测收起/弹出键盘缝恒定 69dp）；空态只留
-                // innerPadding.bottom，Box 底正好贴 bottomBar 顶，由 Column 的 24dp 提供贴合间距
+                // [DFWX P21] 空态去掉 32dp：那是消息列表滚底呼吸空间，对空态照样生效，会把贴底文案
+                // 连同下面的间距一起抬离输入框（实测收起/弹出键盘缝恒定 69dp）；空态只留
+                // innerPadding.bottom，Box 底正好贴 bottomBar 顶，由 Column 的 10dp 提供贴合间距
                 contentPadding = if (conversation.messageNodes.isEmpty()) {
                     PaddingValues(16.dp) + PaddingValues(bottom = innerPadding.calculateBottomPadding())
                 } else {
@@ -319,9 +323,10 @@ private fun ChatListNormal(
                     .hazeSource(state = hazeState)
                     .padding(top = innerPadding.calculateTopPadding()),
             ) {
-            // [DFWX-P19] 空聊天占位：上游无空态设计，空会话时 LazyColumn 只剩滚动 Spacer，整页空白
-            // [DFWX-P20] v1.19.9 居中改贴输入框：键盘弹出时 viewport 变矮，居中文案上下全是空白；
-            // 对齐 ChatGPT/谷歌 Gemini 惯例——空态文案沉底（距输入框约 24dp），随键盘一起浮上来
+            // [DFWX P19] 空聊天占位：上游无空态设计，空会话时 LazyColumn 只剩滚动 Spacer，整页空白
+            // [DFWX P20] v1.19.9 居中改贴输入框：键盘弹出时 viewport 变矮，居中文案上下全是空白；
+            // 对齐 ChatGPT/谷歌 Gemini 惯例——空态文案沉底，随键盘一起浮上来。
+            // 上游同步时需重放（分支 + item key + 下面 itemsIndexed 的 else 包裹与收尾大括号）。
             if (conversation.messageNodes.isEmpty()) {
                 item(key = "DfwxEmptyChatState") {
                     Box(
@@ -330,7 +335,7 @@ private fun ChatListNormal(
                     ) {
                         Column(
                             horizontalAlignment = Alignment.CenterHorizontally,
-                            // [DFWX-P21] 10dp 而非 24dp：加上文字行盒与卡片内边距后，视觉缝正好 ≈24dp（实测 116→74px）
+                            // [DFWX P21] 10dp 而非 24dp：加上文字行盒与卡片内边距后，视觉缝正好 ≈24dp
                             modifier = Modifier.padding(bottom = 10.dp),
                         ) {
                             Text(
@@ -403,8 +408,8 @@ private fun ChatListNormal(
                         )
                     }
                 }
-            } // [DFWX-P19] itemsIndexed 内容闭包
-            } // [DFWX-P19] else 闭包
+            } // [DFWX P19] itemsIndexed 内容闭包
+            } // [DFWX P19] else 闭包
 
             if (!loading && assistant?.allowConversationSystemPrompt == true && onConversationSystemPromptChange != null) {
                 item(key = "ConversationSystemPrompt") {

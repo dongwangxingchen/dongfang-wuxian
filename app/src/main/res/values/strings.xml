@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- [DFWX] 品牌名覆盖（不可删）：vendor rikkahub 在 7 个语言目录里定义了 app_name="RikkaHub"，
+     被前台通知标题（ChatGenerationForegroundService）、系统文件管理器工作区入口（WorkspaceDocumentsProvider）
+     与关于页引用。宿主模块同名资源按语言逐一覆盖，才能让所有语言下都显示东方无限——
+     只写 values/ 默认项无效：运行时 locale 命中的 values-xx（vendor 提供）优先于默认项。
+     宿主导入的每个语言目录都必须有同名条目。本文件属宿主，vendor 同步不影响。 -->
+<resources>
+    <string name="app_name">东方无限</string>
+</resources>

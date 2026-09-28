@@ -5,6 +5,7 @@ import androidx.compose.runtime.Composable
 import me.rerere.rikkahub.ui.theme.presets.AutumnThemePreset
 import me.rerere.rikkahub.ui.theme.presets.BlackThemePreset
 import me.rerere.rikkahub.ui.theme.presets.ClaudeThemePreset
+// [DFWX PATCH P17] 东方无限品牌主题
 import me.rerere.rikkahub.ui.theme.presets.DongfangThemePreset
 import me.rerere.rikkahub.ui.theme.presets.MinimalThemePreset
 import me.rerere.rikkahub.ui.theme.presets.OceanThemePreset
@@ -24,7 +25,7 @@ data class PresetTheme(
 
 val PresetThemes by lazy {
     listOf(
-        // [DFWX PATCH P17] 东方无限品牌预设置首 = 全新安装默认主题（themeId 默认取 PresetThemes[0]）
+        // [DFWX PATCH P17] 置首 = 全新安装的默认主题（PreferencesStore 的 themeId 默认取 PresetThemes[0].id）
         DongfangThemePreset,
         SakuraThemePreset,
         OceanThemePreset,
@@ -37,7 +38,8 @@ val PresetThemes by lazy {
 }
 
 fun findPresetTheme(id: String): PresetTheme {
-    return PresetThemes.find { it.id == id } ?: SakuraThemePreset
+    // [DFWX PATCH P17] 兜底改 PresetThemes[0]（东方主题）而非硬编码 SakuraThemePreset
+    return PresetThemes.find { it.id == id } ?: DongfangThemePreset
 }
 
 fun findThemeById(id: String, customThemes: List<CustomTheme>): PresetTheme? {
