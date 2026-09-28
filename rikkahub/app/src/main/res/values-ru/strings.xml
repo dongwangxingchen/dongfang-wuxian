@@ -540,7 +540,7 @@
   <string name="reasoning_picker_title">Настроить глубину мышления модели</string>
   <string name="reasoning_xhigh">Очень высокий</string>
   <string name="regenerate">Сгенерировать заново</string>
-  <string name="regenerate_confirm_message">Вы уверены, что хотите перегенерировать это сообщение?</string>
+  <string name="regenerate_confirm_message">Вы уверены, что хотите заново сгенерировать это сообщение? Все сообщения ниже этого будут удалены.</string>
   <string name="render_with_webview">Отображать в WebView</string>
   <string name="rikkahub_provider_description">Официальный бесплатный AI-сервис, использующий средства спонсоров для предоставления новым пользователям бесплатных моделей в качестве резерва; API-ключ не требуется. Действуют строгие ограничения по частоте запросов. Если у вас есть собственный провайдер, используйте его по возможности.</string>
   <string name="safe_mode_assistants">Помощники</string>
@@ -1375,4 +1375,21 @@
   <string name="workspace_detail_compatibility_mode">Режим совместимости</string>
   <string name="workspace_detail_compatibility_mode_desc">Попробуйте включить это, если терминал не запускается. Это может снизить производительность. Применяется к новым вкладкам терминала и последующим командам.</string>
   <string name="workspace_detail_settings_save_failed">Не удалось сохранить настройки</string>
+  <string name="setting_display_page_background_effect_title">Эффект фона панели ввода</string>
+  <string name="setting_display_page_background_effect_desc">Включить эффект размытия или стекла на панели ввода чата</string>
+  <string name="setting_display_page_background_effect_type">Тип фонового эффекта</string>
+  <string name="setting_display_page_background_effect_blur">Размытие</string>
+  <string name="setting_display_page_background_effect_glass">Стекло</string>
+  <string name="safe_mode_enter_app">Войти в приложение</string>
+  <string name="setting_tts_page_temperature">Температура</string>
+  <string name="setting_tts_page_temperature_description">Управляет случайностью голоса (0.0–1.0, выше — более выразительно)</string>
+  <string name="setting_tts_page_fish_audio_speed_description">Скорость речи (0.5–2.0, 1.0 — обычная)</string>
+  <string name="theme_name_claude">Claude</string>
+  <string name="workspace_terminal_tab">Терминал %1$d</string>
+  <string name="workspace_terminal_new_tab">Новая вкладка терминала</string>
+  <string name="workspace_terminal_close_tab">Закрыть терминал %1$d</string>
+  <string name="workspace_terminal_no_tabs">Нет открытых вкладок терминала</string>
+  <string name="assistant_page_context_message_limit_too_small">Лимит сообщений контекста не может быть меньше %1$d. Значение сброшено до %1$d.</string>
+  <string name="skills_page_search_placeholder">Поиск навыков</string>
+  <string name="skills_page_search_no_result">Нет подходящих навыков</string>
 </resources>

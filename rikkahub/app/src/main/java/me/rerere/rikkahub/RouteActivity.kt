@@ -1,3 +1,18 @@
+// ============================================================================
+// [DFWX PATCH P4/P16] 本文件基于上游 re-ovo/rikkahub RouteActivity.kt。
+// 相对上游的差异：
+//  P4  ：AndroidManifest 中本 Activity 的 MAIN/LAUNCHER intent-filter 已移除
+//        （宿主桌面入口是 cc.nkbr.lanzouplus.MainActivity，避免双图标）。
+//  P16 ：AppRoutes() 函数体已顶层化到 `ui/routes/AppRoutes.kt`，本文件只保留
+//        Activity 外壳（导航栈持有、外部 intent 分发、音量键监听、图像加载器装配），
+//        并在 setContent 里调用顶层 AppRoutes：
+//          - 原来 SideEffect 里的 `navStack = backStack; while (pendingIntents...)`
+//            注入逻辑，改由 DeepLinkSink 回调（`backStackSink`）承载，行为不变；
+//          - 原来 `this@RouteActivity.openUsageAccessSettings()` 改为传 context。
+// 其余（SafeMode 崩溃检查、dispatchKeyEvent、disableNavigationBarContrast、
+// handleIntent 的目的地映射、Screen sealed interface）与上游一致。
+// 同步上游时：覆盖本文件后重放 P4 与 P16 两处。
+// ============================================================================
 package me.rerere.rikkahub
 
 import android.annotation.SuppressLint
@@ -8,44 +23,8 @@ import android.view.KeyEvent
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.SharedTransitionLayout
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.scaleIn
-import androidx.compose.animation.scaleOut
-import androidx.compose.animation.slideInHorizontally
-import androidx.compose.animation.slideOutHorizontally
-import androidx.compose.animation.togetherWith
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.SideEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.ExperimentalComposeUiApi
-import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.testTagsAsResourceId
-import androidx.compose.ui.unit.dp
-import androidx.core.net.toUri
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.viewmodel.navigation3.rememberViewModelStoreNavEntryDecorator
 import androidx.navigation3.runtime.NavKey
-import androidx.navigation3.runtime.entryProvider
-import androidx.navigation3.runtime.rememberNavBackStack
-import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
-import androidx.navigation3.ui.NavDisplay
 import coil3.ImageLoader
 import coil3.compose.setSingletonImageLoaderFactory
 import coil3.gif.AnimatedImageDecoder
@@ -54,86 +33,14 @@ import coil3.network.cachecontrol.CacheControlCacheStrategy
 import coil3.network.okhttp.OkHttpNetworkFetcherFactory
 import coil3.request.crossfade
 import coil3.svg.SvgDecoder
-import com.dokar.sonner.Toaster
-import com.dokar.sonner.rememberToasterState
 import kotlinx.serialization.Serializable
 import me.rerere.rikkahub.data.datastore.SettingsStore
-import me.rerere.rikkahub.data.db.DatabaseMigrationTracker
-import me.rerere.rikkahub.data.db.MigrationState
-import me.rerere.rikkahub.data.event.AppEvent
-import me.rerere.rikkahub.data.event.AppEventBus
-import me.rerere.rikkahub.dfwx.RikkaHubEmbed
 import me.rerere.rikkahub.ui.activity.SafeModeActivity
-import me.rerere.rikkahub.ui.components.ui.TTSController
-import me.rerere.rikkahub.ui.context.LocalASRState
-import me.rerere.rikkahub.ui.context.LocalNavController
-import me.rerere.rikkahub.ui.context.LocalSettings
-import me.rerere.rikkahub.ui.context.LocalSharedTransitionScope
-import me.rerere.rikkahub.ui.context.LocalTTSState
-import me.rerere.rikkahub.ui.context.LocalToaster
-import me.rerere.rikkahub.ui.context.Navigator
-import me.rerere.rikkahub.ui.hooks.readBooleanPreference
-import me.rerere.rikkahub.ui.hooks.readStringPreference
-import me.rerere.rikkahub.ui.hooks.rememberCustomAsrState
-import me.rerere.rikkahub.ui.hooks.rememberCustomTtsState
-import me.rerere.rikkahub.ui.pages.assistant.AssistantPage
-import me.rerere.rikkahub.ui.pages.assistant.detail.AssistantBasicPage
-import me.rerere.rikkahub.ui.pages.assistant.detail.AssistantDetailPage
-import me.rerere.rikkahub.ui.pages.assistant.detail.AssistantExtensionsPage
-import me.rerere.rikkahub.ui.pages.assistant.detail.AssistantLocalToolPage
-import me.rerere.rikkahub.ui.pages.assistant.detail.AssistantMcpPage
-import me.rerere.rikkahub.ui.pages.assistant.detail.AssistantMemoryPage
-import me.rerere.rikkahub.ui.pages.assistant.detail.AssistantPromptPage
-import me.rerere.rikkahub.ui.pages.assistant.detail.AssistantRequestPage
-import me.rerere.rikkahub.ui.pages.backup.BackupPage
-import me.rerere.rikkahub.ui.pages.chat.ChatPage
-import me.rerere.rikkahub.ui.pages.debug.DebugPage
-import me.rerere.rikkahub.ui.pages.extensions.ExtensionsPage
-import me.rerere.rikkahub.ui.pages.extensions.PromptPage
-import me.rerere.rikkahub.ui.pages.extensions.QuickMessagesPage
-import me.rerere.rikkahub.ui.pages.extensions.skills.SkillDetailPage
-import me.rerere.rikkahub.ui.pages.extensions.skills.SkillsPage
-import me.rerere.rikkahub.ui.pages.extensions.workspace.WorkspacePage
-import me.rerere.rikkahub.ui.pages.extensions.workspace.WorkspaceDetailPage
-import me.rerere.rikkahub.ui.pages.extensions.workspace.WorkspaceFileEditorPage
-import me.rerere.rikkahub.ui.pages.extensions.workspace.WorkspaceTerminalPage
-import me.rerere.workspace.WorkspaceStorageArea
-import me.rerere.rikkahub.ui.pages.favorite.FavoritePage
-import me.rerere.rikkahub.ui.pages.history.HistoryPage
-import me.rerere.rikkahub.ui.pages.imggen.ImageGenPage
-import me.rerere.rikkahub.ui.pages.log.LogPage
-import me.rerere.rikkahub.ui.pages.search.SearchPage
-import me.rerere.rikkahub.ui.pages.setting.SettingAboutPage
-import me.rerere.rikkahub.ui.pages.setting.SettingPreferencesPage
-import me.rerere.rikkahub.ui.pages.setting.SettingPreferencesThemePage
-import me.rerere.rikkahub.ui.pages.setting.SettingPreferencesNotificationPage
-import me.rerere.rikkahub.ui.pages.setting.SettingPreferencesGeneralPage
-import me.rerere.rikkahub.ui.pages.setting.SettingPreferencesNetworkPage
-import me.rerere.rikkahub.ui.pages.setting.SettingPreferencesUIPage
-import me.rerere.rikkahub.ui.pages.setting.SettingThemePage
-import me.rerere.rikkahub.ui.pages.setting.SettingDonatePage
-import me.rerere.rikkahub.ui.pages.setting.SettingFilesPage
-import me.rerere.rikkahub.ui.pages.setting.SettingMcpPage
-import me.rerere.rikkahub.ui.pages.setting.SettingModelPage
-import me.rerere.rikkahub.ui.pages.setting.SettingPage
-import me.rerere.rikkahub.ui.pages.setting.SettingProviderDetailPage
-import me.rerere.rikkahub.ui.pages.setting.SettingProviderPage
-import me.rerere.rikkahub.ui.pages.setting.SettingSearchDetailPage
-import me.rerere.rikkahub.ui.pages.setting.SettingSearchPage
-import me.rerere.rikkahub.ui.pages.setting.SettingSpeechPage
-import me.rerere.rikkahub.ui.pages.setting.SettingWebPage
-import me.rerere.rikkahub.ui.pages.share.handler.ShareHandlerPage
-import me.rerere.rikkahub.ui.pages.stats.StatsPage
-import me.rerere.rikkahub.ui.pages.translator.TranslatorPage
-import me.rerere.rikkahub.ui.pages.webview.WebViewPage
-import me.rerere.rikkahub.ui.theme.LocalDarkMode
+import me.rerere.rikkahub.ui.routes.AppRoutes
 import me.rerere.rikkahub.ui.theme.RikkahubTheme
 import me.rerere.rikkahub.utils.CrashHandler
-import me.rerere.rikkahub.utils.openUsageAccessSettings
 import okhttp3.OkHttpClient
 import org.koin.android.ext.android.inject
-import org.koin.compose.koinInject
-import kotlin.uuid.Uuid
 
 private const val TAG = "RouteActivity"
 private const val ACTION_TRANSLATE = "me.rerere.rikkahub.action.TRANSLATE"
@@ -153,9 +60,12 @@ class RouteActivity : ComponentActivity() {
             val isVolumeUp = when (event.keyCode) {
                 KeyEvent.KEYCODE_VOLUME_UP -> true
                 KeyEvent.KEYCODE_VOLUME_DOWN -> false
+                // [DFWX PATCH P16] 内嵌态的音量键经共享桥转发（宿主 MainActivity.dispatchKeyEvent）；
+                // 独立入口这里仍是本地列表，行为与上游一致。
                 else -> return super.dispatchKeyEvent(event)
             }
             if (volumeKeyListeners.lastOrNull()?.invoke(isVolumeUp) == true) return true
+            if (me.rerere.rikkahub.dfwx.VolumeKeyBridge.dispatch(isVolumeUp)) return true
         }
         return super.dispatchKeyEvent(event)
     }
@@ -193,7 +103,17 @@ class RouteActivity : ComponentActivity() {
                         }
                         .build()
                 }
-                AppRoutes()
+                // [DFWX PATCH P16] 上游此处为 AppRoutes()（成员函数，含内联的
+                // navStack/pendingIntents 注入）；现改为顶层函数 + DeepLinkSink 回调。
+                AppRoutes(
+                    context = this,
+                    deepLinks = { backStack ->
+                        navStack = backStack
+                        while (pendingIntents.isNotEmpty()) {
+                            handleIntent(pendingIntents.removeFirst())
+                        }
+                    },
+                )
             }
         }
     }
@@ -231,29 +151,9 @@ class RouteActivity : ComponentActivity() {
             backStack.add(destination)
         }
     }
-
-    @OptIn(ExperimentalComposeUiApi::class)
-    @Composable
-    fun AppRoutes() {
-        // [DFWX PATCH P16] 界面整体迁往 dfwx/RikkaHubEmbed.kt（东方无限宿主把本界面内嵌进
-        // 主界面底栏"AI"页，不再跳转独立 Activity）。上游 AppRoutes 更新时，对照上游重放
-        // RikkaHubEmbed 的对应增删；此处仅保留：导航栈回调（供分享/快捷入口 push）与
-        // 无障碍设置桥接。音量键滚动功能内嵌态暂不可用（登记于 PATCHES P16）。
-        RikkaHubEmbed(
-            activity = this,
-            onBackStackReady = {
-                navStack = it
-                while (pendingIntents.isNotEmpty()) {
-                    handleIntent(pendingIntents.removeFirst())
-                }
-            },
-            onOpenUsageAccessSettings = { openUsageAccessSettings() },
-        )
-    }
 }
 
 sealed interface Screen : NavKey {
-
     @Serializable
     data class Chat(
         val id: String,

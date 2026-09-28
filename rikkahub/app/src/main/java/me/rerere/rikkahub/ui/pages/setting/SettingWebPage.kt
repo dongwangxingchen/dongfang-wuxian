@@ -191,7 +191,8 @@ fun SettingWebPage() {
     ) { innerPadding ->
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
-            // [DFWX] 底部给 ExtendedFAB 留出净空（56dp 高 + 16dp 边距 + 16dp 余量），手表屏高下 Start 按钮曾压住 localhost 卡片（截图验收 2026-09-19）
+            // [DFWX PATCH U8] 底部给 ExtendedFAB 留净空（56dp 高 + 16dp 边距 + 16dp 余量）：
+            // 默认 8dp 会让 Start 按钮压住最后一张卡片；上游同步时需重放
             contentPadding = innerPadding + PaddingValues(top = 8.dp, start = 8.dp, end = 8.dp, bottom = 88.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {

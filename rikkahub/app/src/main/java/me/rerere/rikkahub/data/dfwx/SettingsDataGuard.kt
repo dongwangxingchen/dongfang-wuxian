@@ -22,8 +22,8 @@ import kotlin.uuid.Uuid
  *    无任何 DB/Context 依赖，结构上不可能清空聊天（契约由 SettingsDataGuardChatHistoryTest 钉死）。
  *
  * 所有函数均为纯函数、幂等；不读文件、不读 SharedPreferences、不输出日志。
- * 身份事实由调用方构造（AI-004 从宿主 resValue 或历史已知常量取得，参考
- * me.rerere.rikkahub.dfwx.BuiltinProviderSeeder 的播种形状）。
+ * 身份事实由调用方构造（AI-004 的存量清理器
+ * me.rerere.rikkahub.dfwx.DfwxBuiltinProviderCleanup 提供历史播种形状）。
  */
 object SettingsDataGuard {
 

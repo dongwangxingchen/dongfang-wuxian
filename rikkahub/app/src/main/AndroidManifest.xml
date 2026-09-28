@@ -71,9 +71,8 @@
       android:importantForAutofill="noExcludeDescendants"
       android:theme="@style/Theme.Rikkahub"
       android:windowSoftInputMode="adjustResize">
-      <!-- [DFWX PATCH] 移除上游 MAIN/LAUNCHER intent-filter：宿主东方无限的桌面入口是
-           cc.nkbr.lanzouplus.MainActivity，避免合并出第二个桌面图标。SEND/PROCESS_TEXT
-           等分享入口全部保留。同步上游时需重放本改动。 -->
+      <!-- [DFWX PATCH P4] 上游此处有 MAIN/LAUNCHER intent-filter：宿主桌面入口是
+           cc.nkbr.lanzouplus.MainActivity，保留会导致桌面双图标。同步上游时删除本块。 -->
       <intent-filter>
         <action android:name="android.intent.action.SEND" />
 

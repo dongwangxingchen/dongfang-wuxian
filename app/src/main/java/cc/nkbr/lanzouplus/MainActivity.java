@@ -136,9 +136,21 @@ public final class MainActivity extends androidx.activity.ComponentActivity impl
   // sticky 语义保证延迟期间连接不丢事件。
   void deferredAdbShellStart(){adbShell.start();}
   @Override public void onCreate(Bundle b){super.onCreate(b);ACTIVE_OWNER=this;ACTIVE_INSTANCE=new java.lang.ref.WeakReference<>(this);applySystemColors();deleteSharedPreferences("premium-session-v1");io.execute(()->{try{java.security.KeyStore ks=java.security.KeyStore.getInstance("AndroidKeyStore");ks.load(null);if(ks.containsAlias("cc.nkbr.lanzouplus.premium.v1"))ks.deleteEntry("cc.nkbr.lanzouplus.premium.v1");}catch(Exception ignored){}});// v1.23 优享移除:一次性清理旧版本本机加密会话,不留无法清除的残留
-loadSearchSettings();applyUserAgentSettings();detectWeakDevice();installBackAnimationCallback();core=new LanzouCore(this);core.setDirectoryCachingEnabled(true);core.setIndexPauseSupplier(this::directoryIndexPaused);directResolver=new DirectLinkResolver(this,core);adbShell=new AdbShellManager(this,this::onAdbShellStateChanged);ui.postDelayed(this::deferredAdbShellStart,3000);loadDownloadHistory();loadRecommendations();activeSource=home;getPreferences(0).edit().putBoolean("accepted",true).apply();startMainExperience();if(!getPreferences(0).getBoolean("oldAiNoticed",false)&&!getSharedPreferences("ai_chat_settings",0).getAll().isEmpty()){getPreferences(0).edit().putBoolean("oldAiNoticed",true).apply();ui.post(()->showNotice("AI 对话已全新升级：旧版 AI 配置已停用（不影响其他数据），新版已内置默认渠道，可在 AI 页抽屉底部的设置里管理",true));}handleExternalAction(getIntent());}
+loadSearchSettings();applyUserAgentSettings();detectWeakDevice();installBackAnimationCallback();core=new LanzouCore(this);core.setDirectoryCachingEnabled(true);core.setIndexPauseSupplier(this::directoryIndexPaused);directResolver=new DirectLinkResolver(this,core);adbShell=new AdbShellManager(this,this::onAdbShellStateChanged);ui.postDelayed(this::deferredAdbShellStart,3000);loadDownloadHistory();loadRecommendations();activeSource=home;getPreferences(0).edit().putBoolean("accepted",true).apply();startMainExperience();if(!getPreferences(0).getBoolean("oldAiNoticed",false)&&!getSharedPreferences("ai_chat_settings",0).getAll().isEmpty()){getPreferences(0).edit().putBoolean("oldAiNoticed",true).apply();ui.post(()->showNotice("AI 对话已全新升级：旧版 AI 配置已停用（不影响其他数据），新版请到 AI 页抽屉底部的设置里添加自己的渠道",true));}handleExternalAction(getIntent());}
 
   @Override protected void onNewIntent(Intent intent){super.onNewIntent(intent);setIntent(intent);handleExternalAction(intent);}
+  /** [DFWX PATCH P16] 内嵌 AI 页的音量键滚动：上游音量键监听挂在 RouteActivity 实例上，
+      内嵌态（AppRoutes 跑在本 Activity 的 ComposeView 里）拿不到该实例，故经进程级
+      VolumeKeyBridge 注册与分发。仅在 AI 页（pageKind==5）且监听者消费时才拦截。 */
+  @Override public boolean dispatchKeyEvent(android.view.KeyEvent event){
+    if(pageKind==5&&event.getAction()==android.view.KeyEvent.ACTION_DOWN){
+      int code=event.getKeyCode();
+      if(code==android.view.KeyEvent.KEYCODE_VOLUME_UP||code==android.view.KeyEvent.KEYCODE_VOLUME_DOWN){
+        if(me.rerere.rikkahub.dfwx.VolumeKeyBridge.INSTANCE.dispatch(code==android.view.KeyEvent.KEYCODE_VOLUME_UP))return true;
+      }
+    }
+    return super.dispatchKeyEvent(event);
+  }
   static boolean enqueueWebDownload(String url,String name){MainActivity activity=ACTIVE_OWNER!=null?ACTIVE_OWNER:ACTIVE_INSTANCE.get();if(activity==null||activity.isFinishing())return false;activity.runOnUiThread(()->activity.startWebDirectDownload(url,name));return true;}
   static boolean showWebNotice(String message,boolean longLived){MainActivity activity=ACTIVE_OWNER!=null?ACTIVE_OWNER:ACTIVE_INSTANCE.get();if(activity==null||activity.isFinishing())return false;activity.showNotice(message,longLived);return true;}
   /** 给 SupportActivity 的静态回执（同 showWebNotice 通道；SupportActivity 无法直接拿到 activity 实例） */

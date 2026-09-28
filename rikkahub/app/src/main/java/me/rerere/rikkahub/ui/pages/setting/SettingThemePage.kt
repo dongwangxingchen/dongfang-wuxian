@@ -65,14 +65,16 @@ import kotlinx.coroutines.launch
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import me.rerere.hugeicons.HugeIcons
-import me.rerere.hugeicons.stroke.Copy01
-import me.rerere.hugeicons.stroke.Delete02
-import me.rerere.hugeicons.stroke.Edit02
+import me.rerere.hugeicons.stroke.Delete01
 import me.rerere.hugeicons.stroke.FileImport
+import me.rerere.hugeicons.stroke.PencilEdit01
 import me.rerere.hugeicons.stroke.PlusSign
+import me.rerere.hugeicons.stroke.Share03
 import me.rerere.hugeicons.stroke.Tick01
 import me.rerere.rikkahub.R
 import me.rerere.rikkahub.ui.components.nav.BackButton
+import me.rerere.rikkahub.ui.components.ui.ItemAction
+import me.rerere.rikkahub.ui.components.ui.ItemActionMenu
 import me.rerere.rikkahub.ui.components.ui.RikkaConfirmDialog
 import me.rerere.rikkahub.ui.context.LocalToaster
 import me.rerere.rikkahub.ui.pages.setting.components.PresetThemeButtonGroup
@@ -294,7 +296,8 @@ fun SettingThemePage(vm: SettingVM = koinViewModel()) {
         onConfirm = {
             deletingTheme?.let { theme ->
                 val newThemes = settings.customThemes.filter { it.id != theme.id }
-                val newThemeId = if (settings.themeId == theme.id) "sakura" else settings.themeId
+                // [DFWX PATCH P17] 删掉当前自定义主题后回落到东方主题（上游硬编码 "sakura"）
+                val newThemeId = if (settings.themeId == theme.id) "dfwx" else settings.themeId
                 vm.updateSettings(settings.copy(customThemes = newThemes, themeId = newThemeId))
             }
             deletingTheme = null
@@ -359,21 +362,26 @@ private fun CustomThemeItem(
             }
         },
         trailingContent = {
-            Row {
-                IconButton(onClick = onExport) {
-                    Icon(HugeIcons.Copy01, null)
-                }
-                IconButton(onClick = onEdit) {
-                    Icon(HugeIcons.Edit02, null)
-                }
-                IconButton(onClick = onDelete) {
-                    Icon(
-                        HugeIcons.Delete02,
-                        null,
-                        tint = MaterialTheme.colorScheme.error
-                    )
-                }
-            }
+            ItemActionMenu(
+                actions = listOf(
+                    ItemAction(
+                        text = stringResource(R.string.edit),
+                        icon = HugeIcons.PencilEdit01,
+                        onClick = onEdit,
+                    ),
+                    ItemAction(
+                        text = stringResource(R.string.export_title),
+                        icon = HugeIcons.Share03,
+                        onClick = onExport,
+                    ),
+                    ItemAction(
+                        text = stringResource(R.string.delete),
+                        icon = HugeIcons.Delete01,
+                        destructive = true,
+                        onClick = onDelete,
+                    ),
+                )
+            )
         },
         colors = CustomColors.listItemColors,
     )

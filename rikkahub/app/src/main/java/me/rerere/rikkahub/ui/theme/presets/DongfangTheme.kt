@@ -10,15 +10,22 @@ import me.rerere.rikkahub.ui.theme.PresetTheme
 
 /**
  * [DFWX PATCH P17] 东方无限品牌预设主题：色板对齐宿主 ThemeEngine
- * （BG #0B0A12 / SURFACE #16141F / PRIMARY #A78BFA / TEXT #F2F0F7 / MUTED #9A93AB / DIV #262332），
+ * （BG #000000 / SURFACE #16141F / PRIMARY #A78BFA / TEXT #F2F0F7 / MUTED #9A93AB / DIV #262332），
  * 让内嵌的 AI 界面与宿主观感一致。注册于 PresetThemes 首位 = 全新安装默认主题。
- * 同步上游时需重放（新增文件 + PresetThemes 列表首位插入）。
+ *
+ * v1.19.7 起宿主底色已是 OLED 真黑（ThemeEngine BG=0xFF000000），故 background/surface/surfaceDim
+ * 同步取纯黑，避免 AI 页比宿主"亮一档"。
+ *
+ * 主题名用宿主资源 dfwx_app_name（"东方无限"），不用 vendor 的 app_name——后者在 values-zh 等
+ * 6 个语言里仍是 "RikkaHub"，会显示错误品牌名。
+ *
+ * 同步上游时需重放（新增文件 + PresetTheme.kt 列表首位插入 + Theme.kt dynamicColor 关闭）。
  */
 val DongfangThemePreset by lazy {
     PresetTheme(
         id = "dfwx",
         name = {
-            Text(stringResource(id = R.string.app_name))
+            Text(stringResource(id = R.string.dfwx_theme_name))
         },
         standardLight = dongfangLightScheme,
         standardDark = dongfangDarkScheme,
@@ -77,9 +84,9 @@ private val errorDark = Color(0xFFFFB4AB)
 private val onErrorDark = Color(0xFF690005)
 private val errorContainerDark = Color(0xFF93000A)
 private val onErrorContainerDark = Color(0xFFFFDAD6)
-private val backgroundDark = Color(0xFF0B0A12)
+private val backgroundDark = Color(0xFF000000)
 private val onBackgroundDark = Color(0xFFF2F0F7)
-private val surfaceDark = Color(0xFF0B0A12)
+private val surfaceDark = Color(0xFF000000)
 private val onSurfaceDark = Color(0xFFF2F0F7)
 private val surfaceVariantDark = Color(0xFF262332)
 private val onSurfaceVariantDark = Color(0xFF9A93AB)
@@ -87,9 +94,9 @@ private val outlineDark = Color(0xFF4A4460)
 private val outlineVariantDark = Color(0xFF262332)
 private val scrimDark = Color(0xFF000000)
 private val inverseSurfaceDark = Color(0xFFF2F0F7)
-private val inverseOnSurfaceDark = Color(0xFF0B0A12)
+private val inverseOnSurfaceDark = Color(0xFF000000)
 private val inversePrimaryDark = Color(0xFF6B4FD8)
-private val surfaceDimDark = Color(0xFF0B0A12)
+private val surfaceDimDark = Color(0xFF000000)
 private val surfaceBrightDark = Color(0xFF3A3550)
 private val surfaceContainerLowestDark = Color(0xFF08070E)
 private val surfaceContainerLowDark = Color(0xFF16141F)

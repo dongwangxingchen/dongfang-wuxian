@@ -1,0 +1,43 @@
+# 构建产物（任意层级）
+build/
+.gradle/
+.kotlin/
+.cxx/
+
+# ==== 上游不带入（源侧排除） ====
+.agents/
+.claude/
+.github/
+docs/
+locale-tui/
+trace-cli/
+web-ui/
+videogen/
+package.json
+bun.lock
+app/baselineprofile/
+
+# ==== 东方无限自有资产（目标侧保护，禁止被 --delete 清除） ====
+.dfwx-rsync-excludes.txt
+PATCHES.md
+CONTRIBUTING.md
+material3/material-color-utilities/
+app/src/main/java/me/rerere/rikkahub/dfwx/
+app/src/main/java/me/rerere/rikkahub/data/dfwx/
+app/src/main/java/me/rerere/rikkahub/ui/routes/
+app/src/main/java/me/rerere/rikkahub/ui/theme/presets/DongfangTheme.kt
+app/src/main/dfwxKeepRules/
+app/src/main/res/values/dfwx.xml
+app/src/test/java/me/rerere/rikkahub/dfwx/
+app/src/test/java/me/rerere/rikkahub/data/dfwx/
+ai/src/main/java/me/rerere/ai/provider/AiUrlPolicy.kt
+ai/src/main/java/me/rerere/ai/provider/AiUrlPolicyInterceptor.kt
+ai/src/test/java/me/rerere/ai/provider/AiUrlPolicyTest.kt
+web/src/main/resources/static/index.html
+web/src/main/resources/.gitignore
+
+# ==== 版本目录（宿主 versionCatalog 源，需逐行手改，不可整份覆盖） ====
+gradle/libs.versions.toml
+
+# ==== P9：keepRules 目录已改名为 dfwxKeepRules（AGP9 库模块会拒绝 consumer 规则里的 -dontobfuscate） ====
+app/src/main/keepRules/

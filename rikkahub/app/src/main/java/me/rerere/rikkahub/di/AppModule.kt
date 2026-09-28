@@ -2,6 +2,10 @@ package me.rerere.rikkahub.di
 
 import com.google.firebase.Firebase
 import com.google.firebase.analytics.analytics
+// [DFWX PATCH P15] 上游此处有 import com.google.firebase.crashlytics.crashlytics 与下方
+// single { Firebase.crashlytics } 装配，均已移除：crashlytics SDK 无官方构建插件时其
+// Firebase EAGER 组件因 build ID 缺失在 FirebaseInitProvider 阶段崩溃（早于 Application.onCreate），
+// 真机实测（Android 8.1 整循环崩）。全仓零消费点，摘除无功能损失。同步上游时重放本条。
 import kotlinx.serialization.json.Json
 import me.rerere.rikkahub.AppScope
 import me.rerere.rikkahub.data.ai.tools.local.LocalTools
@@ -49,10 +53,9 @@ val appModule = module {
         TTSManager(get())
     }
 
-    // [DFWX PATCH P15] 移除 Firebase.crashlytics Koin 装配与 SDK 依赖：转 library 后无
-    // crashlytics 构建插件，FirebaseInitProvider 的 EAGER 组件初始化会因 build ID 缺失
-    // 直接抛 IllegalStateException（早于 Application.onCreate，保底逻辑接不住），
-    // Android 8.1 真机实测整循环崩溃。审计确认全仓零消费点。同步上游时需重放。
+    // [DFWX PATCH P15] 上游此处有 single { Firebase.crashlytics }：已移除（原因见文件头 import 处注释）。
+    // 同步上游时删除本注释下方原来的那个装配块。
+
     single {
         Firebase.analytics
     }

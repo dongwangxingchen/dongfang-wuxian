@@ -30,8 +30,6 @@ dependencies {
 
     // floating
     // https://github.com/Petterpx/FloatingX
-    // [DFWX PATCH] master 的版本目录已把 floatingx 改为版本号条目+floatingx-app/floatingx-compose 两个库，
-    // 快照里本文件还是旧写法 libs.floatingx，对齐为 floatingx.app。同步上游时如上游已改则覆盖即可。
     api(libs.floatingx.app)
     api(libs.floatingx.compose)
 

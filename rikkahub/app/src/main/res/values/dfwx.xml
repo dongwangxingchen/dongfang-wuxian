@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<!-- [DFWX PATCH P17] 东方无限自有资源（非上游文件，勿被上游覆盖）。
+     主题名走独立资源名而非 vendor 的 app_name——后者在 values-zh 等 6 个语言里是 "RikkaHub"，
+     中文系统下会显示成上游品牌名。品牌名不翻译，只需默认 values。 -->
+<resources>
+  <string name="dfwx_theme_name">东方无限</string>
+</resources>

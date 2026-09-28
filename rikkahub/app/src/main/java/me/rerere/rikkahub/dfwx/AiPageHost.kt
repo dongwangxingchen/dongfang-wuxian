@@ -7,19 +7,22 @@ import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import java.io.File
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 import me.rerere.rikkahub.data.datastore.ChatFontFamily
 import me.rerere.rikkahub.data.datastore.SettingsStore
 import me.rerere.rikkahub.ui.theme.ColorMode
 import me.rerere.rikkahub.ui.theme.RikkahubTheme
-import me.rerere.rikkahub.utils.openUsageAccessSettings
 import org.koin.compose.koinInject
 
 /**
  * [DFWX PATCH P16] 供宿主（纯 Java）创建内嵌 AI 界面的桥接入口：
  * 宿主 MainActivity（androidx.activity.ComponentActivity）把返回的 ComposeView
  * 挂进自己的页面容器即可；返回键经宿主 OnBackPressedDispatcher 自然桥接。
- * [DFWX PATCH P18] 外层主题强制深色，与宿主东方风格一致（内层 RikkaHubEmbed 同参）。
+ *
+ * [DFWX PATCH P18] 主题只在这里包一层并强制深色（内层 RikkaHubEmbed 不再包，
+ * 避免 2.5.4 时代双层主题互相覆盖导致的动画/适配异常）。
+ *
  * [DFWX PATCH P24 v1.21.5] 全站字体切换（v1.21.3–v1.21.4）整体移除：宿主与 AI 页一律回系统字体，
  * 字体资产/偏好键/监听机制全部下架；仅保留一次性存量迁移——v1.21.3/v1.21.4 曾把聊天气泡
  * 写成 CUSTOM 指向我们的 filesDir 字体副本，升级后该文件不再维护，须回退 DEFAULT 并清理副本。
@@ -31,16 +34,24 @@ fun createRikkaHubEmbedView(activity: ComponentActivity): android.view.View {
         RikkahubTheme(colorMode = ColorMode.DARK) {
             val settingsStore = koinInject<SettingsStore>()
             LaunchedEffect(Unit) {
+                dfwxMigrateDefaultTheme(settingsStore)
                 dfwxMigrateLegacyChatFont(activity, settingsStore)
             }
-            RikkaHubEmbed(
-                activity = activity,
-                onBackStackReady = { },
-                onOpenUsageAccessSettings = { activity.openUsageAccessSettings() },
-            )
+            RikkaHubEmbed(activity = activity)
         }
     }
     return view
+}
+
+private const val DFWX_THEME_ID = "dfwx"
+private const val DFWX_LEGACY_THEME_ID = "sakura"
+
+/** [DFWX PATCH P17] 存量升级：上游默认主题 "sakura" 一次性迁到东方主题 "dfwx"。
+ *  只改恰好等于上游默认值的情况，用户主动选过的其他主题不动。 */
+private suspend fun dfwxMigrateDefaultTheme(store: SettingsStore) {
+    if (store.settingsFlowRaw.first().themeId == DFWX_LEGACY_THEME_ID) {
+        runCatching { store.update { it.copy(themeId = DFWX_THEME_ID) } }
+    }
 }
 
 private const val DFWX_LEGACY_FONT_DIR = "dfwx"

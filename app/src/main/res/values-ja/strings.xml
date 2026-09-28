@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- [DFWX] 品牌名覆盖（不可删）：见 app/src/main/res/values/strings.xml 顶部说明。
+     vendor 在 values-ja 里也定义了 app_name="RikkaHub"，日文系统会命中它，故各语言逐一覆盖。 -->
+<resources>
+    <string name="app_name">东方无限</string>
+</resources>
