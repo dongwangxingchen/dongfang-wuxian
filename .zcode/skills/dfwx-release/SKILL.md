@@ -31,6 +31,7 @@ description: 《东方无限》发版红线与验收清单(源自 v1.18.0 误发
 - 本地归档命名:`东方无限-vX.Y.Z.apk`(无主题后缀)
 - GitHub Release:标题=纯 `vX.Y.Z`,资产=`dongfang-wuxian-vX.Y.Z.apk`,说明一两句人话即可;**"修复版/治理版/升级版/体验版"等描述性后缀标题和资产都禁**(用户原话:只会让别人知道这是 AI 做的)
 - 归档到 `<本地目录>/黑曜/03-构建产物/`,不删旧 APK
+- **资产名必须是纯 ASCII,且上传后必核**(2026-09-28 v1.22.8 事故):`gh release upload` 直接传中文文件名(如 `东方无限-v1.22.8.apk`)时中文被截断,资产实际变成 `-v1.22.8.apk`,发给用户的 `dongfang-wuxian-vX.Y.Z.apk` 链接 404。流程:先 `cp` 成本地 ASCII 名(`/tmp/dongfang-wuxian-vX.Y.Z.apk`)再上传;上传后 `gh release view vX.Y.Z --json assets -q '.assets[].name'` 核对资产名,并把 `digest` 与本地 `shasum -a 256` 比对一致才算完成。
 
 ## 发版前自测门禁(2026-09-22 增,v1.19.8 真机卡死事故后;全过才许发)
 
