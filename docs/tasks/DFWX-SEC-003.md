@@ -1,6 +1,6 @@
 # DFWX-SEC-003：release 签名 fail-closed
 
-状态：待执行
+状态：✅ 已完成（2026-09-28）——硬编码的签名口令回退已删除（不回显具体值），缺配置时 release 构建直接失败；`-Pdfwx.unsigned` CI 开关保留
 前置：BASE-001
 
 ## 目标

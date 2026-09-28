@@ -46,18 +46,23 @@
 
 | 任务场景 | 读哪里 |
 |---|---|
+| 刚接手/换窗口 | `docs/handover/`（最新那份 + `20260928-next-window-prompt.md`；**该目录故意不提交**） |
 | 手势/滚动/搜索 bug | `docs/agents/lessons.md` 六-踩坑 2026-09-21晚 / 09-22 v1.19.5 |
 | AI 对话页改动 | `lessons.md` 六-踩坑 v1.19.5②③；`rikkahub/PATCHES.md` |
-| 发版/上传 Release | 技能 `dfwx-release`；`lessons.md` 六-踩坑 09-21 |
+| AI 页键盘/insets/顶栏错位 | `lessons.md` 六-踩坑 2026-09-28 v1.22.8（IME 根治 + **禁自研动画红线**）；任务卡 `DFWX-UI-005` |
+| 发版/上传 Release | 技能 `dfwx-release`；`lessons.md` 六-踩坑 09-21、09-28（**资产名必须 ASCII + 上传后核对 sha256**） |
 | 动画/弹簧/按压 | `lessons.md` 六-踩坑 v1.19.7 / v1.19.8（覆盖结论：触摸路径禁物理弹簧，一律 VPA） |
 | 视觉/质感/圆角/字重 | `docs/design/wear-ui-system.md`（v2，token 唯一真相）；`lessons.md` 五/六 |
 | 大功能立项 | `lessons.md` 一-五阶段工作流（大规模搜证默认跳过，常规任务直接引 spec） |
 | bug 诊断 | `lessons.md` 七（DfLog 结构化日志）；`dfwx-verify`（验证阶梯） |
 | 构建问题 | `lessons.md` 三-覆盖声明 |
+| APK/dex 产物分析（dexdump/aapt） | `lessons.md` 六-踩坑 2026-09-28（dexdump 用绝对路径；`-a` 才输出注解，否则假阳性） |
 | 审美选型 | `~/heiyao/黑曜/06-开源参考库/00-总索引.md`；`lessons.md` 八 |
 | 服务器/远程公告/后端 | 技能 `dfwx-server`（连接、接口格式、运维命令、安全现状全在里面） |
 
-## 五、当前唯一交接入口（2026-09-27）
+## 五、当前唯一交接入口（2026-09-28 晚更新）
+
+接手/换窗口时先读 `docs/handover/20260928-handover.md`（快速上手 3 步 + 当前现场 + 红线；**该目录故意不提交、不 push，是本机本地文件**——若不存在，说明换了机器或被人误删，直接用 `git show` 找不回，改按下面第 1-6 条从 `docs/plan/` 读起）。
 
 后续 AI、WorkBuddy 和人工维护必须先读：
 
@@ -67,5 +72,7 @@
 4. `docs/plan/risk-register.md`
 5. `docs/tasks/README.md`
 6. 对应的 `docs/tasks/DFWX-*.md`
+
+**当前优先队列（真机反馈驱动，优先于原计划）**：`DFWX-BRAND-003`（赞助闪退，需先拿真机堆栈）→ `DFWX-UI-005`（顶栏错位，禁自研 insets 动画）→ `DFWX-UI-006`（删空态文案），之后回原队列 `DFWX-TEST-001` 起。
 
 `docs/archive/` 只保存历史计划、研究和专题资料，不能直接作为当前实施命令。开工前必须运行 `git status --short`，保护现有未提交改动；一次只接一个任务卡，不得顺手跨领域重构。任务没有测试、编译和明确证据，不得标记完成。不得读取或输出 `local.properties`，不得执行手机不可逆操作、提交、push 或发布。涉及 vendor 时必须同步更新 `rikkahub/PATCHES.md`。

@@ -1,66 +1,74 @@
 # 东方无限：当前状态
 
 > 这是当前事实页，不是历史计划。源码、命令输出和当前规范优先于旧文档。
-> 更新日期：2026-09-28（RikkaHub 2.5.5 clean import 完成）
+> 更新日期：2026-09-28 晚（v1.22.8 已发；真机反馈三项待办）
 
 ## 1. 工作区
 
 - 桌面交接目录：`/Users/lishaowei/Desktop/东方无限`（仅存交接包 zip，勿删勿动）
 - 实际源码根目录：`/Users/lishaowei/heiyao/src`
 - 当前分支：`test`
-- 当前 HEAD：`0e37e6a`（ADB-001 状态车道 + generation 闸门）
-- **未提交在途**：RikkaHub 2.5.1 → **2.5.5 clean import**（vendor 整体替换 + 补丁重放）
-- 回退点：git tag **`dfwx-pre-255-import`**；vendor 备份 `~/heiyao/vendor-backup-before-255-20260928.tar.gz`（43MB）；旧补丁台账 `~/heiyao/PATCHES-231-backup-20260928.md`
+- 当前 HEAD：`5a854f1`（release skill 补"资产名必须 ASCII + 上传后核对 sha256"条款）；**其后有一个文档治理提交**（2026-09-28 晚：交接文档体系 + 三张真机反馈任务卡 + 台账修订，提交号见 `git log` 最新一条）
+- 工作树：**源码零改动**；`docs/handover/` 为 untracked（**故意不提交，勿顺手入库**）
+- 回退点：git tag **`dfwx-pre-255-import`**（2.5.5 导入前）；vendor 备份 `~/heiyao/vendor-backup-before-255-20260928.tar.gz`（43MB）；旧补丁台账 `~/heiyao/PATCHES-231-backup-20260928.md`（三者**勿删**）
 - applicationId：`dfwx.dongdang`；宿主 Java 包：`cc.nkbr.lanzouplus`
 - `rikkahub/`：Kotlin/Compose vendor（**上游锚点 = re-ovo/rikkahub tag `2.5.5`，versionCode 190**）与东方无限补丁层
-- 上游源码快照：`/tmp/rikkahub-255/rikkahub-2.5.5/`（临时目录，重装需重下）
+- 上游源码快照 `/tmp/rikkahub-255/`：**已清空**（临时目录），需要时重新下载
 - 桌面交接包 `东方无限_交接总包_20260920.zip`：禁止删除或移动
+- 版本号：versionCode `1039028` / versionName `1.22.8`（`app/build.gradle.kts:26-27`）；下一个版本递增为 `1039029` / `1.22.9`
 
-## 2. 当前在途变更（RikkaHub 2.5.5 clean import）
+## 2. 当前完成度（v1.22.8 覆盖范围）
 
-vendor 由上游 2.5.5 整体替换后重放全部补丁。**补丁台账权威来源 = `rikkahub/PATCHES.md`**（P1–P26 + U1 + U4–U8），同步操作清单落盘在 `rikkahub/.dfwx-rsync-excludes.txt`。
+2.5.1 → 2.5.5 clean import 已完成并已入库（提交 `6eb27b7`），补丁按 `rikkahub/PATCHES.md` 重放：
 
-本次关键结构变更：
-
-- **P16 顶层化**：上游 `RouteActivity.AppRoutes()` 成员函数抽为顶层 `ui/routes/AppRoutes.kt`，差异仅 4 处；`RouteActivity` 瘦身为 Activity 外壳；新增 `dfwx/VolumeKeyBridge.kt`（进程级音量键注册表，宿主 `MainActivity.dispatchKeyEvent` 转发）；`dfwx/RikkaHubEmbed.kt` 由 421 行复制品缩为约 60 行壳。**不再维护 400+ 行路由复制品——这是"上游更新我们也能跟"的长期可维护性底座。**
-- **AI-004 落地**：删除 `dfwx/BuiltinProviderSeeder.kt`，移除构建期 resValue 注入（`dfwx_default_ai_url/_model/_key`）与 `keep.xml` 对应条目，新增 `dfwx/DfwxBuiltinProviderCleanup.kt` 清理存量（走 AI-003 保守身份证明）。**不再内置任何 API。**
-- **P17 品牌化**：`DongfangTheme` 置首 + 全新安装默认主题；背景改 OLED 真黑 `#000000`；主题名走自有资源 `R.string.dfwx_theme_name`；`findPresetTheme` 兜底东方主题。
-- **P25（新增）**：关闭上游默认开启的 `dynamicColor`——否则 Android 12+ 会用系统壁纸取色完全绕过预设主题，东方配色名义生效实际失效。
-- **U1/NET-001 重放**：AI 链 HTTPS-only 四道防线（拦截器 + 每跳校验 + DNS 防 rebinding + 禁跨协议重定向）。
-- **U4–U8 重放**：EmojiBurst 空闲挂起（原上游逐帧空转烧 CPU）；三处空态 72dp FAB 净空；SettingWebPage 88dp 底部净空。
-- **依赖跟进**：haze-glass（2.5.5 新增）、quickjs 换 `io.github.dokar3:quickjs-kt:1.0.15`、floatingx 迁 `io.github.petterpx:*:3.0.0`（旧登记的迁移触发条件已满足，已完成）。
-- **新发现的同步陷阱**：`app/src/main/keepRules/` 必须排除（P9 已改名 `dfwxKeepRules/`，AGP9 库模块会拒绝 consumer 规则中的 `-dontobfuscate`）；已补进 `.dfwx-rsync-excludes.txt`。
+- **P16 顶层化**：上游 `RouteActivity.AppRoutes()` 抽为顶层 `ui/routes/AppRoutes.kt`（差异仅 4 处，文件头有清单）；`RouteActivity` 瘦身为外壳；`dfwx/VolumeKeyBridge.kt` + `dfwx/RikkaHubEmbed.kt`（约 60 行壳）。**不再维护 400+ 行路由复制品——这是"上游更新我们也能跟"的长期可维护性底座。**
+- **AI-004 落地**：删除内置渠道播种与构建期 resValue 注入，新增 `dfwx/DfwxBuiltinProviderCleanup.kt` 清理存量（走 AI-003 保守身份证明）。**不再内置任何 API。**
+- **P17/P25 品牌化**：`DongfangTheme` 置首 + 全新安装默认主题；背景 OLED 真黑 `#000000`；关闭上游默认开启的 `dynamicColor`（否则 Android 12+ 系统壁纸取色会完全绕过预设主题）。
+- **U1/NET-001 + U4–U8 重放**：AI 链 HTTPS-only 四道防线；EmojiBurst 空闲挂起；三处空态 72dp FAB 净空；SettingWebPage 88dp 底部净空。
+- **依赖跟进**：haze-glass（2.5.5 新增）、quickjs 换 `io.github.dokar3:quickjs-kt:1.0.15`、floatingx 迁 `io.github.petterpx:*:3.0.0`。
+- **宿主 IME 补偿收敛（v1.22.8，提交 `953fa0e`）**：删除宿主自研 250ms IME 滑行器 / stickyBelow 粘滞缓存 / 动画计数器（**与系统逐帧派发竞态，是旧版遗留、越打补丁越糟的 bug 根因**），只保留 `target = ime.bottom - host.getPaddingBottom()` 一条纯几何换算。**红线：禁止再给 AI 内嵌页叠加任何自研 insets 动画/缓存。**
 
 ## 3. 已有证据
 
-- 外部下载已分为 `lanzou`、`external`、`update`、`legacy`；
-- 外部下载入口已做 HTTPS、凭据、loopback、私网和 DNS fail-closed 策略（SEC-001，v1.22.5 起在发版链路中）；
+- 外部下载已分为 `lanzou`、`external`、`update`、`legacy`；外部下载入口已做 HTTPS、凭据、loopback、私网和 DNS fail-closed 策略（SEC-001，v1.22.5 起在发版链路中）；
 - 外部/legacy APK 不允许自动安装或 ADB/Shizuku 静默安装，安装前需要用户确认；
-- AI-002 设计报告已入库：AppRoutes 顶层化 + 窄 wrapper + 返回桥栈深守卫（`docs/tasks/DFWX-AI-002-report.md`）——**本次 2.5.5 import 已按该报告落地 P16**；
-- AI-003 数据保护层已入库：`SettingsDataGuard`（保守身份证明/悬空引用修复/迁移不变量门），12 项契约测试全过（含聊天历史保护，`data/dfwx/` 下）；
+- AI-002 设计报告已入库（`docs/tasks/DFWX-AI-002-report.md`），**已按报告落地 P16**；
+- AI-003 数据保护层已入库：`SettingsDataGuard`（保守身份证明/悬空引用修复/迁移不变量门），12 项契约测试全过（`data/dfwx/` 下）；
 - NET-001 已入库并重放：vendor AI 链 HTTPS-only（`AiUrlPolicy` + 拦截器 + DNS 防线，18 用例；AI 专用 client 派生，不影响非 AI 流量）；
 - SEC-003 已入库：release 签名 fail-closed，缺配置构建失败，`-Pdfwx.unsigned` CI 开关保留；
 - STAB-001 已入库（`54837c9`）：下载历史 debounce 落盘 + flush 不阻塞主线程 + generation/owner 双校验；
 - ADB-001 已入库（`0e37e6a`）：ADB/Shizuku 状态车道 + generation 闸门（修旧评估覆盖新状态的竞态）；
-- 补丁台账 `rikkahub/PATCHES.md` 已按 2.5.5 基线重写（P25/P26/U1/U4–U8 全部登记，含"同步上游时需重放"标注）；
-- **测试基线（2026-09-28 本机 JVM 实测，2.5.5 替换后）**：宿主 51 例 + vendor 240 例 + ai 199 例 + common 全绿，合计 **490 例**。
+- 补丁台账 `rikkahub/PATCHES.md` 已按 2.5.5 基线重写（P1–P28 + U1/U4–U8 全部登记，含"同步上游时需重放"标注）+ 宿主节含 v1.22.8 IME 收敛条目；
+- **测试基线（2026-09-28 晚本机 JVM 实测）**：**628 例全绿** —— 宿主 51 + vendor app 240 + ai 199 + common 1 + search 16 + highlight 53 + material3 1 + oauth 2 + speech 43 + web 1 + workspace 20 + document 1；
+- **release 产物证据**：v1.22.8 APK 内 `drawable/afdian`、`drawable/kofi`、`string/donate_page_*` 均存在；dex 含 `SponsorAPI`、`SettingDonatePage`、`/sponsors` 与 `https://sponsors.rikka-ai.com` 字符串（赞助闪退排查的排除项依据）。
 
 ## 4. 当前尚未完成
 
-- **release 构建终验**：`:app:assembleEmptyRelease` 全量 R8 + aapt 检查（arm64-v8a、单 launcher、APK 内不再有 `dfwx_default_ai_*` 三个资源）——**进行中**；
-- **真机验证**：2.5.5 内嵌 AI 页在真机的表现（嵌入、主题、音量键滚动、动画）——需要用户手机，须先请示；
-- AI-005：AI 生命周期、日志、HTTPS 和回归门禁（SEC-004 日志脱敏的前置）；
+### 4.1 真机反馈的三项（当前优先，详见任务卡）
+
+- **`DFWX-BRAND-003` 赞助按钮闪退**（AI 设置 → 赞助 → 闪退）：JVM 两条现有测试（`SettingDonatePageJvmTest`、`EmbedSweepJvmTest`）**都覆盖且全绿**，说明问题只在 release/R8 或真机点击路径。**第一优先**：需先拿真机崩溃堆栈（用户可用"设置→崩溃日志"复制，或请示后用 adb logcat）。
+- **`DFWX-UI-005` AI 页顶栏键盘错位**：v1.22.8 后输入框正常、顶栏仍错位。**未取证前不许改代码**，且禁止再加自研 insets 动画/缓存。
+- **`DFWX-UI-006` AI 页空态两行文案删除**：用户已明确要求删除（本地补丁 P19/P20/P21），删后与上游一致、同步成本下降。
+
+### 4.2 原计划队列
+
+- AI-005（AI 生命周期、日志、HTTPS 和回归门禁；SEC-004 的前置）；
 - SEC-004 日志脱敏；TEST-001 测试矩阵；
-- 赞助页、关于页、致谢页和品牌信任页面重做；
+- 赞助页重做（BRAND-001）、关于/致谢/隐私/许可证页（BRAND-002）；
+- UI 四卡（UI-001 动画取证 / UI-002 设置页 / UI-003 下载页 / UI-004 AI 页）、宿主领域拆分（ARCH-001）、vendor/依赖/CI/SBOM/许可证治理（DEP/CI/RELEASE）；
 - release 真机负向链路验证（用户已豁免日常下载/安装类验证）；
-- UI 四卡、宿主领域拆分、vendor/依赖/CI/SBOM/许可证治理、动画帧级证据；
-- **用户待办（只有用户能做）**：① 去 aizhongzhuan.cc 停用/更换 v1.22.6 公开 APK 中已泄露的 AI Key；② 阿里云控制台开启 MFA + 操作保护。
+- **内部服务器（已上线，APP 端未接入）**：阿里云轻量 `39.106.33.135`，已跑 nginx，接口 `/health`、`/api/notice.json`、`/api/version.json`、`/apk/`；APP 端接入代码**尚未开发**（远程公告/远程更新为待立项需求）。**任何窗口可直接 `ssh dfwx '<命令>'`**；手册见技能 `dfwx-server`。
+
+### 4.3 用户待办（只有用户能做）
+
+1. 去 aizhongzhuan.cc 停用/更换 v1.22.6 公开 APK 中已泄露的 AI Key；
+2. 阿里云控制台开启 MFA + 操作保护。
 
 ## 5. 当前第一执行任务
 
-已完成：BASE-001 归档、AI-001 基线核对、SEC-001 下载/安装边界、AI-002 设计报告、AI-003 数据保护层、NET-001、SEC-003 签名 fail-closed、补丁台账治理、STAB-001、ADB-001、**RikkaHub 2.5.5 clean import（P16 顶层化 + AI-004 + P17/P25 品牌化 + U1/U4–U8 重放）**。
+**`DFWX-BRAND-003`（赞助闪退）** —— 用户可感知、有明确复现路径、且需要真机堆栈推动。其后 `DFWX-UI-005`、`DFWX-UI-006`（建议合并同一轮），再回到原队列 `DFWX-TEST-001` → AI-005 → SEC-004 → …
 
-**下一个执行任务是 `DFWX-TEST-001`**（测试矩阵；STAB-001 与 ADB-001 均已入库，前置齐备），其后按 `docs/tasks/README.md` 队列推进（AI-005 → SEC-004 → …）。研究报告与当前代码有出入时，以当前代码为准。
+研究报告与当前代码有出入时，以当前代码为准。
 
 ## 6. 证据等级
 
