@@ -1,6 +1,6 @@
 # DFWX-AI-004：移除东方无限内置 AI 播种和构建注入
 
-状态：待执行（必须在 AI 数据保护方案后实施）
+状态：✅ 已完成（2026-09-28）——内置渠道播种与构建期 resValue 注入已删除，存量走 `dfwx/DfwxBuiltinProviderCleanup.kt` 清理（复用 AI-003 保守身份证明），随 `6eb27b7` 入库
 前置：DFWX-AI-003
 
 ## 目标

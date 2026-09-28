@@ -4,16 +4,36 @@
 
 ## 接手顺序
 
+**已完成（v1.22.8 为止，均已入库并 push `backup` 远程）**：
+
 ```text
-DFWX-BASE-001
-→ DFWX-AI-001
-→ DFWX-AI-002
-→ DFWX-AI-003
-→ DFWX-AI-004
+DFWX-BASE-001 ✅
+DFWX-AI-001 ✅（研究）
+DFWX-AI-002 ✅（设计报告，已按报告落地 P16 顶层化）
+DFWX-AI-003 ✅（SettingsDataGuard 数据保护层）
+DFWX-AI-004 ✅（已移除内置 API 播种与构建注入）
+DFWX-SEC-001 ✅（代码+JVM 策略；真机负向链路按用户豁免不补）
+DFWX-SEC-003 ✅（签名 fail-closed）
+DFWX-NET-001 ✅（AI 链 HTTPS-only 四道防线）
+DFWX-STAB-001 ✅（下载历史异步原子落盘 + generation/owner 双校验）
+DFWX-ADB-001 ✅（ADB 状态车道 + generation 闸门）
+RikkaHub 2.5.1 → 2.5.5 clean import ✅
+```
+
+**当前优先队列（真机反馈驱动，优先于原计划队列）**：
+
+```text
+DFWX-BRAND-003  赞助按钮闪退          ← 第一优先：用户可感知、需真机堆栈
+DFWX-UI-005     AI 页顶栏键盘错位      ← 用户已报告，禁止重犯自研动画红线
+DFWX-UI-006     AI 页空态文案删除      ← 用户已明确要求，小改动
+```
+
+**原计划队列（上述三项后继续）**：
+
+```text
+DFWX-TEST-001
 → DFWX-AI-005
-→ DFWX-SEC-001 / DFWX-SEC-003 / DFWX-SEC-004 / DFWX-NET-001
-→ DFWX-STAB-001 / DFWX-ADB-001
-→ DFWX-TEST-001
+→ DFWX-SEC-004
 → DFWX-BRAND-001 / DFWX-BRAND-002
 → DFWX-UI-001 / DFWX-UI-002 / DFWX-UI-003 / DFWX-UI-004
 → DFWX-ARCH-001
@@ -21,6 +41,8 @@ DFWX-BASE-001
 ```
 
 只读研究可以并行；修改 `MainActivity`、PreferencesStore、vendor 核心或构建配置时不得并行改同一文件。
+
+**UI-005 与 UI-006 建议同一轮做**（同属 AI 页键盘场景收尾），但分开提交以便单独回退。
 
 ## 当前任务卡
 
@@ -37,12 +59,15 @@ DFWX-BASE-001
 - `DFWX-STAB-001`：下载历史、并发和生命周期；
 - `DFWX-ADB-001`：ADB/Shizuku 后台状态控制；
 - `DFWX-TEST-001`：高风险链路测试矩阵；
+- **`DFWX-BRAND-003`：AI 设置页赞助按钮点击闪退（真机反馈，第一优先）；**
 - `DFWX-BRAND-001`：赞助页重做；
 - `DFWX-BRAND-002`：关于、致谢、隐私和许可证页；
 - `DFWX-UI-001`：动画根因与性能证据；
 - `DFWX-UI-002`：设置页；
 - `DFWX-UI-003`：下载页和软件库入口；
 - `DFWX-UI-004`：新版 AI Compose 页面；
+- **`DFWX-UI-005`：AI 页键盘弹出时顶部顶栏错位（真机反馈）；**
+- **`DFWX-UI-006`：AI 页空会话占位文案删除（用户明确要求）；**
 - `DFWX-ARCH-001`：宿主领域渐进拆分；
 - `DFWX-DEP-001`：vendor、依赖、SBOM、LICENSE/NOTICE；
 - `DFWX-CI-001`：CI 分层门禁；
@@ -71,6 +96,21 @@ DFWX-BASE-001
 先补可失败测试，再做最小实现；跑完测试、编译和 diff 检查后才能标记完成。
 不要读取或输出 local.properties，不操作手机不可逆动作，不提交、push 或发布。
 ```
+
+## 当前现场速查（2026-09-28 晚复核，证据等级 A）
+
+| 项 | 值 |
+|---|---|
+| 源码根 / 分支 | `/Users/<用户名><仓库根>` / `test` |
+| 当前 HEAD | `5a854f1` + 一个文档治理提交（2026-09-28 晚；`git log --oneline -1` 查最新） |
+| 工作树 | 源码零改动；`docs/handover/` untracked **故意不提交**（见该目录说明） |
+| 版本号 | versionCode `1039028` / versionName `1.22.8`（`app/build.gradle.kts:26-27`） |
+| 最新发版 | v1.22.8（GitHub Release，asset `dongfang-wuxian-v1.22.8.apk`） |
+| 测试基线 | **628 例全绿**（宿主 51 + vendor app 240 + ai 199 + common 1 + search 16 + highlight 53 + material3 1 + oauth 2 + speech 43 + web 1 + workspace 20 + document 1） |
+| 宿主测试命令 | `JAVA_HOME=/Users/<用户名>/sdk/jdk-21.0.11.jdk/Contents/Home <本地目录>/src/gradlew -p <本地目录>/src :app:testEmptyDebugUnitTest` |
+| vendor 测试命令 | 同上，任务名 `:rikkahub-app:testDebugUnitTest`（**vendor 无 flavor，不叫 testEmptyDebugUnitTest**——这是踩过的坑） |
+| release 构建 | `... :app:assembleEmptyRelease`（严禁混入含 "Debug" 的任务名） |
+| vendor 基线 | 上游 `re-ovo/rikkahub` tag `2.5.5`（versionCode 190），见 `rikkahub/PATCHES.md` |
 
 ## 开工前必须先向用户汇报（铁规矩）
 

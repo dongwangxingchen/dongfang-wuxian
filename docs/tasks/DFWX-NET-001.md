@@ -1,6 +1,6 @@
 # DFWX-NET-001：普通外部 AI/API HTTPS-only
 
-状态：待执行
+状态：✅ 已完成（2026-09-28）——`AiUrlPolicy` + 请求拦截器 + DNS rebinding 防线，18 用例全绿；派生 AI 专用 client，不影响非 AI 流量。已随 2.5.5 clean import 重放（`6eb27b7`）
 前置：AI-002、SEC-001
 
 ## 目标

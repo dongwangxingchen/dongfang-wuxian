@@ -1,6 +1,6 @@
 # DFWX-STAB-001：下载历史、并发和生命周期
 
-状态：待执行
+状态：✅ 已完成（2026-09-28，提交 `54837c9`）——`DownloadHistoryStore` 后台 debounce 落盘 + flush 不阻塞主线程；transfer 回调 generation+owner 双校验；`onDestroy` 先摘 UI 消息再 close；40 用例全绿真跑
 前置：SEC-001、NET-001
 
 ## 目标

@@ -13,6 +13,9 @@
 | 弹簧/动画/按压反馈 | 六-踩坑 09-22 v1.19.7、09-22深夜（覆盖弹簧结论） |
 | 视觉/质感/圆角/字重 | 五-2026-09-22 消解④、六-踩坑 09-22 v1.19.7④⑤ |
 | 构建/依赖/SDK 问题 | 三-2026-09-14 覆盖声明 |
+| AI 页键盘/insets 问题 | 六-2026-09-28 v1.22.8（IME 根治，含"禁自研动画"红线） |
+| Release 资产名/上传 404 | 六-2026-09-28 v1.22.8（ASCII 名 + 上传后核对 sha256） |
+| dexdump/APK 产物分析假阳性 | 六-2026-09-28 v1.22.8（dexdump 绝对路径 + `-a` 才出注解） |
 | 大功能立项流程 | 一-五阶段工作流 |
 | bug 诊断方法 | 七-AI 开发协议（DfLog/技能路由） |
 | 审美选型流程 | 八-决策协议 |
@@ -116,6 +119,12 @@
 - **Shizuku 状态检查必须离开主线程 + 带代次闸门**（ADB-001，2026-09-28）：`Shizuku.pingBinder()/checkSelfPermission()/getUid()` 都是 binder 事务，服务被 ROM 冻结时可不超时阻塞；四类回调（binder 到达/死亡/授权结果/ServiceConnection）线程不受控，慢的旧评估会覆盖新状态，导致 `ready()` 误判、静默安装失败被误报成"服务未连接"（审计 H-P1-4）。修法：单线程状态车道承载全部平台调用 + 请求领 generation 号，评估开始/绑定前/发布前三处校验，旧代次一律丢弃。v1.19.3 用"延迟 3 秒启动"只是绕开主线程 ANR，改结构才是根治。
 - **把"能捕获 bug"当作测试写完的判据**：ADB-001 的竞态用例写完先全绿，把三处代次校验临时删掉重跑，确认三个用例真的失败，再恢复；不会失败的正向用例只是装饰。其中一个用例最初在有无防护时都通过，说明它断言错了位置（实际走 CONNECTING 分支），改断言后才具备鉴别力。
 - **robots/Robolectric 原生图形偶发失败**：全量跑 `testEmptyDebugUnitTest` 时 `HomeShotsJvmTest`/`ToolsShotsJvmTest` 可能报 `FileSystemAlreadyExistsException`（字体解压）或 `RenderNode` UnsatisfiedLinkError；单独跑或重跑即过，属本机环境问题，不要误判为代码回归——先重跑一次再排查。
+
+### 2026-09-28 v1.22.8 三条新踩坑（IME 根治 + 发布资产名 + 工具链假阳性）
+
+- **AI 内嵌页 IME 崩坏，根因是"自研动画替代几何换算"（v1.22.8 根治）**：宿主曾给 AI 内嵌页叠了 250ms 自研 IME 滑行器（`DfwxImeGlide`）+ `stickyBelow` 粘滞缓存 + 动画计数器，试图"平滑"键盘弹出。它与系统逐帧派发 insets 形成竞态，输入框崩坏、越打补丁越糟。根治 = 全删，只留一条纯几何换算 `target = ime.bottom - host.getPaddingBottom()`（`MainActivity.java` ime 重算监听器 :541-552；构造器 :523；源码 :527-537 留有根因注释原文）。**红线：宿主侧 `installSystemNavigationInsets()`（:491，裁 statusBars/navigationBars/displayCutout，但 ime 不裁）已做一次性裁剪，Compose 侧 `ui/components/ai/ChatInput.kt:225-226` 走标准 `.imePadding().navigationBarsPadding()`，中间禁止再插入任何自研 insets 动画或状态缓存**。同批删掉的还有动画计数器与 sticky 缓存——"看起来更顺滑"的自研中间层在本项目多次被证明是 bug 源。
+- **GitHub Release 资产名中文被剥离（v1.22.8 二次事故）**：`gh release upload` 传中文本地文件名（`东方无限-v1.22.8.apk`）时中文被剥掉，资产实际变成 `-v1.22.8.apk`，而对外公布的链接是 `dongfang-wuxian-v1.22.8.apk` → 用户点击 404。防复发流程（已写入技能 `dfwx-release`）：先把文件 `cp` 成 ASCII 名再传，传完**必须核对资产名与 sha256 digest 与本地一致**，并用 `curl -r 0-1023` 实拉一段确认返回 `PK` 文件头。2026-09-21 已有同类记录（"资产名严禁中文"），本次是执行环节漏了"上传后核对"这一步。
+- **Android 工具链两条假阳性陷阱（2026-09-28 复核 BRAND-003 时踩到）**：① `dexdump` 不在 PATH（在 `~/Library/Android/sdk/build-tools/<ver>/`），不经绝对路径调用会返回"command not found"，被管道吞掉后 `grep -c` 得 0——会被误读为"类/字符串不存在"。**必须用绝对路径**。② `dexdump -f`（无 `-a`）**完全不输出注解块**，看起来像"注解被 R8 剥离"；对照实验（`Sponsor` 模型类源码有 `@Serializable`，`-f` 下同样无注解输出）证明是工具输出限制，改用 `dexdump -a -f` 后确认 `@GET("/sponsors")` 注解**存活**。**结论：用 dexdump 下判断前，先拿一个已知有注解的类做对照。**
 
 ### ZCode 子智能体成本治理（2026-09-28 固化）
 
