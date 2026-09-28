@@ -521,60 +521,35 @@ android.graphics.Insets none=android.graphics.Insets.NONE;android.view.WindowIns
   }
   /** v1.20.0：按目标 ime 值构造派发用 insets（只改 ime，其余类型沿用来源） */
   private static android.view.WindowInsets dfwxImeInsets(android.view.WindowInsets src,int imeBottom){return new android.view.WindowInsets.Builder(src).setInsets(android.view.WindowInsets.Type.ime(),android.graphics.Insets.of(0,0,0,imeBottom)).build();}
-  /** v1.20.0：无系统 insets 动画时的大跳变滑行器——220ms Decelerate，逐帧 requestApplyInsets 重派发 */
-  private static final class DfwxImeGlide{android.animation.ValueAnimator anim;int current,end;
-    boolean isRunning(){return anim!=null&&anim.isRunning();}
-    void cancel(){if(anim!=null){anim.cancel();anim=null;}}
-    void start(final android.view.View v,int from,int to){cancel();current=from;end=to;anim=android.animation.ValueAnimator.ofFloat(0f,1f);anim.setDuration(250);anim.setInterpolator(new android.view.animation.DecelerateInterpolator());anim.addUpdateListener(a->{float f=(Float)a.getAnimatedValue();current=Math.round(from+(to-from)*f);v.requestApplyInsets();});anim.addListener(new android.animation.AnimatorListenerAdapter(){@Override public void onAnimationEnd(android.animation.Animator animation){anim=null;}});anim.start();}
-  }
   android.view.View aiComposeView(){if(aiComposeView==null){
-    // v1.19.9 ime 重算包装：ime insets 是窗口绝对值，而 ComposeView 底部悬在主 app 底栏+导航条之上（不接触键盘区域），
-    // 直接用会让输入框多抬约 276px、与键盘之间留大缝。按"ComposeView 底边以下不含键盘"重算 ime 高度后再传给 Compose
-    // （statusBars/navigationBars/cutout 已由 host 裁剪）。
-    // v1.20.0 两段跳修复：真机（HyperOS/第三方输入法）IME insets 不是逐帧同步流——弹出瞬间一次派发到位、~1s 后再来
-    // 一次修正派发；Compose 的 imePadding 没有动画可跟随，就表现成"先抬过头、再回跳"的两段跳。对策（不动 vendor）：
-    //  1) below 粘滞缓存：某次派发几何未稳（below 算出 0）时沿用上次有效值，首帧就落在正确高度；
-    //  2) 跳变滑行：系统正在跑 insets 动画（onPrepare/onEnd 计数）时完全透传，交给官方逐帧流；
-    //     没有系统动画时，相邻目标差 >8dp 的一次性跳变用 250ms 滑过去；≤8dp 的连续小步长直接透传零开销。
+    // ime 重算包装：ime insets 是窗口绝对值，而 ComposeView 底边悬在 host 底部 padding（导航条）之上，
+    // 直接用会让输入框多抬一个导航条高度。重算规则：target = ime.bottom - host.getPaddingBottom()。
+    // v1.22.8 根因修复（用户实测：聚焦输入框后上下按钮错位、动画崩坏；旧版就存在、多次打补丁越修越糟）：
+    // 旧版在此之上叠了自研 250ms 滑行器（逐帧 requestApplyInsets 重派发）+ stickyBelow 粘滞缓存 + 系统
+    // insets 动画计数器。崩坏机制：系统 IME 动画期间每帧派发的 target 都在变，滑行器判定 end != target
+    // 便每帧 cancel+重启 ValueAnimator，插值每次只前进约 1/60 → 输入框严重滞后于键盘、键盘到位后再慢补
+    // 250ms；below 靠 getLocationOnScreen 测量在布局未稳时会测出 0（粘滞缓存的由来），逐帧重派发又牵动
+    // 整棵视图树反复重布局——三者叠加即"按钮错位 + 动画崩坏"。
+    // 现在只保留纯几何换算：系统动画逐帧派发 → 每帧用当前 ime 值同步重算 → Compose 的 imePadding 原生
+    // 平滑跟随；below 直接取 host.getPaddingBottom()（恒等于 wrap 底边到屏幕底的真实距离：wrap 无论挂
+    // host 预热还是挂 root 全尺寸，底边都在 host 内容区底边），不测量无时机问题；导航条 inset 即使随键盘
+    // 变化，几何仍然自洽。切勿再叠加任何自研动画/缓存：上游 ChatInput 是标准 imePadding，宿主只需保证
+    // 它拿到正确的数值。
     android.view.View compose=me.rerere.rikkahub.dfwx.AiPageHostKt.createRikkaHubEmbedView(this);
     FrameLayout wrap=new FrameLayout(this);
-    final int[] stickyBelow={0},imeTarget={-1},imeCurrent={0},animActive={0};
-    final DfwxImeGlide glide=new DfwxImeGlide();
     if(Build.VERSION.SDK_INT>=30){
-      wrap.setWindowInsetsAnimationCallback(new android.view.WindowInsetsAnimation.Callback(android.view.WindowInsetsAnimation.Callback.DISPATCH_MODE_CONTINUE_ON_SUBTREE){
-        @Override public void onPrepare(android.view.WindowInsetsAnimation animation){if((animation.getTypeMask()&android.view.WindowInsets.Type.ime())!=0)animActive[0]++;}
-        @Override public android.view.WindowInsets onProgress(android.view.WindowInsets insets,java.util.List<android.view.WindowInsetsAnimation> runningAnimations){return insets;}
-        @Override public void onEnd(android.view.WindowInsetsAnimation animation){if((animation.getTypeMask()&android.view.WindowInsets.Type.ime())!=0&&animActive[0]>0)animActive[0]--;}
+      wrap.setOnApplyWindowInsetsListener((v,insets)->{
+        try{
+          android.graphics.Insets ime=insets.getInsets(android.view.WindowInsets.Type.ime());
+          int below=host==null?0:host.getPaddingBottom();
+          if(ime.bottom<=0||below<=0)return insets;
+          int target=Math.max(0,ime.bottom-below);
+          if(target==ime.bottom)return insets;
+          return dfwxImeInsets(insets,target);
+        }catch(Throwable t){android.util.Log.w("MainActivity","aiComposeInsets: "+t.getMessage(),t);}
+        return insets;
       });
     }
-    wrap.setOnApplyWindowInsetsListener((v,insets)->{
-      if(Build.VERSION.SDK_INT>=30){
-        try{
-          int[] loc=new int[2];v.getLocationOnScreen(loc);
-          int below=Math.max(0,v.getRootView().getHeight()-(loc[1]+v.getHeight()));
-          if(below>0)stickyBelow[0]=below;else below=stickyBelow[0];
-          android.graphics.Insets ime=insets.getInsets(android.view.WindowInsets.Type.ime());
-          if(ime.bottom<=0){
-            if(glide.isRunning())return dfwxImeInsets(insets,glide.current);
-            if(imeTarget[0]>0&&glide.current>dp(8)&&animActive[0]==0){glide.start(v,glide.current,0);return dfwxImeInsets(insets,glide.current);}
-            glide.cancel();imeTarget[0]=0;imeCurrent[0]=0;return insets;
-          }
-          if(below<=0)return insets;
-          int target=Math.max(0,ime.bottom-below);
-          if(glide.isRunning()){
-            if(glide.end!=target)glide.start(v,glide.current,target);
-            return dfwxImeInsets(insets,glide.current);
-          }
-          if(animActive[0]>0||imeTarget[0]<0||Math.abs(target-imeCurrent[0])<=dp(8)){
-            glide.cancel();imeTarget[0]=target;imeCurrent[0]=target;
-            return dfwxImeInsets(insets,target);
-          }
-          glide.start(v,imeCurrent[0],target);
-          return dfwxImeInsets(insets,glide.current);
-        }catch(Throwable ignored){}
-      }
-      return insets;
-    });
     wrap.addView(compose,new FrameLayout.LayoutParams(-1,-1));aiComposeView=wrap;}return aiComposeView;}
   /** v1.17.1 预组合：启动 1.2s 后把 AI 界面以 INVISIBLE 挂进 host 一次性完成 Compose 首次组合（Koin/界面树/首帧），点 AI 即现不再有组合延迟；INVISIBLE 不绘制不收事件。组合状态随 Activity 生命周期保留，之后每次进出都秒开 */
   void prewarmAiCompose(){if(App.DEGRADED||aiComposeView!=null)return;ui.postDelayed(()->{try{if(host==null||aiComposeView!=null)return;android.view.View v=aiComposeView();v.setVisibility(View.INVISIBLE);host.addView(v,new FrameLayout.LayoutParams(-1,-1));}catch(Throwable t){android.util.Log.w("MainActivity","prewarmAiCompose: "+t.getMessage(),t);}},8000);}// v1.19.3 ANR 修复：1200→8000ms——挂载即触发整个 RikkaHub Compose 图在主线程组合，落在启动风暴窗口（升级后 JIT 冷启 + ROM 干预）会叠加阻塞诱发黑屏 ANR；8 秒后启动期已过，首开加速目的保留（用户 8 秒内进 AI 页走 aiComposeView() 惰性创建，二者互斥不重复）
