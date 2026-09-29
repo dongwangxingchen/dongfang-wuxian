@@ -15,7 +15,7 @@
 - `rikkahub/`：Kotlin/Compose vendor（**上游锚点 = re-ovo/rikkahub tag `2.5.5`，versionCode 190**）与东方无限补丁层
 - 上游源码快照 `/tmp/rikkahub-255/`：**已清空**（临时目录），需要时重新下载
 - 桌面交接包 `东方无限_交接总包_20260920.zip`：禁止删除或移动
-- 版本号：versionCode `1039033` / versionName `1.22.13`（`app/build.gradle.kts:33-34`）；下一个版本递增为 `1039034` / `1.22.14`
+- 版本号：versionCode `1039038` / versionName `1.22.18`（`app/build.gradle.kts:33-34`）；下一个版本递增为 `1039039` / `1.22.19`
 
 ## 1.1 v1.22.9 变更（2026-09-29，BRAND-003）
 
@@ -84,6 +84,22 @@
 - **DFW-2（UI-005）**：仍**无法取证**，未改代码。真机 `adb` 连不上；且卡片建议的 Robolectric 兜底路走不通——
   AI 页在 JVM 下必然进不去（`App.DEGRADED` 早退，`ToolsSweepJvmTest.kt:13-16` 有记录），
   承载 ime 监听器的 `wrap` 不会被创建。复核记录已追加到 `docs/tasks/DFWX-UI-005.md`，等真机。
+
+## 1.5 v1.22.14–1.22.18 与 CI 门禁（2026-09-30，按看板队列逐个推进）
+
+| 卡 | 版本 | 结论摘要 |
+|---|---|---|
+| DFW-12 | v1.22.14 | 接收系统分享/链接：manifest 加 SEND(`text/plain` 非 `*/*`) + VIEW(`http`/`https`)，代码侧第二道 scheme 校验 |
+| DFW-13 | v1.22.15 | 字体缩放适配：新增 `dpText()`，文字容器随 fontScale 等比放大（上限 1.8×）。**取证发现 Robolectric 字体度量是桩**（`measureText("中")=1px`），所以断言改为不依赖字形的数值关系 |
+| DFW-14 | v1.22.16 | 补 `onTrimMemory` 分级释放；crash.log 加锁。**卡片 5 条里 2 条与事实不符**（清理槽早已分离、缓存本就有界）；帧率类改动因无真机测量而**不做** |
+| DFW-15 | — | 两个调试残留 `git rm --cached`（本地文件保留）；ignore 规则全部锚定到仓库根；快照目录实测未被跟踪，无需处理 |
+| DFW-16 | v1.22.17 | 分享密码可一键清除（只清密码不删记录）；删除死配置 `requestLegacyExternalStorage`；**APK 级 aapt 证据**确认 `allowBackup=false`/明文 false/NSC 生效 |
+| DFW-17 | v1.22.18 | 预测性返回：**卡片引用的是已修掉的旧状态**（v1.22.1 已走 androidx 动画回调）；本轮修网页页无条件注册裸回调导致无预览，并修掉"方法引用每次新对象导致注销无效"的坑 |
+| DFW-18 | — | README 去掉手表承诺（按 decisions #13）、纠正"内置渠道"；SECURITY.md 整体重写（原停在 1.8.x 且三处信息已变错） |
+| DFW-31 | — | **CI 分层门禁**：新增 `tools/ci-gate.sh`（本地与 CI 同一脚本，满足"结论可对照"），三层 docs/unit/apk；`.github/workflows/ci-gates.yml` 替换"从不跑测试"的旧工作流 |
+
+**共性做法**：每卡都先取证再改，测试**逐一验过鉴别力**（把修复改回去必须变红，避免"写了就绿"的空测试）；
+事实与卡片不符时**如实报告而不是照抄**（DFW-14 两条、DFW-17 前提、DFW-18 工具数量）。
 
 ## 2. 当前完成度（v1.22.8 覆盖范围）
 
