@@ -83,6 +83,42 @@ cmd_verify() {
   step "签名配置不泄露：确认未读取 local.properties"
   ok "本脚本从不读 local.properties（签名由 gradle 内部读取）"
 
+  # [DFW-52] 发布前检查清单：这些项以前散在文档/技能里，靠人记；这里逐条程序化检查。
+  step "发布前检查清单（DFW-52）"
+
+  # ① 调试残留不得被跟踪（DFW-15）
+  local residue
+  residue="$(git ls-files | grep -iE '(cb_err|lb_resp|record_log|support_test_log|unit_compile_log)' || true)"
+  [[ -z "$residue" ]] || fail "调试残留仍被 git 跟踪：\n$residue"
+  ok "① 无调试残留被跟踪"
+
+  # ② 清单不得回到全局明文（DFW-10）
+  grep -q 'usesCleartextTraffic="true"' app/src/main/AndroidManifest.xml \
+    && fail "② 清单又出现全局明文开关"
+  [[ -f app/src/main/res/xml/network_security_config.xml ]] || fail "② 缺少网络安全配置"
+  ok "② 明文流量已收敛且配置存在"
+
+  # ③ 资产命名红线：不得出现带描述后缀的历史写法（DFW-18）
+  grep -q "东方无限-vX.Y.Z-release" SECURITY.md \
+    && fail "③ SECURITY.md 又写回带描述后缀的资产名"
+  ok "③ 资产命名描述与实际一致"
+
+  # ④ CI 的 unsigned 产物必须明确标注不可分发（DFW-52）
+  grep -q "UNSIGNED-do-not-distribute" .github/workflows/ci-gates.yml \
+    || fail "④ CI 的 unsigned 产物未明确标注'不可分发'（易被误当发布物）"
+  ok "④ CI unsigned 产物已标注'不可分发'"
+
+  # ⑤ 未提交改动：发版必须建立在已提交的代码上（否则 tag 与源码不一致）。
+  # 注意排除**故意不提交**的路径——`docs/handover/` 是 decisions #29 明确要求留在本机、
+  # 不 push 的（交接文档）。不排除它的话，这个检查会永远失败、变成噪音而被忽略。
+  local dirty
+  dirty="$(git status --porcelain | grep -vE '^\?\? docs/handover/' || true)"
+  if [[ -n "$dirty" ]]; then
+    printf '⚠️  ⑤ 工作区有未提交改动，发版前请先提交（否则 Release 与源码不一致）：\n%s\n' "$(echo "$dirty" | head -20)"
+    fail "⑤ 工作区不干净"
+  fi
+  ok "⑤ 工作区干净（已排除故意不提交的 docs/handover/）"
+
   printf '\n✅ 发版前门禁全部通过。下一步：tools/release.sh build\n'
 }
 
