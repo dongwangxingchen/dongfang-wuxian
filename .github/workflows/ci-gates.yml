@@ -1,0 +1,122 @@
+# [DFWX] DFW-31 · CI 分层门禁
+#
+# 背景（审计 B-4）：本仓库原有的两个工作流**从不跑任何 test 任务**，
+# 约 90+ 个测试类在 CI 上从未执行过；而历史上出现过"CI 冒烟绿灯但安全策略测试
+# 在 checkout 后根本不存在"（untracked 的 DownloadPolicyTest）这类假绿。
+#
+# 本工作流把门禁分层，并**复用 `tools/ci-gate.sh`** —— 同一个脚本本地也能跑，
+# 这是卡片验收「本地与 CI 结论可对照」的实现方式（两套命令必然对不上）。
+#
+# 分层设计：
+#   docs  → 静态检查（秒级）：文档一致性、仓库卫生、清单明文开关。任何 push/PR 都跑。
+#   unit  → JVM 测试（数分钟）：host + vendor + common 三套。任何 push/PR 都跑。
+#   apk   → release 构建门禁（十几分钟）：unsigned 构建 + ABI + 权限 + 清单开关断言。
+#
+# 隐私与红线：
+#   · 本工作流**不接触任何签名材料**（CI 无 keystore），只做 unsigned 构建与断言；
+#   · 不自动发布、不创建 Release、不改版本号；
+#   · 正式对用户分发的签名包仍走本地构建流程（见技能 dfwx-release）。
+
+name: ci-gates
+
+on:
+  push:
+    branches: [test, main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-gates-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  # ---------- 第一层：静态门禁（快，先挡住最容易出错的文档/配置漂移） ----------
+  docs:
+    name: 静态门禁（文档 / 卫生 / 清单开关）
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run docs gate
+        run: |
+          chmod +x tools/ci-gate.sh
+          JAVA_HOME="${JAVA_HOME:-}" tools/ci-gate.sh docs
+
+  # ---------- 第二层：JVM 测试（三套：host / vendor / common） ----------
+  unit:
+    name: JVM 测试门禁（host + vendor + common）
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    needs: docs
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+
+      - name: Set up Android SDK (platform 37 / build-tools 37.0.0)
+        uses: android-actions/setup-android@v3
+        with:
+          packages: 'platforms;android-37,build-tools;37.0.0'
+
+      - name: Run unit gate
+        run: |
+          chmod +x tools/ci-gate.sh
+          tools/ci-gate.sh unit
+
+      - name: Upload test reports (on failure)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: unit-test-reports
+          path: |
+            app/build/reports/tests/**
+            rikkahub/app/build/reports/tests/**
+            rikkahub/common/build/reports/tests/**
+          retention-days: 7
+          if-no-files-found: ignore
+
+  # ---------- 第三层：release 产物门禁（unsigned；断言 ABI/权限/清单/版本） ----------
+  apk:
+    name: release 产物门禁（unsigned + ABI/权限/清单断言）
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    needs: unit
+    # 产物门禁只在 test/main 分支上跑，避免每个 PR 都烧十几分钟
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+
+      - name: Set up Android SDK (platform 37 / build-tools 37.0.0)
+        uses: android-actions/setup-android@v3
+        with:
+          packages: 'platforms;android-37,build-tools;37.0.0'
+
+      - name: Run APK gate (unsigned, no keystore in CI)
+        env:
+          DFWX_UNSIGNED: '1'
+        run: |
+          chmod +x tools/ci-gate.sh
+          tools/ci-gate.sh apk
+
+      - name: Upload unsigned APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: dongfang-wuxian-unsigned-apk
+          path: app/build/outputs/apk/empty/release/*.apk
+          retention-days: 14
+          if-no-files-found: error
