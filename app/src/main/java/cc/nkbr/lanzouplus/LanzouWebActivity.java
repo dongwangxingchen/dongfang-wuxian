@@ -3,8 +3,21 @@ package cc.nkbr.lanzouplus;
 import android.app.*;import android.os.*;import android.content.*;import android.graphics.*;import android.graphics.drawable.*;import android.net.Uri;import android.annotation.SuppressLint;import android.view.*;import android.webkit.*;import android.widget.*;import android.window.*;import java.net.*;import java.util.regex.*;
 
 public final class LanzouWebActivity extends Activity{
-  static final String EXTRA_URL="u";WebView web;TextView address;FrameLayout shell,noticeLayer;PopupWindow menuPopup;String currentUrl="";int BG,SURFACE,TEXT,MUTED,DIV,PRIMARY;
-  public void onCreate(Bundle b){super.onCreate(b);applyPalette();if(Build.VERSION.SDK_INT>=33)getOnBackInvokedDispatcher().registerOnBackInvokedCallback(OnBackInvokedDispatcher.PRIORITY_DEFAULT,this::handleBack);shell=new FrameLayout(this);LinearLayout root=new LinearLayout(this);root.setOrientation(LinearLayout.VERTICAL);root.setBackgroundColor(BG);shell.addView(root,new FrameLayout.LayoutParams(-1,-1));noticeLayer=new FrameLayout(this);FrameLayout.LayoutParams notices=new FrameLayout.LayoutParams(-1,-1);shell.addView(noticeLayer,notices);if(Build.VERSION.SDK_INT>=20)shell.setOnApplyWindowInsetsListener((v,insets)->{root.setPadding(0,insets.getSystemWindowInsetTop(),0,0);return insets;});
+  static final String EXTRA_URL="u";boolean backCallbackRegistered;
+  /**
+   * 必须**保存实例**再注册。`this::handleBack` 这种方法引用每次求值都会产生新对象，
+   * 拿新的去 unregister 注销不掉旧的那个（本仓库 MainActivity 的 v1.22.1 注释里
+   * 就记着这个坑："其方法引用每次都是新对象，本来就注销不掉"）。
+   */
+  final android.window.OnBackInvokedCallback backCallback=this::handleBack;
+  WebView web;TextView address;FrameLayout shell,noticeLayer;PopupWindow menuPopup;String currentUrl="";int BG,SURFACE,TEXT,MUTED,DIV,PRIMARY;
+  public void onCreate(Bundle b){super.onCreate(b);applyPalette();// [DFWX PATCH P35] DFW-17：这里原来无条件注册一个**裸** OnBackInvokedCallback，
+      // 而"注册了回调"就等于告诉系统"本页自己处理返回"——系统因此不再播放预测性返回预览。
+      // 网页页的返回语义是"先退网页历史，没历史才退出页面"，所以：
+      //   · 网页还能后退时 → 注册回调（必须自己处理，接受没有系统预览）；
+      //   · 已经在网页历史起点 → **注销回调**，把返回交回系统，于是"退出本页"这一步恢复预览动画。
+      // 用 WebView 的 canGoBack 作为唯一依据，随每次页面加载变化同步一次。
+      syncBackCallback();shell=new FrameLayout(this);LinearLayout root=new LinearLayout(this);root.setOrientation(LinearLayout.VERTICAL);root.setBackgroundColor(BG);shell.addView(root,new FrameLayout.LayoutParams(-1,-1));noticeLayer=new FrameLayout(this);FrameLayout.LayoutParams notices=new FrameLayout.LayoutParams(-1,-1);shell.addView(noticeLayer,notices);if(Build.VERSION.SDK_INT>=20)shell.setOnApplyWindowInsetsListener((v,insets)->{root.setPadding(0,insets.getSystemWindowInsetTop(),0,0);return insets;});
     LinearLayout bar=new LinearLayout(this);bar.setGravity(Gravity.CENTER_VERTICAL);bar.setPadding(dp(8),dp(6),dp(8),dp(6));bar.setBackgroundColor(SURFACE);LinearLayout capsule=new LinearLayout(this);capsule.setGravity(Gravity.CENTER_VERTICAL);capsule.setPadding(dp(2),0,dp(2),0);GradientDrawable cap=shape(Color.TRANSPARENT,24);cap.setStroke(dp(1),DIV);capsule.setBackground(cap);capsule.setClipToOutline(true);TextView back=tool("‹",26);back.setOnClickListener(v->handleBack());capsule.addView(back,new LinearLayout.LayoutParams(dp(44),dp(42)));address=new TextView(this);address.setTextColor(TEXT);address.setTextSize(13);address.setSingleLine(true);address.setGravity(Gravity.CENTER_VERTICAL);address.setEllipsize(android.text.TextUtils.TruncateAt.MIDDLE);address.setPadding(dp(8),0,dp(8),0);address.setTypeface(AppFonts.normal(this));capsule.addView(address,new LinearLayout.LayoutParams(0,dp(42),1));TextView menu=tool("⋮",24);menu.setOnClickListener(v->menu(menu));capsule.addView(menu,new LinearLayout.LayoutParams(dp(44),dp(42)));bar.addView(capsule,new LinearLayout.LayoutParams(-1,dp(44)));root.addView(bar,new LinearLayout.LayoutParams(-1,dp(56)));
     web=new WebView(this);WebSettings ws=web.getSettings();ws.setJavaScriptEnabled(true);ws.setDomStorageEnabled(true);
     /* [DFWX PATCH P33] WebView 最小权限（DFW-10）：显式钉死官方安全基线，不吃平台默认值。
@@ -15,7 +28,7 @@ public final class LanzouWebActivity extends Activity{
     ws.setAllowContentAccess(false);
     ws.setAllowFileAccessFromFileURLs(false);
     ws.setAllowUniversalAccessFromFileURLs(false);
-    if(Build.VERSION.SDK_INT>=21)ws.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);web.setWebViewClient(new WebViewClient(){@Override public boolean shouldOverrideUrlLoading(WebView v,String u){return handleNavigation(v,u);}@Override public boolean shouldOverrideUrlLoading(WebView v,WebResourceRequest r){return r!=null&&r.isForMainFrame()&&handleNavigation(v,r.getUrl()==null?"":r.getUrl().toString());}public void onPageFinished(WebView v,String u){currentUrl=u==null?"":u;address.setText(currentUrl);}});web.setDownloadListener((u,ua,d,m,z)->download(u,d,m,z));root.addView(web,new LinearLayout.LayoutParams(-1,0,1));setContentView(shell);load(getIntent().getStringExtra(EXTRA_URL));}
+    if(Build.VERSION.SDK_INT>=21)ws.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);web.setWebViewClient(new WebViewClient(){@Override public boolean shouldOverrideUrlLoading(WebView v,String u){return handleNavigation(v,u);}@Override public boolean shouldOverrideUrlLoading(WebView v,WebResourceRequest r){return r!=null&&r.isForMainFrame()&&handleNavigation(v,r.getUrl()==null?"":r.getUrl().toString());}public void onPageFinished(WebView v,String u){currentUrl=u==null?"":u;address.setText(currentUrl);syncBackCallback();}});web.setDownloadListener((u,ua,d,m,z)->download(u,d,m,z));root.addView(web,new LinearLayout.LayoutParams(-1,0,1));setContentView(shell);load(getIntent().getStringExtra(EXTRA_URL));}
     boolean handleNavigation(WebView view,String raw){String value=raw==null?"":raw.trim();if(value.isEmpty())return false;Uri uri;try{uri=Uri.parse(value);}catch(Exception ignored){return false;}String scheme=uri.getScheme();if(scheme==null||scheme.equalsIgnoreCase("http")||scheme.equalsIgnoreCase("https"))return false;if(scheme.equalsIgnoreCase("intent")){Intent external;try{external=Intent.parseUri(value,Intent.URI_INTENT_SCHEME);}catch(Exception error){notice("无法解析应用跳转",false);return true;}String fallback=webFallback(external);sanitizeExternalIntent(external);try{startActivity(external);}catch(ActivityNotFoundException|SecurityException error){if(!fallback.isEmpty())view.loadUrl(fallback);else notice("未找到可处理此跳转的应用",false);}return true;}Intent external=new Intent(Intent.ACTION_VIEW,uri);external.addCategory(Intent.CATEGORY_BROWSABLE);external.setFlags(0);try{startActivity(external);}catch(ActivityNotFoundException|SecurityException error){String fallback=nestedWebUrl(uri);if(!fallback.isEmpty())view.loadUrl(fallback);else notice("未找到可处理此跳转的应用",false);}return true;}
   void sanitizeExternalIntent(Intent intent){intent.setAction(Intent.ACTION_VIEW);intent.addCategory(Intent.CATEGORY_BROWSABLE);intent.setComponent(null);intent.setSelector(null);intent.setFlags(0);intent.removeExtra("browser_fallback_url");}
   String webFallback(Intent intent){String fallback=intent==null?"":safeWebUrl(intent.getStringExtra("browser_fallback_url"));if(!fallback.isEmpty())return fallback;return intent==null?"":nestedWebUrl(intent.getData());}
@@ -35,6 +48,16 @@ public final class LanzouWebActivity extends Activity{
   void notice(String message,boolean longLived){TextView label=new TextView(this);label.setText(message);label.setTextColor(TEXT);label.setTextSize(12);label.setGravity(Gravity.CENTER_VERTICAL);label.setTypeface(AppFonts.normal(this));label.setPadding(dp(14),0,dp(14),0);label.setSingleLine(false);label.setMaxLines(2);label.setBackground(shape(SURFACE,16));label.setElevation(dp(8));FrameLayout.LayoutParams lp=new FrameLayout.LayoutParams(-1,dp(52),Gravity.BOTTOM);lp.setMargins(dp(16),0,dp(16),dp(18));noticeLayer.addView(label,lp);label.setAlpha(0f);label.setTranslationY(dp(36));label.animate().alpha(1f).translationY(0).setDuration(160).withEndAction(()->label.postDelayed(()->label.animate().alpha(0f).translationY(dp(36)).setDuration(180).withEndAction(()->noticeLayer.removeView(label)).start(),longLived?5000:2600)).start();}
   Drawable ripple(Drawable content){if(Build.VERSION.SDK_INT>=21)return new RippleDrawable(android.content.res.ColorStateList.valueOf(DIV),content,null);return content;}
   GradientDrawable shape(int color,int radius){GradientDrawable g=new GradientDrawable();g.setColor(color);g.setCornerRadius(dp(radius));return g;}
+  /** 网页还能后退时自己处理返回；到起点则注销回调、让系统接管（恢复预测性返回预览）。 */
+  void syncBackCallback(){
+    if(Build.VERSION.SDK_INT<33)return;
+    boolean canGoBack=web!=null&&web.canGoBack();
+    if(canGoBack==backCallbackRegistered)return;
+    try{
+      if(canGoBack){getOnBackInvokedDispatcher().registerOnBackInvokedCallback(OnBackInvokedDispatcher.PRIORITY_DEFAULT,backCallback);backCallbackRegistered=true;}
+      else{getOnBackInvokedDispatcher().unregisterOnBackInvokedCallback(backCallback);backCallbackRegistered=false;}
+    }catch(Exception error){android.util.Log.w("LanzouWebActivity","syncBackCallback: "+error.getMessage(),error);}
+  }
   void handleBack(){if(web!=null&&web.canGoBack())web.goBack();else finish();}
   @SuppressLint("GestureBackNavigation") public void onBackPressed(){handleBack();}
   int dp(int v){return(int)(v*getResources().getDisplayMetrics().density+.5f);} }
