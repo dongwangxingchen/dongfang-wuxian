@@ -59,6 +59,8 @@ public class App extends me.rerere.rikkahub.RikkaHubApp {
 
     @Override
     public void onCreate() {
+        // DFW-29：把真实日志出口注入 CrashLogStore（默认是空实现，便于纯 JVM 单测）。
+        CrashLogStore.setLogger((message,error)->android.util.Log.w("CrashLogStore",message,error));
         installCrashLogger();
         try {
             super.onCreate();
