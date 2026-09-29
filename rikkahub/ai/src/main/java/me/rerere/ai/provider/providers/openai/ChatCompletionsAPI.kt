@@ -174,7 +174,9 @@ class ChatCompletionsAPI(
                 type: String?,
                 data: String
             ) {
-                Log.d(TAG, "onEvent: $data")
+                // [DFWX PATCH P31] SEC-004：原为 Log.d(TAG, "onEvent: $data") 打印完整 SSE 响应体
+                // （含模型回复正文，属用户隐私）。只保留事件类型与字节数。
+                Log.d(TAG, "onEvent: " + me.rerere.common.dfwx.DfwxLogRedactor.describeSseEvent(null, data.length))
                 try {
                     val result = decoder.accept(SseEvent(id = id, event = type, data = data))
                     sendChunks(result.chunks)

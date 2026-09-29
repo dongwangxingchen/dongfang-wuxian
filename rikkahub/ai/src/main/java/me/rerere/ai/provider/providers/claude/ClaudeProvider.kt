@@ -381,7 +381,8 @@ class ClaudeProvider(private val client: OkHttpClient, context: Context? = null)
                 type: String?,
                 data: String
             ) {
-                Log.d(TAG, "onEvent: type=$type, data=$data")
+                // [DFWX PATCH P31] SEC-004：不再打印完整 SSE 响应体，只留类型与字节数。
+                Log.d(TAG, "onEvent: " + me.rerere.common.dfwx.DfwxLogRedactor.describeSseEvent(type, data.length))
                 try {
                     val result = decoder.accept(SseEvent(id = id, event = type, data = data))
                     sendChunks(result.chunks)

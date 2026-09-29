@@ -126,3 +126,34 @@ rsync -a --delete --exclude-from=rikkahub/.dfwx-rsync-excludes.txt /path/to/upst
   - **修"打开后闪一下、顶部按钮被滚走"**：正文 `setTextIsSelectable(true)` 使其成为触摸模式可获焦视图，系统自动聚焦后 ScrollView 把正文滚进可视区（实测 scrollY 0→756），顶部操作卡被顶出屏幕。改为 `scroll.setFocusableInTouchMode(true)` + `FOCUS_BEFORE_DESCENDANTS` 让滚动容器自己当焦点锚点，并在进页后 `scrollTo(0,0)`。正文选区能力保留。
 
 验证：`JAVA_HOME=... ./gradlew :app:testEmptyDebugUnitTest --offline` → 63 例全绿；新增 `CrashLogPageJvmTest` 4 例，去掉焦点锚点后 1 红（鉴别力已验）。
+
+## P31（v1.22.12）AI 日志脱敏（SEC-004 / DFW-8）——三处泄露点全部收敛
+
+用户安全要求：AI 日志只保留定位故障所需信息，不得记录任何凭据或用户内容。
+
+**取证后发现任务卡只说对了一半**：卡里点名的自研 `RequestLoggingInterceptor` 其实**默认关闭、仅内存 100 条**；
+真正在 release 里**常开且无门禁**的是另外两处。
+
+| 泄露点 | 位置 | 原状态 | 处置 |
+|---|---|---|---|
+| A 自研请求日志 | `data/ai/RequestLoggingInterceptor.kt` | 默认关、仅 `Proxy-Authorization` 脱敏，URL/头/body 原样 | 全部改走 `DfwxLogRedactor`；body 只留形状 |
+| B okhttp 官方日志 | `di/DataSourceModule.kt` | `Level.HEADERS` **release 常开**，只脱敏 Proxy-Authorization → Logcat | 降为 `Level.BASIC`，并把凭据头/查询参数登记进 okhttp 自带 redact 表 |
+| C Provider SSE | `ai/.../{openai/ChatCompletionsAPI,openai/ResponseAPI,claude/ClaudeProvider,google/GoogleProvider}.kt` | `Log.d("onEvent: $data")` 打印**完整响应体** | 只留事件类型与字节数 |
+
+**新增 `common/src/main/java/me/rerere/common/dfwx/DfwxLogRedactor.kt`**（放在 `common` 模块：`ai` 与 `app` 都依赖它，
+`ai` 看不到 `app`）。纯字符串处理、无 Android 依赖，规则可被 JVM 测试逐条钉死。
+
+脱敏规则要点：
+- 头：名单命中即打码（Authorization/Cookie/Set-Cookie/x-api-key/x-goog-api-key…），**并且**"名字不认识但值像凭据"也打码
+  （`Bearer `/`sk-`/`sk-ant-`/`AIza`…）——防将来新增 Provider 悄悄绕过；`-token`/`_key`/`-secret` 后缀的自定义头一律命中。
+- URL：保留 scheme/host/path（定位故障必需），只打码凭据型查询参数值，并抹掉 `user:pass@` userinfo。
+- body：**默认不记录内容**，只保留 `<字节数, 内容类型>`；不提供"只打码敏感字段仍保留正文"的模式（聊天正文属用户隐私）。
+- 解析失败时整体打码，绝不原样透传；任何路径都不抛异常。
+
+**结构性防线**：`common/.../Logging.kt` 的 `logRequest()` 是唯一存储入口，脱敏在**入库这一层**执行。
+即便调用方忘了脱敏，也绕不过去——安全边界做成结构性的，而不是靠每个调用点自觉。
+
+验证：`DfwxLogRedactorTest`（规则真值表，含畸形 URL、fragment、误伤保护）、
+`RequestLoggingRedactionTest`（**驱动真实拦截器**，并额外覆盖"调用方未脱敏"的旁路场景）。
+三道防线逐一验证过鉴别力——分别把拦截器脱敏、存储层脱敏改回去，对应测试立刻变红。
+`:rikkahub-app:testDebugUnitTest` 243 例全绿；`:common:testDebugUnitTest` 14 例全绿。

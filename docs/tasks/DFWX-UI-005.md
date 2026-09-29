@@ -84,3 +84,45 @@ Compose 侧（`rikkahub/app/src/main/java/me/rerere/rikkahub/ui/pages/chat/`）�
 ## 建议合并
 
 本卡与 `DFWX-UI-006`（删除空态两行文案）同属"AI 页键盘场景收尾"，**建议同一轮改、同一次发版验收**，但各自独立提交以便单独回退。
+
+---
+
+## 本轮复核（2026-09-30，宿主侧只读）
+
+### 结论：仍无法取证；且卡片建议的 Robolectric 兜底路径在本仓库**不可行**
+
+- **真机不可达**：`adb devices` 为空；`ping <手机IP>` 100% 丢包。用户已休息，不得操作其手机（卡片红线亦要求先请示）。
+- **"必须先取证"第 2 条（Robolectric 驱动 insets 监听器）没有可测对象**：AI 页在 JVM 下永远进不去。
+  `MainActivity.showAiEmbedded()` 首行即 `if(App.DEGRADED){…return;}`，而 JVM 上启动链的 QuickJS 原生库必然
+  `UnsatisfiedLinkError` → `App.onCreate` 捕获置 `DEGRADED` —— 这条事实由仓库自身测试记录：
+  `app/src/test/java/cc/nkbr/lanzouplus/ToolsSweepJvmTest.kt:13-16` 类注释。
+  即：承载 ime 重算监听器的 `wrap`（`MainActivity.aiComposeView()` 内）在 Robolectric 中**根本不会被创建**。
+  → 卡片设想的"结构断言"在 AI 页上无法落地；**本卡同样不适用"无证据也先改"**。
+
+### 代码复核（只读）：两条稳定态的几何是自洽的
+
+`wrap` 的 ime 重算（`MainActivity.java` 的 `aiComposeView()` 内）：
+`below = host.getPaddingBottom()` → `target = max(0, ime.bottom - below)`。
+
+| 状态 | `navigationBars.bottom` | `host.paddingBottom` | `target` | Compose 得到的 ime |
+|---|---|---|---|---|
+| 键盘收起 | 144px | 144px | —— | 0（`ime.bottom<=0` 早退） |
+| 键盘弹出·导航条保留 | 144px | 144px | ime−144 | ime−144 |
+| 键盘弹出·导航条让位 | 0 | 0 | 0 | 原样 ime.bottom |
+
+三种情况下输入框都恰好浮在键盘上沿，**没有算错**。因此剩余可疑点不是公式，而是
+**动画期间 `statusBars.top` / `navigationBars.bottom` 取值跳变**：`applySystemNavigationInsets()` 一旦发现
+`changed` 就 `host.setPadding(…)` + post `refreshAdaptiveLayout()`（→ `reflowVisibleLayouts()` 整树重排）。
+若某些 ROM 在键盘展开过程中把这两项重派发（甚至只改一帧），就会在 ~500ms 窗口内反复触发整树重排，
+顶栏随之出现可见位移——这与用户"闪一下/错位"的描述吻合，但**属于待验证假设，不得据此改码**。
+
+### 需要真机捕获什么（等手机可用，约 1 分钟）
+
+在 `installSystemNavigationInsets()` 的监听器里临时打一行日志，弹一次键盘，抓 ~500ms：
+
+- `ime.bottom`、`statusBars.top`、`navigationBars.left/top/right/bottom`、`displayCutout`
+- `applySystemNavigationInsets()` 的入参 `left/top/right/bottom`（即 host 最终 padding）
+- 关键判据：**`top` 或 `bottom` 在动画期间是否出现过两个以上不同取值**。是 → 假设成立，按纯几何收敛；
+  否 → 转查 Compose 侧 `hazeSource` 重捕获（假设 4）。
+
+**本卡状态：待真机取证，未改任何代码。**
