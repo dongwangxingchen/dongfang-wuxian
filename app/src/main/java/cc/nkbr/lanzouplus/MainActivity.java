@@ -231,9 +231,9 @@ loadSearchSettings();applyUserAgentSettings();detectWeakDevice();installBackAnim
    * 从分享文本里挑出第一条可用的 http(s) 链接（微信/QQ 分享常带"标题 + 链接 + 口令"混合文本）。
    * 找不到链接就返回原文，交给 normalizedWebUrl 去补 https 前缀（用户可能只分享了裸域名）。
    */
-  String extractSharedUrl(String text){if(text==null||text.trim().isEmpty())return"";java.util.regex.Matcher m=WEB_URL_CJK.matcher(text);while(m.find()){String candidate=webUrlEnd(text,m.start(),m.end())>m.start()?text.substring(m.start(),webUrlEnd(text,m.start(),m.end())):m.group();if(isShareableWebUrl(candidate))return candidate;}return text.trim();}
+  String extractSharedUrl(String text){return LinkPolicy.extractSharedUrl(text);}
   /** 只接收 http/https 的网页链接：拒绝 file/content/其它 scheme，避免变成任意文件/意图入口。 */
-  boolean isShareableWebUrl(String value){if(value==null)return false;try{Uri uri=Uri.parse(value.trim());String scheme=uri.getScheme();return scheme!=null&&(scheme.equalsIgnoreCase("http")||scheme.equalsIgnoreCase("https"))&&uri.getHost()!=null&&!uri.getHost().isEmpty();}catch(Exception ignored){return false;}}
+  boolean isShareableWebUrl(String value){return LinkPolicy.isShareableWebUrl(value);}
     void startMainExperience(){if(mainExperienceStarted)return;mainExperienceStarted=true;showHomeLanding();prefetchHome();ui.postDelayed(()->{if(sessionBackgroundIndex)requestDirectoryIndexUpdate(false,false);},2500);
     // v1.22.10：已授权就静默建好 Download/东方无限/崩溃日志（空目录也要让用户看得见）；
     // 未授权不在启动时弹窗打扰——用户 2026-09-29 明确要求"下载后再问存储权限"。
@@ -2046,15 +2046,15 @@ scroll.setOnScrollChangeListener((v,x,y,oldX,oldY)->bar.bumpActivity());body.add
   FrameLayout draggableList(ScrollView scroll,View body,String description){FrameLayout frame=new FrameLayout(this);frame.addView(scroll,new FrameLayout.LayoutParams(-1,-1));SearchDragBar bar=new SearchDragBar(scroll,body,description);FrameLayout.LayoutParams drag=new FrameLayout.LayoutParams(dp(24),-1,Gravity.END);frame.addView(bar,drag);searchDragBar=bar;Runnable update=()->{boolean scrollable=body.getHeight()>Math.round(scroll.getHeight()*1.15f)+dp(2);bar.setVisibility(scrollable?View.VISIBLE:View.GONE);if(scrollable)bar.bumpActivity();bar.invalidate();};// v1.6.1（R-B3）：内容不足 1.15 屏强制隐藏，防边缘闪烁
 scroll.setOnScrollChangeListener((v,x,y,oldX,oldY)->{bar.bumpActivity();maybeLoadMoreSources();if(y+scroll.getHeight()+dp(240)>=body.getHeight())maybeAppendSearchWindow();});body.addOnLayoutChangeListener((v,l,t,r,b,ol,ot,or_,ob)->update.run());frame.addOnLayoutChangeListener((v,l,t,r,b,ol,ot,or_,ob)->update.run());return frame;}
 
-  int webUrlEnd(CharSequence text,int start,int end){while(end>start&&".,;:!?)]}".indexOf(text.charAt(end-1))>=0)end--;return end;}
+  int webUrlEnd(CharSequence text,int start,int end){return LinkPolicy.webUrlEnd(text,start,end);}
   void selectableLinks(TextView view){CharSequence raw=view.getText();android.text.SpannableString linked=new android.text.SpannableString(raw);java.util.regex.Matcher matches=WEB_URL_CJK.matcher(raw);while(matches.find()){int start=matches.start(),end=webUrlEnd(raw,start,matches.end());if(end<=start)continue;String url=raw.subSequence(start,end).toString();linked.setSpan(new android.text.style.ClickableSpan(){@Override public void onClick(View widget){openRecognizedLink(url,"");}@Override public void updateDrawState(android.text.TextPaint paint){paint.setColor(PRIMARY);paint.setUnderlineText(true);}},start,end,android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);}view.setText(linked);view.setTextIsSelectable(true);view.setMovementMethod(LinkMovementMethod.getInstance());view.setLinksClickable(true);}
   void setSelectableLinks(TextView view,String value){view.setText(value);selectableLinks(view);}
-  String normalizedWebUrl(String raw){String value=raw==null?"":raw.trim();int end=webUrlEnd(value,0,value.length());value=value.substring(0,end);if(value.isEmpty())return"";if(!value.matches("(?i)^[a-z][a-z0-9+.-]*://.*"))value="https://"+value;return value;}
-  boolean isProductReleaseHost(String host){return host!=null&&host.endsWith(".nkbr.cc")&&host.startsWith("lanzou");}
-  boolean isRealLanzouHost(String host){if(host==null)return false;host=host.toLowerCase(Locale.ROOT);while(host.endsWith("."))host=host.substring(0,host.length()-1);if(isProductReleaseHost(host))return false;return LANZOU_CLOUD_HOST.matcher(host).matches();}
-  boolean isLanzouUrl(String value){String normalized=normalizedWebUrl(value);if(normalized.isEmpty())return false;try{return isRealLanzouHost(Uri.parse(normalized).getHost());}catch(Exception ignored){return false;}}
+  String normalizedWebUrl(String raw){return LinkPolicy.normalizedWebUrl(raw);}
+  boolean isProductReleaseHost(String host){return LinkPolicy.isProductReleaseHost(host);}
+  boolean isRealLanzouHost(String host){return LinkPolicy.isRealLanzouHost(host);}
+  boolean isLanzouUrl(String value){return LinkPolicy.isLanzouUrl(value);}
         String normalizeLanzouBaseOrigin(String raw){String input=raw==null?"":raw.trim();if(input.matches("(?i)^[a-z0-9-]{2,24}$"))input=input+".lanzout.com";String value=normalizedWebUrl(input);try{Uri uri=Uri.parse(value);String scheme=uri.getScheme(),host=uri.getHost();if(host==null||scheme==null||!(scheme.equalsIgnoreCase("http")||scheme.equalsIgnoreCase("https"))||!isRealLanzouHost(host))return "https://oreojiang.lanzout.com";return scheme.toLowerCase(Locale.ROOT)+"://"+host.toLowerCase(Locale.ROOT)+(uri.getPort()>0?":"+uri.getPort():"");}catch(Exception ignored){return "https://oreojiang.lanzout.com";}}
-  String preferredLanzouUrl(String raw){String value=normalizedWebUrl(raw);if(value.isEmpty()||!isLanzouUrl(value))return value;try{return Uri.parse(value).toString();}catch(Exception ignored){return value;}}
+  String preferredLanzouUrl(String raw){return LinkPolicy.preferredLanzouUrl(raw);}
   String lanzouBaseOriginLabel(){try{String host=Uri.parse(sessionLanzouBaseOrigin).getHost();return host==null?sessionLanzouBaseOrigin:host.replaceFirst("^www\\.","");}catch(Exception ignored){return sessionLanzouBaseOrigin;}}
   String baseOriginDialogLabel(String origin,int index,String status){String host=Uri.parse(origin).getHost();StringBuilder label=new StringBuilder(host==null?origin:host);if(index==0)label.append("（默认）");if(origin.equalsIgnoreCase(sessionLanzouBaseOrigin))label.append("（当前）");if(status!=null&&!status.isEmpty())label.append(" · ").append(status);return label.toString();}
   void showLanzouBaseOriginDialog(){showLanzouBaseOriginDialog(null);}
