@@ -49,3 +49,17 @@ Screenshot_*.jpg
 app/src/test/snapshots/
 support_test_log*.txt
 hs_err_pid*.log
+
+# DFW-15 调试残留（2026-09-30）：curl 转储与响应体曾被误提交。
+# 锚定到仓库根（/），避免无锚规则吞掉任意层级同名源码包（lessons 2026-09-21 教训）。
+/cb_err.txt
+/lb_resp.txt
+/record_log.txt
+/record_log2.txt
+/support_test_log.txt
+/support_test_log2.txt
+/support_test_log3.txt
+/support_test_log4.txt
+/support_test_log5.txt
+/support_test_log6.txt
+/unit_compile_log.txt
