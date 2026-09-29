@@ -1153,7 +1153,8 @@ content=new LinearLayout(this);content.setOrientation(LinearLayout.VERTICAL);pag
   /** 崩溃报告正文：最近一次堆栈 + crash.log 历史 + 环境诊断。环境段统一取 App.diagnostics()，避免两处各写各的。 */
   String buildCrashReport(){StringBuilder report=new StringBuilder();String latest=me.rerere.rikkahub.utils.CrashHandler.INSTANCE.getStackTrace(this);if(latest!=null&&!latest.trim().isEmpty())report.append("── 最近一次崩溃（最新） ──\n").append(latest.trim()).append("\n\n");String history=crashLogTail();if(!history.isEmpty())report.append("── crash.log 历史（最多最近 12K） ──\n").append(history).append("\n\n");if(report.length()==0)return "";report.append("── 环境诊断 ──\n").append(App.diagnostics());return report.toString();}
   /** 报告文件名用纯 ASCII（时间 + 版本号）：中文名在分享/保存链路上会被截断（同 v1.22.8 发版资产名事故根因）。 */
-  String crashReportFileName(){String stamp=new java.text.SimpleDateFormat("yyyyMMdd-HHmmss",java.util.Locale.US).format(new java.util.Date());return "dfwx-crash-"+stamp+"-v"+BuildConfig.VERSION_NAME+".txt";}
+  /** DFW-29：实现已迁到 {@link CrashLogStore}；此处保留转发，外部调用点不变。 */
+  String crashReportFileName(){return CrashLogStore.reportFileName(BuildConfig.VERSION_NAME);}
   /**
    * 崩溃报告落盘目录（v1.22.10）：优先公共目录 `Download/东方无限/崩溃日志/`，
    * 用户能在 MT 管理器/文件管理里直接翻到，也可用数据线拷走；没有权限时回退应用外部私有目录，
@@ -1161,13 +1162,13 @@ content=new LinearLayout(this);content.setOrientation(LinearLayout.VERTICAL);pag
    */
   java.io.File crashReportFolder(){java.io.File folder=App.publicCrashFolder();if(folder!=null&&(folder.isDirectory()||folder.mkdirs()))return folder;java.io.File fallback=getExternalFilesDir(null);return fallback!=null?fallback:getFilesDir();}
   /** 把报告写入公共目录，同时刷新固定名 "dfwx-crash-latest.txt"（清除时一并删除）。失败返回 null。 */
-  java.io.File writeCrashReportFile(String content){try{java.io.File dir=crashReportFolder();if(dir==null)return null;dir.mkdirs();byte[] bytes=content.getBytes(java.nio.charset.StandardCharsets.UTF_8);java.io.File file=new java.io.File(dir,crashReportFileName());writeBytesQuietly(file,bytes);writeBytesQuietly(crashLogExportFile(),bytes);return file;}catch(Exception error){return null;}}
-  void writeBytesQuietly(java.io.File file,byte[] bytes){if(file==null)return;try{java.io.File parent=file.getParentFile();if(parent!=null&&!parent.isDirectory())parent.mkdirs();java.io.FileOutputStream out=new java.io.FileOutputStream(file);try{out.write(bytes);}finally{out.close();}}catch(Exception ignored){android.util.Log.w("MainActivity","MainActivity Exception: "+ignored.getMessage(),ignored);}}
+  java.io.File writeCrashReportFile(String content){return CrashLogStore.writeReport(crashReportFolder(),BuildConfig.VERSION_NAME,content);}
+  void writeBytesQuietly(java.io.File file,byte[] bytes){CrashLogStore.writeBytesQuietly(file,bytes);}
   /** 固定留一份"最近一次"的报告，方便用户下次直接拿，文件名保持 ASCII。 */
   java.io.File crashLogExportFile(){java.io.File folder=App.publicCrashFolder();return folder==null?null:new java.io.File(folder,"dfwx-crash-latest.txt");}
-  void deleteQuietly(java.io.File file){try{if(file!=null&&file.exists())file.delete();}catch(Exception ignored){android.util.Log.w("MainActivity","MainActivity Exception: "+ignored.getMessage(),ignored);}}
+  void deleteQuietly(java.io.File file){CrashLogStore.deleteQuietly(file);}
   /** 公共目录里所有历史报告（只有 dfwx-crash-* 前缀，避免误删用户自己的文件）。 */
-  java.util.List<java.io.File> crashReportFiles(){java.util.List<java.io.File> out=new java.util.ArrayList<>();java.io.File folder=App.publicCrashFolder();if(folder!=null&&folder.isDirectory()){java.io.File[] files=folder.listFiles();if(files!=null)for(java.io.File file:files){if(file.isFile()&&file.getName().startsWith("dfwx-crash-"))out.add(file);}}return out;}
+  java.util.List<java.io.File> crashReportFiles(){return CrashLogStore.reportFiles(App.publicCrashFolder());}
   /** 崩溃日志目录：Download/东方无限/崩溃日志（用户 2026-09-29 指定，名字要好找）。 */
   String crashFolderLabel(){return "Download/东方无限/崩溃日志";}
   /** 写公共目录需要"管理所有文件"权限；没授权就先问，授权后自动续跑（用户 2026-09-29 要求"要能在我手机里找到"）。 */
@@ -1183,7 +1184,7 @@ content=new LinearLayout(this);content.setOrientation(LinearLayout.VERTICAL);pag
   java.io.File crashLogFile(){return privateCrashLogFile();}
   /** 展示优先读公共目录那份（用户手边的那份），没有就回退私有副本。 */
   java.io.File crashLogFileForReading(){try{java.io.File shared=App.publicCrashLogFile();if(shared!=null&&shared.exists()&&shared.length()>0)return shared;}catch(Exception ignored){android.util.Log.w("MainActivity","MainActivity Exception: "+ignored.getMessage(),ignored);}return privateCrashLogFile();}
-  String crashLogTail(){try{java.io.File f=crashLogFileForReading();if(f==null||!f.exists()||f.length()==0)return "";long size=f.length();java.io.RandomAccessFile raf=new java.io.RandomAccessFile(f,"r");raf.seek(Math.max(0,size-12000));byte[] buf=new byte[(int)(size-Math.max(0,size-12000))];raf.readFully(buf);raf.close();return new String(buf,java.nio.charset.StandardCharsets.UTF_8);}catch(Exception e){return "";}}
+  String crashLogTail(){return CrashLogStore.readTail(crashLogFileForReading());}
   void copyPlainText(String value){try{ClipboardManager clipboard=(ClipboardManager)getSystemService(CLIPBOARD_SERVICE);if(clipboard!=null)clipboard.setPrimaryClip(android.content.ClipData.newPlainText("dfwx_crash",value));showNotice("已复制，粘贴发给开发者即可",false);}catch(Exception e){showNotice("复制失败",true);}}
   /** 2026-09-24 性能审计#5：设置页动态行值就地刷新注册表——弹窗保存后只刷新受影响行文本，
       不再整页重建 200+ View，顺带保留滚动位置（原实现每保存一个弹窗就把页面顶回顶部）。 */
