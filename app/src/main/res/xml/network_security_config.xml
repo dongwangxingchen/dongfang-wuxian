@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  [DFWX PATCH P33] 网络安全配置（DFW-10）。
+
+  背景：宿主清单原本是 `android:usesCleartextTraffic="true"`——全局放开明文，无网络安全配置，
+  与 docs/plan/decisions.md #9「普通外部 AI/API 只允许 HTTPS」直接冲突。
+  （注：API 24+ 上一旦存在 networkSecurityConfig，清单里的 usesCleartextTraffic 会被忽略，
+   所以这份文件才是唯一的真相源。）
+
+  设计原则：**默认拒绝，按需放行，每一项放行都要说得出理由。**
+  1) base-config 拒绝明文 —— 未知域名一律不允许明文，杜绝"全局口子"。
+  2) 蓝奏云域名池放行 —— LanzouCore.validatedRouteOrigin() 与 parseUserSourceInput()
+     都显式接受 http 的蓝奏链接（用户可粘贴 http 分享链接），放行它们是让既有功能不变。
+     这是**有界**放行：只限蓝奏域名，不是任何域名。
+  3) 回环与 .local 放行 —— 内置 Web 服务（http://localhost:PORT）与 MCP OAuth 回调
+     （http://127.0.0.1:52134/oauth/callback）都走明文 loopback。回环流量不出设备，
+     放行它不增加任何网络暴露面。
+
+  明确**不放行**的（有意为之）：
+  - 用户自填的 AI 渠道 / http 中转站：NET-001 已用 AiUrlPolicy 在请求入口强制 HTTPS-only，
+    所以这里拒绝明文与既定决策一致，不会"改坏功能"（那条路本来就已被拦）。
+  - 任意第三方 CDN 的 http：宁可让该资源加载失败，也不为它开口子。
+    已核对 Mermaid/代码预览用的 WebView 只引用 https 资源（baseUrl = https://rikkahub.local，无 http CDN）。
+
+  维护提示：新增放行项前先问"这个 http 到底在代码哪一行"——找不到调用点就不要放行。
+  守卫测试 CrashLogPageJvmTest 的同级测试 NetworkSecurityConfigJvmTest 会校验本文件的域名白名单，
+  防止将来有人偷偷加回通配符。
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+
+    <!-- 蓝奏云域名池（对应 LanzouCore.LANZOU_BASE_ORIGINS 与 LANZOU_HOST 正则的允许形态） -->
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="true">lanzout.com</domain>
+        <domain includeSubdomains="true">lanzoux.com</domain>
+        <domain includeSubdomains="true">lanzouw.com</domain>
+        <domain includeSubdomains="true">lanzoup.com</domain>
+        <domain includeSubdomains="true">lanzouo.com</domain>
+        <domain includeSubdomains="true">lanzouz.com</domain>
+        <domain includeSubdomains="true">lanzou.com</domain>
+        <domain includeSubdomains="true">lanzov.com</domain>
+    </domain-config>
+
+    <!-- 回环与本地域名：内置 Web 服务 + MCP OAuth 回调。回环流量不出设备。 -->
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="true">localhost</domain>
+        <domain includeSubdomains="true">127.0.0.1</domain>
+        <domain includeSubdomains="true">::1</domain>
+        <domain includeSubdomains="true">local</domain>
+    </domain-config>
+</network-security-config>

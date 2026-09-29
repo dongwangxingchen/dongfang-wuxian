@@ -170,9 +170,11 @@ dependencies {
     implementation(libs.androidx.lifecycle.viewmodel.navigation3)
     implementation(libs.androidx.material3.adaptive.navigation3)
 
-    // Firebase
+    // [DFWX PATCH P32] firebase-analytics 移除（DFW-9，对外承诺"无追踪"）。
+    // BOM 必须保留：它自身不引入任何依赖，但 MLKit barcode-scanning 传递依赖
+    // firebase-encoders / datatransport，去掉 BOM 后这些传递依赖会漂到未缓存版本（离线构建直接失败）。
+    // 保留 BOM = 只做版本对齐，不新增遥测组件。
     implementation(platform(libs.firebase.bom))
-    implementation(libs.firebase.analytics)
     // [DFWX PATCH P15] crashlytics SDK 移除：无官方构建插件时其 Firebase EAGER 组件
     // 因 build ID 缺失在 FirebaseInitProvider 阶段崩溃（早于 Application），真机实测；
     // 代码侧配套删除 AppModule 的 crashlytics 装配（全仓零消费点）。同步上游需重放。

@@ -124,7 +124,16 @@ fun WebView(
 
                     settings.javaScriptEnabled = true // Enable JavaScript
                     settings.domStorageEnabled = true
-                    settings.allowContentAccess = true
+                    // [DFWX PATCH P33] WebView 最小权限（DFW-10）：上游此处是 allowContentAccess = true。
+                    // 本应用只加载 http(s) 页面与虚拟 origin（https://rikkahub.local，静态资源走
+                    // WebViewLocalAssets 拦截器从 assets 读出，不依赖 file/content 访问），
+                    // 因此 file/content 访问与 file:// 来源的跨源读取全部关闭；
+                    // 混合内容一律不允许（https 页面不得夹带 http 子资源）。零功能损失，纯收紧。
+                    settings.allowContentAccess = false
+                    settings.allowFileAccess = false
+                    settings.allowFileAccessFromFileURLs = false
+                    settings.allowUniversalAccessFromFileURLs = false
+                    settings.mixedContentMode = android.webkit.WebSettings.MIXED_CONTENT_NEVER_ALLOW
                     settings.apply(state.settings)
 
                     // Use the created clients

@@ -192,3 +192,35 @@ release badging `versionCode=1039033 / versionName=1.22.13 / native-code: arm64-
 
 **残留待办（另开卡，不在本卡范围）**：MLKit `barcode-scanning` 仍会传递依赖部分 `com.google.android.gms`；
 若用户要求"零 Google 组件"，需评估扫码功能的替代方案。
+
+## P33（v1.22.13）明文流量收敛 + WebView 最小权限（DFW-10）
+
+**背景**：宿主清单 `android:usesCleartextTraffic="true"`（PATCHES.md 自认是为 http 中转站开的），
+全仓无 `networkSecurityConfig`，与 `docs/plan/decisions.md #9`「普通外部 AI/API 只允许 HTTPS」冲突。
+
+**关键平台事实**（先查证再动手）：API 24+ 上一旦存在 `networkSecurityConfig`，
+清单里的 `usesCleartextTraffic` **会被忽略**——所以配置文件才是唯一真相源。
+**并且**：用户自填的 AI 渠道/http 中转站这条路，NET-001 早已用 `AiUrlPolicy` 在请求入口强制 HTTPS-only，
+因此收紧明文**不会**改坏该功能（它本来就被拦）。
+
+**改动**：
+- 新增 `app/src/main/res/xml/network_security_config.xml`：`base-config cleartextTrafficPermitted="false"`（默认拒绝），
+  仅**有界**放行两类域名：
+  1. 蓝奏域名池 8 个（`LanzouCore.validatedRouteOrigin()` 与 `parseUserSourceInput()` 都显式接受 http 分享链接）；
+  2. 回环与本地域名 `localhost` / `127.0.0.1` / `::1` / `local`（内置 Web 服务 + MCP OAuth 回调走 loopback，流量不出设备）。
+- 宿主清单：`usesCleartextTraffic` 改 false，加 `android:networkSecurityConfig`，并补进 `tools:replace`
+  （合并 vendor 清单时不加会被覆盖）。
+- 宿主 `LanzouWebActivity` 与 vendor `ui/components/webview/WebView.kt`：显式钉死
+  `allowFileAccess=false` / `allowContentAccess=false` / `allowFileAccessFromFileURLs=false` /
+  `allowUniversalAccessFromFileURLs=false` / `mixedContentMode=MIXED_CONTENT_NEVER_ALLOW`。
+  已核对 vendor 的静态资源走 `WebViewLocalAssets` 拦截器从 assets 读，**不依赖** file/content 访问，
+  故这些收紧零功能损失。
+
+**明确不放行**（有意为之）：任意第三方域名（含 AI 渠道、CDN）——宁可资源加载失败也不为它开口子。
+已核对 Mermaid/代码预览 WebView 无 http CDN 依赖（baseUrl = `https://rikkahub.local`）。
+
+**守卫**：`NetworkSecurityConfigJvmTest`（6 例）——清单不得出现 `usesCleartextTraffic="true"`、
+base-config 必须默认拒绝、放行域名必须落在白名单内、不得出现通配符、蓝奏池与回环必须在放行列表里、
+第三方域名不得被放行。
+
+验证：`:app:testEmptyDebugUnitTest` 全绿；合并后清单确认 `networkSecurityConfig` 已生效且 `usesCleartextTraffic="false"`。
