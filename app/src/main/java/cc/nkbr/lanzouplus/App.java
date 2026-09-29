@@ -93,13 +93,75 @@ public class App extends me.rerere.rikkahub.RikkaHubApp {
             PrintWriter pw = new PrintWriter(sw);
             pw.println("==== " + new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(new Date()) + " " + kind);
             if (t != null) t.printStackTrace(pw);
-            pw.println("device: " + android.os.Build.MANUFACTURER + " " + android.os.Build.MODEL
-                    + " android " + android.os.Build.VERSION.RELEASE + " (API " + android.os.Build.VERSION.SDK_INT + ")");
+            pw.print(diagnostics());
             try (FileWriter fw = new FileWriter(file, true)) {
                 fw.write(sw.toString());
             }
         } catch (Throwable ignored) {
             // 日志器自身绝不许再抛
         }
+    }
+
+    /**
+     * 诊断信息块：崩溃报告与 crash.log 共用同一份事实源，避免两处各写各的导致字段漂移。
+     * 字段选取参照 ACRA 的报告字段约定（应用版本 / 设备 / 系统 / ABI / 屏幕 / 内存 / 运行时长），
+     * 全部为只读的公开环境信息，不含任何凭据、账号或用户内容。
+     */
+    public static String diagnostics() {
+        StringBuilder sb = new StringBuilder();
+        sb.append("-- 应用 --\n");
+        App app = instance;
+        try {
+            if (app != null) {
+                String pkg = app.getPackageName();
+                android.content.pm.PackageInfo info = app.getPackageManager().getPackageInfo(pkg, 0);
+                long code = android.os.Build.VERSION.SDK_INT >= 28 ? info.getLongVersionCode() : info.versionCode;
+                sb.append("包名: ").append(pkg).append('\n');
+                sb.append("版本: ").append(info.versionName).append(" (").append(code).append(")\n");
+            }
+        } catch (Throwable ignored) {
+            sb.append("版本: 读取失败\n");
+        }
+        sb.append("降级模式: ").append(DEGRADED ? "是" : "否").append('\n');
+        sb.append("\n-- 设备 --\n");
+        sb.append("厂商: ").append(android.os.Build.MANUFACTURER).append('\n');
+        sb.append("品牌: ").append(android.os.Build.BRAND).append('\n');
+        sb.append("型号: ").append(android.os.Build.MODEL).append('\n');
+        sb.append("设备代号: ").append(android.os.Build.DEVICE).append('\n');
+        sb.append("主板: ").append(android.os.Build.BOARD).append('\n');
+        sb.append("ABI: ").append(android.os.Build.SUPPORTED_ABIS == null ? "未知" : String.join(", ", android.os.Build.SUPPORTED_ABIS)).append('\n');
+        sb.append("\n-- 系统 --\n");
+        sb.append("Android: ").append(android.os.Build.VERSION.RELEASE).append(" (API ").append(android.os.Build.VERSION.SDK_INT).append(")\n");
+        sb.append("安全补丁: ").append(android.os.Build.VERSION.SDK_INT >= 23 ? android.os.Build.VERSION.SECURITY_PATCH : "未知").append('\n');
+        sb.append("构建号: ").append(android.os.Build.ID).append('\n');
+        sb.append("指纹: ").append(android.os.Build.FINGERPRINT).append('\n');
+        try {
+            if (app != null) {
+                java.util.Locale locale = app.getResources().getConfiguration().getLocales().get(0);
+                sb.append("语言: ").append(locale == null ? "未知" : locale.toString()).append('\n');
+                android.util.DisplayMetrics metrics = app.getResources().getDisplayMetrics();
+                sb.append("屏幕: ").append(metrics.widthPixels).append('x').append(metrics.heightPixels)
+                        .append(" @").append(metrics.densityDpi).append("dpi").append('\n');
+                android.app.ActivityManager manager = (android.app.ActivityManager) app.getSystemService(android.content.Context.ACTIVITY_SERVICE);
+                if (manager != null) {
+                    android.app.ActivityManager.MemoryInfo memory = new android.app.ActivityManager.MemoryInfo();
+                    manager.getMemoryInfo(memory);
+                    sb.append("物理内存: 总 ").append(megabytes(memory.totalMem)).append(" / 可用 ").append(megabytes(memory.availMem)).append('\n');
+                    sb.append("低内存状态: ").append(memory.lowMemory ? "是" : "否").append('\n');
+                }
+            }
+        } catch (Throwable ignored) {
+            // 环境信息缺失不阻断报告生成
+        }
+        Runtime runtime = Runtime.getRuntime();
+        sb.append("堆内存: 上限 ").append(megabytes(runtime.maxMemory()))
+                .append(" / 已用 ").append(megabytes(runtime.totalMemory() - runtime.freeMemory())).append('\n');
+        sb.append("设备运行时长: ").append(android.os.SystemClock.elapsedRealtime() / 1000L).append(" 秒\n");
+        sb.append("生成时间: ").append(new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(new Date())).append('\n');
+        return sb.toString();
+    }
+
+    private static String megabytes(long bytes) {
+        return (bytes / (1024L * 1024L)) + "MB";
     }
 }

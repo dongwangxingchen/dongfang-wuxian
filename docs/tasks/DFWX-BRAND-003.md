@@ -1,8 +1,76 @@
 # DFWX-BRAND-003：AI 设置页赞助按钮点击闪退
 
-状态：待执行（**根因未定位**，第一优先级是拿到真机崩溃堆栈）
+状态：**✅ 已修复（v1.22.9），JVM 回归已绿；真机验收待用户装机**
 前置：无（独立可做）
 来源：用户真机实测（v1.22.8）原话——"并且设置界面（AI对话的）的赞助按钮点击后会闪退"
+
+## 结论（2026-09-29，证据等级 A）
+
+**根因 = 宿主 `app/build.gradle.kts` 的 aapt2 参数 `--no-xml-namespaces`。**
+
+它会把最终 APK 里**所有 res 二进制 XML 的命名空间 URI 一并剥离**。Compose 的矢量图解析器
+（`androidx.compose.ui.graphics.vector.compat.XmlVectorParser`）读属性走的是**带命名空间的查找**：
+`androidx.core.content.res.TypedArrayUtils.hasAttribute(parser, "viewportWidth")` →
+`parser.getAttributeValue("http://schemas.android.com/apk/res/android", "viewportWidth")`。
+命名空间被剥离后该查找恒为 null，`getNamedFloat` 退回默认值 `0f`，于是抛
+`XmlPullParserException: Binary XML file line #5<VectorGraphic> tag requires viewportWidth > 0`
+→ 组合期异常 → 点"赞助"即闪退。**这就是"JVM 测试全绿、真机必崩"的差异所在**（见下方"为什么以前测不出"）。
+
+### 决定性 A/B 对照（可复现，证据等级 A）
+
+同一份 `rikkahub/app/src/main/res/drawable/afdian.xml`，用 aapt2 只改一个参数分别 link：
+
+| link 参数 | 字符串池 | 属性 ns 字段 | 真机后果 |
+|---|---|---|---|
+| 不带 `--no-xml-namespaces` | 含 `'android'` + `'http://schemas.android.com/apk/res/android'` | 0x01010402 等 | 正常 |
+| 带 `--no-xml-namespaces` | **两者都消失** | **-1（无命名空间）** | **闪退** |
+
+v1.22.8 发布 APK 实测：`res/2A.xml`（afdian）命名空间出现次数 = **0**；
+移除该参数重建后 = **1**（修复已验证进包）。
+
+### 用户真机堆栈（2026-09-29，患者原文）
+
+```
+Thread: main
+Caused by: org.xmlpull.v1.XmlPullParserException: Binary XML file line #5<VectorGraphic> tag requires viewportWidth > 0
+	at kotlin.collections.SetsKt.painterResource(Unknown Source:1411)
+	at ...ComposableSingletons$SettingMcpPageKt$$ExternalSyntheticLambda0.invoke(...)   ← R8 内联后类名错位，非真实调用点
+	at ...ui.pages.setting.SettingAboutPageKt.DonateMethodsCardGroup(...)               ← 真实调用点
+```
+
+注：堆栈里 `SettingMcpPageKt` 是 R8 类合并/内联造成的**误导性符号**；权威定位依据是
+`DonateMethodsCardGroup` + `SettingDonatePage.kt:114` 的 `painterResource(R.drawable.afdian)`。
+用户回答确认：**点击后立即闪退 / 以前也这样 / 无"支持开发者"弹窗 / 进入赞助页就崩**
+——与"渲染期解析矢量图失败"完全吻合（也排除了原候选 B 弹窗时序、候选 D 无浏览器）。
+
+### 为什么以前一直测不出（本卡最关键的教训）
+
+1. **JVM/Robolectric 走的是 `apk-for-local-test.ap_`，其资源是 debug 单元测试资源包**
+   ——本仓 debug 单元测试包里的 `afdian` 命名空间同样是 0，但 Robolectric 的 `getXml()`
+   不经过 Compose 的 `TypedArrayUtils` 带命名空间查找路径，所以页面能渲染、测试全绿。
+2. 现有两条测试（`SettingDonatePageJvmTest`、`EmbedSweepJvmTest:86`）都只验证"页面能推栈/能渲染"，
+   **没有验证资源本身的命名空间完整性**。
+3. 该参数自 v1.0.2 起就在（`git log -S` 确认 2026-09-04 引入），**20 余个版本一直带着**——
+   直到 v1.22.8 上游 2.5.5 首次在宿主可达路径引入 `painterResource(矢量图)`（`SettingDonatePage.kt:114`）
+   才被引爆。这也解释了"以前版本也这样"（从 2.5.5 导入起即存在）。
+
+### 修复
+
+- `app/build.gradle.kts:28`：参数改为 `listOf("--no-compile-sdk-metadata")`（**移除 `--no-xml-namespaces`**），
+  并留 7 行注释锁死红线 + 指向回归测试。
+- **新增可失败回归测试** `app/src/test/java/cc/nkbr/lanzouplus/ApkXmlNamespaceJvmTest.kt`（2 例）：
+  先复现 Compose 的查找方式（`getAttributeValue(ANDROID_NS, "viewportWidth")`），
+  再兜底断言宿主+vendor 多个矢量图的 android 命名空间属性一个都不能少。
+  **已验证鉴别力：修复前 2 例全红，修复后 2 例全绿。**
+
+### 影响面（为什么不只影响赞助页）
+
+宿主 59 个矢量图 drawable + vendor 的 `deepthink/pdf/docx/patreon/rabbit/afdian` 等**全部**受影响。
+任何走 `painterResource()` 的入口都是潜在闪退点：
+`ChatMessage.kt:537/545`（docx/pdf 附件图标）、`ModelList.kt:846` 与 `Export.kt:678`（deepthink 图标）
+——本次一并修好。**这不是单点 bug，是全仓级的构建参数错误。**
+
+---
 
 ## 用户原话与理解
 
@@ -44,18 +112,12 @@
    - `rikkahub/app/src/test/java/me/rerere/rikkahub/dfwx/EmbedSweepJvmTest.kt:86`（真实 Embed 外壳逐页推栈，含 `"SettingDonate(赞助)"`）。
    → **这正是本卡的关键情报**：JVM（debug、无 R8、直接推栈）测不到，真机（release、**经 R8**、**经点击**）会崩。差异只有两类：**R8 优化** 与 **点击路径/真实渲染环境**。
 
-## 首要假设（按置信度，全部未验证）
+## 首要假设（已于 2026-09-29 全部作废，保留作追溯）
 
-**候选 A【中高】R8 优化在 release 上破坏了某个运行期依赖。**
-`-dontobfuscate` 已开（不重命名），但 **shrinking / optimization 仍在跑**（`app/build/outputs/mapping/emptyRelease/mapping.txt` 实测 `SponsorAPI$Companion -> R8$$REMOVED$$CLASS$$2075`）。Retrofit 依赖**方法注解 + 泛型签名**在运行期解析：若某条 keep 规则没覆盖到本接口在**多模块 + 库态**（上游 app 已转 library，见 `PATCHES.md` P1）下的路径，真机上 `Retrofit.create()` 或首次调用会抛异常。**验证方式**：真机装 release 包，用 `adb logcat` 抓 `FATAL EXCEPTION`（或让用户在应用内"设置→崩溃日志"复制堆栈——宿主 `App.installCrashLogger` 是全局 `Thread.setDefaultUncaughtExceptionHandler`，vendor 的崩溃也会落盘到 `getExternalFilesDir/crash.log`）。**这是第一步，必须做。**
-
-**候选 B【中】"支持开发者"弹窗的导航时序问题。**
-`SettingPage.kt:95-118`：`launchCount>100` 且距上次提醒 ≥50 次启动时弹窗；confirm 按钮 **先 `vm.updateSettings(...)` 再 `navController.navigate(...)`**。`updateSettings` 会让 `settings` StateFlow 发出新值 → 触发**当前组合重组**，而用户点击的确认框可能正在被销毁中；在**组合/重组期间执行导航**是 Compose 的已知危险区。**验证方式**：先问用户闪退前是否见过该弹窗；若是，在 JVM 里写一个 `launchCount` 满足条件的 Robolectric 测试复现（这是可写测试的路径）。
-
-**候选 C【中低】`HugeIcons.InLove` 在 release 下的初始化**。
-设置列表的赞助条目用 `Icon(HugeIcons.InLove, null)`。hugeicons 是**预编译依赖**（`PATCHES.md` P19 提到"无法确认图标清单"），若该图标字段在 R8 下被处理掉/初始化异常，点击或渲染会抛 `NoSuchFieldError`/`ExceptionInInitializerError`。注意：JVM 扫描测试已渲染过该条目且未崩，所以**这需要 R8 才成立**——与候选 A 同源，A 的日志能直接证实或排除。
-
-**候选 D【低】`CustomTabsIntent` 在真机无浏览器/无 CustomTabs 支持时抛异常**。但 `openUrl` 有 `runCatching` 兜底，理论上不崩；且赞助页**刚进入时并未调 openUrl**。除非用户是点了 Kofi/爱发电卡片才崩——**向用户确认"是一进页面就崩，还是点了卡片才崩"**。
+原列 4 条候选（A R8 / B 弹窗时序 / C HugeIcons / D CustomTabs）**全部被真机堆栈推翻**：
+真实根因是 aapt2 的 `--no-xml-namespaces` 剥离命名空间导致的矢量图解析失败（见文首结论）。
+其中：候选 B 被用户回答"无弹窗"直接排除；候选 A 的 R8 只是让堆栈符号错位（类合并/内联），并非崩溃原因；
+候选 C/D 均与 `painterResource` 解析期异常无关。**留此节仅为防止后来者重复猜测。**
 
 ## 允许修改
 
@@ -72,23 +134,34 @@
 - 不得读取或输出 `local.properties`；
 - 不得操作用户手机做不可逆操作；不得提交/push/发布。
 
-## 执行顺序（严格）
+## 执行顺序（本次实际执行，留作复盘）
 
-1. **拿真机堆栈**（需先向用户请示操作手机，或其自行用"设置→崩溃日志"复制粘贴）：这一步产出决定后面所有方向，**没有堆栈不许改代码**。
-2. 若拿不到堆栈 → 退而求其次：本地构建 release 包 + 真机复现（需用户配合），或在 JVM 补"点击级"测试（比现有测试更接近真实：走 `SettingPage` 的条目 onClick，而不是直接推栈）。
-3. 定位后写最小修复 + 回归测试。
-4. 若最终判定"上游代码在我们的 R8 配置下必然崩"→ 考虑加 keep 规则（比改 vendor 更符合"长期跟上游"方针）。
+1. ✅ 拿到真机崩溃堆栈（用户自行用"设置→崩溃日志→复制全部日志"导出）。
+2. ✅ 读堆栈定位到 `painterResource` + `XmlPullParserException: ViewportWidth > 0`。
+3. ✅ 只读取证：aapt2 `--no-xml-namespaces` 语义 + 本仓 APK 内命名空间实测 + **A/B 对照实验**。
+4. ✅ 先写可失败回归测试，确认修复前 **2 例全红**。
+5. ✅ 最小修复：移除构建参数（未改任何 vendor 代码、未加 keep 规则）。
+6. ✅ 修复后回归 **2 例全绿**、宿主全量 **57 例全绿**、release 出包并核对 APK 内命名空间已恢复。
 
 ## 验收
 
-- 真机（vivo 真机 / Android 16，**release 包**）：AI 设置 → 赞助 → 页面正常打开、可返回、不闪退；
-- 若改动 vendor 或 keep 规则：`rikkahub/PATCHES.md` / `app/proguard-rules.pro` 有登记；
-- 新增回归测试（至少 JVM 点击级）；
-- 明确写出"已验证 / 未验证"。
+- [x] 回归测试：`ApkXmlNamespaceJvmTest`（2 例）修复前红、修复后绿；
+- [x] 宿主全量 `:app:testEmptyDebugUnitTest` **57 例全绿**（基线 51 + 新增 6）；
+- [x] release 包 `aapt dump badging` 断言 `native-code: arm64-v8a` + 版本号一致；
+- [x] release APK 内 `res/2A.xml`(afdian) 命名空间出现次数 = 1（v1.22.8 为 0）；
+- [ ] **真机验收（待用户装机）**：AI 设置 → 赞助 → 页面正常打开、可返回、不闪退；
+      顺带验证 docx/pdf 附件图标与 deepthink 图标不再有同类闪退。
+- 未改动 vendor 代码、未加 keep 规则 → 无需登记 `rikkahub/PATCHES.md`（**本卡的修复全在宿主构建配置**）。
 
 ## 回退
 
-vendor 改动 `git checkout -- <file>`；keep 规则改动 `git checkout -- app/proguard-rules.pro`。release 回退点 = v1.22.8 的 APK（`<本地目录>/黑曜/03-构建产物/东方无限-v1.22.8.apk`）。
+`git checkout -- app/build.gradle.kts app/src/test/java/cc/nkbr/lanzouplus/ApkXmlNamespaceJvmTest.kt`。
+release 回退点 = v1.22.8 的 APK（`<本地目录>/黑曜/03-构建产物/东方无限-v1.22.8.apk`）。
+**注意：回退该参数 = 把闪退放回去**，非必要不要回退。
+
+## 与 BRAND-001 的关系
+
+`DFWX-BRAND-001` 是"赞助页重做"（信息层级/视觉/文案）。**本卡只修闪退，不改设计**。闪退修完后再做重做，避免两件事混在一个提交里。
 
 ## 与 BRAND-001 的关系
 

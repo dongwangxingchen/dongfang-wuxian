@@ -18,13 +18,20 @@ android {
  namespace = "cc.nkbr.lanzouplus"
  compileSdk = 37
  buildFeatures { buildConfig = true; aidl = true; resValues = true }  // AGP 9 起 resValues 默认关闭，flavor 的 resValue(app_name) 需要
- androidResources { additionalParameters += listOf("--no-xml-namespaces", "--no-compile-sdk-metadata") }
+ // [DFWX BRAND-003] 严禁再加 `--no-xml-namespaces`（v1.0.2 起曾误带 20 余个版本，v1.22.9 移除）。
+ // 该参数会把**所有 res 二进制 XML 的命名空间 URI 一并剥离**（对同一份 afdian.xml 做过 A/B 对照：
+ // 带该参数时字符串池里 'android' 与 'http://schemas.android.com/apk/res/android' 全消失、属性 ns 字段=-1）。
+ // Compose 的矢量图解析走带命名空间的查找（TypedArrayUtils.hasAttribute → getAttributeValue(ANDROID_NS, "viewportWidth")），
+ // 命名空间没了就查不到 → getNamedFloat 退回 0f → painterResource 抛
+ // "<VectorGraphic> tag requires viewportWidth > 0" → 真机点击闪退（BRAND-003 根因）。
+ // 回归守卫：app/src/test/java/cc/nkbr/lanzouplus/ApkXmlNamespaceJvmTest.kt
+ androidResources { additionalParameters += listOf("--no-compile-sdk-metadata") }
  defaultConfig {
   applicationId = "dfwx.dongdang"
   minSdk = 26      // v1.8.0：24→26，RikkaHub 模块（convention minSdk 26）清单合并要求
   targetSdk = 37   // v1.8.0：对齐上游 RikkaHub 2.5.1
-  versionCode = 1039028
-  versionName = "1.22.8"
+  versionCode = 1039029
+  versionName = "1.22.9"
  }
  compileOptions { sourceCompatibility = JavaVersion.VERSION_17; targetCompatibility = JavaVersion.VERSION_17 }
  packaging {
