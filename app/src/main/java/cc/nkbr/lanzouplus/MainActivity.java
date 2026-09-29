@@ -763,12 +763,18 @@ android.graphics.Insets none=android.graphics.Insets.NONE;android.view.WindowIns
    */
   void maybeCheckForUpdates(){
     if(!STARTUP_UPDATE_CHECKED_IN_PROCESS.compareAndSet(false,true))return;
-    if(System.currentTimeMillis()-lastAutoUpdateCheckMs()<AUTO_UPDATE_CHECK_INTERVAL_MS)return;
+    if(!updateThrottle().isDue(System.currentTimeMillis()))return;
     ownsStartupUpdateCheck=true;
     checkForUpdates(false);
   }
-  long lastAutoUpdateCheckMs(){try{return getSharedPreferences(UPDATE_CHECK_PREFS,MODE_PRIVATE).getLong("last_auto_ms",0L);}catch(Exception error){return 0L;}}
-  void rememberAutoUpdateCheck(long at){try{getSharedPreferences(UPDATE_CHECK_PREFS,MODE_PRIVATE).edit().putLong("last_auto_ms",at).apply();}catch(Exception ignored){android.util.Log.w("MainActivity","rememberAutoUpdateCheck failed: "+ignored.getMessage(),ignored);}}
+  /** DFW-29：节流策略已迁到 {@link UpdateThrottle}；此处保留转发，外部调用点不变。 */
+  UpdateThrottle updateThrottle;
+  UpdateThrottle updateThrottle(){
+    if(updateThrottle==null)updateThrottle=UpdateThrottle.forContext(this);
+    return updateThrottle;
+  }
+  long lastAutoUpdateCheckMs(){return updateThrottle().lastCheckAt();}
+  void rememberAutoUpdateCheck(long at){updateThrottle().remember(at);}
   /** 手动入口：显示当前版本 + 立即检查；不受 24h 节流限制。 */
   void manualCheckForUpdates(){checkForUpdates(true);}
   void checkForUpdates(boolean manual){if(manual)manualUpdateFeedbackRequested.set(true);if(!updateCheckRunning.compareAndSet(false,true)){if(manual)showNotice("正在检查更新…",false);return;}if(manual)showNotice("正在检查更新…",false);checkLanzouPlusUpdate(manual);}

@@ -43,6 +43,21 @@
   目录为 null 返回 null、UTF-8 中文、只清 `dfwx-crash-` 前缀的文件、读目录不抛等）。
 - **反向验证**：把 `reportFiles` 的前缀过滤去掉，立刻 1 红（证明转发链是通的）。
 
+### 3. `UpdateThrottle`（本轮，第三次提交）
+
+- **责任**：只回答"现在该不该自动检查更新"，外加记录本次检查时间。
+  **不做网络、不做 UI、不决定提示文案**（与 DFW-7 的分工一致）。
+- **内容**：`isDue(now)` / `remember(at)` / `lastCheckAt()` + 可注入的 `Store` 接口。
+- **为什么值得单独成类**：DFW-7 引入这条策略时，判定与 `SharedPreferences` 读写内联在
+  MainActivity 里，于是"24 小时节流"**只能通过启动 Activity 间接验证**，
+  边界情况（时钟回拨、存储异常）根本没构造。抽出来后用内存 Store 逐条钉死。
+- **顺带发现并防住一个真实边界**：记录时间若"来自未来"（用户改系统时间、或从别的设备恢复数据），
+  原写法 `now - last < INTERVAL` 会因差值为负而**永久锁死自动更新**。
+  新实现显式把"来自未来"与"负数时间戳"都当作可查（`elapsed < 0 → isDue = true`）。
+- **等价性证据**：全量宿主测试全绿（含 `UpdateTriggerJvmTest` 的 4 条接线断言）；
+  新增 `UpdateThrottleJvmTest` 11 例（窗口内/边界/窗口外/未来时间/负值/写入失败/键名不得漂移）。
+- **反向验证**：去掉时钟回拨防护，立刻 1 红。
+
 ## MainActivity 现状与后续顺序
 
 `MainActivity.java` 约 2247 行。卡片建议顺序与实际盘点：
@@ -59,6 +74,8 @@
 剩下的是页面组装与分享 Intent，与 UI 强耦合，优先级下调 |
 | 5 | `UpdateCoordinator` | 未抽。DFW-7 刚加过触发与节流，逻辑集中，可抽 |
 | 6 | `SearchCoordinator` | 未抽。与 `LanzouCore` 并发搜索强耦合，风险最高，**建议最后做** |
+
+> 进度：已完成 `LinkPolicy`、`CrashLogStore`、`UpdateThrottle` 三个领域（各自独立提交、独立可回退）。
 
 ## 本轮结论
 
