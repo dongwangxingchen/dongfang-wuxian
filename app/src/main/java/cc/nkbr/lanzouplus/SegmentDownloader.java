@@ -147,7 +147,35 @@ final class SegmentDownloader {
   }
 
   private Response rangeResponse(HttpURLConnection connection,long expectedStart,long expectedTotal)throws IOException{
-    try{rejectHtml(connection);String value=connection.getHeaderField("Content-Range");Matcher match=value==null?null:CONTENT_RANGE.matcher(value);if(match==null||!match.matches())return null;long start=Long.parseLong(match.group(1)),end=Long.parseLong(match.group(2)),total=Long.parseLong(match.group(3));if(start!=expectedStart||end<start||end>=total||total<=0||(expectedTotal>0&&total!=expectedTotal))return null;return new Response(connection,start,end,total);}catch(IOException|RuntimeException error){connection.disconnect();throw error;}
+    try{
+      rejectHtml(connection);
+      // [DFWX DFW-22] 解析抽成纯函数 parseContentRange：原来与 HTTP 响应对象耦合在一起，
+      // 导致审计点名的"分段下载核心零测试"——没有任何办法在不发真请求的情况下验证解析规则。
+      // 抽出来之后，畸形输入/畸形范围这些**出错代价很高**（写坏文件、算错百分比）的分支可以被逐条测试。
+      long[] parsed=parseContentRange(connection.getHeaderField("Content-Range"));
+      if(parsed==null)return null;
+      long start=parsed[0],end=parsed[1],total=parsed[2];
+      if(start!=expectedStart||end<start||end>=total||total<=0||(expectedTotal>0&&total!=expectedTotal))return null;
+      return new Response(connection,start,end,total);
+    }catch(IOException|RuntimeException error){connection.disconnect();throw error;}
+  }
+
+  /**
+   * 解析 Content-Range 头（形如 bytes start-end/total），返回 {start,end,total}；无法解析返回 null。
+   *
+   * 契约（逐条有测试）：
+   *  - 大小写不敏感、必须整串匹配（"bytes 0-9/100 oops" 不算）；
+   *  - 不可满足范围（bytes 星号/总数形式）、缺字段、非数字一律 null（不得抛异常）；
+   *  - 抽象成 static 纯函数纯粹是为了可测——它不碰网络也不碰状态。
+   */
+  private static long[] parseContentRange(String value){
+    try{
+      Matcher match=value==null?null:CONTENT_RANGE.matcher(value);
+      if(match==null||!match.matches())return null;
+      return new long[]{Long.parseLong(match.group(1)),Long.parseLong(match.group(2)),Long.parseLong(match.group(3))};
+    }catch(RuntimeException error){
+      return null;
+    }
   }
 
   private static void rejectHtml(HttpURLConnection connection)throws IOException{String type=connection.getContentType();if(type!=null){type=type.toLowerCase(Locale.ROOT);if(type.contains("text/html")||type.contains("application/json"))throw new IOException("直链仍是验证页面");}}
