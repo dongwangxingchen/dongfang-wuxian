@@ -157,3 +157,38 @@ rsync -a --delete --exclude-from=rikkahub/.dfwx-rsync-excludes.txt /path/to/upst
 `RequestLoggingRedactionTest`（**驱动真实拦截器**，并额外覆盖"调用方未脱敏"的旁路场景）。
 三道防线逐一验证过鉴别力——分别把拦截器脱敏、存储层脱敏改回去，对应测试立刻变红。
 `:rikkahub-app:testDebugUnitTest` 243 例全绿；`:common:testDebugUnitTest` 14 例全绿。
+
+## P32（v1.22.13）Firebase Analytics 整链移除（DFW-9）
+
+**背景**：README 对外写着"无广告、无追踪"，但 vendor 区仍活装配 Firebase Analytics 并在 AI 主流程上报 5 个行为事件。
+P15 只摘过 crashlytics，Analytics 一直留着。用户要求"弄清 APK 内有哪些会上报/联网的组件，能关的关掉"。
+
+**改动（整链，不留半截）**：
+| 文件 | 改动 |
+|---|---|
+| `ui/pages/chat/ChatVM.kt` | 删注入 `FirebaseAnalytics` + 5 处 `logEvent`（ai_send_message / ai_edit_message / ai_regenerate_at_message / ai_tool_approval / ai_tool_answer） |
+| `di/ViewModelModule.kt` | 删 `analytics = get()` 构造参数 |
+| `di/AppModule.kt` | 删 `import com.google.firebase.*` 与 `single { Firebase.analytics }` |
+| `app/build.gradle.kts` | 删 `implementation(libs.firebase.analytics)`；**保留 BOM**（见下） |
+| `test/.../SweepTestApplication.kt` | 删手动 `FirebaseApp.initializeApp(this)`（已无消费方） |
+
+**为什么必须保留 firebase-bom**：BOM 自身不引入任何依赖，但 MLKit `barcode-scanning` 传递依赖
+`firebase-encoders` / `datatransport` / `firebase-annotations`。去掉 BOM 后这些传递依赖会漂到未缓存版本，
+离线构建直接失败（实测报 `No cached version of com.google.firebase:firebase-encoders:16.1.0`）。
+保留 BOM = 只做版本对齐，**不新增任何遥测组件**。
+
+**P5 的占位 resValue 暂时保留**：虽然 Analytics 已无消费方，但摘掉 `resValue` 会牵动
+`buildFeatures.resValues = true` 与若干历史假设，收益不抵风险；本卡范围内先留（已标注为可清理项）。
+
+**APK 级证据（客观、可复现）**：`aapt dump permissions` 对比 v1.22.11 → v1.22.13，
+权限从 31 条降到 27 条，**消失的 4 条全部是广告/归因相关**：
+- `android.permission.ACCESS_ADSERVICES_AD_ID`
+- `android.permission.ACCESS_ADSERVICES_ATTRIBUTION`
+- `com.google.android.gms.permission.AD_ID`
+- `com.google.android.finsky.permission.BIND_GET_INSTALL_REFERRER_SERVICE`
+
+验证：`:rikkahub-app:testDebugUnitTest` 243 例全绿；`:common:testDebugUnitTest` 14 例全绿；
+release badging `versionCode=1039033 / versionName=1.22.13 / native-code: arm64-v8a`。
+
+**残留待办（另开卡，不在本卡范围）**：MLKit `barcode-scanning` 仍会传递依赖部分 `com.google.android.gms`；
+若用户要求"零 Google 组件"，需评估扫码功能的替代方案。
