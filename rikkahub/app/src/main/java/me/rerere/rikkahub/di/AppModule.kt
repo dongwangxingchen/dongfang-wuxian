@@ -1,7 +1,5 @@
 package me.rerere.rikkahub.di
 
-import com.google.firebase.Firebase
-import com.google.firebase.analytics.analytics
 // [DFWX PATCH P15] 上游此处有 import com.google.firebase.crashlytics.crashlytics 与下方
 // single { Firebase.crashlytics } 装配，均已移除：crashlytics SDK 无官方构建插件时其
 // Firebase EAGER 组件因 build ID 缺失在 FirebaseInitProvider 阶段崩溃（早于 Application.onCreate），
@@ -56,9 +54,9 @@ val appModule = module {
     // [DFWX PATCH P15] 上游此处有 single { Firebase.crashlytics }：已移除（原因见文件头 import 处注释）。
     // 同步上游时删除本注释下方原来的那个装配块。
 
-    single {
-        Firebase.analytics
-    }
+    // [DFWX PATCH P32] 上游此处为 single { Firebase.analytics }：整链移除（DFW-9，对外承诺"无追踪"）。
+    // 与 P15 同源：Firebase 组件在无官方构建插件时不可靠，且本项目不再有任何遥测消费方。
+    // 同步上游时删除本注释下方原来的那个装配块。
 
     single {
         SoundEffectPlayer(get())

@@ -18,8 +18,7 @@ class SweepTestApplication : Application() {
         // RepositoryModule 的 ProotShellRunner 读 applicationInfo.nativeLibraryDir（真机=arm64 .so 目录，
         // Robolectric 上为 null）→ JVM 测试给个假目录，WorkspaceManager 创建不崩即可（不会真执行 proot）
         applicationInfo.nativeLibraryDir = File(cacheDir, "native").apply { mkdirs() }.absolutePath
-        // appModule 的 FirebaseAnalytics 需要 FirebaseApp 已初始化（真机由 FirebaseInitProvider 兜底，
-        // JVM 测试进程没有该 provider）→ 用 defaultConfig 里的占位 resValue 手动初始化
-        com.google.firebase.FirebaseApp.initializeApp(this)
+        // [DFWX PATCH P32] 原此处手动 FirebaseApp.initializeApp(this) 以满足 appModule 的
+        // FirebaseAnalytics 装配；DFW-9 已把 Firebase 整链移除，这里不再需要。
     }
 }
