@@ -29,6 +29,16 @@ public class SettingsStructureTest {
     return g.getChildAt(g.getChildCount() > 1 ? 1 : 0);
   }
 
+  /** 按内容描述在 footer 行里找入口（分隔线没有描述，自然被跳过）。 */
+  private static View findRowByDescription(ViewGroup rows, String description) {
+    for (int i = 0; i < rows.getChildCount(); i++) {
+      View row = rows.getChildAt(i);
+      CharSequence desc = row.getContentDescription();
+      if (desc != null && description.contentEquals(desc)) return row;
+    }
+    return null;
+  }
+
   private static int visibleRows(View content) {
     ViewGroup g = (ViewGroup) content;
     int n = 0;
@@ -105,10 +115,17 @@ public class SettingsStructureTest {
 
     ViewGroup footer = (ViewGroup) activity.settingsSearchSections.get(4);
     ViewGroup rows = (ViewGroup) footer.getChildAt(0);
-    // footer 行顺序：0=崩溃日志 1=分隔线 2=参考与致谢 3=分隔线 4=关于东方无限
-    assertEquals(5, rows.getChildCount());
+    // DFW-7 起 footer 多了「检查更新」行与分隔线，行数不再固定。
+    // 改成按 contentDescription 定位，避免每次增删入口都要改下标（原本按下标写死，加一行即红）。
+    assertTrue("footer 必须至少有分隔线与各入口", rows.getChildCount() >= 5);
+    View aboutRow = findRowByDescription(rows, "关于东方无限");
+    View ackRow = findRowByDescription(rows, "参考与致谢");
+    View crashRow = findRowByDescription(rows, "崩溃日志");
+    assertNotNull("footer 必须有关于入口", aboutRow);
+    assertNotNull("footer 必须有参考与致谢入口", ackRow);
+    assertNotNull("footer 必须有崩溃日志入口", crashRow);
 
-    rows.getChildAt(4).performClick();
+    aboutRow.performClick();
     ShadowLooper.idleMainLooper();
     assertEquals(7, activity.pageKind);
     assertNotNull("关于页应注册系统返回", activity.systemBackAction);
@@ -117,7 +134,7 @@ public class SettingsStructureTest {
     ShadowLooper.idleMainLooper();
     assertEquals(4, activity.pageKind);
 
-    rows.getChildAt(2).performClick();
+    ackRow.performClick();
     ShadowLooper.idleMainLooper();
     assertEquals(8, activity.pageKind);
     Runnable ackBack = activity.systemBackAction;
@@ -125,7 +142,7 @@ public class SettingsStructureTest {
     ShadowLooper.idleMainLooper();
     assertEquals(4, activity.pageKind);
 
-    rows.getChildAt(0).performClick();
+    crashRow.performClick();
     ShadowLooper.idleMainLooper();
     assertEquals(9, activity.pageKind);
     Runnable crashBack = activity.systemBackAction;
