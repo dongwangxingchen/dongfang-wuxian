@@ -120,4 +120,18 @@ class DocsConsistencyJvmTest {
         assertTrue("README 必须保留 RikkaHub 上游署名（AGPL 义务）", readme.contains("RikkaHub"))
         assertTrue("README 必须保留上游仓库链接以便对照", readme.contains("rikkahub/rikkahub"))
     }
+
+    /** DFW-20 收尾：README 的"无追踪/不申请多余权限"必须与实现一致（不得退回绝对说法）。 */
+    @Test
+    fun readmeClaims_areBackedByImplementation() {
+        val readme = read("README.md")
+        // "无追踪"现在属实（DFW-9 已移除 Firebase），但必须同时说明权限用途，
+        // 不能只喊口号——用户需要知道存储/安装权限拿去干什么。
+        assertTrue("README 应声明无广告无追踪", readme.contains("无广告、无追踪"))
+        assertTrue("README 必须说明权限用途（DFW-20：承诺要有依据）",
+            readme.contains("拒绝不影响其它功能"))
+        assertTrue("README 应说明不内置 Key", readme.contains("不内置任何 AI Key"))
+        // 已移除的能力不得再被描述为可用
+        assertFalse("README 不得再写内置体验渠道", readme.contains("预置一个**有限额的公共体验渠道**"))
+    }
 }

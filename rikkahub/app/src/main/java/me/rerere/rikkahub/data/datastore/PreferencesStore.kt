@@ -608,7 +608,13 @@ data class Settings(
     val webServerPort: Int = 8080,
     val webServerJwtEnabled: Boolean = false,
     val webServerAccessPassword: String = "",
-    val webServerLocalhostOnly: Boolean = false,
+    // [DFWX PATCH P37] DFW-20/DFW-35：上游默认 = 监听 0.0.0.0（整个局域网）+ JWT 关闭。
+    // 这对外承诺是矛盾的：README 写"无追踪、不申请多余权限"，而一个默认对全屋广播、
+    // 无鉴权的 Web 控制台是明显的暴露面（同网段任何人可访问）。
+    // 改为**默认仅本机监听**（localhost）。用户确实需要局域网访问时，
+    // 设置页有明确开关（"仅本机访问"可关闭），属知情选择而非默认暴露。
+    // 同步上游时：删除本轮改动即回到"默认 0.0.0.0"，需重新评估。
+    val webServerLocalhostOnly: Boolean = true,
     val backupReminderConfig: BackupReminderConfig = BackupReminderConfig(),
     val launchCount: Int = 0,
     val sponsorAlertDismissedAt: Int = 0,
