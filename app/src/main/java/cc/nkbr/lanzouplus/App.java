@@ -81,26 +81,67 @@ public class App extends me.rerere.rikkahub.RikkaHubApp {
         try {
             App app = instance;
             if (app == null) return;
-            File dir = app.getExternalFilesDir(null);
-            if (dir == null) dir = app.getFilesDir();
-            //noinspection ResultOfMethodCallIgnored
-            dir.mkdirs();
-            File file = new File(dir, "crash.log");
-            // 超 512KB 清掉重写，避免无限膨胀
-            if (file.exists() && file.length() > 512 * 1024) //noinspection ResultOfMethodCallIgnored
-                file.delete();
             StringWriter sw = new StringWriter();
             PrintWriter pw = new PrintWriter(sw);
             pw.println("==== " + new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(new Date()) + " " + kind);
             if (t != null) t.printStackTrace(pw);
             pw.print(diagnostics());
-            try (FileWriter fw = new FileWriter(file, true)) {
-                fw.write(sw.toString());
-            }
+            String text = sw.toString();
+            // 双写（v1.22.10，用户 2026-09-29 反馈"在 MT 管理器里找不到"）：
+            // ① 公共目录 Download/东方无限/崩溃日志/crash.log —— 文件管理器直接可见，用户能手取；
+            // ② 应用私有目录 —— 无需任何权限，作为权威副本，保证没授权时也不丢现场。
+            // 私有副本必须始终写：崩溃发生在授权之前、或用户点了"暂不"时，公共写入会失败。
+            File publicFile = publicCrashLogFile();
+            if (publicFile != null) appendCrashText(publicFile, text);
+            File privateDir = app.getExternalFilesDir(null);
+            if (privateDir == null) privateDir = app.getFilesDir();
+            if (privateDir != null) appendCrashText(new File(privateDir, "crash.log"), text);
         } catch (Throwable ignored) {
             // 日志器自身绝不许再抛
         }
     }
+
+    /** 追加写入，超 512KB 先清空，避免无限膨胀；失败静默（崩溃路径不许再抛）。 */
+    private static void appendCrashText(File file, String text) {
+        try {
+            File parent = file.getParentFile();
+            if (parent != null && !parent.isDirectory()) //noinspection ResultOfMethodCallIgnored
+                parent.mkdirs();
+            if (file.exists() && file.length() > 512 * 1024) //noinspection ResultOfMethodCallIgnored
+                file.delete();
+            try (FileWriter fw = new FileWriter(file, true)) {
+                fw.write(text);
+            }
+        } catch (Throwable ignored) {
+            // 单个位置写入失败不影响另一个位置
+        }
+    }
+
+    /**
+     * 面向用户的公共目录：`Download/东方无限/崩溃日志/`（v1.22.10）。
+     * 之所以不放 `getExternalFilesDir()`：Android 11+ 的 `Android/data/<包名>/` 在文件管理器里
+     * 默认不可见（用户反馈"甚至没找到那个文件夹"），导出给用户看的东西必须放在公共目录。
+     * 返回 null 表示环境不支持（由调用方回退到私有目录）。
+     */
+    public static File publicCrashFolder() {
+        try {
+            File downloads = android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_DOWNLOADS);
+            if (downloads == null) return null;
+            return new File(new File(downloads, "东方无限"), "崩溃日志");
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    /** 公共目录下的 crash.log；预先建好目录，便于用户第一时间在文件管理器里看到它。 */
+    public static File publicCrashLogFile() {
+        File folder = publicCrashFolder();
+        if (folder == null) return null;
+        //noinspection ResultOfMethodCallIgnored
+        folder.mkdirs();
+        return folder.isDirectory() ? new File(folder, "crash.log") : null;
+    }
+
 
     /**
      * 诊断信息块：崩溃报告与 crash.log 共用同一份事实源，避免两处各写各的导致字段漂移。

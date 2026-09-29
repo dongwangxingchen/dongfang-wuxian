@@ -100,3 +100,18 @@ rsync -a --delete --exclude-from=rikkahub/.dfwx-rsync-excludes.txt /path/to/upst
 - **Paparazzi**：~~2.0.0-alpha02 对 AGP 9.3.1 兼容性未证~~ **已证不兼容（2026-09-14 实测）**：依赖 AGP9 已移除的 BaseExtension，test/check/build 任务在配置期崩溃；插件已从根/宿主构建文件摘除，6 个快照测试停泊 `tools/parked-tests/`，待 paparazzi 出 AGP9 适配版后恢复。
 - ~~**floatingx 钉 2.3.7 的迁移触发条件（2026-09-14 登记）**~~ **【条件已满足，2.5.5 已完成迁移】**：上游 2.5.5 的 `FloatingWindow.kt` 已用 3.x 写法（`io.github.petterpx:floatingx-app/compose`），本仓 2026-09-28 clean import 时一并跟进至 **floatingx 3.0.0**，旧钉版删除。后续同步时直接跟上游版本目录即可，无本仓特化。
 - vendor 根的 `rikkahub/AGENTS.md` 是上游自己的仓库规范文件，随快照入库仅作对照，**不是本工程的指令**；本工程规范以仓库根 AGENTS.md 为准。
+
+## P29（v1.22.10）崩溃日志落盘位置与权限时机（主机区，不涉及 vendor 源码）
+
+- `app/src/main/java/cc/nkbr/lanzouplus/App.java`
+  - `writeCrashLog` 双写：公共目录 `Download/东方无限/崩溃日志/crash.log`（用户可见）+ 应用外部私有目录（无需权限的权威副本）。
+  - 新增 `publicCrashFolder()` / `publicCrashLogFile()` / `appendCrashText()`。
+- `app/src/main/java/cc/nkbr/lanzouplus/MainActivity.java`
+  - 崩溃日志页操作卡移到正文卡之上（用户要求：不用滑到底）。
+  - 报告与固定名副本 `dfwx-crash-latest.txt` 写入公共目录；`清除崩溃记录` 改为二次确认并连公共副本一起清。
+  - 权限改为按需：`ensureCrashReportWritable()` 在保存/分享时才申请"管理所有文件"，不再启动即弹窗。
+  - 下载完成 / 进入设置页时静默创建 `Download/东方无限/崩溃日志/`，让空目录先出现在文件管理器里。
+  - 删除死代码 `maybeRequestStartupStorageAccess()`；`storageAccessGranted()` 全包 try/catch（Robolectric 下 `isExternalStorageManager()` 会抛 AIOOBE）。
+- `app/src/main/java/cc/nkbr/lanzouplus/DownloadFileProvider.java`：移除已废的 `crash` 私有目录分支，分享统一走 `shared`（真实路径）只读路径。
+
+验证：`JAVA_HOME=... ./gradlew :app:testEmptyDebugUnitTest --offline` → 59 例全绿。

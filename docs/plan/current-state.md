@@ -1,21 +1,21 @@
 # 东方无限：当前状态
 
 > 这是当前事实页，不是历史计划。源码、命令输出和当前规范优先于旧文档。
-> 更新日期：2026-09-29（v1.22.9：BRAND-003 赞助闪退根因修复 + 崩溃报告可导出）
+> 更新日期：2026-09-29（v1.22.10：崩溃日志落盘到用户找得到的公共目录 + 权限改为按需申请）
 
 ## 1. 工作区
 
 - 桌面交接目录：`/Users/<用户名>/Desktop/东方无限`（仅存<本地备份> zip，勿删勿动）
 - 实际源码根目录：`/Users/<用户名><仓库根>`
 - 当前分支：`test`
-- 当前 HEAD：见 `git log --oneline -1`（2026-09-29 起含 v1.22.9 提交）
+- 当前 HEAD：见 `git log --oneline -1`（2026-09-29 起含 v1.22.9 提交；v1.22.10 改动尚未提交，见 §1.2）
 - 工作树：**源码零改动**；`docs/handover/` 为 untracked（**故意不提交，勿顺手入库**）
 - 回退点：git tag **`dfwx-pre-255-import`**（2.5.5 导入前）；vendor 备份 `<本地目录>/vendor-backup-before-255-20260928.tar.gz`（43MB）；旧补丁台账 `<本地目录>/PATCHES-231-backup-20260928.md`（三者**勿删**）
 - applicationId：`dfwx.dongdang`；宿主 Java 包：`cc.nkbr.lanzouplus`
 - `rikkahub/`：Kotlin/Compose vendor（**上游锚点 = re-ovo/rikkahub tag `2.5.5`，versionCode 190**）与东方无限补丁层
 - 上游源码快照 `/tmp/rikkahub-255/`：**已清空**（临时目录），需要时重新下载
 - 桌面<本地备份> `东方无限_交接总包_20260920.zip`：禁止删除或移动
-- 版本号：versionCode `1039029` / versionName `1.22.9`（`app/build.gradle.kts:33-34`）；下一个版本递增为 `1039030` / `1.22.10`
+- 版本号：versionCode `1039030` / versionName `1.22.10`（`app/build.gradle.kts:33-34`）；下一个版本递增为 `1039031` / `1.22.11`
 
 ## 1.1 v1.22.9 变更（2026-09-29，BRAND-003）
 
@@ -32,6 +32,21 @@
   的 `crash` 路径，无需新权限）；文件名纯 ASCII `dfwx-crash-<时间>-v<版本>.txt`（同 v1.22.8 资产名事故根因）。
   守卫测试 `CrashReportExportJvmTest.kt`（4 例）。
 - **测试**：宿主 **57 例全绿**（基线 51 + 新增 6）。
+
+## 1.2 v1.22.10 变更（2026-09-29，崩溃日志落盘位置 + 权限时机）
+
+用户反馈（DFW-4 评论原话）："按键从最底部改到最顶部……按理来说应该在我下载后问我要存储权限，然后在 MT 管理器里创建一个文件夹叫东方无限……崩溃日志什么的就会在里面……而不是现在这样，我甚至在 MT 管理器里面都没有找到我那文件夹，你起的名字太刁钻了。"
+
+- **操作卡置顶**：崩溃日志页的 保存/分享/复制/清除 从正文之下移到正文之上（长日志不用滑到底）。
+- **落盘位置改为公共目录** `Download/东方无限/崩溃日志/`：
+  - 报告 `dfwx-crash-<时间>-v<版本>.txt` + 固定名副本 `dfwx-crash-latest.txt`（方便下次直接取）；
+  - `crash.log` **双写**：公共目录（用户可见）+ 应用外部私有目录（无需权限的权威副本，崩溃发生在授权之前也不丢现场）；
+  - 清除崩溃记录改为**二次确认**，并连公共目录副本一起清。
+- **权限时机改为按需**：不再启动即弹"管理所有文件"，只在用户点 保存/分享 时才申请（`ensureCrashReportWritable()`）；授权成功后自动续跑原操作。
+- **目录先出现**：拿到权限后（或启动时已授权）静默创建 `Download/东方无限/崩溃日志/` 并放一个空 `crash.log`，用户在文件管理器里立刻看得到；下载完成时也会 ensure 一次。
+- **顺手修的**：删除死代码 `maybeRequestStartupStorageAccess()`；`storageAccessGranted()` 全包 try/catch（Robolectric 下 `Environment.isExternalStorageManager()` 直接抛 `ArrayIndexOutOfBoundsException`，曾带崩 10 例界面测试）；`DownloadFileProvider` 移除已废的 `crash` 私有目录分支，分享统一走 `shared` 真实路径只读通道。
+- **测试**：宿主 **59 例全绿**（v1.22.9 的 57 + 新增 3 − 改写 1 例）。
+- **产物**：`dongfang-wuxian-v1.22.10.apk`，37046462 字节，sha256 `d3bf6a76b09730e59030cca70e32f985d6c7f8d4071cc5ccc02792ee642a683a`，badging `versionCode=1039030 / versionName=1.22.10 / native-code: arm64-v8a`，已归档 `<本地目录>/黑曜/03-构建产物/`。
 
 ## 2. 当前完成度（v1.22.8 覆盖范围）
 

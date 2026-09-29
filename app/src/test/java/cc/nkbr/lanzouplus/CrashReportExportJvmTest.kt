@@ -58,7 +58,7 @@ class CrashReportExportJvmTest {
     }
 
     @Test
-    fun writeCrashReportFile_persistsUtf8Content_underAppDir() {
+    fun writeCrashReportFile_persistsUtf8Content_inPublicCrashFolder() {
         val activity = org.robolectric.Robolectric.buildActivity(MainActivity::class.java).setup().get()
         val content = "── 最近一次崩溃（最新） ──\njava.lang.RuntimeException: 测试中文内容\n"
 
@@ -66,9 +66,41 @@ class CrashReportExportJvmTest {
         assertNotNull("崩溃报告文件必须写入成功", file)
         assertTrue("文件必须真实存在", file!!.isFile)
         assertEquals("内容必须按 UTF-8 原样落盘（含中文）", content, file.readText(Charsets.UTF_8))
+        // 用户 2026-09-29 反馈"在 MT 管理器里甚至没找到那个文件夹"：报告必须落在
+        // Download/东方无限/崩溃日志 这种文件管理器直接可见的公共路径，而不是 Android/data 私有目录。
+        val path = file.absolutePath
         assertTrue(
-            "报告必须落在应用自己的目录下（无需任何权限）",
-            file.absolutePath.contains(context().packageName),
+            "报告必须落在公共「东方无限/崩溃日志」目录，实际：$path",
+            path.contains("东方无限") && path.contains("崩溃日志"),
         )
+        assertTrue(
+            "报告不得落在文件管理器看不见的 Android/data 私有目录，实际：$path",
+            !path.contains("/Android/data/"),
+        )
+    }
+
+    @Test
+    fun writeCrashReportFile_alsoLeavesFixedNameLatestCopy() {
+        val activity = org.robolectric.Robolectric.buildActivity(MainActivity::class.java).setup().get()
+        val content = "崩溃内容"
+
+        activity.writeCrashReportFile(content)
+
+        val latest = activity.crashLogExportFile()
+        assertNotNull("固定名副本路径必须可解析", latest)
+        assertTrue("固定名副本 dfwx-crash-latest.txt 必须存在，便于用户下次直接取用：$latest", latest!!.isFile)
+        assertEquals("固定名副本内容必须与报告一致", content, latest.readText(Charsets.UTF_8))
+        assertTrue(
+            "固定名必须是纯 ASCII：${latest.name}",
+            latest.name.all { it.code in 32..126 },
+        )
+    }
+
+    @Test
+    fun crashFolderLabel_namesTheVisibleFolder() {
+        val activity = org.robolectric.Robolectric.buildActivity(MainActivity::class.java).setup().get()
+
+        // 提示文案必须把目录名告诉用户，否则用户还是不知道去哪儿找（用户原话："你起的名字太刁钻了"）。
+        assertEquals("Download/东方无限/崩溃日志", activity.crashFolderLabel())
     }
 }
