@@ -1,7 +1,7 @@
 # 东方无限：当前状态
 
 > 这是当前事实页，不是历史计划。源码、命令输出和当前规范优先于旧文档。
-> 更新日期：2026-09-29（v1.22.10：崩溃日志落盘到用户找得到的公共目录 + 权限改为按需申请）
+> 更新日期：2026-09-29（v1.22.11：崩溃日志页两处真机反馈——文件夹真建出来 + 顶部按钮不再被自动滚走）
 
 ## 1. 工作区
 
@@ -15,7 +15,7 @@
 - `rikkahub/`：Kotlin/Compose vendor（**上游锚点 = re-ovo/rikkahub tag `2.5.5`，versionCode 190**）与东方无限补丁层
 - 上游源码快照 `/tmp/rikkahub-255/`：**已清空**（临时目录），需要时重新下载
 - 桌面交接包 `东方无限_交接总包_20260920.zip`：禁止删除或移动
-- 版本号：versionCode `1039030` / versionName `1.22.10`（`app/build.gradle.kts:33-34`）；下一个版本递增为 `1039031` / `1.22.11`
+- 版本号：versionCode `1039031` / versionName `1.22.11`（`app/build.gradle.kts:33-34`）；下一个版本递增为 `1039032` / `1.22.12`
 
 ## 1.1 v1.22.9 变更（2026-09-29，BRAND-003）
 
@@ -47,6 +47,24 @@
 - **顺手修的**：删除死代码 `maybeRequestStartupStorageAccess()`；`storageAccessGranted()` 全包 try/catch（Robolectric 下 `Environment.isExternalStorageManager()` 直接抛 `ArrayIndexOutOfBoundsException`，曾带崩 10 例界面测试）；`DownloadFileProvider` 移除已废的 `crash` 私有目录分支，分享统一走 `shared` 真实路径只读通道。
 - **测试**：宿主 **59 例全绿**（v1.22.9 的 57 + 新增 3 − 改写 1 例）。
 - **产物**：`dongfang-wuxian-v1.22.10.apk`，37046462 字节，sha256 `d3bf6a76b09730e59030cca70e32f985d6c7f8d4071cc5ccc02792ee642a683a`，badging `versionCode=1039030 / versionName=1.22.10 / native-code: arm64-v8a`，已归档 `~/heiyao/黑曜/03-构建产物/`。
+
+## 1.3 v1.22.11 变更（2026-09-29 第二轮真机反馈，DFW-4）
+
+用户原话："我授予权限之后，我的 MT 管理器里面并没有看到东方无限为名的文件夹"；"点击崩溃日志开启后，首先打开的界面是从顶部开始能看到的 4 个按钮，但是不到一秒钟，瞬间就是闪了一下，然后看到了崩溃日志的顶部……挺画蛇添足的"。
+
+- **① 文件夹没出现（根因：只调 mkdirs 不看结果）**：旧 `ensureCrashFolder()` 静默吞掉失败，"建成功"与"建失败"在界面上完全一样。
+  - 改为**回读确认** `folder.isDirectory()` 并返回真实结果；成功置 `crashFolderEnsured` 标志；
+  - 放一份空 `crash.log` 占位（部分文件管理器不显示空目录）；
+  - `onResume` 补建一次（幂等、放后台线程），用户在系统设置里**自己**开权限也能被接住，不必非走应用引导；
+  - 崩溃日志页新增**常驻「打开崩溃日志文件夹」**入口（`DocumentsContract` 目录 URI，失败兜底复制路径 + 打开文件管理器）；
+  - 新增状态卡，把**绝对路径**和"文件夹是否已就绪"直接写进页面，用户不用去文件管理器里猜。
+- **② 打开后瞬间闪一下、顶部按钮被滚走（根因：setTextIsSelectable 让正文成为触摸模式焦点）**：
+  正文 `setTextIsSelectable(true)` 同时使它在触摸模式下可获焦；页面铺开后系统把焦点自动交给子树里第一个触摸可获焦视图（那块长正文），
+  ScrollView 随即把它滚进可视区，**实测 scrollY 0→756**，顶部操作卡因此被顶出屏幕。
+  - 修法：`scroll.setFocusableInTouchMode(true)` + `setDescendantFocusability(FOCUS_BEFORE_DESCENDANTS)`，让滚动容器自己当锚点，焦点落容器上不产生任何滚动；进页后再 `scrollTo(0,0)` 兜底。
+  - **不砍选区**：正文保留 `setTextIsSelectable(true)`，长按复制能力不受影响（有专门断言守住）。
+- **测试**：新增 `CrashLogPageJvmTest`（4 例，**验证过鉴别力**：去掉焦点锚点修复后立刻 1 红）。宿主 **63 例全绿**。
+- **产物**：`dongfang-wuxian-v1.22.11.apk`，badging `versionCode=1039031 / versionName=1.22.11 / native-code: arm64-v8a`，已归档 `~/heiyao/黑曜/03-构建产物/`。
 
 ## 2. 当前完成度（v1.22.8 覆盖范围）
 

@@ -70,7 +70,7 @@ public final class MainActivity extends androidx.activity.ComponentActivity impl
   List<Models.Item> current=new ArrayList<>(),folderItems=new ArrayList<>(),homeItems=new ArrayList<>(); List<FolderSearchEntry> folderSearchIndex=new ArrayList<>(),folderSearchCandidates=new ArrayList<>(); final Set<String> liveUrls=new HashSet<>(),currentSourceSearchUrls=new LinkedHashSet<>(),selectedUrls=new LinkedHashSet<>(),selectedSourceUrls=new LinkedHashSet<>(),testingSourceUrls=new HashSet<>(),autoRetriedDirs=new HashSet<>(); final Map<String,CheckBox> selectionChecks=new HashMap<>(),sourceSelectionChecks=new HashMap<>(); final Map<String,View> liveRows=new HashMap<>(); final Map<String,LinkedHashSet<String>> sourceCategories=new LinkedHashMap<>(); final Map<String,String> sourceSearchCorpora=new HashMap<>(); final List<Models.Source> visibleSources=new ArrayList<>(); final boolean[] sourceSelectionKinds={true,true,true,true}; List<Models.Source> sourcePageSources; final Set<DownloadEntry> selectedDownloads=new LinkedHashSet<>(); final Map<DownloadEntry,CheckBox> downloadChecks=new IdentityHashMap<>(); final List<FolderPageState> folderTrail=new ArrayList<>(); final Object sourceSearchLock=new Object(),searchUiLock=new Object(),directoryIndexPauseLock=new Object(); final ArrayDeque<Models.Item> pendingSearchAdds=new ArrayDeque<>(); final LinkedHashMap<String,Models.Item> pendingSearchUpdates=new LinkedHashMap<>(); FolderPageState activeFolderState; Models.Folder activeFolderProfile; Models.Source activeSource; Runnable systemBackAction,sourceSearchRunnable,folderLoadRunnable,folderPullCountdownRunnable; String currentSourceQuery="",folderSearchPreviousQuery="",downloadQuery="",downloadStateFilter="全部",downloadExtensionFilter="全部",activeSourceCategory="全部",folderPullRequestUrl=""; int folderSearchIndexedSize=-1,liveColumns=2,navigationSession,sourceSearchSession,sourceSearchPages,sourceRenderSession,sourceDataRevision,downloadFilterGeneration,sourceFilterGeneration,visible=50,pageDirection=1,folderNextPage=2,lastLayoutWidth,lastHostWidth,lastHostHeight,primaryDestination=-1,pageKind,folderPullRequestSession=-1,folderPullRequestPage,folderAutoExpandInitialRemaining,folderAutoExpandNextRemaining,pendingSearchSession=-1,pendingSearchEpoch=-1,searchFolderCount,searchWindowTarget,searchWindowDirtyFrom; volatile int searchGeneration,searchRenderEpoch; volatile GridLayout searchRenderGrid; GridLayout pendingSearchGrid; long folderNextReadyAt,folderEndNoticeUntil,searchUiTokenAt; double searchUiTokens; boolean profilePresent,folderProfilePending,downloadsPage,selectionMode,sourceSelectionMode,downloadSelectionMode,folderRootSources,folderHasMore,folderLoadingMore,folderRefreshing,primaryNavigationSwitch,homeSearchFocused,homeSearchRequested,homeSearchHistoryOnly,homePrefetchStarted,restoringFolderState,sourceSearchRunning,sourceSearchPaused,searchUiPosted,pendingSearchRefresh,searchWindowPosted,sessionBatchDownloadSingleItem,sessionOpenWebExternal,directoryIndexUserPaused,directoryIndexSearchPaused,directoryIndexResumePending;
   final LruCache<String,Bitmap> imageCache=new LruCache<String,Bitmap>(Math.max(1024,Math.min(8192,(int)(Runtime.getRuntime().maxMemory()/1024/24)))){@Override protected int sizeOf(String key,Bitmap value){return Math.max(1,value.getByteCount()/1024);}};
   final Object imageLock=new Object(); final Map<String,List<java.lang.ref.WeakReference<ImageView>>> imageWaiters=new HashMap<>(); final ArrayDeque<ImageDelivery> imageDeliveries=new ArrayDeque<>(); boolean imageDeliveryPosted; private static final java.util.regex.Pattern WEB_URL_CJK=java.util.regex.Pattern.compile("(?i)(?<![A-Z0-9._%+-])(?:(?:https?|ftp)://)?(?:[A-Z0-9-]+\\.)+[A-Z]{2,63}(?::[0-9]{1,5})?(?:/[A-Z0-9._~%!$&'()*+,;=:@/?#-]*)?(?![A-Z0-9._%+-])"),LANZOU_CLOUD_HOST=java.util.regex.Pattern.compile("^(?:[a-z0-9-]+[.])*(?:lanzou[a-z0-9]?|lanzov)[.]com$");
-  static final String ACTION_WEB_DOWNLOAD="w",ACTION_OPEN_DOWNLOADS="h"; static final int DELETE_PERMISSION=-2,DELETE_FAILED=-1,DELETE_MISSING=0,DELETE_OK=1,STORAGE_PERMISSION=62,IMPORT_RULES=64,EXPORT_RULES=65,STARTUP_STORAGE_PERMISSION=66,DIRECT_STORAGE_PERMISSION=67,FOLDER_PULL_THRESHOLD_DP=52,FOLDER_PULL_SETTLE_DP=56,FOLDER_PULL_MAX_DP=72,DEFAULT_TRANSFER_PARALLELISM=0,DEFAULT_INSTALL_PARALLELISM=0,DEFAULT_SOURCE_PROBE_PARALLELISM=0,SOURCE_LIST_MIN_DISPLAY=32,SEARCH_WINDOW=64,SEARCH_RENDER_CHUNK=64,IMAGE_UI_CHUNK=12,SOURCE_SELECT_LIST=0,SOURCE_SELECT_CUSTOM=1,SOURCE_SELECT_CHILD=2,SOURCE_SELECT_SOFTWARE=3,TOOL_PICK_IMAGE=68,TOOL_PICK_IMAGE2=69,TOOL_MIC_PERMISSION=70,AI_PERMISSION=71; static final long DOWNLOAD_PERSIST_INTERVAL_MS=1200L,DOWNLOAD_PERSIST_DEBOUNCE_MS=750L,DOWNLOAD_UI_INTERVAL_MS=100L; static final String DOWNLOAD_WAITING="等待中",DOWNLOAD_RESOLVING="解析中",DOWNLOAD_RUNNING="下载中",DOWNLOAD_PAUSED="已暂停",DOWNLOAD_CANCELLED="已取消",DOWNLOAD_COMPLETED="已完成",DOWNLOAD_FAILED="失败",ENTRY_DOWNLOAD="download",DOWNLOAD_SOURCE_LANZOU=DownloadSourcePolicy.LANZOU,DOWNLOAD_SOURCE_EXTERNAL=DownloadSourcePolicy.EXTERNAL,DOWNLOAD_SOURCE_UPDATE=DownloadSourcePolicy.UPDATE,DOWNLOAD_SOURCE_LEGACY=DownloadSourcePolicy.LEGACY; static final java.util.regex.Pattern SIZE_VALUE=java.util.regex.Pattern.compile("(?i)([0-9]+(?:\\.[0-9]+)?)\\s*([KMGT]?)"); Models.Item pendingPermissionDownload; boolean pendingPermissionAutoInstall; Runnable pendingToolColorImagePick,pendingMicAction; PendingRetry pendingRetryDownload; DownloadEntry pendingInstallEntry; List<Models.Item> pendingPermissionBatch; final List<DownloadEntry> downloadEntries=new CopyOnWriteArrayList<>(); final Set<DownloadEntry> downloadToastEntries=Collections.newSetFromMap(new IdentityHashMap<>()),dirtyDownloadUi=Collections.newSetFromMap(new IdentityHashMap<>()); final Map<DownloadEntry,LinearLayout> taskToasts=new IdentityHashMap<>(),downloadActions=new IdentityHashMap<>(); final Map<DownloadEntry,View> downloadRows=new IdentityHashMap<>(); final Map<DownloadEntry,TextView> toastLabels=new IdentityHashMap<>(),downloadLabels=new IdentityHashMap<>(); final Map<DownloadEntry,ProgressBar> toastBars=new IdentityHashMap<>(),downloadBars=new IdentityHashMap<>(); final Map<String,TextView> batchDownloadLabels=new HashMap<>(); final Map<String,ProgressBar> batchDownloadBars=new HashMap<>(); final Map<String,View> batchDownloadRows=new HashMap<>(); final Map<String,CheckBox> batchDownloadChecks=new HashMap<>();  boolean downloadUiFramePosted; LinearLayout mergedDownloadToast;TextView mergedDownloadToastLabel;ProgressBar mergedDownloadToastBar;
+  static final String ACTION_WEB_DOWNLOAD="w",ACTION_OPEN_DOWNLOADS="h"; static final int DELETE_PERMISSION=-2,DELETE_FAILED=-1,DELETE_MISSING=0,DELETE_OK=1,STORAGE_PERMISSION=62,IMPORT_RULES=64,EXPORT_RULES=65,STARTUP_STORAGE_PERMISSION=66,DIRECT_STORAGE_PERMISSION=67,FOLDER_PULL_THRESHOLD_DP=52,FOLDER_PULL_SETTLE_DP=56,FOLDER_PULL_MAX_DP=72,DEFAULT_TRANSFER_PARALLELISM=0,DEFAULT_INSTALL_PARALLELISM=0,DEFAULT_SOURCE_PROBE_PARALLELISM=0,SOURCE_LIST_MIN_DISPLAY=32,SEARCH_WINDOW=64,SEARCH_RENDER_CHUNK=64,IMAGE_UI_CHUNK=12,SOURCE_SELECT_LIST=0,SOURCE_SELECT_CUSTOM=1,SOURCE_SELECT_CHILD=2,SOURCE_SELECT_SOFTWARE=3,TOOL_PICK_IMAGE=68,TOOL_PICK_IMAGE2=69,TOOL_MIC_PERMISSION=70,AI_PERMISSION=71; static final long DOWNLOAD_PERSIST_INTERVAL_MS=1200L,DOWNLOAD_PERSIST_DEBOUNCE_MS=750L,DOWNLOAD_UI_INTERVAL_MS=100L; static final String DOWNLOAD_WAITING="等待中",DOWNLOAD_RESOLVING="解析中",DOWNLOAD_RUNNING="下载中",DOWNLOAD_PAUSED="已暂停",DOWNLOAD_CANCELLED="已取消",DOWNLOAD_COMPLETED="已完成",DOWNLOAD_FAILED="失败",ENTRY_DOWNLOAD="download",DOWNLOAD_SOURCE_LANZOU=DownloadSourcePolicy.LANZOU,DOWNLOAD_SOURCE_EXTERNAL=DownloadSourcePolicy.EXTERNAL,DOWNLOAD_SOURCE_UPDATE=DownloadSourcePolicy.UPDATE,DOWNLOAD_SOURCE_LEGACY=DownloadSourcePolicy.LEGACY; static final java.util.regex.Pattern SIZE_VALUE=java.util.regex.Pattern.compile("(?i)([0-9]+(?:\\.[0-9]+)?)\\s*([KMGT]?)"); Models.Item pendingPermissionDownload; boolean pendingPermissionAutoInstall; Runnable pendingToolColorImagePick,pendingMicAction; PendingRetry pendingRetryDownload; DownloadEntry pendingInstallEntry; List<Models.Item> pendingPermissionBatch; final List<DownloadEntry> downloadEntries=new CopyOnWriteArrayList<>(); final Set<DownloadEntry> downloadToastEntries=Collections.newSetFromMap(new IdentityHashMap<>()),dirtyDownloadUi=Collections.newSetFromMap(new IdentityHashMap<>()); final Map<DownloadEntry,LinearLayout> taskToasts=new IdentityHashMap<>(),downloadActions=new IdentityHashMap<>(); final Map<DownloadEntry,View> downloadRows=new IdentityHashMap<>(); final Map<DownloadEntry,TextView> toastLabels=new IdentityHashMap<>(),downloadLabels=new IdentityHashMap<>(); final Map<DownloadEntry,ProgressBar> toastBars=new IdentityHashMap<>(),downloadBars=new IdentityHashMap<>(); final Map<String,TextView> batchDownloadLabels=new HashMap<>(); final Map<String,ProgressBar> batchDownloadBars=new HashMap<>(); final Map<String,View> batchDownloadRows=new HashMap<>(); final Map<String,CheckBox> batchDownloadChecks=new HashMap<>();  boolean downloadUiFramePosted,crashFolderEnsured; LinearLayout mergedDownloadToast;TextView mergedDownloadToastLabel;ProgressBar mergedDownloadToastBar;
   static final class BatchToastState{int total;final java.util.concurrent.atomic.AtomicInteger remaining=new java.util.concurrent.atomic.AtomicInteger();}
   static final class BatchResolved{final DownloadEntry entry;final boolean cached;BatchResolved(DownloadEntry entry,boolean cached){this.entry=entry;this.cached=cached;}}
   static final class PendingRetry{final DownloadEntry entry;final int generation;final String state;final boolean preserveToast;PendingRetry(DownloadEntry entry,boolean preserveToast){this.entry=entry;this.generation=entry.controlGeneration;this.state=entry.state;this.preserveToast=preserveToast;}}
@@ -185,7 +185,10 @@ loadSearchSettings();applyUserAgentSettings();detectWeakDevice();installBackAnim
     // v1.22.10：已授权就静默建好 Download/东方无限/崩溃日志（空目录也要让用户看得见）；
     // 未授权不在启动时弹窗打扰——用户 2026-09-29 明确要求"下载后再问存储权限"。
     if(storageAccessGranted())ensureCrashFolder();}
-    @Override protected void onResume(){super.onResume();if(adbShell!=null)adbShell.refresh();if(manageAllFilesSettingsPending&&Build.VERSION.SDK_INT>=30){manageAllFilesSettingsPending=false;boolean startup=manageAllFilesStartupFlow;manageAllFilesStartupFlow=false;if(Environment.isExternalStorageManager()){ensureCrashFolder();runPendingStorageAccessActions();}else{pendingStorageAccessActions.clear();showNotice("未获得管理所有文件权限；下载、更新、删除和自定义路径可能不可用",true);}if(startup)ui.post(this::maybeRequestBatteryExemption);}if(pendingInstallEntry!=null&&(Build.VERSION.SDK_INT<26||getPackageManager().canRequestPackageInstalls())){DownloadEntry ready=pendingInstallEntry;pendingInstallEntry=null;ui.post(()->installEntryWithSystemInstaller(ready));}}
+    @Override protected void onResume(){super.onResume();if(adbShell!=null)adbShell.refresh();
+    // v1.22.11：用户可能在系统设置里自己开了"管理所有文件"（不走我们的引导），回来时补建一次崩溃目录。
+    // 幂等且放后台线程，避免每次回前台都在主线程做文件 IO。
+    if(!crashFolderEnsured&&storageAccessGranted()){crashFolderEnsured=true;io.execute(this::ensureCrashFolder);}if(manageAllFilesSettingsPending&&Build.VERSION.SDK_INT>=30){manageAllFilesSettingsPending=false;boolean startup=manageAllFilesStartupFlow;manageAllFilesStartupFlow=false;if(Environment.isExternalStorageManager()){ensureCrashFolder();runPendingStorageAccessActions();}else{pendingStorageAccessActions.clear();showNotice("未获得管理所有文件权限；下载、更新、删除和自定义路径可能不可用",true);}if(startup)ui.post(this::maybeRequestBatteryExemption);}if(pendingInstallEntry!=null&&(Build.VERSION.SDK_INT<26||getPackageManager().canRequestPackageInstalls())){DownloadEntry ready=pendingInstallEntry;pendingInstallEntry=null;ui.post(()->installEntryWithSystemInstaller(ready));}}
   final List<Models.Source> libraries=new ArrayList<>();final Map<String,String> libraryNames=new HashMap<>();
   static volatile boolean LIBRARY_AUTO_IMPORT=true;// v1.19.0：JVM 回归测试置 false 静默批量导入（85 源真实网络探测不能进测试）
   void loadRecommendations(){
@@ -948,21 +951,75 @@ content=new LinearLayout(this);content.setOrientation(LinearLayout.VERTICAL);pag
   void collectSettingsText(View view,StringBuilder sb){if(view instanceof TextView){String t=((TextView)view).getText().toString();if(!t.isEmpty()){if(sb.length()>0)sb.append(' ');sb.append(t);}}else if(view instanceof ViewGroup){ViewGroup group=(ViewGroup)view;for(int i=0;i<group.getChildCount();i++)collectSettingsText(group.getChildAt(i),sb);}else{CharSequence cd=view.getContentDescription();if(cd!=null&&cd.length()>0){if(sb.length()>0)sb.append(' ');sb.append(cd);}}}
   void showCrashLogPage(){primaryBase(3);pageKind=9;activeSource=null;clearFolderTrail();systemBackAction=this::showSettings;LinearLayout body=aboutBackBar("崩溃日志");
     String report=buildCrashReport();
-    // v1.22.10（用户 2026-09-29 反馈："按钮什么的从最底部改到最顶部，不然一大堆崩坏日志我还得滑到最底部"）：
-    // 操作卡置于正文卡之上，长日志也不用手滑到底。顺序=保存/分享/复制（高频在前）、清除（破坏性在后，需二次确认）。
-    if(!report.isEmpty()){final String content=report;LinearLayout opsCard=aboutCard();
+    boolean folderReady=storageAccessGranted()&&ensureCrashFolder();
+    // v1.22.10（用户反馈："按钮什么的从最底部改到最顶部"）：操作卡置于正文卡之上，长日志也不用手滑到底。
+    // 顺序=保存/分享/复制（高频在前）、清除（破坏性在后，需二次确认）。
+    LinearLayout opsCard=aboutCard();
+    if(!report.isEmpty()){final String content=report;
       opsCard.addView(settingsAction(R.drawable.ic_download,"保存为文件",v->saveCrashReport(content)),new LinearLayout.LayoutParams(-1,-2));
       addCardDivider(opsCard);
       opsCard.addView(settingsAction(R.drawable.ic_share,"分享报告文件",v->shareCrashReport(content)),new LinearLayout.LayoutParams(-1,-2));
       addCardDivider(opsCard);
       opsCard.addView(settingsAction(R.drawable.ic_copy,"复制全部日志",v->copyPlainText(content)),new LinearLayout.LayoutParams(-1,-2));
-      addCardDivider(opsCard);
-      opsCard.addView(settingsAction(R.drawable.ic_close,"清除崩溃记录",v->confirmClearCrashLog()),new LinearLayout.LayoutParams(-1,-2));
-      body.addView(opsCard,aboutCardLp());}
+      addCardDivider(opsCard);}
+    // "打开文件夹"常驻：用户 2026-09-29 反馈在 MT 管理器里找不到目录，直接把入口放在这一页，
+    // 点一下就跳到 Download/东方无限/崩溃日志，不用自己一层层翻。
+    opsCard.addView(settingsAction(R.drawable.ic_folder_open,"打开崩溃日志文件夹",v->openCrashFolder()),new LinearLayout.LayoutParams(-1,-2));
+    if(!report.isEmpty()){addCardDivider(opsCard);
+      opsCard.addView(settingsAction(R.drawable.ic_close,"清除崩溃记录",v->confirmClearCrashLog()),new LinearLayout.LayoutParams(-1,-2));}
+    body.addView(opsCard,aboutCardLp());
+    body.addView(crashStorageNote(folderReady),aboutCardLp());
     LinearLayout logCard=aboutCard();TextView logView;
     if(report.isEmpty()){logView=text("暂无崩溃记录，应用运行正常",13,MUTED);}else{logView=text(report,11,TEXT);logView.setTypeface(android.graphics.Typeface.MONOSPACE);logView.setTextIsSelectable(true);}
     logCard.addView(logView,new LinearLayout.LayoutParams(-1,-2));body.addView(logCard,aboutCardLp());
-    ScrollView scroll=new ScrollView(this);scroll.setFillViewport(true);scroll.addView(body,new ScrollView.LayoutParams(-1,-2));root.addView(scroll,new LinearLayout.LayoutParams(-1,0,1));}
+    ScrollView scroll=new ScrollView(this);scroll.setFillViewport(true);scroll.addView(body,new ScrollView.LayoutParams(-1,-2));root.addView(scroll,new LinearLayout.LayoutParams(-1,0,1));
+    // v1.22.11 修"打开后瞬间闪一下、顶上 4 个按钮被滚走"（用户 2026-09-29 第二轮反馈）：
+    // 正文设了 setTextIsSelectable(true)，它同时是"触摸模式下可获焦"的视图；页面铺开后系统在触摸模式里
+    // 自动把焦点交给子树里第一个触摸可获焦的视图（就是那块长正文），ScrollView 随即把它滚进可视区，
+    // 实测 scrollY 0→756，于是顶部操作卡被顶出屏幕——表现为"闪了一下就看不到按钮了"。
+    // 修法：让滚动容器自己当触摸模式焦点锚点（FOCUS_BEFORE_DESCENDANTS 抢在子树之前），焦点落在容器上就不会产生任何滚动。
+    scroll.setFocusableInTouchMode(true);
+    scroll.setDescendantFocusability(ViewGroup.FOCUS_BEFORE_DESCENDANTS);
+    scroll.post(()->{if(pageFrame!=null&&scroll.getParent()!=null){scroll.requestFocus();scroll.scrollTo(0,0);}});}
+  /**
+   * 崩溃日志存哪、现在能不能写：把**绝对路径**直接摆在页面上（v1.22.11）。
+   * 用户 2026-09-29 反馈"在 MT 管理器里没有找到东方无限文件夹"——与其让用户去猜，
+   * 不如把真实路径和"是否已建好"直接写在这一页，并给一个一键打开入口。
+   */
+  LinearLayout crashStorageNote(boolean folderReady){LinearLayout card=aboutCard();
+    java.io.File folder=App.publicCrashFolder();
+    String absolute=folder==null?crashFolderLabel():folder.getAbsolutePath();
+    TextView title=text(folderReady?"文件夹已就绪":"文件夹尚未创建（缺少存储权限）",13,folderReady?TEXT:ERROR_TOKEN);
+    title.setTypeface(AppFonts.medium(this));
+    TextView path=text(absolute,11,folderReady?PRIMARY:MUTED);
+    path.setTextIsSelectable(true);
+    path.setPadding(0,dp(3),0,dp(3));
+    TextView detail=text(folderReady
+      ?"crash.log 与导出的报告都在这里。MT 管理器路径：内部存储 → Download → 东方无限 → 崩溃日志。"
+      :"点上面的「保存为文件」会申请「管理所有文件」权限；授权后应用会自动建好这个文件夹。",11,MUTED);
+    detail.setLineSpacing(dp(2),1f);
+    card.addView(title,new LinearLayout.LayoutParams(-1,dp(24)));
+    card.addView(path,new LinearLayout.LayoutParams(-1,-2));
+    card.addView(detail,new LinearLayout.LayoutParams(-1,-2));
+    return card;}
+  /** 直接用文件管理器打开崩溃日志目录（用户找不到文件夹时点这里）。 */
+  void openCrashFolder(){
+    if(!storageAccessGranted()){requestManageAllFilesAccess("打开崩溃日志文件夹需要“管理所有文件”权限。",this::openCrashFolder,false);return;}
+    if(!ensureCrashFolder()){showNotice("文件夹创建失败，请确认已授予“管理所有文件”权限",true);return;}
+    try{
+      // 公共下载目录的 DocumentsContract 文档 ID 形如 "primary:Download/东方无限/崩溃日志"
+      android.net.Uri uri=new android.net.Uri.Builder().scheme("content")
+        .authority("com.android.externalstorage.documents").appendPath("document")
+        .appendPath("primary:"+crashFolderLabel()).build();
+      Intent view=new Intent(Intent.ACTION_VIEW);view.setDataAndType(uri,"vnd.android.document/directory");
+      view.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);startActivity(view);return;
+    }catch(Exception ignored){android.util.Log.w("MainActivity","openCrashFolder intent failed: "+ignored.getMessage(),ignored);}
+    // 系统文件管理器不接受目录 URI 时兜底：复制路径 + 打开文件管理器，路径已在剪贴板里，粘一下即可。
+    try{ClipboardManager clipboard=(ClipboardManager)getSystemService(CLIPBOARD_SERVICE);
+      if(clipboard!=null)clipboard.setPrimaryClip(android.content.ClipData.newPlainText("dfwx_crash_folder",crashFolderLabel()));
+      showNotice("已复制路径："+crashFolderLabel()+"，在文件管理器里进入 内部存储 → Download → 东方无限 → 崩溃日志",true);
+      Intent files=new Intent(Intent.ACTION_MAIN);files.addCategory(Intent.CATEGORY_APP_FILES);startActivity(files);
+    }catch(Exception error){showNotice("没有可用的文件管理器，路径是："+crashFolderLabel(),true);}}
   /** 卡片内分隔线（与 settingsAction 行左对齐，缩进 50dp）。 */
   void addCardDivider(LinearLayout card){View divider=new View(this);divider.setBackgroundColor(SET_STROKE2);LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,dp(1));lp.setMargins(dp(50),0,dp(8),0);card.addView(divider,lp);}
   /** v1.22.10：清除崩溃记录改为二次确认（破坏性操作，误触会丢掉唯一一份现场）。清除范围含公共目录副本。 */
@@ -989,8 +1046,8 @@ content=new LinearLayout(this);content.setOrientation(LinearLayout.VERTICAL);pag
   /** 崩溃日志目录：Download/东方无限/崩溃日志（用户 2026-09-29 指定，名字要好找）。 */
   String crashFolderLabel(){return "Download/东方无限/崩溃日志";}
   /** 写公共目录需要"管理所有文件"权限；没授权就先问，授权后自动续跑（用户 2026-09-29 要求"要能在我手机里找到"）。 */
-  boolean ensureCrashReportWritable(Runnable retry){if(storageAccessGranted())return true;requestManageAllFilesAccess("崩溃日志要保存到 "+crashFolderLabel()+"，需要“管理所有文件”权限，你才能在 MT 管理器或文件管理里直接看到它。",retry,false);return false;}
-  void saveCrashReport(String content){if(!ensureCrashReportWritable(()->saveCrashReport(content)))return;io.execute(()->{java.io.File file=writeCrashReportFile(content);runOnUiThread(()->{if(isFinishing()||isDestroyed())return;if(file==null){showNotice("保存失败，请改用复制",true);return;}String path=file.getAbsolutePath();try{ClipboardManager clipboard=(ClipboardManager)getSystemService(CLIPBOARD_SERVICE);if(clipboard!=null)clipboard.setPrimaryClip(android.content.ClipData.newPlainText("dfwx_crash_path",path));}catch(Exception ignored){}showNotice("已保存到 "+crashFolderLabel()+"，并复制了路径："+path,true);});});}
+  boolean ensureCrashReportWritable(Runnable retry){if(storageAccessGranted())return true;requestManageAllFilesAccess("崩溃日志会保存到「"+crashFolderLabel()+"」。要读写这个公共文件夹，需要“管理所有文件”权限——授权后应用会自动把文件夹建好，你在 MT 管理器里就能看到它。",retry,false);return false;}
+  void saveCrashReport(String content){if(!ensureCrashReportWritable(()->saveCrashReport(content)))return;io.execute(()->{java.io.File file=writeCrashReportFile(content);runOnUiThread(()->{if(isFinishing()||isDestroyed())return;if(file==null){showNotice("保存失败，请改用复制",true);return;}String path=file.getAbsolutePath();try{ClipboardManager clipboard=(ClipboardManager)getSystemService(CLIPBOARD_SERVICE);if(clipboard!=null)clipboard.setPrimaryClip(android.content.ClipData.newPlainText("dfwx_crash_path",path));}catch(Exception ignored){}showNotice("已保存到 "+crashFolderLabel()+"\n文件名："+file.getName(),true);});});}
   void shareCrashReport(String content){if(!ensureCrashReportWritable(()->shareCrashReport(content)))return;io.execute(()->{java.io.File file=writeCrashReportFile(content);runOnUiThread(()->{if(isFinishing()||isDestroyed())return;if(file==null){showNotice("生成文件失败，请改用复制",true);return;}try{
         // v1.22.10：报告现在落在公共目录，走通用 "shared" 路径（按真实路径授权，保持只读），
         // 原来的 "crash" 私有目录分支已废（用户找不到那份文件，分享出去也没意义）。
@@ -1786,7 +1843,27 @@ content=new LinearLayout(this);content.setOrientation(LinearLayout.VERTICAL);pag
    * 下载完成/拿到权限后就把 `Download/东方无限/崩溃日志/` 建好（v1.22.10）。
    * 用户 2026-09-29 反馈"在 MT 管理器里都没找到那个文件夹"——空目录也要先出现，用户才知道东西会往哪儿放。
    */
-  void ensureCrashFolder(){try{java.io.File folder=App.publicCrashFolder();if(folder==null)return;folder.mkdirs();java.io.File log=new java.io.File(folder,"crash.log");if(!log.exists())log.createNewFile();}catch(Exception ignored){android.util.Log.w("MainActivity","MainActivity Exception: "+ignored.getMessage(),ignored);}}
+  /**
+   * 建好公共崩溃目录 `Download/东方无限/崩溃日志/` 并回读确认（v1.22.11）。
+   * 用户反馈"授予权限后 MT 管理器里并没有看到东方无限文件夹"——旧实现只调 `mkdirs()` 不看结果、
+   * 失败也静默吞掉，于是"没建成功"和"建成功了"在界面上完全一样，用户无从判断。现在返回真实结果。
+   * 另外放一个空 `crash.log`：部分文件管理器不显示空目录，占位文件能让目录立刻可见。
+   */
+  boolean ensureCrashFolder(){
+    try{
+      java.io.File folder=App.publicCrashFolder();
+      if(folder==null)return false;
+      if(!folder.isDirectory()&&!folder.mkdirs()&&!folder.isDirectory())return false;
+      java.io.File log=new java.io.File(folder,"crash.log");
+      if(!log.exists())log.createNewFile();
+      boolean ready=folder.isDirectory();
+      if(ready)crashFolderEnsured=true;
+      return ready;
+    }catch(Exception error){
+      android.util.Log.w("MainActivity","ensureCrashFolder failed: "+error.getMessage(),error);
+      return false;
+    }
+  }
   File selectedDownloadDirectory(){android.content.SharedPreferences p=getSharedPreferences("download_destination",MODE_PRIVATE);String raw=p.getString("path","");if(raw==null)raw="";if(raw.trim().isEmpty()){String legacy=p.getString("tree","");String migrated=legacyDownloadTreePath(legacy);android.content.SharedPreferences.Editor edit=p.edit().remove("tree");if(!migrated.isEmpty()){raw=migrated;edit.putString("path",migrated);}edit.apply();}File directory=raw.trim().isEmpty()?defaultDownloadDirectory():new File(raw.trim());try{return directory.getCanonicalFile();}catch(Exception ignored){return directory.getAbsoluteFile();}}
   /**
    * 是否已拿到"管理所有文件"级别权限。v1.22.10：整段包 try/catch —— JVM 单测（Robolectric）里

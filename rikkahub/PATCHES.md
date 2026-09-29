@@ -115,3 +115,14 @@ rsync -a --delete --exclude-from=rikkahub/.dfwx-rsync-excludes.txt /path/to/upst
 - `app/src/main/java/cc/nkbr/lanzouplus/DownloadFileProvider.java`：移除已废的 `crash` 私有目录分支，分享统一走 `shared`（真实路径）只读路径。
 
 验证：`JAVA_HOME=... ./gradlew :app:testEmptyDebugUnitTest --offline` → 59 例全绿。
+
+## P30（v1.22.11）崩溃日志页两处真机反馈（主机区，不涉及 vendor 源码）
+
+- `MainActivity.ensureCrashFolder()`：`mkdirs()` 后**回读确认**并返回结果（旧实现静默吞失败，导致"文件夹到底建没建"无从判断）；放空 `crash.log` 占位让空目录在文件管理器里可见；成功置 `crashFolderEnsured` 幂等标志。
+- `MainActivity.onResume()`：用户自行在系统设置里授予"管理所有文件"后，回前台补建一次崩溃目录（后台线程，不做主线程 IO）。
+- `MainActivity.showCrashLogPage()`：
+  - 新增常驻「打开崩溃日志文件夹」（`com.android.externalstorage.documents` 目录 URI，兜底复制路径 + 打开文件管理器）；
+  - 新增状态卡显示**绝对路径**与就绪状态；
+  - **修"打开后闪一下、顶部按钮被滚走"**：正文 `setTextIsSelectable(true)` 使其成为触摸模式可获焦视图，系统自动聚焦后 ScrollView 把正文滚进可视区（实测 scrollY 0→756），顶部操作卡被顶出屏幕。改为 `scroll.setFocusableInTouchMode(true)` + `FOCUS_BEFORE_DESCENDANTS` 让滚动容器自己当焦点锚点，并在进页后 `scrollTo(0,0)`。正文选区能力保留。
+
+验证：`JAVA_HOME=... ./gradlew :app:testEmptyDebugUnitTest --offline` → 63 例全绿；新增 `CrashLogPageJvmTest` 4 例，去掉焦点锚点后 1 红（鉴别力已验）。
