@@ -113,10 +113,35 @@ jobs:
           chmod +x tools/ci-gate.sh
           tools/ci-gate.sh apk
 
-      - name: Upload unsigned APK
+      # [DFWX DFW-52] 防"unsigned 包被误当发布物"：
+      # CI 产出的 release 包**没有签名**，绝不能分发。这里做两件事——
+      #  1) 把文件改名成带 UNSIGNED-DO-NOT-DISTRIBUTE 的名字；
+      #  2) 往包里塞一份同名的说明文本，让拿到产物的人第一眼就知道它不是发布件。
+      # 真正的发布包只由本地 `tools/release.sh` 构建并核对（见 DFW-32）。
+      - name: Mark unsigned artifact as non-distributable
+        run: |
+          set -euo pipefail
+          SRC=$(ls app/build/outputs/apk/empty/release/*.apk | head -1)
+          OUT_DIR=dist-unsigned
+          mkdir -p "$OUT_DIR"
+          cp "$SRC" "$OUT_DIR/dongfang-wuxian-UNSIGNED-DO-NOT-DISTRIBUTE.apk"
+          cat > "$OUT_DIR/README-请勿分发.txt" <<'TXT'
+          本目录中的 APK 是 CI 构建的 **未签名** 产物，仅用于自动化断言
+          （ABI / 权限 / 清单开关检查），**不是发布件、不可分发**。
+
+          对用户发布的签名包只来自本地发版流程：
+            tools/release.sh verify   # 发版前门禁
+            tools/release.sh build    # 构建 + aapt 断言 + 归档
+            tools/release.sh publish  # 上传并三步核对（默认 dry-run）
+
+          正式下载页：https://github.com/dongwangxingchen/dongfang-wuxian/releases
+          TXT
+          ls -la "$OUT_DIR"
+
+      - name: Upload unsigned APK (clearly named as non-distributable)
         uses: actions/upload-artifact@v4
         with:
-          name: dongfang-wuxian-unsigned-apk
-          path: app/build/outputs/apk/empty/release/*.apk
-          retention-days: 14
+          name: dongfang-wuxian-UNSIGNED-do-not-distribute
+          path: dist-unsigned/**
+          retention-days: 7
           if-no-files-found: error
