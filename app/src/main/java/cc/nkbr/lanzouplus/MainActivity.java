@@ -183,7 +183,23 @@ loadSearchSettings();applyUserAgentSettings();detectWeakDevice();installBackAnim
   void openSupportActivity(){startActivity(new Intent(this,SupportActivity.class));}
   /* v1.5.1：按钮永远打开赞助码页（SupportActivity），解锁确认统一由页内按钮触发爱心感谢页——删除原已付费简陋弹窗分流 */
 
-  void handleExternalAction(Intent intent){if(intent==null)return;String action=intent.getAction();if(ACTION_OPEN_DOWNLOADS.equals(action)){pageDirection=0;showDownloads();return;}if(ACTION_WEB_DOWNLOAD.equals(action)){String url=intent.getStringExtra("url"),name=intent.getStringExtra("name");startWebDirectDownload(url,name);}}
+  void handleExternalAction(Intent intent){if(intent==null)return;String action=intent.getAction();
+    if(ACTION_OPEN_DOWNLOADS.equals(action)){pageDirection=0;showDownloads();return;}
+    if(ACTION_WEB_DOWNLOAD.equals(action)){String url=intent.getStringExtra("url"),name=intent.getStringExtra("name");startWebDirectDownload(url,name);return;}
+    // DFW-12：接收系统分享/链接打开（用户在微信/QQ 里收到蓝奏链接，可直接"分享到东方无限"）。
+    // 延迟一拍执行：冷启动时 Activity 还没完成首次布局，直接开弹窗/解析会拿不到正确的窗口环境。
+    if(Intent.ACTION_SEND.equals(action)){String text=sharedText(intent);if(text.isEmpty())return;ui.post(()->openRecognizedLink(extractSharedUrl(text),""));return;}
+    if(Intent.ACTION_VIEW.equals(action)){Uri data=intent.getData();if(data==null)return;String value=data.toString();if(!isShareableWebUrl(value))return;ui.post(()->openRecognizedLink(value,""));return;}
+  }
+  /** 分享进来的文本：优先 EXTRA_TEXT，其次 EXTRA_SUBJECT（有些应用只填后者）。 */
+  String sharedText(Intent intent){if(intent==null)return"";String text=intent.getStringExtra(Intent.EXTRA_TEXT);if(text==null||text.trim().isEmpty())text=intent.getStringExtra(Intent.EXTRA_SUBJECT);return text==null?"":text.trim();}
+  /**
+   * 从分享文本里挑出第一条可用的 http(s) 链接（微信/QQ 分享常带"标题 + 链接 + 口令"混合文本）。
+   * 找不到链接就返回原文，交给 normalizedWebUrl 去补 https 前缀（用户可能只分享了裸域名）。
+   */
+  String extractSharedUrl(String text){if(text==null||text.trim().isEmpty())return"";java.util.regex.Matcher m=WEB_URL_CJK.matcher(text);while(m.find()){String candidate=webUrlEnd(text,m.start(),m.end())>m.start()?text.substring(m.start(),webUrlEnd(text,m.start(),m.end())):m.group();if(isShareableWebUrl(candidate))return candidate;}return text.trim();}
+  /** 只接收 http/https 的网页链接：拒绝 file/content/其它 scheme，避免变成任意文件/意图入口。 */
+  boolean isShareableWebUrl(String value){if(value==null)return false;try{Uri uri=Uri.parse(value.trim());String scheme=uri.getScheme();return scheme!=null&&(scheme.equalsIgnoreCase("http")||scheme.equalsIgnoreCase("https"))&&uri.getHost()!=null&&!uri.getHost().isEmpty();}catch(Exception ignored){return false;}}
     void startMainExperience(){if(mainExperienceStarted)return;mainExperienceStarted=true;showHomeLanding();prefetchHome();ui.postDelayed(()->{if(sessionBackgroundIndex)requestDirectoryIndexUpdate(false,false);},2500);
     // v1.22.10：已授权就静默建好 Download/东方无限/崩溃日志（空目录也要让用户看得见）；
     // 未授权不在启动时弹窗打扰——用户 2026-09-29 明确要求"下载后再问存储权限"。

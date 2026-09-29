@@ -14,6 +14,25 @@
   <activity android:name=".SupportActivity" android:exported="false" android:configChanges="orientation|screenSize|keyboardHidden|uiMode"/>
    <activity android:name=".MainActivity" android:launchMode="singleTop" android:exported="true" android:enableOnBackInvokedCallback="true" android:windowSoftInputMode="adjustResize" android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboardHidden|density|uiMode">
    <intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter>
+   <!-- [DFWX PATCH P34] DFW-12 外部互通：接收系统分享的文本（微信/QQ 里的蓝奏链接）与网页链接打开。
+        exported=true 是必须的（系统要能调起），但输入面刻意收窄：
+        - SEND 只声明 text/plain（不含 */*），不接收任意文件/图片；
+        - VIEW 只声明 http/https scheme，不接收 file/content 等可被滥用的 scheme；
+        代码侧还有第二道 isShareableWebUrl() 校验，且只取文本里的第一条 http(s) 链接。
+        注：SEND 的 category 用 DEFAULT，VIEW 用 DEFAULT+BROWSABLE —— 后者是浏览器/聊天应用
+        能列出本应用的必要条件（缺 BROWSABLE 时很多应用不会把本应用放进选择列表）。 -->
+   <intent-filter>
+    <action android:name="android.intent.action.SEND"/>
+    <category android:name="android.intent.category.DEFAULT"/>
+    <data android:mimeType="text/plain"/>
+   </intent-filter>
+   <intent-filter>
+    <action android:name="android.intent.action.VIEW"/>
+    <category android:name="android.intent.category.DEFAULT"/>
+    <category android:name="android.intent.category.BROWSABLE"/>
+    <data android:scheme="http"/>
+    <data android:scheme="https"/>
+   </intent-filter>
   </activity>
  </application>
 </manifest>
