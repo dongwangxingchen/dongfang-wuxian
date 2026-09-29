@@ -250,3 +250,22 @@ pom 与 aar 均实测可取（HTTP 200）。`compileDebugKotlin` 与 `:rikkahub-
 
 **未做（需用户批准，属"引入第三方依赖"）**：完整 SBOM（CycloneDX / license-report 插件）。
 项目红线要求不擅自引入新依赖，故本轮只出人工可审计的清单。
+
+## P37（v1.22.19）局域网 Web 控制台默认仅本机（DFW-20/DFW-35）
+
+**发现的矛盾**：README 承诺"无广告、无追踪、不申请多余权限"，但
+`PreferencesStore.kt` 的 `webServerLocalhostOnly` **默认 false**，
+配合 `WebServerManager.kt` 的 `HOST_ALL_INTERFACES = "0.0.0.0"`，
+意味着用户一旦开启 Web 控制台，它就**监听整个局域网**且 `webServerJwtEnabled` 默认也是 false
+（同网段任何人都能访问）。这属于"承诺与实现不一致"，也正是 DFW-20 要收尾的那类问题。
+
+**处置**：`webServerLocalhostOnly` 默认改为 **true**（仅本机监听）。
+- Web 控制台本身仍是**用户主动开启**的功能（`webServerEnabled` 默认 false，未变）；
+- 确实需要局域网访问的用户，设置页有明确开关可关掉"仅本机访问"——属**知情选择**而非默认暴露；
+- 不改 JWT 逻辑（那是用户侧的访问控制，另议）。
+
+**同步上游时**：删除本轮对默认值的改动即回到"默认 0.0.0.0"，需重新评估安全影响。
+
+验证：`TelemetryAndExposureTest`（5 例）断言 Web 控制台默认仅本机 + 默认不启动 +
+代码里不得再有任何遥测上报调用 + 不得再引入 firebase-analytics 依赖 + README 承诺与实现一致。
+鉴别力已验：把默认值改回 false，立刻 1 红。
