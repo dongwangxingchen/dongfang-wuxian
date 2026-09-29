@@ -1,7 +1,7 @@
 # 东方无限：当前风险台账
 
 > 只记录当前风险和证据状态。完成一项后必须补真实命令、测试或产物证据。
-> 更新日期：2026-09-28 晚（v1.22.8 已发；真机反馈三项入账）
+> 更新日期：2026-09-29（v1.22.9：BRAND-003 赞助闪退根因定位并修复；R-19 同类隐患入账）
 
 | ID | 等级 | 风险 | 当前状态 | 下一证据 | 责任任务 |
 |---|---|---|---|---|---|
@@ -19,7 +19,8 @@
 | R-12 | P1 | vendor master 快照、SNAPSHOT/JitPack 和许可证不可追溯 | 上游已固定 tag `2.5.5`（改善）；`sqlite-android:-SNAPSHOT`（jitpack）风险仍在 | 上游 commit、依赖锁定、SBOM、NOTICE | DFWX-DEP-001 |
 | R-13 | P1 | CI 只验证部分构建链路 | 尚未完成分层门禁 | JVM、Manifest、unsigned release、签名和资产检查 | DFWX-CI-001 |
 | R-14 | ✅ 已闭环 | ~~历史计划过多导致后续 AI 误读~~ | **BASE-001 已完成**：唯一入口建成、旧目录归档；`docs/tasks/README.md` 现有"当前现场速查"节 | 已完成 | DFWX-BASE-001 |
-| R-15 | **P0** | **AI 设置页"赞助"按钮点击后闪退（真机 v1.22.8）** | 现象已确认、根因未定；JVM 两条现有测试（`SettingDonatePageJvmTest`、`EmbedSweepJvmTest`）**都覆盖且全绿**，说明只在 release/R8 或真机点击路径上成立；已排除：补丁覆盖、Koin 未注册、路由 key 缺参、资源缺失、类被 R8 移除（证据见任务卡） | **真机崩溃堆栈**（应用内"设置→崩溃日志"或 adb logcat） | DFWX-BRAND-003 |
+| R-15 | ✅ 已闭环（真机待验） | ~~AI 设置页"赞助"按钮点击后闪退（真机 v1.22.8）~~ | **已修（v1.22.9）**：根因=宿主 aapt2 参数 `--no-xml-namespaces` 剥离全部 res 二进制 XML 命名空间 → Compose 矢量图解析器（走带命名空间的查找）读不到 `viewportWidth` → 退回 0f → `painterResource` 抛 `XmlPullParserException`。A/B 对照实验坐实；回归测试 `ApkXmlNamespaceJvmTest` 修复前 2 例红、修复后绿；宿主 57 例全绿；release APK 内命名空间 0→1 | 真机装机验收（待用户） | DFWX-BRAND-003 |
+| R-19 | P1 | **同类隐患（R-15 的孪生面）**：宿主 59 个矢量图 + vendor 矢量图全部依赖该命名空间。除赞助页外，docx/pdf 附件图标（`ChatMessage.kt:537/545`）、deepthink 图标（`ModelList.kt:846`、`Export.kt:678`）走同一 `painterResource` 路径，此前均为潜在闪退点 | 随 R-15 一并修复（同一构建参数）；回归测试已覆盖命名空间完整性 | 真机冒烟：AI 页发带附件消息、模型列表展开 | DFWX-BRAND-003 |
 | R-16 | P1 | AI 页键盘弹出时顶部顶栏错位（真机 v1.22.8） | 现象已确认（v1.22.8 后输入框正常、顶栏仍错位），根因未定；宿主 insets 裁剪链 + Compose TopAppBar 默认 padding 为候选机制 | 真机逐帧 insets 日志（需请示操作用户手机） | DFWX-UI-005 |
 | R-17 | P2 | AI 页空会话占位文案在键盘弹出时位置异常，且用户已判定为无用 | 现象已确认；机制候选为 `fillParentMaxSize` 与 `innerPadding` 叠加时机；**用户已明确要求删除** | 删除后与上游 diff 为零 + 真机确认 | DFWX-UI-006 |
 | R-18 | P2 | 发布资产命名/校验流程曾出错（v1.22.8 中文名截断致下载 404） | 已修（重新上传 + sha256 核对）；防复发条款已写进技能 `dfwx-release`（`5a854f1`） | 下次发版按新流程执行 | DFWX-RELEASE-001 |

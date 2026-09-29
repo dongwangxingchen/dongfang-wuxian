@@ -1,21 +1,37 @@
 # 东方无限：当前状态
 
 > 这是当前事实页，不是历史计划。源码、命令输出和当前规范优先于旧文档。
-> 更新日期：2026-09-28 晚（v1.22.8 已发；真机反馈三项待办）
+> 更新日期：2026-09-29（v1.22.9：BRAND-003 赞助闪退根因修复 + 崩溃报告可导出）
 
 ## 1. 工作区
 
 - 桌面交接目录：`/Users/lishaowei/Desktop/东方无限`（仅存交接包 zip，勿删勿动）
 - 实际源码根目录：`/Users/lishaowei/heiyao/src`
 - 当前分支：`test`
-- 当前 HEAD：`5a854f1`（release skill 补"资产名必须 ASCII + 上传后核对 sha256"条款）；**其后有一个文档治理提交**（2026-09-28 晚：交接文档体系 + 三张真机反馈任务卡 + 台账修订，提交号见 `git log` 最新一条）
+- 当前 HEAD：见 `git log --oneline -1`（2026-09-29 起含 v1.22.9 提交）
 - 工作树：**源码零改动**；`docs/handover/` 为 untracked（**故意不提交，勿顺手入库**）
 - 回退点：git tag **`dfwx-pre-255-import`**（2.5.5 导入前）；vendor 备份 `~/heiyao/vendor-backup-before-255-20260928.tar.gz`（43MB）；旧补丁台账 `~/heiyao/PATCHES-231-backup-20260928.md`（三者**勿删**）
 - applicationId：`dfwx.dongdang`；宿主 Java 包：`cc.nkbr.lanzouplus`
 - `rikkahub/`：Kotlin/Compose vendor（**上游锚点 = re-ovo/rikkahub tag `2.5.5`，versionCode 190**）与东方无限补丁层
 - 上游源码快照 `/tmp/rikkahub-255/`：**已清空**（临时目录），需要时重新下载
 - 桌面交接包 `东方无限_交接总包_20260920.zip`：禁止删除或移动
-- 版本号：versionCode `1039028` / versionName `1.22.8`（`app/build.gradle.kts:26-27`）；下一个版本递增为 `1039029` / `1.22.9`
+- 版本号：versionCode `1039029` / versionName `1.22.9`（`app/build.gradle.kts:33-34`）；下一个版本递增为 `1039030` / `1.22.10`
+
+## 1.1 v1.22.9 变更（2026-09-29，BRAND-003）
+
+- **根因（A 级，A/B 对照实验坐实）**：宿主 `app/build.gradle.kts` 的 aapt2 参数 `--no-xml-namespaces`
+  （v1.0.2 起误带 20 余版本）把**所有 res 二进制 XML 的命名空间 URI 一并剥离**。Compose 矢量图解析器
+  读属性走带命名空间的查找（`TypedArrayUtils.hasAttribute` → `getAttributeValue(ANDROID_NS, "viewportWidth")`），
+  查不到就退回 0f → `painterResource` 抛 `XmlPullParserException: <VectorGraphic> tag requires viewportWidth > 0`
+  → 点"赞助"即闪退。**同类受害者**：docx/pdf 附件图标、deepthink 图标（共 59 个宿主矢量图 + vendor 矢量图）。
+- **修复**：移除该参数，`app/build.gradle.kts` 留 7 行注释锁死红线。
+- **回归守卫**：新增 `app/src/test/java/cc/nkbr/lanzouplus/ApkXmlNamespaceJvmTest.kt`（2 例，
+  修复前 2 红、修复后 2 绿，已验鉴别力）。
+- **崩溃报告升级（用户要求）**：`App.java` 新增 `diagnostics()`（版本/设备/系统/ABI/屏幕/内存/运行时长，
+  字段参照 ACRA 约定，不含任何凭据）；崩溃日志页新增"保存为文件 / 分享报告文件"（复用 `DownloadFileProvider`
+  的 `crash` 路径，无需新权限）；文件名纯 ASCII `dfwx-crash-<时间>-v<版本>.txt`（同 v1.22.8 资产名事故根因）。
+  守卫测试 `CrashReportExportJvmTest.kt`（4 例）。
+- **测试**：宿主 **57 例全绿**（基线 51 + 新增 6）。
 
 ## 2. 当前完成度（v1.22.8 覆盖范围）
 
@@ -39,16 +55,22 @@
 - STAB-001 已入库（`54837c9`）：下载历史 debounce 落盘 + flush 不阻塞主线程 + generation/owner 双校验；
 - ADB-001 已入库（`0e37e6a`）：ADB/Shizuku 状态车道 + generation 闸门（修旧评估覆盖新状态的竞态）；
 - 补丁台账 `rikkahub/PATCHES.md` 已按 2.5.5 基线重写（P1–P28 + U1/U4–U8 全部登记，含"同步上游时需重放"标注）+ 宿主节含 v1.22.8 IME 收敛条目；
-- **测试基线（2026-09-28 晚本机 JVM 实测）**：**628 例全绿** —— 宿主 51 + vendor app 240 + ai 199 + common 1 + search 16 + highlight 53 + material3 1 + oauth 2 + speech 43 + web 1 + workspace 20 + document 1；
+- **测试基线（2026-09-29 本机 JVM 实测）**：宿主 **57 例全绿**（v1.22.9 新增 6 例）；vendor 侧 2026-09-28 基线 628 例全绿（宿主 51 + vendor app 240 + ai 199 + common 1 + search 16 + highlight 53 + material3 1 + oauth 2 + speech 43 + web 1 + workspace 20 + document 1）；
 - **release 产物证据**：v1.22.8 APK 内 `drawable/afdian`、`drawable/kofi`、`string/donate_page_*` 均存在；dex 含 `SponsorAPI`、`SettingDonatePage`、`/sponsors` 与 `https://sponsors.rikka-ai.com` 字符串（赞助闪退排查的排除项依据）。
 
 ## 4. 当前尚未完成
 
 ### 4.1 真机反馈的三项（当前优先，详见任务卡）
 
-- **`DFWX-BRAND-003` 赞助按钮闪退**（AI 设置 → 赞助 → 闪退）：JVM 两条现有测试（`SettingDonatePageJvmTest`、`EmbedSweepJvmTest`）**都覆盖且全绿**，说明问题只在 release/R8 或真机点击路径。**第一优先**：需先拿真机崩溃堆栈（用户可用"设置→崩溃日志"复制，或请示后用 adb logcat）。
+- **`DFWX-BRAND-003` 赞助按钮闪退** —— ✅ **代码已修（v1.22.9）**，根因=aapt2 `--no-xml-namespaces` 剥离资源命名空间
+  （详见 §1.1）；回归测试 2 例已绿，宿主 57 例全绿。**剩余：真机装机验收**（用户装 v1.22.9 release 包验证赞助页不闪退）。
 - **`DFWX-UI-005` AI 页顶栏键盘错位**：v1.22.8 后输入框正常、顶栏仍错位。**未取证前不许改代码**，且禁止再加自研 insets 动画/缓存。
 - **`DFWX-UI-006` AI 页空态两行文案删除**：用户已明确要求删除（本地补丁 P19/P20/P21），删后与上游一致、同步成本下降。
+
+### 4.1.1 崩溃报告导出（用户 2026-09-29 要求）
+
+✅ 已实现（`App.diagnostics()` + 崩溃日志页"保存为文件/分享报告文件"，守卫测试 4 例）。
+**剩余：真机验证保存与分享链路实际可用。**
 
 ### 4.2 原计划队列
 
@@ -66,7 +88,8 @@
 
 ## 5. 当前第一执行任务
 
-**`DFWX-BRAND-003`（赞助闪退）** —— 用户可感知、有明确复现路径、且需要真机堆栈推动。其后 `DFWX-UI-005`、`DFWX-UI-006`（建议合并同一轮），再回到原队列 `DFWX-TEST-001` → AI-005 → SEC-004 → …
+**`DFWX-BRAND-003`（赞助闪退）** —— ✅ 代码已修并出 v1.22.9 包；**当前第一执行改为"真机装机验收 v1.22.9"**。
+其后 `DFWX-UI-005`、`DFWX-UI-006`（建议合并同一轮），再回到原队列 `DFWX-TEST-001` → AI-005 → SEC-004 → …
 
 研究报告与当前代码有出入时，以当前代码为准。
 
