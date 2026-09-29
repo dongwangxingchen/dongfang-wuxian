@@ -141,6 +141,40 @@ public final class MainActivity extends androidx.activity.ComponentActivity impl
   @Override public void onCreate(Bundle b){super.onCreate(b);ACTIVE_OWNER=this;ACTIVE_INSTANCE=new java.lang.ref.WeakReference<>(this);applySystemColors();deleteSharedPreferences("premium-session-v1");io.execute(()->{try{java.security.KeyStore ks=java.security.KeyStore.getInstance("AndroidKeyStore");ks.load(null);if(ks.containsAlias("cc.nkbr.lanzouplus.premium.v1"))ks.deleteEntry("cc.nkbr.lanzouplus.premium.v1");}catch(Exception ignored){}});// v1.23 优享移除:一次性清理旧版本本机加密会话,不留无法清除的残留
 loadSearchSettings();applyUserAgentSettings();detectWeakDevice();installBackAnimationCallback();core=new LanzouCore(this);core.setDirectoryCachingEnabled(true);core.setIndexPauseSupplier(this::directoryIndexPaused);directResolver=new DirectLinkResolver(this,core);adbShell=new AdbShellManager(this,this::onAdbShellStateChanged);ui.postDelayed(this::deferredAdbShellStart,3000);loadDownloadHistory();loadRecommendations();activeSource=home;getPreferences(0).edit().putBoolean("accepted",true).apply();startMainExperience();if(!getPreferences(0).getBoolean("oldAiNoticed",false)&&!getSharedPreferences("ai_chat_settings",0).getAll().isEmpty()){getPreferences(0).edit().putBoolean("oldAiNoticed",true).apply();ui.post(()->showNotice("AI 对话已全新升级：旧版 AI 配置已停用（不影响其他数据），新版请到 AI 页抽屉底部的设置里添加自己的渠道",true));}handleExternalAction(getIntent());}
 
+  /**
+   * DFW-14：系统内存紧张时主动释放**可重建**的缓存。
+   *
+   * 为什么需要：本应用把图标位图放在 LruCache + 文件夹快照的 pinnedIcons 里，
+   * 滑动大量目录后这一块是最大且**最容易重建**的内存占用；此前完全没有回收点，
+   * 后台被杀之前只能等系统强杀，返回前台就得重新下载图片。
+   *
+   * 只清"能重新拿到"的东西（图标位图）；不动任何用户数据、不清下载历史、不打断进行中的任务。
+   * `UI_HIDDEN` 之外的档位（RUNNING_MODERATE/COMPLETE、BACKGROUND 等）同样按档处理：
+   * 轻度紧张先降解码质量即可，重度才整块清空——避免一有压力就狂重载图片。
+   */
+  @Override public void onTrimMemory(int level){
+    super.onTrimMemory(level);
+    try{
+      if(level>=TRIM_MEMORY_COMPLETE||level>=TRIM_MEMORY_BACKGROUND){
+        imageCache.evictAll();
+        // 文件夹快照里的 pinnedIcons 同样持有位图强引用，一并释放（可重新下载，不是用户数据）
+        if(activeFolderState!=null)activeFolderState.pinnedIcons.clear();
+        for(FolderPageState state:folderTrail)state.pinnedIcons.clear();
+        return;
+      }
+      if(level>=TRIM_MEMORY_RUNNING_LOW||level>=TRIM_MEMORY_MODERATE){
+        // 中度：只清掉一部分（LruCache 的 trimToSize 会按 LRU 淘汰），保留热图不闪
+        imageCache.trimToSize(Math.max(1,imageCache.maxSize()/3));
+        return;
+      }
+      if(level>=TRIM_MEMORY_RUNNING_MODERATE||level>=TRIM_MEMORY_UI_HIDDEN){
+        // 轻微：清空"未交付"的图片投递队列即可（这些是滑动过快时排队的过期请求）
+        synchronized(imageLock){imageWaiters.clear();imageDeliveries.clear();}
+      }
+    }catch(Throwable error){
+      android.util.Log.w("MainActivity","onTrimMemory: "+error.getMessage(),error);
+    }
+  }
   @Override protected void onNewIntent(Intent intent){super.onNewIntent(intent);setIntent(intent);handleExternalAction(intent);}
   /** [DFWX PATCH P16] 内嵌 AI 页的音量键滚动：上游音量键监听挂在 RouteActivity 实例上，
       内嵌态（AppRoutes 跑在本 Activity 的 ComposeView 里）拿不到该实例，故经进程级

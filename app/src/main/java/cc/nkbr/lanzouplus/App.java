@@ -77,6 +77,11 @@ public class App extends me.rerere.rikkahub.RikkaHubApp {
         });
     }
 
+    /** 测试专用入口：暴露给 JVM 测试验证并发写不交错（生产代码走 installCrashLogger 的处理器）。 */
+    static void writeCrashLogForTest(String kind, Throwable t) {
+        writeCrashLog(kind, t);
+    }
+
     static void writeCrashLog(String kind, Throwable t) {
         try {
             App app = instance;
@@ -101,8 +106,19 @@ public class App extends me.rerere.rikkahub.RikkaHubApp {
         }
     }
 
+    /**
+     * 崩溃日志的写锁（DFW-14）。
+     *
+     * 为什么必须锁：日志器装在**所有线程**的未捕获异常处理器上，多线程同时崩溃时
+     * 两个 `FileWriter(append)` 会并发写同一文件，日志内容互相交错、行被撕开，
+     * 恰恰在最需要看清现场的时候把现场毁掉。用一把静态锁把"检查大小 + 清空 + 追加"
+     * 整段串行化（只锁写入这一段，不做别的耗时操作，崩溃路径不会被拖住）。
+     */
+    private static final Object CRASH_LOG_LOCK = new Object();
+
     /** 追加写入，超 512KB 先清空，避免无限膨胀；失败静默（崩溃路径不许再抛）。 */
     private static void appendCrashText(File file, String text) {
+      synchronized (CRASH_LOG_LOCK) {
         try {
             File parent = file.getParentFile();
             if (parent != null && !parent.isDirectory()) //noinspection ResultOfMethodCallIgnored
@@ -115,6 +131,7 @@ public class App extends me.rerere.rikkahub.RikkaHubApp {
         } catch (Throwable ignored) {
             // 单个位置写入失败不影响另一个位置
         }
+      }
     }
 
     /**
