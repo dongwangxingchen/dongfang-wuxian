@@ -1114,6 +1114,40 @@ content=new LinearLayout(this);content.setOrientation(LinearLayout.VERTICAL);pag
   /** 卡片内分隔线（与 settingsAction 行左对齐，缩进 50dp）。 */
   void addCardDivider(LinearLayout card){View divider=new View(this);divider.setBackgroundColor(SET_STROKE2);LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,dp(1));lp.setMargins(dp(50),0,dp(8),0);card.addView(divider,lp);}
   /** v1.22.10：清除崩溃记录改为二次确认（破坏性操作，误触会丢掉唯一一份现场）。清除范围含公共目录副本。 */
+  /**
+   * DFW-16：一键清掉下载历史里保存的**分享密码**（以及由密码构成的可直接打开链接）。
+   *
+   * 背景：蓝奏分享链接常带提取码，历史记录把密码一起落盘（`entry.password`）以便重试；
+   * 但它明文留存在本机，且此前**没有任何用户可见的清理入口**。
+   * 这里只清密码字段，**不动下载记录本身**（卡片红线：不删除用户的下载历史）。
+   * 已完成的下载不再需要密码，所以清掉不影响正常使用。
+   */
+  void clearStoredSharePasswords(){
+    int cleared=0;
+    for(DownloadEntry entry:downloadEntries){
+      synchronized(entry){
+        if(entry.password!=null&&!entry.password.isEmpty()){entry.password="";cleared++;}
+        // 密码也可能被拼进 shareUrl 的查询串里，一并剥掉 pwd= 参数
+        if(entry.shareUrl!=null&&entry.shareUrl.contains("pwd=")){
+          String cleaned=entry.shareUrl.replaceAll("(?i)([?&])pwd=[^&]*","$1").replaceAll("[?&]$","");
+          if(!cleaned.equals(entry.shareUrl)){entry.shareUrl=cleaned;cleared++;}
+        }
+      }
+    }
+    if(cleared>0)persistDownloadHistory();
+    showNotice(cleared>0?("已清除 "+cleared+" 条记录里的分享密码"):"历史里没有保存的分享密码",false);
+  }
+  /** 二次确认后清除（破坏性操作）。 */
+  void confirmClearStoredSharePasswords(){
+    int count=0;
+    for(DownloadEntry entry:downloadEntries)synchronized(entry){if(entry.password!=null&&!entry.password.isEmpty())count++;}
+    if(count==0){showNotice("历史里没有保存的分享密码",false);return;}
+    AlertDialog dialog=new AlertDialog.Builder(this).setTitle("清除分享密码？")
+      .setMessage("会清掉 "+count+" 条下载记录里保存的提取码。\n\n不影响下载记录和已下载的文件，但之后重试这些任务需要重新输入密码。")
+      .setNegativeButton("取消",null)
+      .setPositiveButton("清除",(d,w)->clearStoredSharePasswords()).create();
+    dialog.setCanceledOnTouchOutside(false);showRounded(dialog);
+  }
   void confirmClearCrashLog(){AlertDialog dialog=new AlertDialog.Builder(this).setTitle("清除崩溃记录？").setMessage("会删掉最近一次崩溃的堆栈、crash.log 历史，以及 "+crashFolderLabel()+" 里已导出的报告文件。清除后无法恢复。").setNegativeButton("取消",null).setPositiveButton("清除",(d,w)->{clearCrashArtifacts();showNotice("崩溃记录已清除",false);pageDirection=0;showCrashLogPage();}).create();dialog.setCanceledOnTouchOutside(false);showRounded(dialog);}
   void clearCrashArtifacts(){me.rerere.rikkahub.utils.CrashHandler.INSTANCE.clearCrashed(this);deleteQuietly(privateCrashLogFile());try{if(storageAccessGranted()){deleteQuietly(App.publicCrashLogFile());for(java.io.File file:crashReportFiles())deleteQuietly(file);}}catch(Exception ignored){android.util.Log.w("MainActivity","MainActivity Exception: "+ignored.getMessage(),ignored);}}
   /** 崩溃报告正文：最近一次堆栈 + crash.log 历史 + 环境诊断。环境段统一取 App.diagnostics()，避免两处各写各的。 */
@@ -1818,7 +1852,10 @@ content=new LinearLayout(this);content.setOrientation(LinearLayout.VERTICAL);pag
    *  「应用程序」等被按钮边界截断，视觉上像"按钮被边距挡住"）。改为胶囊整行可横滚，按钮移到独立行。 */
   LinearLayout downloadExtensionChipRow(LinearLayout strip){LinearLayout row=new LinearLayout(this);row.setGravity(Gravity.CENTER_VERTICAL);HorizontalScrollView scroll=new HorizontalScrollView(this);scroll.setHorizontalScrollBarEnabled(false);scroll.setFillViewport(false);strip.setOrientation(LinearLayout.HORIZONTAL);strip.setPadding(0,dp(2),dp(8),dp(2));scroll.addView(strip,new HorizontalScrollView.LayoutParams(-2,dp(38)));row.addView(scroll,new LinearLayout.LayoutParams(-1,dp(38)));return row;}
   /** v1.22.3 下载页全局操作按钮独立行（右对齐）：与胶囊彻底分开，消除"胶囊被截断"观感 */
-  LinearLayout downloadActionRow(){LinearLayout row=new LinearLayout(this);row.setGravity(Gravity.END|Gravity.CENTER_VERTICAL);ImageButton pauseAll=iconButton(R.drawable.ic_pause,"暂停或继续全部未完成下载任务");downloadGlobalControlButton=iconButton(R.drawable.ic_close,"取消全部未完成下载任务");ImageButton deleteRecords=iconButton(R.drawable.ic_delete_record,"全部删除记录"),deleteFiles=iconButton(R.drawable.ic_delete_file,"全部删除文件");pauseAll.setOnClickListener(v->togglePauseAllActive());deleteRecords.setOnClickListener(v->confirmDeleteAllDownloadRecords());deleteFiles.setOnClickListener(v->confirmDeleteAllDownloadedFiles());row.addView(pauseAll,actionBtnLp(dp(6)));row.addView(downloadGlobalControlButton,actionBtnLp(dp(2)));row.addView(deleteRecords,actionBtnLp(dp(2)));row.addView(deleteFiles,actionBtnLp(dp(6)));refreshDownloadGlobalControl();return row;}
+  LinearLayout downloadActionRow(){LinearLayout row=new LinearLayout(this);row.setGravity(Gravity.END|Gravity.CENTER_VERTICAL);ImageButton pauseAll=iconButton(R.drawable.ic_pause,"暂停或继续全部未完成下载任务");downloadGlobalControlButton=iconButton(R.drawable.ic_close,"取消全部未完成下载任务");ImageButton deleteRecords=iconButton(R.drawable.ic_delete_record,"全部删除记录"),deleteFiles=iconButton(R.drawable.ic_delete_file,"全部删除文件");
+    // DFW-16：分享密码此前明文留在历史里且没有清理入口，这里给一个（只清密码，不动记录）
+    ImageButton clearPasswords=iconButton(R.drawable.ic_copy,"清除历史里保存的分享密码");clearPasswords.setOnClickListener(v->confirmClearStoredSharePasswords());
+    pauseAll.setOnClickListener(v->togglePauseAllActive());deleteRecords.setOnClickListener(v->confirmDeleteAllDownloadRecords());deleteFiles.setOnClickListener(v->confirmDeleteAllDownloadedFiles());row.addView(pauseAll,actionBtnLp(dp(6)));row.addView(downloadGlobalControlButton,actionBtnLp(dp(2)));row.addView(deleteRecords,actionBtnLp(dp(2)));row.addView(deleteFiles,actionBtnLp(dp(2)));row.addView(clearPasswords,actionBtnLp(dp(6)));refreshDownloadGlobalControl();return row;}
   /** v1.22.3：下载页全局操作按钮的统一尺寸 + 首个按钮左侧留白（把"被截断的胶囊"与按钮视觉分开，消除"按钮被挤住"观感） */
   LinearLayout.LayoutParams actionBtnLp(int leftMargin){LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(dp(38),dp(38));lp.leftMargin=leftMargin;return lp;}
   void refreshDownloadGlobalControl(){ImageButton control=downloadGlobalControlButton;if(control==null)return;boolean hasCancellable=false,hasPaused=false;for(DownloadEntry entry:downloadEntries){if(isDownloadActive(entry))hasCancellable=true;else if(entry.state.equals(DOWNLOAD_PAUSED))hasPaused=true;}if(hasCancellable){control.setImageResource(R.drawable.ic_close);control.setContentDescription("取消全部未完成下载任务");control.setEnabled(true);control.setOnClickListener(v->cancelAllActive());}else{control.setImageResource(R.drawable.ic_play);if(hasPaused){control.setContentDescription("继续全部暂停下载任务");control.setEnabled(true);control.setOnClickListener(v->resumeAllPaused());}else{control.setContentDescription("当前没有可继续的下载任务");control.setEnabled(false);control.setOnClickListener(null);}}}

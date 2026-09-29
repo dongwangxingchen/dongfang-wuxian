@@ -114,4 +114,38 @@ class NetworkSecurityConfigJvmTest {
         }
         assertEquals("配置文件必须存在且非空", true, config.isNotBlank())
     }
+
+    /**
+     * DFW-16 第 2 条：`requestLegacyExternalStorage` 在 targetSdk 37 下**完全无效**
+     * （该属性仅 target≤29 生效），是死配置。
+     *
+     * 卡片的验收要求是"merged manifest 实际值有 aapt 证据"——aapt 证据在提交信息里；
+     * 这里守的是"别又被谁加回来"：属性既无作用，留着只会误导后来者以为本应用在用旧存储模型。
+     */
+    @Test
+    fun manifest_hasNoDeadRequestLegacyExternalStorage() {
+        val manifest = manifest()
+        assertFalse(
+            "requestLegacyExternalStorage 在 targetSdk 37 下无任何作用（死配置），不得再出现",
+            manifest.contains("requestLegacyExternalStorage"),
+        )
+    }
+
+    /** allowBackup 必须为 false 且靠 tools:replace 压过 vendor 的 true（防备份把本地数据带走）。 */
+    @Test
+    fun manifest_disablesBackupAndReplacesVendorValue() {
+        val manifest = manifest()
+        assertTrue(
+            "allowBackup 必须显式为 false（本地含分享密码等敏感数据，不该被云备份带走）",
+            manifest.contains("android:allowBackup=\"false\""),
+        )
+        assertTrue(
+            "vendor 清单声明 allowBackup=true，宿主必须用 tools:replace 覆盖，否则清单合并失败或用错值",
+            manifest.contains("android:allowBackup"),
+        )
+        assertTrue(
+            "tools:replace 必须包含 allowBackup",
+            manifest.contains("android:allowBackup,"),
+        )
+    }
 }
