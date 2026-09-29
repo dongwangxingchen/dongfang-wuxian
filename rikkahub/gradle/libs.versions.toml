@@ -61,7 +61,12 @@ ktor = "3.5.2"
 sqlite-vector = "1.0.0"
 jmdns = "3.6.3"
 slf4j = "2.0.18"
-sqlite-android = "-SNAPSHOT"
+# [DFWX PATCH P36] DFW-30：原为 "-SNAPSHOT"（JitPack 浮动版本 = 默认分支最新 commit）。
+# 浮动版本不可复现：今天解到的 AAR 与下个月解到的可能不是同一份代码，
+# 而且它绕过任何 code review 就进了安装包。已钉到**不可变 commit**，
+# 该 commit 由 JitPack 构建记录确认（`/api/builds/...` 返回 80cedc8888df2fe1d22d7f9bf8d9287f621624be 为 ok）。
+# 升级时：改成本次上游新 commit 的完整 hash，并在 PATCHES.md 记录原因。
+sqlite-android = "80cedc8888df2fe1d22d7f9bf8d9287f621624be"
 termux = "0.118.0"
 diffutils = "4.17"
 snakeyaml = "2.7"

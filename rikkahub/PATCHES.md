@@ -224,3 +224,29 @@ base-config 必须默认拒绝、放行域名必须落在白名单内、不得�
 第三方域名不得被放行。
 
 验证：`:app:testEmptyDebugUnitTest` 全绿；合并后清单确认 `networkSecurityConfig` 已生效且 `usesCleartextTraffic="false"`。
+
+## P36（v1.22.18）依赖钉版与 SBOM（DFW-30）
+
+**供应链风险处置**：`rikkahub/gradle/libs.versions.toml` 里
+`com.github.rikkahub:sqlite-android` 版本原写作 **`-SNAPSHOT`**——在 JitPack 上这等于"默认分支最新 commit"。
+两个后果：① **不可复现**（今天解到的 AAR 与下个月可能不是同一份代码）；
+② **绕过评审**（上游推新 commit 就直接进安装包，没人看过）。审计 B-1 列为最高优先级之一。
+
+**已钉到不可变 commit `80cedc8888df2fe1d22d7f9bf8d9287f621624be`**：
+该 commit 由 JitPack 构建记录确认构建成功（`/api/builds/com.github.rikkahub/sqlite-android` 返回其 `ok`），
+pom 与 aar 均实测可取（HTTP 200）。`compileDebugKotlin` 与 `:rikkahub-app:testDebugUnitTest` 在钉版后均通过。
+
+**全仓浮动版本复查**：核对两个 `libs.versions.toml` 与各 `build.gradle.kts`，
+除上述一处外**再无** `SNAPSHOT` / `latest.release` / `+` / 动态版本区间。
+
+**新增 `docs/THIRD-PARTY-NOTICES.md`**（SBOM 简版）：登记本仓库许可（AGPL-3.0）、
+上游核心组件署名义务（RikkaHub tag 2.5.5 / LanzouPlus）、供应链风险处置、
+直接依赖按许可归类、**已移除组件记录**（Firebase Analytics/Crashlytics/Paparazzi，
+避免"以为还在"）、以及完整 SBOM 的生成方式与三条诚实待办。
+
+**守卫**：`DependencyHygieneJvmTest`（4 例）——版本目录不得出现浮动版本、
+`sqlite-android` 必须钉到 40 位 commit、SBOM 必须存在且覆盖关键项（含本次钉版记录）、
+上游锚点必须是 tag 而非 master。鉴别力已验：把版本改回 `-SNAPSHOT`，立刻 2 红。
+
+**未做（需用户批准，属"引入第三方依赖"）**：完整 SBOM（CycloneDX / license-report 插件）。
+项目红线要求不擅自引入新依赖，故本轮只出人工可审计的清单。
