@@ -182,9 +182,23 @@ val dataSourceModule = module {
             }
             .addNetworkInterceptor(RequestLoggingInterceptor())
             .addInterceptor(AIRequestInterceptor())
+            // [DFWX PATCH P31] SEC-004：上游此处是 level = HEADERS 且只脱敏 Proxy-Authorization，
+            // 等于把 Authorization / Cookie / x-api-key 原样写进 Logcat（release 常开）。改为 BASIC：
+            // 仍保留方法+URL+状态码+耗时这些定位故障必备信息，但不再逐条打印任何头值。
+            // 同时把已知凭据头与常见凭据查询参数登记进 okhttp 自带的 redact 表，双保险
+            // （万一以后有人把 level 调回 HEADERS，凭据仍然不会裸奔）。
+            // 注：官方 API 没有"自定义脱敏逻辑"入口，所以这里只用它提供的 redactHeader/redactQueryParams；
+            // 需要值级判断的场景由自研 RequestLoggingInterceptor（走 DfwxLogRedactor）承担。
             .addInterceptor(HttpLoggingInterceptor().apply {
+                redactHeader("Authorization")
                 redactHeader("Proxy-Authorization")
-                level = HttpLoggingInterceptor.Level.HEADERS
+                redactHeader("Cookie")
+                redactHeader("Set-Cookie")
+                redactHeader("X-Api-Key")
+                redactHeader("Api-Key")
+                redactHeader("X-Goog-Api-Key")
+                redactQueryParams("key", "api_key", "apikey", "access_token", "token", "client_secret")
+                level = HttpLoggingInterceptor.Level.BASIC
             })
             .build()
         client.also { SearchService.init(it, get()) }
