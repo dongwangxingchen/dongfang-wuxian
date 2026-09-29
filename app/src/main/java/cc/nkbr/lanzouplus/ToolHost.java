@@ -124,14 +124,14 @@ final class ToolHost {
       LinearLayout row=new LinearLayout(ctx);row.setGravity(Gravity.CENTER_VERTICAL);row.setClickable(true);row.setFocusable(true);
       row.setBackground(ripple(new ColorDrawable(Color.TRANSPARENT)));row.setPadding(act.dp(10),0,act.dp(8),0);
       TextView no=text("#"+rank,13,rank<=3?act.PRIMARY():act.MUTED());no.setTypeface(AppFonts.bold(ctx));no.setMinWidth(act.dp(34));
-      row.addView(no,new LinearLayout.LayoutParams(-2,act.dp(56)));
+      row.addView(no,new LinearLayout.LayoutParams(-2,act.dpText(56)));
       row.addView(toolIconView(id,act.dp(30)),new LinearLayout.LayoutParams(act.dp(30),act.dp(30)));
       LinearLayout copy=new LinearLayout(ctx);copy.setOrientation(LinearLayout.VERTICAL);copy.setPadding(act.dp(12),0,0,0);
       TextView name=text(Toolbox.toolName(id),15,act.TEXT());name.setTypeface(AppFonts.bold(ctx));copy.addView(name,new LinearLayout.LayoutParams(-1,act.dp(26)));
       TextView desc=text(Toolbox.toolDesc(id),11,act.MUTED());desc.setSingleLine(true);desc.setEllipsize(TextUtils.TruncateAt.END);copy.addView(desc,new LinearLayout.LayoutParams(-1,act.dp(20)));
-      row.addView(copy,new LinearLayout.LayoutParams(0,act.dp(56),1));
+      row.addView(copy,new LinearLayout.LayoutParams(0,act.dpText(56),1));
       String id0=id;row.setOnClickListener(v->act.openTool(id0));
-      card.addView(row,new LinearLayout.LayoutParams(-1,act.dp(56)));
+      card.addView(row,new LinearLayout.LayoutParams(-1,act.dpText(56)));
       if(rank<hot.size()){View divider=new View(ctx);divider.setBackgroundColor(act.DIV());card.addView(divider,new LinearLayout.LayoutParams(-1,act.dp(1)));}
       rank++;
     }
@@ -1165,7 +1165,7 @@ final class ToolHost {
     TextView label=text("结果",11,act.MUTED());label.setPadding(0,act.dp(4),0,act.dp(2));box.addView(label,new LinearLayout.LayoutParams(-1,-2));
     android.widget.FrameLayout wrap=new android.widget.FrameLayout(ctx);
     TextView output=new TextView(ctx);output.setTextColor(act.TEXT());output.setTextSize(13);output.setTextIsSelectable(true);output.setLineSpacing(act.dp(2),1f);output.setTypeface(AppFonts.normal(ctx));
-    output.setBackground(solid(act.SURFACE()));output.setPadding(act.dp(12),act.dp(10),act.dp(56),act.dp(10));output.setMinHeight(act.dp(44));
+    output.setBackground(solid(act.SURFACE()));output.setPadding(act.dp(12),act.dp(10),act.dp(56),act.dp(10));output.setMinHeight(act.dpText(44));
     wrap.addView(output,new android.widget.FrameLayout.LayoutParams(-1,-2));
     // DFW-11：结果出口从"只能复制"扩成"复制 + 分享"。分享复用宿主 shareText()，
     // 不引入任何新的导出/文件系统能力（卡里明确不做导出系统）。
@@ -1497,6 +1497,8 @@ final class ToolHost {
 
   interface Host {
     int dp(int v);
+    /** DFW-13：跟随系统字体的高度换算（文字容器用它，普通间距用 dp）。 */
+    int dpText(int v);
     android.content.Context context();
     int BG();int TEXT();int MUTED();int SURFACE();int PRIMARY();int DIV();
     int BORDER();int SURFACE2();int SECONDARY();int PRIMARY_HI();int PRIMARY_LO();int ERROR_TOKEN();
