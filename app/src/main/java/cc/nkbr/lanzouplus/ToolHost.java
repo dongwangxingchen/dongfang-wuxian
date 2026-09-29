@@ -897,11 +897,17 @@ final class ToolHost {
     android.text.TextWatcher w=new android.text.TextWatcher(){@Override public void beforeTextChanged(CharSequence s,int st,int c,int a){}@Override public void onTextChanged(CharSequence s,int st,int b,int c){recalcUuid.run();}@Override public void afterTextChanged(android.text.Editable s){}};
     name.addTextChangedListener(w);count.addTextChangedListener(w);
     upper.setOnClickListener(v->recalcUuid.run());noDash.setOnClickListener(v->recalcUuid.run());
-    primaryAction(actions,"重新生成",recalcUuid::run);action(actions,"复制全部",()->{if(current[0]!=null)copy(current[0]);});
-    primaryAction(actions,"重新生成",recalcUuid::run);action(actions,"复制全部",()->{if(current[0]!=null)copy(current[0]);});
+    // DFW-11：这里原本把"重新生成/复制全部"整行写了两遍，界面上就是两组一模一样的按钮。
+    // 保留一份（这是复核证实的真实重复缺陷，不是风格问题）。
+    primaryAction(actions,"重新生成",recalcUuid::run);
+    action(actions,"复制全部",()->{if(current[0]!=null)copy(current[0]);});
+    action(actions,"分享全部",()->{if(current[0]!=null)act.shareText(current[0],"分享生成的 UUID");});
     for(int i=0;i<3;i++){final int idx=i;vchips[i]=selectChip(verRow,vlabels[i],version[0]==vers[i],()->{version[0]=vers[idx];for(int j=0;j<3;j++)styleSelect(vchips[j],vers[j]==version[0]);recalcUuid.run();});}
     TextView[] nschips=new TextView[nsH.length];
     for(int i=0;i<nsH.length;i++){final int idx=i;nschips[i]=selectChip(nsRow,nsH[i][0],nsel[0]==idx,()->{nsel[0]=idx;for(int j=0;j<nsH.length;j++)styleSelect(nschips[j],nsel[0]==j);recalcUuid.run();});}
+    // 顺序要紧：result(body) 先把结果卡建出来，recalcUuid.run() 里的 output() 才有落点
+    // （output() 按 tag 查结果卡，卡不存在就静默丢弃）。
+    result(body);
     recalcUuid.run();
   }
   private void addUuidRow(LinearLayout wrap,String value){
@@ -1161,11 +1167,21 @@ final class ToolHost {
     TextView output=new TextView(ctx);output.setTextColor(act.TEXT());output.setTextSize(13);output.setTextIsSelectable(true);output.setLineSpacing(act.dp(2),1f);output.setTypeface(AppFonts.normal(ctx));
     output.setBackground(solid(act.SURFACE()));output.setPadding(act.dp(12),act.dp(10),act.dp(56),act.dp(10));output.setMinHeight(act.dp(44));
     wrap.addView(output,new android.widget.FrameLayout.LayoutParams(-1,-2));
+    // DFW-11：结果出口从"只能复制"扩成"复制 + 分享"。分享复用宿主 shareText()，
+    // 不引入任何新的导出/文件系统能力（卡里明确不做导出系统）。
+    LinearLayout resultActions=new LinearLayout(ctx);resultActions.setOrientation(LinearLayout.HORIZONTAL);
     TextView copyBtn=text("复制",11,act.PRIMARY());copyBtn.setGravity(Gravity.CENTER);copyBtn.setClickable(true);copyBtn.setFocusable(true);copyBtn.setPadding(act.dp(12),0,act.dp(12),0);
     copyBtn.setBackground(ripple(solid(act.SURFACE())));
     copyBtn.setOnClickListener(v->{String value=output.getText().toString();if(value.isEmpty())return;copy(value);act.showNotice("已复制",false);});
+    TextView shareBtn=text("分享",11,act.PRIMARY());shareBtn.setGravity(Gravity.CENTER);shareBtn.setClickable(true);shareBtn.setFocusable(true);shareBtn.setPadding(act.dp(12),0,act.dp(12),0);
+    shareBtn.setBackground(ripple(solid(act.SURFACE())));
+    shareBtn.setOnClickListener(v->{String value=output.getText().toString();if(value.isEmpty())return;act.shareText(value,"分享工具结果");});
+    shareBtn.setContentDescription("分享这段结果");
+    resultActions.addView(copyBtn,new LinearLayout.LayoutParams(-2,act.dp(44)));
+    resultActions.addView(shareBtn,new LinearLayout.LayoutParams(-2,act.dp(44)));
     android.widget.FrameLayout.LayoutParams cp=new android.widget.FrameLayout.LayoutParams(-2,act.dp(44),Gravity.END|Gravity.TOP);
-    wrap.addView(copyBtn,cp);
+    wrap.addView(resultActions,cp);
+    output.setPadding(act.dp(12),act.dp(10),act.dp(96),act.dp(10));
     box.addView(wrap,new LinearLayout.LayoutParams(-1,-2));
     output.setTag("tool-output");return output;
   }
@@ -1266,10 +1282,37 @@ final class ToolHost {
       if(running[0]){accum[0]+=System.currentTimeMillis()-startAt[0];running[0]=false;}
       else{startAt[0]=System.currentTimeMillis();running[0]=true;handler.post(tick[0]);}
     });
-    action(actions,"计圈",()->{long shown=accum[0]+(running[0]?System.currentTimeMillis()-startAt[0]:0);output(body,"圈："+String.format(java.util.Locale.US,"%.1f 秒",shown/1000.0));});
-    action(actions,"清零",()->{running[0]=false;cdMode[0]=false;accum[0]=0;clock.setText("00:00.0");});
+    // DFW-11：旧实现每按一次"计圈"就用 output() 覆盖同一个 TextView，只留最后一条（用户实际没法用）。
+    // 现在逐条累计到一个可滚动的列表里，并保持与结果卡"复制/分享"一致的出口。
+    final java.util.List<String> laps=new java.util.ArrayList<>();
+    final java.util.List<Integer> lapGapsMs=new java.util.ArrayList<>();
+    final TextView lapSummary=text("",12,act.MUTED());
+    final LinearLayout lapList=new LinearLayout(ctx);lapList.setOrientation(LinearLayout.VERTICAL);
+    final ScrollView lapScroll=new android.widget.ScrollView(ctx);lapScroll.setVerticalScrollBarEnabled(true);
+    lapScroll.addView(lapList,new android.widget.ScrollView.LayoutParams(-1,-2));
+    action(actions,"计圈",()->{
+      long shown=accum[0]+(running[0]?System.currentTimeMillis()-startAt[0]:0);
+      int previous=lapGapsMs.isEmpty()?0:lapGapsMs.get(lapGapsMs.size()-1);
+      lapGapsMs.add((int)shown);
+      int lapMs=(int)shown-previous;
+      String lapLine="第 "+(laps.size()+1)+" 圈    "+formatLap(shown)+"    （本圈 "+formatLap(lapMs)+"）";
+      laps.add(lapLine);
+      TextView row=text(lapLine,12,act.TEXT());row.setTypeface(android.graphics.Typeface.MONOSPACE);
+      row.setTextIsSelectable(true);row.setPadding(0,act.dp(4),0,act.dp(4));
+      lapList.addView(row,new LinearLayout.LayoutParams(-1,-2));
+      lapScroll.post(()->lapScroll.fullScroll(android.view.View.FOCUS_DOWN));
+      lapSummary.setText("共 "+laps.size()+" 圈 · 最近本圈 "+formatLap(lapMs));
+      // 同时把"全部计圈"写进结果卡：复制/分享拿到的就是完整记录，不再只有最后一条。
+      output(body,android.text.TextUtils.join("\n",laps));
+    });
+    body.addView(lapSummary,new LinearLayout.LayoutParams(-1,-2));
+    body.addView(lapScroll,new LinearLayout.LayoutParams(-1,act.dp(160)));
+    action(actions,"清零",()->{running[0]=false;cdMode[0]=false;accum[0]=0;clock.setText("00:00.0");
+      laps.clear();lapGapsMs.clear();lapList.removeAllViews();lapSummary.setText("");output(body,"");});
     action(actions,"倒计时",()->{try{long ms=Long.parseLong(mins.getText().toString().trim())*60000;if(ms<=0)throw new NumberFormatException();cdMode[0]=true;running[0]=true;cdEnd[0]=System.currentTimeMillis()+ms;handler.post(tick[0]);}catch(Exception e){act.showNotice("先填倒计时分钟数",true);}});
   }
+  /** 计圈时间显示：00:00.0 形式（与主时钟一致，便于肉眼对齐）。 */
+  String formatLap(long millis){long t=Math.max(0,millis)/100;return String.format(java.util.Locale.US,"%02d:%02d.%d",t/600,(t/1000)%60,t%10);}
   void timestamp(LinearLayout body){
     // v1.12.0 工具精修17：自动判别方向实时转换（纯数字=时间戳，否则=日期）；ISO 8601+星期
     TextView hint=text("粘贴即自动转换：纯数字按时间戳（秒/毫秒自动判别），否则按日期。",12,act.MUTED());hint.setPadding(0,0,0,act.dp(8));body.addView(hint,new LinearLayout.LayoutParams(-1,-2));
@@ -1461,6 +1504,8 @@ final class ToolHost {
     String toolBytes(long value);
     LinearLayout root();
     void showNotice(String message,boolean longLived);
+    /** 工具结果的分享出口（DFW-11）：复用宿主既有的文本分享链路。 */
+    void shareText(String value,String title);
     void openTool(String id);void popToolBack();void startScreenTest();
     boolean startTorch();void stopTorch();void startNoise(boolean white);void stopNoise();void speakTts(String value);void stopTts();void setTtsRate(float rate);
     void toolHostSketch(LinearLayout body);void toolHostRuler(LinearLayout body);void toolHostLevel(LinearLayout body);
