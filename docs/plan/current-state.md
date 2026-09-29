@@ -1,7 +1,7 @@
 # 东方无限：当前状态
 
 > 这是当前事实页，不是历史计划。源码、命令输出和当前规范优先于旧文档。
-> 更新日期：2026-09-29（v1.22.11：崩溃日志页两处真机反馈——文件夹真建出来 + 顶部按钮不再被自动滚走）
+> 更新日期：2026-09-30（v1.22.13：任务队列推进——更新检查复活 / AI 日志脱敏 / Firebase 遥测摘除）
 
 ## 1. 工作区
 
@@ -15,7 +15,7 @@
 - `rikkahub/`：Kotlin/Compose vendor（**上游锚点 = re-ovo/rikkahub tag `2.5.5`，versionCode 190**）与东方无限补丁层
 - 上游源码快照 `/tmp/rikkahub-255/`：**已清空**（临时目录），需要时重新下载
 - 桌面交接包 `东方无限_交接总包_20260920.zip`：禁止删除或移动
-- 版本号：versionCode `1039031` / versionName `1.22.11`（`app/build.gradle.kts:33-34`）；下一个版本递增为 `1039032` / `1.22.12`
+- 版本号：versionCode `1039033` / versionName `1.22.13`（`app/build.gradle.kts:33-34`）；下一个版本递增为 `1039034` / `1.22.14`
 
 ## 1.1 v1.22.9 变更（2026-09-29，BRAND-003）
 
@@ -65,6 +65,25 @@
   - **不砍选区**：正文保留 `setTextIsSelectable(true)`，长按复制能力不受影响（有专门断言守住）。
 - **测试**：新增 `CrashLogPageJvmTest`（4 例，**验证过鉴别力**：去掉焦点锚点修复后立刻 1 红）。宿主 **63 例全绿**。
 - **产物**：`dongfang-wuxian-v1.22.11.apk`，badging `versionCode=1039031 / versionName=1.22.11 / native-code: arm64-v8a`，已归档 `~/heiyao/黑曜/03-构建产物/`。
+
+## 1.4 v1.22.12–1.22.13 变更（2026-09-30，按看板队列逐个推进）
+
+- **DFW-3（UI-006）**：删除 AI 页空会话两行占位文案（P19/P20/P21 整块移除）。
+  删前用上游快照 `re-ovo/rikkahub` tag `2.5.5` 做 diff 核验，`ChatList.kt` 差异只剩已声明保留的 P16。
+- **DFW-7（T14）**：更新检查复活。`maybeCheckForUpdates()` 原本**零调用点**（自 v1.0.2 基线起就是死代码），
+  现补：启动后 6 秒静默查一次 + **24h 落盘节流**（旧实现只有进程内 AtomicBoolean，当天反复冷启会反复打网络）
+  + 设置页「检查更新 · 当前版本」手动入口；顺手纠正品牌（对话框/下载文件名原带上游包名 `LanzouPlus`）。
+  更新源继续走 GitHub HTTPS，**未接**自有服务器（那条路是明文 HTTP + sha256 为空，接它等于放宽 NET-001 红线）。
+- **DFW-8（SEC-004）**：AI 日志脱敏。取证发现任务卡只说对一半——点名的自研拦截器其实默认关闭，
+  真正 release 常开的是 okhttp `Level.HEADERS` 与 Provider 的 SSE 全量响应体。
+  三处全部收敛，新增 `common/.../dfwx/DfwxLogRedactor.kt`，并把脱敏做进 `Logging.logRequest()` 这个**唯一存储入口**
+  （调用方忘了脱敏也绕不过去）。
+- **DFW-9**：Firebase Analytics 整链移除（含 5 个上报事件与 Koin 装配）。
+  **APK 级证据**：权限 31 → 27 条，消失的 4 条全是广告/归因权限（`AD_ID`、`ACCESS_ADSERVICES_*`、
+  `BIND_GET_INSTALL_REFERRER_SERVICE`）。BOM 保留（MLKit 传递依赖需要版本对齐，BOM 自身不引入依赖）。
+- **DFW-2（UI-005）**：仍**无法取证**，未改代码。真机 `adb` 连不上；且卡片建议的 Robolectric 兜底路走不通——
+  AI 页在 JVM 下必然进不去（`App.DEGRADED` 早退，`ToolsSweepJvmTest.kt:13-16` 有记录），
+  承载 ime 监听器的 `wrap` 不会被创建。复核记录已追加到 `docs/tasks/DFWX-UI-005.md`，等真机。
 
 ## 2. 当前完成度（v1.22.8 覆盖范围）
 
