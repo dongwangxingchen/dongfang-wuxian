@@ -32,7 +32,7 @@ final class NavBall {
   interface Host {
     int dp(int v);
     Context context();
-    int SURFACE2(); int PRIMARY(); int PRIMARY_HI(); int PRIMARY_LO(); int TEXT(); int MUTED(); int BORDER();
+    int BG(); int SURFACE2(); int PRIMARY(); int PRIMARY_HI(); int PRIMARY_LO(); int TEXT(); int MUTED(); int BORDER();
     boolean motionEnabled();
     void goToDestination(int destination);
     int currentDestination();
@@ -65,7 +65,7 @@ final class NavBall {
   private final View scrim;
   private final FrameLayout ball;
   private final ImageView gridIcon, closeIcon;
-  private final GradientDrawable ballBg;
+  private GradientDrawable ballBg;
   private final Pill[] pills = new Pill[ITEM_DEST.length];
   private final int touchSlop;
   private final Handler main = new Handler(Looper.getMainLooper());
@@ -82,7 +82,7 @@ final class NavBall {
     final LinearLayout view;
     final ImageView icon;
     final TextView label;
-    final GradientDrawable bg;
+    GradientDrawable bg;
     float targetX, targetY; // 展开后的落位（按下时吸附用）
     boolean swallowed;      // 本次手势已被吞掉（收起期间按下），后续事件一并吃掉
     Pill(int destination, String text, int iconRes) {
@@ -197,9 +197,49 @@ final class NavBall {
     }
   }
 
+  /**
+   * 重新取色。**DFW-68 重做**——原来球与胶囊都是 `SURFACE2` 纯色填充 + `BORDER` 描边，
+   * 而 `BORDER` 与 `SURFACE2` 是**同一个色**（都是 #262332）→ **描边根本看不见**，
+   * 整块就是一片平的深灰紫，没有边缘、没有层次、没有质感（用户反馈"颜色和风格以及质感挺不好的"）。
+   *
+   * 现在按规范 §5 的 OLED 亮度阶梯 + `PremiumSurface` 的单侧高光重做：
+   * 纯黑底上 elevation 阴影几乎不可见，**层级只能靠亮度差与高光表达**。
+   */
+  // ── 取色（纯函数，便于直接验证"描边是否可见"）────────────────────────────
+
+  /**
+   * 球的取色：返回 `{填充, 描边}`。
+   *
+   * 抽成纯函数是为了能直接断言**描边与填充不是同一个色**——
+   * 这正是 DFW-68 修的根因缺陷（原来两者都是 #262332，等于没有描边）。
+   */
+  static int[] ballPalette(int bg, int primary, int primaryHi) {
+    return new int[]{
+        PremiumSurface.over(bg, primary, 0.34f),
+        PremiumSurface.over(bg, primaryHi, 0.60f),
+    };
+  }
+
+  /**
+   * 胶囊取色：返回 `{填充, 描边, 内容色}`。
+   *
+   * **内容色只有一个**：图标与文字必须同色。原来图标用 MUTED、文字用 TEXT，
+   * 两者差一档，看着不像一体，是"没质感"的第二个来源。
+   */
+  static int[] pillPalette(int bg, int primary, int primaryHi, int text, boolean active) {
+    return new int[]{
+        PremiumSurface.over(bg, primary, active ? 0.38f : 0.20f),
+        active ? primaryHi : PremiumSurface.over(bg, primaryHi, 0.32f),
+        active ? primaryHi : text,
+    };
+  }
+
   void refreshColors() {
-    ballBg.setColor(host.SURFACE2());
-    ballBg.setStroke(Math.max(1, host.dp(1)), host.BORDER());
+    int bg = host.BG();
+    // 球 = 主入口，取最亮的一档 + 最明显的描边（与胶囊拉开层级）
+    int[] ballColors = ballPalette(bg, host.PRIMARY(), host.PRIMARY_HI());
+    ballBg = PremiumSurface.circle(ballColors[0], Math.max(1, host.dp(1)), ballColors[1], PremiumSurface.HIGHLIGHT);
+    ball.setBackground(ballBg);
     gridIcon.setColorFilter(host.TEXT());
     closeIcon.setColorFilter(host.TEXT());
     scrim.setBackgroundColor(SCRIM_ALPHA << 24);
@@ -208,14 +248,16 @@ final class NavBall {
 
   private void refreshPillColors() {
     int current = host.currentDestination();
+    int bg = host.BG();
     for (Pill p : pills) {
       boolean active = p.destination == current;
-      // 选中态配色（真机采样修正）：PRIMARY #A78BFA 是浅紫，做底色会和亮字糊在一起（实测底#C191FC/字#C494FF 几乎同色）。
-      // 改为「深紫实底 + 亮紫字 + 亮紫描边」——底色压到 24% alpha 且叠在 SURFACE2 上再压暗，保证字面清晰。
-      p.bg.setColor(active ? blend(host.SURFACE2(), host.PRIMARY(), 0.22f) : host.SURFACE2());
-      p.bg.setStroke(Math.max(1, host.dp(1)), active ? host.PRIMARY_HI() : host.BORDER());
-      p.icon.setColorFilter(active ? host.PRIMARY_HI() : host.MUTED());
-      p.label.setTextColor(active ? host.PRIMARY_HI() : host.TEXT());
+      // 未选中：亮度阶梯里的一档 + **可见的描边**；图标与文字**同色**（原来图标 MUTED 比文字 TEXT 暗一档，
+      // 看着不像一体，是"没质感"的第二个来源）。
+      int[] colors = pillPalette(bg, host.PRIMARY(), host.PRIMARY_HI(), host.TEXT(), active);
+      p.bg = PremiumSurface.pill(colors[0], host.dp(PILL_H_DP), Math.max(1, host.dp(1)), colors[1], PremiumSurface.HIGHLIGHT);
+      p.view.setBackground(p.bg);
+      p.icon.setColorFilter(colors[2]);
+      p.label.setTextColor(colors[2]);
     }
   }
 

@@ -11,8 +11,16 @@ package cc.nkbr.lanzouplus;
  * - **形状阶**：从项目实际依赖的 `androidx.compose.material3:material3-android:1.5.0-alpha29`
  *   的 `ShapeTokens` 类里反编译出来的常量（`javap` 读 `<clinit>`），比查文档权威——
  *   因为这就是我们 APK 里跑的那一版。
- * - **字阶**：M3 官方 15 个 type role 的 size / lineHeight / weight。
- *   已用同一个 aar 的 `TypeScaleTokens` 交叉核对过**行高**序列（64/52/44/40/36/32/28/24/20/24/20/16/20/16/16）完全吻合。
+ * - **字阶**：M3 官方 15 个 type role 的 size / lineHeight / weight / tracking。
+ *   行高序列（64/52/44/40/36/32/28/24/20/24/20/16/20/16/16）已与 aar 交叉核对吻合。
+ *   **tracking 用的是 Android 侧 2025 值**（`displayLarge −0.2` / `titleMedium 0.2` / `bodyMedium 0.2`），
+ *   不是官网 Web token 的 −0.25 / 0.15 / 0.25 —— 两者在官方体系内部就不一致，
+ *   以 **Android 侧为准**（那是 APK 里跑的）。详见参考库 `06/08-Material3官方规格速查.md` §3.1。
+ *
+ * ## ⚠️ 中文的 tracking 应当为 0
+ * M3 的 tracking 是按**拉丁字母**定的；CJK 是等宽方块字（M2 官方语言支持页原文
+ * "The typography of China, Japan, and Korea is typically monospaced"），加字距只会让阅读变慢。
+ * **本项目全中文界面，实际落地时应 `setLetterSpacing(0f)`**，上表的 tracking 仅作规格留存。
  *
  * ## 为什么不直接引 com.google.android.material
  * 调研结论（参考库 `06/07` 专档 D 节）：它**不是加一个包**那么简单——
@@ -110,7 +118,7 @@ final class M3Tokens {
     }
   }
 
-  static final TypeRole DISPLAY_LARGE = new TypeRole("Display Large", 57, 64, 400, -0.25f);
+  static final TypeRole DISPLAY_LARGE = new TypeRole("Display Large", 57, 64, 400, -0.2f);
   static final TypeRole DISPLAY_MEDIUM = new TypeRole("Display Medium", 45, 52, 400, 0f);
   static final TypeRole DISPLAY_SMALL = new TypeRole("Display Small", 36, 44, 400, 0f);
 
@@ -119,11 +127,11 @@ final class M3Tokens {
   static final TypeRole HEADLINE_SMALL = new TypeRole("Headline Small", 24, 32, 400, 0f);
 
   static final TypeRole TITLE_LARGE = new TypeRole("Title Large", 22, 28, 400, 0f);
-  static final TypeRole TITLE_MEDIUM = new TypeRole("Title Medium", 16, 24, 500, 0.15f);
+  static final TypeRole TITLE_MEDIUM = new TypeRole("Title Medium", 16, 24, 500, 0.2f);
   static final TypeRole TITLE_SMALL = new TypeRole("Title Small", 14, 20, 500, 0.1f);
 
   static final TypeRole BODY_LARGE = new TypeRole("Body Large", 16, 24, 400, 0.5f);
-  static final TypeRole BODY_MEDIUM = new TypeRole("Body Medium", 14, 20, 400, 0.25f);
+  static final TypeRole BODY_MEDIUM = new TypeRole("Body Medium", 14, 20, 400, 0.2f);
   static final TypeRole BODY_SMALL = new TypeRole("Body Small", 12, 16, 400, 0.4f);
 
   static final TypeRole LABEL_LARGE = new TypeRole("Label Large", 14, 20, 500, 0.1f);
@@ -163,7 +171,8 @@ final class M3Tokens {
   static final int CHIP_PADDING_H = 16;
   static final int FAB_SIZE = 56;
   static final int TOP_APP_BAR_HEIGHT = 64;
-  static final int NAV_BAR_HEIGHT = 80;
+  /** 官方 `NavigationBarTokens.ContainerHeight` = 64dp（80 是 M3E 的 tall 变体）。 */
+  static final int NAV_BAR_HEIGHT = 64;
   static final int NAV_ITEM_ICON_BOX = 64;
   static final int NAV_INDICATOR_WIDTH = 64;
   static final int NAV_INDICATOR_HEIGHT = 32;
