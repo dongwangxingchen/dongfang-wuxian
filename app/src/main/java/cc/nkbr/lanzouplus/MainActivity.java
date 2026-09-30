@@ -1210,6 +1210,17 @@ android.graphics.Insets none=android.graphics.Insets.NONE;android.view.WindowIns
           pin.setPadding(dp(8),dp(3),dp(8),dp(3));
           titleRow.addView(pin,new LinearLayout.LayoutParams(-2,-2));
         }
+        // 等级色（卡要求：普通/重要/紧急）。**普通不挂标签**——每条都挂等于没有重点。
+        if(notice.isUrgent()||notice.isImportant()){
+          boolean urgent=notice.isUrgent();
+          TextView levelTag=text(urgent?"紧急":"重要",11,urgent?ERROR_TOKEN:PRIMARY);
+          levelTag.setGravity(Gravity.CENTER);
+          levelTag.setBackground(solidShape(SURFACE,9));
+          levelTag.setPadding(dp(8),dp(3),dp(8),dp(3));
+          LinearLayout.LayoutParams tagParams=new LinearLayout.LayoutParams(-2,-2);
+          tagParams.leftMargin=dp(6);
+          titleRow.addView(levelTag,tagParams);
+        }
         card.addView(titleRow,new LinearLayout.LayoutParams(-1,-2));
         if(!notice.body.isEmpty()){
           TextView content=text(notice.body,14,notice.isUrgent()?ERROR_TOKEN:MUTED);

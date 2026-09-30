@@ -206,4 +206,24 @@ class NoticeCenterUiJvmTest {
         assertEquals(View.GONE, a.noticeBellRow!!.visibility)
         assertEquals(0, a.noticeBadge!!.count())
     }
+
+    @Test
+    fun noticeCenter_showsLevelTags_onlyForImportantAndUrgent() {
+        // 卡要求等级色（普通/重要/紧急）。普通**不挂标签**——每条都挂等于没有重点。
+        val a = activity()
+        a.noticeSnapshot = snapshot(
+            RemoteConfigClient.Notice("n1", "普通公告", "正文", "normal", false, false, 10),
+            RemoteConfigClient.Notice("n2", "重要公告", "正文", "important", false, false, 20),
+            RemoteConfigClient.Notice("n3", "紧急公告", "正文", "urgent", false, false, 30),
+        )
+        a.showNoticeCenter()
+        shadowOf(Looper.getMainLooper()).idle()
+
+        val labels = textsIn(a.root)
+        assertTrue("重要公告要有「重要」标签：$labels", labels.contains("重要"))
+        assertTrue("紧急公告要有「紧急」标签：$labels", labels.contains("紧急"))
+        // 普通公告不得挂标签：只有两个标签存在
+        assertEquals("只有重要/紧急挂标签，普通不挂", 1, labels.count { it == "重要" })
+        assertEquals("只有重要/紧急挂标签，普通不挂", 1, labels.count { it == "紧急" })
+    }
 }
