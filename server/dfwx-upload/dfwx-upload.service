@@ -1,0 +1,14 @@
+[Unit]
+Description=DFWX APK upload endpoint (localhost only)
+After=network.target
+
+[Service]
+Type=simple
+User=www-data
+Group=www-data
+ExecStart=/usr/bin/python3 /opt/dfwx-upload/server.py
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target
