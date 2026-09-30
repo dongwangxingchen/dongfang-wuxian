@@ -19,7 +19,7 @@ final class LumaSwitch extends CompoundButton{
     if(animator!=null)animator.cancel();
     animator=ValueAnimator.ofFloat(progress,target);
     animator.setDuration(220);
-    animator.setInterpolator(new PathInterpolator(0.2f,0f,0f,1f));// M3 emphasized
+    animator.setInterpolator(new PathInterpolator(0.2f,0f,0f,1f));// M3 **standard** 缓动（2026-09-30 更正：此前注释误写 emphasized。官方 emphasized 是两段路径 M 0,0 C 0.05,0 0.133333,0.06 0.166666,0.4 C 0.208333,0.82 0.25,1 1,1；四点式 (0.2,0,0,1) 对应的是 standard。**值本来就是对的，只是注释标错了**，不改会误导后人）
     animator.addUpdateListener(a->{progress=(Float)a.getAnimatedValue();invalidate();});animator.start();}else{progress=target;invalidate();}}
   @Override protected void drawableStateChanged(){super.drawableStateChanged();invalidate();// 按压态呼吸需要重绘
   }

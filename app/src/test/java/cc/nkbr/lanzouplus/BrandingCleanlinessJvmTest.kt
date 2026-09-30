@@ -78,52 +78,40 @@ class BrandingCleanlinessJvmTest {
     }
 
     /**
-     * 构建配置里**只允许三处**旧品牌字面量，且必须仍与外部载体一致（改错=构建失败或签名对不上）。
+     * 构建配置里**一处旧品牌都不许有**（DFW-58 重建证书后收紧）。
      *
-     * 它们不是"代码命名"，而是与仓库外的东西绑死的**外部约定**：
-     *   ① 口令键 `heiyao.storePassword` / `heiyao.keyPassword` —— 定义在 `local.properties`（不入 git）；
-     *   ② `keyAlias = "heiyao"` —— 别名已写死在现有 keystore 里；
-     *   ③ `../heiyao.keystore` —— keystore 实际文件名。
-     * 三者统一随 DFW-58（重建证书）迁移；在那之前，本测试**同时**守住两头：
-     * 既防止有人漏改剩下的命名，也防止有人"手快改了字面量"导致构建期静默对不上。
+     * DFW-57 时这里还放行三处"绑定仓库外载体"的字面量（口令键、`keyAlias`、keystore 文件名），
+     * 因为那时改字符串不等于改实体、硬改会构建失败。
+     * DFW-58 已把这三样**连实体一起换掉**（新 keystore `dongfang-wuxian.keystore`、别名 `dongfang`、
+     * 口令键 `dfwx.*`），所以现在没有任何理由再放行——本测试随之收紧为零容忍。
+     *
+     * 保留这条注释是为了让后人知道：**当时放行是有原因的，不是漏改**；原因消失后守卫必须收紧，
+     * 否则"临时的例外"会永久留在测试里，变成下一代假绿。
      */
     @Test
-    fun gradleOnlyKeepsSigningLiteralsThatBindToExternalFiles() {
+    fun gradleHasNoLegacyBrandingAtAll() {
         val t = File(root, "app/build.gradle.kts").readText(Charsets.UTF_8)
-        // 只看**代码行**：整行注释要用来解释这三处例外，若一起扫，注释里提到键名就会误报
-        // （本测试第一版就踩了：守卫被自己的说明文字判红）。
-        val codeLines = t.lines().filterNot { line ->
+        // 只看**代码行**：注释里要解释这段历史，若一起扫会被自己的说明文字判红。
+        val leftovers = t.lines().filterNot { line ->
             val s = line.trimStart()
             s.startsWith("//") || s.startsWith("/*") || s.startsWith("*")
-        }
-        val allowed = listOf(
-            "signingSecret(\"heiyao.storePassword\")",
-            "signingSecret(\"heiyao.keyPassword\")",
-            "../heiyao.keystore",
-            "keyAlias = \"heiyao\"",
-            "local.properties 缺少 heiyao.storePassword",
-            "local.properties 缺少 heiyao.keyPassword",
-        )
-        val leftovers = mutableListOf<String>()
-        for (line in codeLines) {
-            var stripped = line
-            for (a in allowed) stripped = stripped.replace(a, "")
-            if (Regex("heiyao|黑曜|黑耀", RegexOption.IGNORE_CASE).containsMatchIn(stripped)) {
-                leftovers.add(line.trim())
-            }
-        }
+        }.filter { Regex("heiyao|黑曜|黑耀", RegexOption.IGNORE_CASE).containsMatchIn(it) }
+            .map { it.trim() }
         assertTrue(
-            "app/build.gradle.kts 的代码里除绑定外部文件的签名字面量外不得再有旧品牌：\n${leftovers.joinToString("\n")}",
+            "app/build.gradle.kts 的代码里不得再有旧品牌（DFW-58 已连 keystore 一起换掉）：\n${leftovers.joinToString("\n")}",
             leftovers.isEmpty(),
         )
-        // 反方向：这三处必须**原样保留**，否则构建/签名会静默对不上。
-        for (need in listOf("heiyao.storePassword", "heiyao.keyPassword", "../heiyao.keystore", "keyAlias = \"heiyao\"")) {
-            assertTrue("签名字面量 $need 必须保留（它绑定仓库外的 local.properties / keystore）", t.contains(need))
+        // 正向：新签名要素必须真的接上，否则构建期会静默对不上。
+        for (need in listOf(
+            "signingSecret(\"dfwx.storePassword\")",
+            "signingSecret(\"dfwx.keyPassword\")",
+            "../dongfang-wuxian.keystore",
+            "keyAlias = \"dongfang\"",
+            "create(\"dfwx\")",
+            "getByName(\"dfwx\")",
+        )) {
+            assertTrue("新签名要素 $need 必须存在", t.contains(need))
         }
-        assertTrue(
-            "签名配置名应已改名为 dfwx（变量名与配置名属代码命名，应在清理范围内）",
-            t.contains("create(\"dfwx\")") && t.contains("getByName(\"dfwx\")"),
-        )
     }
 
     /** 类名与样式名必须已改（防止只改注释、漏改标识符）。 */

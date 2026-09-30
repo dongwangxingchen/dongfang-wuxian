@@ -59,6 +59,39 @@
 - 禁止：`scale 1→.9→1.1→1` 三段人为 bounce。正确模型是物体从受压状态由弹簧回到平衡。
 - 展开收起：TransitionManager/ChangeBounds；拖拽回弹：SpringAnimation；MotionLayout 仅限 seekable/touch-driven 场景。
 
+### 2.1 官方 MDC 34.0.0 实测值（2026-09-30 核验，来源见参考库 `06/07-更新与公告UI动效专档.md`）
+
+**先说结论：上表的弹簧值保持不变。** MDC 手机版另有一套 spring scheme（expressive 800/0.6、380/0.8、200/0.8；standard 1400/0.9、700/0.9、300/0.9），
+damping 0.6 比我们的 0.70 **更弹**，与"禁三段 bounce"的取向相反；effects 也从 500/1400/260 变成 3800/1600/800（提速近 7 倍）。
+换过去等于**全 app 动效重调 + 真机重验**，收益不明。**仅记为"可选升级候选"，不动现值**（现值 v1.22.3 已真机验证）。
+
+**时长刻度**（MDC `motion_duration` 全档，做新组件时按语义取）：
+`short1 50 / short2 100 / short3 150 / short4 200 / medium1 250 / medium2 300 / medium3 350 / medium4 400 / long1 450 / long2 500 / long3 550 / long4 600 / extraLong1 700 / extraLong2 800 / extraLong3 900 / extraLong4 1000`（ms）
+
+**官方缓动四点**（PathInterpolator，无弹簧处用）：
+| 名称 | 四点 | 用途 |
+|---|---|---|
+| standard | (0.2, 0, 0, 1) | **默认**（`LumaSwitch` 用的就是它） |
+| standardDecelerate | (0, 0, 0, 1) | 入场 |
+| standardAccelerate | (0.3, 0, 1, 1) | 退场 |
+| emphasized | 两段路径 `M 0,0 C 0.05,0 0.133333,0.06 0.166666,0.4 C 0.208333,0.82 0.25,1 1,1` | 强调动作，**不是四点式** |
+| emphasizedDecelerate | (0.05, 0.7, 0.1, 1) | 强调入场 |
+| emphasizedAccelerate | (0.3, 0, 0.8, 0.15) | 强调退场 |
+| linear | (0, 0, 1, 1) | 仅进度类 |
+
+**新增 token（本规范此前没有，做新组件时按此取值）**：
+- **对话框/弹窗**：入场 `300ms`、退场 `200ms`，配 standard 缓动。
+- **容器变形（卡片→详情）**：进 `500ms` / 退 `400ms`。
+- **sharedAxis 位移**：`30dp`（本项目早期写 24–32dp，收敛到 30dp）。
+- **遮罩 scrim**：`alpha 0.32`（配真黑底，不要更黑——OLED 下会与页面糊成一片）。
+- **未读角标几何**：直径 `16dp`、圆点 `6dp`、数字 `11sp`、锚点偏移 `1.5–12dp`。
+  底色**用 `ThemeEngine` 的错误红，不用 `colorError` 系统值**（保证与本站主题同源；MDC 的 badge 实现里根本没有动画，官方无现成可抄）。
+- **自检项**：**入场时长 ≥ 退场时长**。反过来会显得"进得急、走得慢"，是廉价感来源之一。
+
+**已知不一致（记录在案，未擅自改）**：`MainActivity.java:1270` 的 chevron 旋转弹簧是 `800/0.75`，
+而上表 `SPATIAL_FAST` 是 `800/0.70`。**规范是唯一真相 → 应改为 0.70**，但这会轻微改变已有真机验证过的手感，
+故留待动效统一收尾时一并处理，不单独改。
+
 ## 3. 按压反馈（PressFeedbackController）——第一优先级
 
 所有可点组件统一：
