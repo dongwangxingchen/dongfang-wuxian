@@ -67,6 +67,10 @@ android {
  // 仍报 UP-TO-DATE，守卫在**最需要它的场景**下假绿。这里显式把脚本声明为输入：脚本一改，测试即重跑。
  tasks.withType<Test>().configureEach {
   inputs.file(file("build.gradle.kts")).withPropertyName("dfwxAppBuildScript")
+  // [DFWX] 同理，**多个守卫测试会在运行时直接读源码文本**（品牌清理、M3 token 对齐、文档时效…），
+  // 而 Gradle 只跟踪编译产物。不把源码树声明为输入的话，改了源码而测试报 UP-TO-DATE，
+  // 守卫就在最该生效的时候静默失效——DFW-57 与 DFW-71 都实测踩到过这个陷阱。
+  inputs.dir(file("src/main")).withPropertyName("dfwxAppSources")
  }
  flavorDimensions += "catalog"
  productFlavors {

@@ -64,7 +64,14 @@ class BrandingCleanlinessJvmTest {
         for (f in allFiles(mainDir).filter { it.name.endsWith(".java") || it.name.endsWith(".kt") }) {
             f.readLines().forEachIndexed { i, line ->
                 if (Regex("heiyao|HeiYao|黑曜|黑耀", RegexOption.IGNORE_CASE).containsMatchIn(line)) {
-                    val inner = line.replace("heiyao_origin_v101", "")   // 抹掉允许的那一处
+                    // 抹掉两处**明确允许**的东西：
+                    // ① 持久化键的向后兼容读取（理由见上）；
+                    // ② 本地参考库的**目录路径** `黑曜/06-开源参考库`——那是工作区里的文件夹名，
+                    //    不是软件品牌。注释里引用它（"规格见参考库…"）完全正常，
+                    //    不豁免的话每写一次出处就误报一次（本卡踩过）。
+                    val inner = line
+                        .replace("heiyao_origin_v101", "")
+                        .replace("黑曜/06-开源参考库", "")
                     if (Regex("heiyao|HeiYao|黑曜|黑耀", RegexOption.IGNORE_CASE).containsMatchIn(inner)) {
                         offenders.add("${f.relativeTo(root)}:${i + 1}")
                     }

@@ -33,12 +33,18 @@ final class NavBall {
   interface Host {
     int dp(int v);
     Context context();
-    int BG(); int SURFACE2(); int PRIMARY(); int PRIMARY_HI(); int PRIMARY_LO(); int TEXT(); int MUTED(); int BORDER();
+    int BG(); int SURFACE2(); int PRIMARY(); int PRIMARY_HI(); int PRIMARY_LO(); int TEXT(); int MUTED(); int BORDER(); int ERROR();
     boolean motionEnabled();
     void goToDestination(int destination);
     int currentDestination();
     int contentWidth(); int contentHeight();
     boolean isAiPage();
+    /** [DFW-70] 打开公告中心。 */
+    void openNoticeCenter();
+    /** 公告页是否在前台（用于菜单里高亮「公告」项）。 */
+    boolean isNoticePage();
+    /** 未读公告数（>0 时在「公告」项上亮红点）。 */
+    int unreadNoticeCount();
   }
 
   // 球
@@ -57,10 +63,20 @@ final class NavBall {
   private static final PathInterpolator EFFECT = new PathInterpolator(0.34f, 0.80f, 0.34f, 1f);
   private static final PathInterpolator PRESS_UP = new PathInterpolator(0.2f, 0.9f, 0.3f, 1.05f);
 
-  /** 菜单项（自上而下顺序，与旧底栏一致） */
-  private static final int[] ITEM_DEST = {0, 4, 2, 5, 3};
-  private static final int[] ITEM_ICON = {R.drawable.ic_home, R.drawable.ic_ai, R.drawable.ic_download, R.drawable.ic_tools, R.drawable.ic_settings};
-  private static final String[] ITEM_LABEL = {"软件库", "AI 对话", "下载", "工具箱", "设置"};
+  /**
+   * 菜单项（自上而下顺序）。
+   *
+   * [DFW-70] 新增第 6 项「公告」放在**设置下面**——用户 2026-09-30 明确要求：
+   * 首页那个右上角铃铛位置放错了、而且一关公告就消失（因为它只在有未读时出现），
+   * 所以挪进这里**常驻可见**，有未读时亮红点。
+   *
+   * `NOTICE_DEST` 是个**哨兵值**：公告中心不是"主目的地"（它是设置体系下的一个子页），
+   * 所以不能走 `goToDestination`，得单独开页面。
+   */
+  private static final int NOTICE_DEST = -2;
+  private static final int[] ITEM_DEST = {0, 4, 2, 5, 3, NOTICE_DEST};
+  private static final int[] ITEM_ICON = {R.drawable.ic_home, R.drawable.ic_ai, R.drawable.ic_download, R.drawable.ic_tools, R.drawable.ic_settings, R.drawable.ic_notifications};
+  private static final String[] ITEM_LABEL = {"软件库", "AI 对话", "下载", "工具箱", "设置", "公告"};
 
   private final Host host;
   private final View scrim;
@@ -83,6 +99,8 @@ final class NavBall {
     final LinearLayout view;
     final ImageView icon;
     final TextView label;
+    /** 未读红点（只有「公告」项会创建）。用户要的是"有一个红点"，不需要数字。 */
+    View dot;
     GradientDrawable bg;
     float targetX, targetY; // 展开后的落位（按下时吸附用）
     boolean swallowed;      // 本次手势已被吞掉（收起期间按下），后续事件一并吃掉
@@ -114,7 +132,8 @@ final class NavBall {
       view.setOnClickListener(v -> {
         v.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY);
         closeMenu();
-        host.goToDestination(destination);
+        if (destination == NOTICE_DEST) host.openNoticeCenter();
+        else host.goToDestination(destination);
       });
       pressFeedback(this);
     }
@@ -151,7 +170,22 @@ final class NavBall {
     ball.addView(closeIcon, new FrameLayout.LayoutParams(iconPx, iconPx, Gravity.CENTER));
     ball.setOnTouchListener(this::onBallTouch);
 
-    for (int i = 0; i < pills.length; i++) pills[i] = new Pill(ITEM_DEST[i], ITEM_LABEL[i], ITEM_ICON[i]);
+    for (int i = 0; i < pills.length; i++) {
+      pills[i] = new Pill(ITEM_DEST[i], ITEM_LABEL[i], ITEM_ICON[i]);
+      if (ITEM_DEST[i] == NOTICE_DEST) {
+        // 红点放在文字右侧：8dp 实心圆，用主题红（与全局一致，不用系统 colorError）。
+        View dot = new View(ctx);
+        GradientDrawable dotBg = new GradientDrawable();
+        dotBg.setShape(GradientDrawable.OVAL);
+        dot.setBackground(dotBg);
+        dot.setTag(dotBg);
+        LinearLayout.LayoutParams dotParams = new LinearLayout.LayoutParams(host.dp(8), host.dp(8));
+        dotParams.leftMargin = host.dp(8);
+        pills[i].view.addView(dot, dotParams);
+        dot.setVisibility(View.GONE);
+        pills[i].dot = dot;
+      }
+    }
     loadPosition();
     refreshColors();
   }
@@ -258,7 +292,7 @@ final class NavBall {
     int current = host.currentDestination();
     int bg = host.BG();
     for (Pill p : pills) {
-      boolean active = p.destination == current;
+      boolean active = p.destination == NOTICE_DEST ? host.isNoticePage() : p.destination == current;
       // 未选中：亮度阶梯里的一档 + **可见的描边**；图标与文字**同色**（原来图标 MUTED 比文字 TEXT 暗一档，
       // 看着不像一体，是"没质感"的第二个来源）。
       int[] colors = pillPalette(bg, host.PRIMARY(), host.PRIMARY_HI(), host.TEXT(), active);
@@ -268,6 +302,38 @@ final class NavBall {
           colors[0], host.dp(PILL_H_DP) / 2f, Math.max(1, host.dp(1)), colors[1], PremiumSurface.SHEEN));
       p.icon.setColorFilter(colors[2]);
       p.label.setTextColor(colors[2]);
+    }
+  }
+
+  /** 供测试与外部查询：菜单项数量（含公告）。 */
+  int itemCount() { return pills.length; }
+
+  /** 供测试：菜单里是否含「公告」项。 */
+  boolean hasNoticeItem() {
+    for (Pill p : pills) if (p.destination == NOTICE_DEST) return true;
+    return false;
+  }
+
+  /** 供测试：公告项的红点当前是否可见。 */
+  boolean noticeDotVisible() {
+    for (Pill p : pills) if (p.destination == NOTICE_DEST) return p.dot != null && p.dot.getVisibility() == View.VISIBLE;
+    return false;
+  }
+
+  /** 供测试/程序化：直接触发公告项的点击（等同于用户点它）。 */
+  void clickNoticeItem() {
+    for (Pill p : pills) if (p.destination == NOTICE_DEST) { host.openNoticeCenter(); return; }
+  }
+
+  /** [DFW-70] 刷新「公告」项上的未读红点。有未读才出现，否则彻底隐藏。 */
+  void refreshNoticeBadge() {
+    int unread = host.unreadNoticeCount();
+    for (Pill p : pills) {
+      if (p.destination != NOTICE_DEST || p.dot == null) continue;
+      p.dot.setVisibility(unread > 0 ? View.VISIBLE : View.GONE);
+      if (p.dot.getTag() instanceof GradientDrawable) {
+        ((GradientDrawable) p.dot.getTag()).setColor(host.ERROR());
+      }
     }
   }
 
@@ -396,6 +462,9 @@ final class NavBall {
     menuClosing = false;
     if (hideGuard != null) { ball.removeCallbacks(hideGuard); hideGuard = null; }
     refreshPillColors();
+    // 每次展开都刷一次红点：公告可能在菜单收起期间被读过（红点该灭），
+    // 也可能刚好拉到新公告（红点该亮）。不刷的话用户看到的永远是上一次的状态。
+    refreshNoticeBadge();
     boolean motion = host.motionEnabled();
 
     scrim.setVisibility(View.VISIBLE);

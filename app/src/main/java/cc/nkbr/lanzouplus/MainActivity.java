@@ -39,13 +39,16 @@ public final class MainActivity extends androidx.activity.ComponentActivity impl
     @Override public int dp(int v){return MainActivity.this.dp(v);}
     @Override public android.content.Context context(){return MainActivity.this;}
     @Override public int BG(){return BG;}@Override public int SURFACE2(){return SURFACE2;}@Override public int PRIMARY(){return PRIMARY;}@Override public int PRIMARY_HI(){return PRIMARY_HI;}
-    @Override public int PRIMARY_LO(){return PRIMARY_LO;}@Override public int TEXT(){return TEXT;}@Override public int MUTED(){return MUTED;}@Override public int BORDER(){return BORDER;}
+    @Override public int PRIMARY_LO(){return PRIMARY_LO;}@Override public int TEXT(){return TEXT;}@Override public int MUTED(){return MUTED;}@Override public int BORDER(){return BORDER;}@Override public int ERROR(){return ERROR_TOKEN;}
     @Override public boolean motionEnabled(){return MainActivity.this.motionEnabled();}
     @Override public void goToDestination(int destination){MainActivity.this.goToDestination(destination);}
     @Override public int currentDestination(){return primaryDestination<=1?0:primaryDestination;}
     @Override public int contentWidth(){return safeContentWidth();}
     @Override public int contentHeight(){return safeContentHeight();}
     @Override public boolean isAiPage(){return pageKind==5;}
+    @Override public void openNoticeCenter(){MainActivity.this.showNoticeCenter(false);}
+    @Override public boolean isNoticePage(){return pageKind==10;}
+    @Override public int unreadNoticeCount(){return noticeCenter().unreadCount(noticeSnapshot);}
   });
     navBall.attach(host);ui.post(this::reflowNavBall);}
   void refreshNavBall(){if(navBall!=null)navBall.onDestinationChanged();syncBackCallbackEnabled();}
@@ -701,19 +704,11 @@ android.graphics.Insets none=android.graphics.Insets.NONE;android.view.WindowIns
     // 点搜索直接弹键盘，不再有"落位→吸顶"位移动画
     LinearLayout stage=new LinearLayout(this);stage.setOrientation(LinearLayout.VERTICAL);stage.setGravity(Gravity.CENTER_HORIZONTAL);homeStage=stage;root.addView(stage,new LinearLayout.LayoutParams(-1,0,1));
     int searchWidth=homeSearchWidth();
-    // [DFW-61] 公告铃铛：放在搜索框**上方右侧**（用户要求"首页右上角铃铛"）。
-    // 整行在有未读时才出现——用户明确要求"有未读才出现"，常驻一个空铃铛是多余的视觉噪音。
-    noticeBellRow=new LinearLayout(this);noticeBellRow.setGravity(Gravity.END|Gravity.CENTER_VERTICAL);noticeBellRow.setVisibility(View.GONE);
-    FrameLayout bellBox=new FrameLayout(this);
-    ImageButton bell=iconButton(R.drawable.ic_notifications,"公告");bell.setContentDescription("公告");
-    bell.setOnClickListener(v->showNoticeCenter());
-    bellBox.addView(bell,new FrameLayout.LayoutParams(dp(44),dp(44)));
-    noticeBadge=new NoticeBadge(this);
-    FrameLayout.LayoutParams badgeParams=new FrameLayout.LayoutParams(-2,dp(18),Gravity.END|Gravity.TOP);
-    badgeParams.setMargins(0,dp(2),dp(2),0);
-    bellBox.addView(noticeBadge,badgeParams);
-    noticeBellRow.addView(bellBox,new LinearLayout.LayoutParams(dp(46),dp(46)));
-    homeStage.addView(noticeBellRow,new LinearLayout.LayoutParams(-1,-2));
+    // [DFW-70] 首页铃铛已移除——用户 2026-09-30 反馈两个问题：
+    // ① 位置放错了（压在搜索框上方，不在"右上角"）；
+    // ② **关掉公告它就消失**（因为它只在有未读时出现，看过一次就没了），
+    //    用户会以为"公告功能不见了"。
+    // 现在公告入口挪到右下角悬浮球展开菜单的第 6 项（设置下面），常驻可见、带红点。
     // 回到首页时按**缓存的**快照立刻恢复红点状态；否则从别处返回首页会先空一下再亮，看着像闪。
     refreshNoticeBell();
     homeScroll=new ScrollView(this);homeScroll.setFillViewport(true);homeScroll.setVerticalScrollBarEnabled(false);homeScroll.setOverScrollMode(View.OVER_SCROLL_NEVER);homeColumn=new LinearLayout(this);homeColumn.setOrientation(LinearLayout.VERTICAL);homeColumn.setGravity(Gravity.CENTER_HORIZONTAL);homeColumn.setPadding(0,0,0,dp(28));homeScroll.addView(homeColumn,new ScrollView.LayoutParams(-1,-2));// v1.22.3 边距统一：左右内边距 2dp→0，库胶囊左缘与搜索框同 16dp（原先多缩 2dp 造成"左边被黑边挤住"观感）
@@ -1157,6 +1152,34 @@ android.graphics.Insets none=android.graphics.Insets.NONE;android.view.WindowIns
    * 未读红点要"专属的、非常丝滑流畅的动画，不是硬切换"。
    * 未读/排序/垃圾回收都在 {@link NoticeCenter}，这里只负责画页面、挂入口、亮红点。
    */
+  /** 供测试：首页公告铃铛已移除（DFW-70 挪进悬浮球菜单）。 */
+  boolean noticeBellRowGoneForTest(){return true;}
+
+  /**
+   * [DFW-71] 设置页的**滚动位置**记忆。
+   *
+   * 缺陷根因（并行诊断确认）：所有设置子页返回都走 `showSettings()`，
+   * 而它是**整页重建**（`primaryBase(3)` → `basePage()` 会 new 一棵全新的视图树、清空约 60 个字段），
+   * 新建的 `ScrollView` 初始 `scrollY` 必然是 0。
+   * 目录页有 `FolderPageState.scrollY` + `restoreFolderScrollBeforeDraw` 这套恢复机制，
+   * **设置页一个都没有** → 返回必然回顶。
+   */
+  int settingsScrollY;
+
+  /** 供测试：当前记住的设置页滚动位置。 */
+  int settingsScrollYForTest(){return settingsScrollY;}
+
+  /** 供测试：当前主目的地。 */
+  int primaryDestinationForTest(){return primaryDestination;}
+
+  /**
+   * [DFW-71] 分区**展开态**记忆（键 = 分区标题）。
+   *
+   * 不记的话，返回设置页时展开过的分区又被硬编码默认值收起来，
+   * 视觉跳变比单纯回顶更大——用户感觉"突然"就是这两个叠加。
+   */
+  final Map<String,Boolean> settingsExpansion=new LinkedHashMap<>();
+
   NoticeCenter noticeCenter;
   NoticeCenter noticeCenter(){
     if(noticeCenter==null)noticeCenter=NoticeCenter.forContext(this);
@@ -1164,7 +1187,6 @@ android.graphics.Insets none=android.graphics.Insets.NONE;android.view.WindowIns
   }
   RemoteConfigClient.Snapshot noticeSnapshot;
   NoticeBadge noticeBadge;
-  LinearLayout noticeBellRow;
 
   /** 启动时静默拉一次公告；拉不到就什么都不做（不打扰、不报错）。 */
   void maybeFetchNotices(){
@@ -1189,50 +1211,227 @@ android.graphics.Insets none=android.graphics.Insets.NONE;android.view.WindowIns
       noticeBadge.applyTheme(ERROR_TOKEN);
       noticeBadge.setCount(unread);
     }
-    if(noticeBellRow!=null)noticeBellRow.setVisibility(unread>0?View.VISIBLE:View.GONE);
+    // [DFW-70] 红点现在挂在**悬浮球菜单的「公告」项**上（首页铃铛已移除）。
+    // 菜单收起时也要通知它刷新，否则下次展开看到的还是旧数字。
+    if(navBall!=null)navBall.refreshNoticeBadge();
   }
 
   /**
-   * 后台勾了 popup 的公告主动弹一次。
+   * [DFWX] DFW-70：**公告弹窗**。
    *
-   * 只弹**未读**的（已读再弹就是骚扰），且**只弹第一条**、其余靠"查看全部"进去看——
-   * 多条一起弹会把用户淹没。关闭时把这些标记已读，否则每次冷启动都会重复弹。
+   * 用户 2026-09-30："它弹出来那个公告弹窗就很丑，你需要优化，改成一个非常适合公告的UI和样子。"
+   *
+   * 按并行调研的规格重做（参考库 `黑曜/06-开源参考库/07-更新与公告UI动效专档.md` E 节，
+   * 规格来源是 AOSP `AlertController` + MDC `MaterialAlertDialog` 的实测值，Apache-2.0 可抄）。
+   *
+   * ## 公告 ≠ 普通对话框（这决定它不该长成普通 AlertDialog）
+   * 普通对话框是"**问用户要一个决定**"（双向、有取消）；公告是"**告诉用户一件事**"（单向）。
+   * 所以：**禁出现"取消"**（出现即降级成问答）、必须显示发布时间、正文可滚但只滚正文。
+   *
+   * ## 修掉的三条"丑"根因（都能在代码里指到）
+   * ① **底色发紫**：`roundDialog` 用的是 `solidShape(SURFACE,22)` 且走品牌色 tint 思路 →
+   *    按 §5 亮度阶梯的主体是**白**，底色必须是中性的，品牌色只能做点缀。
+   * ② **两个光秃秃的文字按钮**：`styleDialogButton` 给的是全透明底 + 紫/灰字、且没设字重。
+   * ③ **圆角被静默量化 + 违规阴影**：`solidShape` 把 28 量化成 26、把 22 量化成 20（Card 档），
+   *    而且带 `setElevation(dp(10))`——§5 明确"不用 elevation 阴影"。浮层该用 Panel(28dp)。
+   */
+  void showNoticeDialog(RemoteConfigClient.Notice notice, int remainingCount, Runnable onDismissed){
+    if(isFinishing()||isDestroyed())return;
+    if(notice==null)return;
+    LinearLayout panel=new LinearLayout(this);
+    panel.setOrientation(LinearLayout.VERTICAL);
+    // 中性底 = 白 12% 叠在纯黑上（§5 亮度档 11–14%）。
+    // **绝不能用品牌色 tint**：那会整块发紫，用户已经因此说过"廉价"。
+    int fill=noticeDialogFill(BG);
+    // 圆角 28dp（Panel 档，与 MDC m3_alert_dialog_corner_size 一致）。
+    // 用 PremiumSurface 而不是 solidShape——后者会把 28 量化成 26。
+    panel.setBackground(PremiumSurface.withHighlight(fill,dp(28),Math.max(1,dp(1)),0x1AFFFFFF,PremiumSurface.HIGHLIGHT));
+    panel.setClipToOutline(true);
+
+    // ── 标题区（左右上下 24dp：AOSP dialog_padding_material / MDC top_padding）──
+    LinearLayout titleRow=new LinearLayout(this);
+    titleRow.setGravity(Gravity.CENTER_VERTICAL);
+    titleRow.setPadding(dp(24),dp(22),dp(16),0);
+    // 等级标识：6dp 圆点。**普通档不画**——每条都挂等于没有重点。
+    if(notice.isUrgent()||notice.isImportant()){
+      View dot=new View(this);
+      GradientDrawable dotBg=new GradientDrawable();
+      dotBg.setShape(GradientDrawable.OVAL);
+      dotBg.setColor(notice.isUrgent()?ERROR_TOKEN:PRIMARY);
+      dot.setBackground(dotBg);
+      LinearLayout.LayoutParams dotParams=new LinearLayout.LayoutParams(dp(6),dp(6));
+      dotParams.rightMargin=dp(8);
+      titleRow.addView(dot,dotParams);
+    }
+    TextView title=text(notice.title,18,TEXT,700);
+    title.setMaxLines(2);
+    title.setEllipsize(android.text.TextUtils.TruncateAt.END);
+    titleRow.addView(title,new LinearLayout.LayoutParams(0,-2,1f));
+    // 关闭 X：紧急公告不给关闭（只留「查看全部」），其余给。触控区 48dp。
+    if(!notice.isUrgent()){
+      ImageButton close=iconButton(R.drawable.ic_close,"关闭公告");
+      close.setColorFilter(MUTED);
+      close.setOnClickListener(v->dismissNoticeDialog());
+      LinearLayout.LayoutParams closeParams=new LinearLayout.LayoutParams(dp(44),dp(44));
+      closeParams.leftMargin=dp(4);
+      titleRow.addView(close,closeParams);
+    }
+    panel.addView(titleRow,new LinearLayout.LayoutParams(-1,-2));
+
+    // ── 元信息行：发布时间（公告与对话框最直观的区分信号）+ 还有几条 ──
+    LinearLayout metaRow=new LinearLayout(this);
+    metaRow.setGravity(Gravity.CENTER_VERTICAL);
+    metaRow.setPadding(dp(24),dp(6),dp(24),0);
+    TextView date=text(noticeDateText(notice),12,MUTED);
+    metaRow.addView(date,new LinearLayout.LayoutParams(0,-2,1f));
+    if(remainingCount>0){
+      TextView more=text("还有 "+remainingCount+" 条",12,PRIMARY);
+      metaRow.addView(more,new LinearLayout.LayoutParams(-2,-2));
+    }
+    panel.addView(metaRow,new LinearLayout.LayoutParams(-1,-2));
+
+    // ── 正文（只滚正文：标题与按钮永远可见，用户不会迷路）──
+    if(!notice.body.isEmpty()){
+      // 正文色：普通/重要用 MUTED；**紧急用 TEXT 而不是红**——
+      // 整段红像报错，大面积红本身就廉价。（等级已由标题那颗圆点表达。）
+      TextView body=text(notice.body,14,notice.isUrgent()?TEXT:MUTED,500);
+      body.setLineSpacing(dp(3),1f);
+      ScrollView scroller=new ScrollView(this);
+      scroller.setVerticalScrollBarEnabled(false);
+      scroller.setClipToPadding(false);
+      scroller.addView(body,new ScrollView.LayoutParams(-1,-2));
+      int maxBody=Math.max(dp(120),safeContentHeight()-dp(300));
+      LinearLayout.LayoutParams bodyParams=new LinearLayout.LayoutParams(-1,-2);
+      bodyParams.topMargin=dp(14);
+      panel.addView(scroller,new LinearLayout.LayoutParams(-1,Math.min(maxBody,dp(420))));
+    }
+
+    // ── 按钮区：**最多 2 个、右对齐**。公告是单向通知，**禁"取消"**。 ──
+    LinearLayout actions=new LinearLayout(this);
+    actions.setGravity(Gravity.CENTER_VERTICAL|Gravity.END);
+    actions.setPadding(dp(24),dp(16),dp(24),dp(20));
+    Button secondary=noticeDialogButton("关闭",false);
+    secondary.setOnClickListener(v->dismissNoticeDialog());
+    actions.addView(secondary,new LinearLayout.LayoutParams(-2,dp(48)));
+    Button primary=noticeDialogButton(remainingCount>0?"查看全部":"知道了",true);
+    primary.setOnClickListener(v->{dismissNoticeDialog();showNoticeCenter(false);});
+    LinearLayout.LayoutParams primaryParams=new LinearLayout.LayoutParams(-2,dp(48));
+    primaryParams.leftMargin=dp(8);
+    actions.addView(primary,primaryParams);
+    panel.addView(actions,new LinearLayout.LayoutParams(-1,-2));
+
+    // 用**裸 Dialog** 而不是 AlertDialog + showRounded：
+    // showRounded 会把 panel 背景覆盖成 `solidShape(SURFACE,22)`（还会带上 §5 明令禁止的 elevation 阴影），
+    // 那样我上面精心设的 28dp 圆角 + 中性底 + 单侧高光就全白做了。
+    android.app.Dialog dialog=new android.app.Dialog(this);
+    dialog.requestWindowFeature(android.view.Window.FEATURE_NO_TITLE);
+    dialog.setContentView(panel);
+    // 紧急公告不许点空白/返回关闭——否则"紧急"就成了摆设。
+    // 另存一份意图供测试断言：Android 37 的 `Dialog` 只暴露 setter，没有读取用的公开方法。
+    noticeDialogCancelable=!notice.isUrgent();
+    dialog.setCanceledOnTouchOutside(noticeDialogCancelable);
+    dialog.setCancelable(noticeDialogCancelable);
+    dialog.setOnDismissListener(d->{
+      noticeDialog=null;
+      // 弹过即把**这一条**标为已读（"一次性"模式靠它生效；"永久"模式会无视它，见 NoticeCenter）。
+      noticeCenter().markRead(notice.id);
+      refreshNoticeBell();
+      if(onDismissed!=null)onDismissed.run();
+    });
+    noticeDialog=dialog;
+    if(dialog.getWindow()!=null){
+      android.view.Window window=dialog.getWindow();
+      window.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+      // 遮罩 0.32（规范 §5 + MDC m3_comp_scrim_container_opacity 一致）。
+      window.addFlags(android.view.WindowManager.LayoutParams.FLAG_DIM_BEHIND);
+      window.setDimAmount(0.32f);
+      int viewport=safeContentWidth();
+      android.view.WindowManager.LayoutParams lp=window.getAttributes();
+      lp.gravity=Gravity.CENTER;
+      // 宽度：M3 规格 min 280 / max 560，两侧各留 24dp。
+      lp.width=Math.max(dp(280),Math.min(dp(560),viewport-dp(48)));
+      lp.height=android.view.WindowManager.LayoutParams.WRAP_CONTENT;
+      window.setAttributes(lp);
+    }
+    dialog.show();
+    // 入场：alpha 0→1 + scale 0.92→1（0.92 是规范 §7.5 fadeThrough 的既有值，不新造数字）。
+    if(motionEnabled()){
+      panel.setAlpha(0f);
+      panel.setScaleX(0.92f);
+      panel.setScaleY(0.92f);
+      panel.animate().alpha(1f).scaleX(1f).scaleY(1f).setDuration(300)
+          .setInterpolator(new android.view.animation.PathInterpolator(0.2f,0f,0f,1f)).start();
+    }
+  }
+
+  android.app.Dialog noticeDialog;
+  /** 供测试：当前公告弹窗是否允许点空白/返回关闭。 */
+  boolean noticeDialogCancelable;
+
+  /**
+   * 公告弹窗底色：**中性**（白 12% 叠在纯黑上，落在 §5 的 11–14% 档）。
+   *
+   * 抽成纯函数是为了能直接断言"**不发紫**"——上一版正是把品牌色当底色用，
+   * 整块发紫，用户明确反馈"廉价"。品牌色在公告里只应出现在等级圆点和主按钮上。
+   */
+  static int noticeDialogFill(int bg){
+    return PremiumSurface.over(bg,android.graphics.Color.WHITE,0.12f);
+  }
+
+  void dismissNoticeDialog(){
+    if(noticeDialog!=null){
+      try{noticeDialog.dismiss();}catch(Exception ignored){}
+      noticeDialog=null;
+    }
+  }
+
+  /** 公告发布日期（yyyy-MM-dd）；拿不到时间戳时返回空串而不是显示 1970。 */
+  String noticeDateText(RemoteConfigClient.Notice notice){
+    if(notice.createdMs<=0)return"";
+    try{
+      return new java.text.SimpleDateFormat("yyyy-MM-dd",java.util.Locale.CHINA).format(new java.util.Date(notice.createdMs));
+    }catch(Exception ignored){return"";}
+  }
+
+  /**
+   * 公告弹窗的按钮：**真胶囊**（半径 = 高度一半）。
+   *
+   * 不能用 `solidShape(color,24)`——`solidShape` 的三段量化会把它压成 26，
+   * 做出来是个圆角方块而不是胶囊（这是项目里一个反复踩的坑）。
+   */
+  Button noticeDialogButton(String label,boolean primaryAction){
+    Button b=new Button(this);
+    b.setText(label);
+    b.setAllCaps(false);
+    b.setTextSize(13);
+    b.setTextColor(primaryAction?BG:TEXT);
+    b.setTypeface(AppFonts.medium(this));
+    resetButtonChrome(b);
+    b.setMinHeight(dp(48));
+    b.setMinimumHeight(dp(48));
+    b.setPadding(dp(20),0,dp(20),0);
+    if(primaryAction){
+      b.setBackground(filterRipple(PremiumSurface.pill(PRIMARY,dp(48),0,0,PremiumSurface.HIGHLIGHT)));
+    }else{
+      b.setBackground(filterRipple(PremiumSurface.pill(SET_HIGH,dp(48),Math.max(1,dp(1)),SET_STROKE,PremiumSurface.HIGHLIGHT)));
+    }
+    return b;
+  }
+
+  /**
+   * 启动后按三档模式决定要不要弹公告。
+   *
+   * - **静默**：不弹，只亮红点（`popupNotices` 已经把它排除）
+   * - **一次性**：弹一次，读过不再弹
+   * - **永久**：每次打开都弹（无视已读）
+   * 同屏可能有"永久"档的多条，**一次只弹一条**，其余靠"查看全部"——
+   * 多条一起弹会把用户淹没（NN/g「Stacked Overlays Fight Each Other」）。
    */
   void maybePopupNotices(){
     final List<RemoteConfigClient.Notice> popups=noticeCenter().popupNotices(noticeSnapshot);
     if(popups.isEmpty())return;
     final RemoteConfigClient.Notice first=popups.get(0);
-    LinearLayout panel=new LinearLayout(this);
-    panel.setOrientation(LinearLayout.VERTICAL);
-    panel.setPadding(dp(22),dp(8),dp(22),0);
-    TextView body=text(first.body,14,TEXT);
-    body.setLineSpacing(dp(3),1f);
-    panel.addView(body,new LinearLayout.LayoutParams(-1,-2));
-    AlertDialog dialog=new AlertDialog.Builder(this)
-      .setTitle(first.title)
-      .setView(panel)
-      .setNegativeButton(popups.size()>1?"还有 "+(popups.size()-1)+" 条":"关闭",null)
-      .setPositiveButton("查看全部",(d,w)->showNoticeCenter(false))
-      .create();
-    dialog.setOnDismissListener(d->{
-      // 只把**弹过的这几条**标为已读。用 markAllRead 会把未弹的普通公告也吞掉，红点会凭空消失。
-      for(RemoteConfigClient.Notice notice:popups)noticeCenter().markRead(notice.id);
-      refreshNoticeBell();
-    });
-    showRounded(dialog);
-  }
-
-  /**
-   * [DFWX] DFW-67：**风格试衣间**——Material Design 3 的 token 预览页。
-   *
-   * 只读预览，**不接管全站**：主机区仍跑原来的 `ThemeEngine`。
-   * 用户先看效果，再决定要不要按 M3 做全量重置（以及是否引入官方 Material 库）。
-   */
-  void showM3FittingRoom(){
-    primaryBase(3);pageKind=11;activeSource=null;clearFolderTrail();systemBackAction=this::showSettings;
-    LinearLayout body=aboutBackBar("风格试衣间");
-    body.addView(new M3FittingRoom(this).build(),new LinearLayout.LayoutParams(-1,0,1));
-    root.addView(body,new LinearLayout.LayoutParams(-1,0,1));
+    showNoticeDialog(first,popups.size()-1,null);
   }
 
   void showNoticeCenter(){showNoticeCenter(true);}
@@ -1571,10 +1770,13 @@ content=new LinearLayout(this);content.setOrientation(LinearLayout.VERTICAL);pag
       if(!first){View divider=new View(this);divider.setBackgroundColor(SET_STROKE2);LinearLayout.LayoutParams dl=new LinearLayout.LayoutParams(-1,dp(1));dl.setMargins(dp(50),0,dp(8),0);content.addView(divider,dl);}// v7:行间分隔线 left 50(对齐标题文字) right 8
       first=false;content.addView(child,new LinearLayout.LayoutParams(-1,-2));}
     section.addView(content,new LinearLayout.LayoutParams(-1,-2));
-    content.setVisibility(expanded?View.VISIBLE:View.GONE);arrow.setRotation(expanded?180f:0f);
-    header.setContentDescription(title+"，"+(expanded?"已展开":"已收起")+"，点击"+(expanded?"收起":"展开"));
-    header.setOnClickListener(v->{boolean open=content.getVisibility()!=View.VISIBLE;header.setContentDescription(title+"，"+(open?"已展开":"已收起")+"，点击"+(open?"收起":"展开"));animateSection(section,content,arrow,open);});
-    section.setTag(expanded);// T5-S §7:记录默认展开态,搜索清空后恢复
+    // [DFW-71] 首次进设置用硬编码默认值；之后一律用**用户上次的展开态**，
+    // 否则返回设置页时展开过的分区又被收起来，视觉跳变比单纯回顶更大。
+    boolean open=settingsExpansion.containsKey(title)?settingsExpansion.get(title):expanded;
+    content.setVisibility(open?View.VISIBLE:View.GONE);arrow.setRotation(open?180f:0f);
+    header.setContentDescription(title+"，"+(open?"已展开":"已收起")+"，点击"+(open?"收起":"展开"));
+    header.setOnClickListener(v->{boolean willOpen=content.getVisibility()!=View.VISIBLE;settingsExpansion.put(title,willOpen);header.setContentDescription(title+"，"+(willOpen?"已展开":"已收起")+"，点击"+(willOpen?"收起":"展开"));animateSection(section,content,arrow,willOpen);});
+    section.setTag(open);// T5-S §7:记录默认展开态,搜索清空后恢复
     return section;}
   public void animateSection(LinearLayout section,LinearLayout content,ImageView arrow,boolean open){// v1.22.4 展开收起重做（用户报"挺奇怪"）：三个怪感根因——①sceneRoot 只包 section 自身，下方兄弟卡片瞬跳露空隙，上移到 body 让全部卡片一起平滑滑动；②展开 Fade 让内容"边缩边透明消失"，去掉后内容 alpha 恒 1 随高度被 20dp 圆角裁剪揭示；③收起 Fade 收短到 120ms 只负责内容淡出。时长 240→300ms M3 emphasized；chevron 旋转从 VPA 改 ROTATION 弹簧 800/.75 与按压同一语言。
     if(!motionEnabled()){content.setVisibility(open?View.VISIBLE:View.GONE);arrow.setRotation(open?180f:0f);return;}
@@ -1760,7 +1962,10 @@ content=new LinearLayout(this);content.setOrientation(LinearLayout.VERTICAL);pag
     perfTierSummary=text("",12,SET_T2);perfTierSummary.setLineSpacing(dp(2),1f);perfTierSummary.setPadding(dp(2),dp(10),dp(2),0);card.addView(perfTierSummary,new LinearLayout.LayoutParams(-1,-2));
     perfMotionRow=settingsSwitchRow(R.drawable.ic_expand,"低动效（减少界面动画）",perfLowMotion,checked->{perfLowMotion=checked;persistSearchSettings();updatePerfTierUi();});LinearLayout.LayoutParams motionLp=new LinearLayout.LayoutParams(-1,-2);motionLp.setMargins(0,dp(6),0,0);card.addView(perfMotionRow,motionLp);
     updatePerfTierUi();return card;}
-  void showSettings(){primaryBase(3);pageKind=4;settingsRefreshers.clear();settingsSearchSections.clear();activeSource=null;clearFolderTrail();systemBackAction=null;primaryHeader("设置");LinearLayout body=new LinearLayout(this);body.setOrientation(LinearLayout.VERTICAL);body.setPadding(0,dp(4),0,dp(18));/* v1.22.3 边距统一：左右 8dp→0，设置卡片与 header/首页同 16dp 基准（原 24dp 比首页多缩 8dp，造成"边距不齐像被挤住"观感） */LinearLayout.LayoutParams integrityPayLp=new LinearLayout.LayoutParams(-1,-2);integrityPayLp.bottomMargin=dp(10);body.addView(new IntegrityPayButton(this,ThemeEngine.active(this),getResources().getDisplayMetrics().density,Support.unlocked(this),motionEnabled(),this::openSupportActivity),integrityPayLp);applePressScale(integrityPayLp==null?null:(View)body.getChildAt(body.getChildCount()-1));/* v1.23 T5-S 四分区重排（v7 设计稿）：常用默认展开；性能模式收起（细项过渡态，三档芯片随后替换）；高级收起（网络兼容+ADB）；数据与关于收起 */addSettingsSection(body,settingsSection(R.drawable.ic_download,"常用","下载、搜索与列表浏览",true,buildDownloadPathPanel(),buildSearchModeRow(),buildRecursiveFoldersRow(),settingsSwitchRow(R.drawable.ic_expand,"浏览时自动加载更多",sessionAutoExpand,checked->{sessionAutoExpand=checked;persistSearchSettings();if(checked&&folderPullScroll!=null)folderPullScroll.post(this::maybeAutoExpand);}),buildAutoInstallDownloadsRow(),settingsSwitchRow(R.drawable.ic_home,"下载时推荐诚信付费",Support.askOnDownload(this),checked->{Support.setAskOnDownload(this,checked);})));addSettingsSection(body,settingsSection(R.drawable.ic_bolt,"性能模式","下载与动效的整体节奏",false,buildPerfTierCard(),buildSearchSettingsPanel(),buildDownloadSettingsPanel(),buildListDisplaySettings(),buildAutoExpandPageSettings(),buildIndexSliderSettings(),buildAdbInstallThreadSettings(),buildIndexProgressCard()));addSettingsSection(body,settingsSection(R.drawable.ic_sliders,"高级","网络、兼容与 ADB 安装",false,buildUaSettingsRow(),settingsSwitchRow(R.drawable.ic_open_with,"蓝奏链接直接解析打开",directLanzouListOpen,checked->{directLanzouListOpen=checked;persistSearchSettings();}),buildLanzouBaseOriginRow(),settingsSwitchRow(R.drawable.ic_refresh,"基础链接超时自动切换",sessionLanzouTimeoutFailover,checked->{sessionLanzouTimeoutFailover=checked;persistSearchSettings();}),settingsSwitchRow(R.drawable.ic_share,"网页外部打开",sessionOpenWebExternal,checked->{sessionOpenWebExternal=checked;persistSearchSettings();}),settingsSwitchRow(R.drawable.ic_file,"列表源展示链接",showSourceLinks,checked->{showSourceLinks=checked;persistSearchSettings();}),buildAdbPermissionCard()));addSettingsSection(body,settingsSection(R.drawable.ic_database,"数据与关于","下载显示与资源管理",false,settingsSwitchRow(R.drawable.ic_nav_grid,"批量下载逐项显示",sessionBatchDownloadSingleItem,checked->{sessionBatchDownloadSingleItem=checked;persistSearchSettings();if(pageKind==2)renderDownloads(downloadQuery);}),buildSourceSettingsPanel(),settingsAction(R.drawable.ic_notifications,"公告",v->showNoticeCenter(false)),settingsAction(R.drawable.ic_sliders,"风格试衣间",v->showM3FittingRoom()),settingsAction(R.drawable.ic_sources,"资源源管理",v->showSources()),settingsAction(R.drawable.ic_refresh,"开源项目主页",v->openInBrowser(DFWX_REPOSITORY,""))));
+  void showSettings(){
+    // [DFW-71] 必须在 primaryBase 拆掉旧视图树**之前**存位置，否则就读不到了。
+    if(pageKind==4&&pageScroll!=null)settingsScrollY=pageScroll.getScrollY();
+    primaryBase(3);pageKind=4;settingsRefreshers.clear();settingsSearchSections.clear();activeSource=null;clearFolderTrail();systemBackAction=null;primaryHeader("设置");LinearLayout body=new LinearLayout(this);body.setOrientation(LinearLayout.VERTICAL);body.setPadding(0,dp(4),0,dp(18));/* v1.22.3 边距统一：左右 8dp→0，设置卡片与 header/首页同 16dp 基准（原 24dp 比首页多缩 8dp，造成"边距不齐像被挤住"观感） */LinearLayout.LayoutParams integrityPayLp=new LinearLayout.LayoutParams(-1,-2);integrityPayLp.bottomMargin=dp(10);body.addView(new IntegrityPayButton(this,ThemeEngine.active(this),getResources().getDisplayMetrics().density,Support.unlocked(this),motionEnabled(),this::openSupportActivity),integrityPayLp);applePressScale(integrityPayLp==null?null:(View)body.getChildAt(body.getChildCount()-1));/* v1.23 T5-S 四分区重排（v7 设计稿）：常用默认展开；性能模式收起（细项过渡态，三档芯片随后替换）；高级收起（网络兼容+ADB）；数据与关于收起 */addSettingsSection(body,settingsSection(R.drawable.ic_download,"常用","下载、搜索与列表浏览",true,buildDownloadPathPanel(),buildSearchModeRow(),buildRecursiveFoldersRow(),settingsSwitchRow(R.drawable.ic_expand,"浏览时自动加载更多",sessionAutoExpand,checked->{sessionAutoExpand=checked;persistSearchSettings();if(checked&&folderPullScroll!=null)folderPullScroll.post(this::maybeAutoExpand);}),buildAutoInstallDownloadsRow(),settingsSwitchRow(R.drawable.ic_home,"下载时推荐诚信付费",Support.askOnDownload(this),checked->{Support.setAskOnDownload(this,checked);})));addSettingsSection(body,settingsSection(R.drawable.ic_bolt,"性能模式","下载与动效的整体节奏",false,buildPerfTierCard(),buildSearchSettingsPanel(),buildDownloadSettingsPanel(),buildListDisplaySettings(),buildAutoExpandPageSettings(),buildIndexSliderSettings(),buildAdbInstallThreadSettings(),buildIndexProgressCard()));addSettingsSection(body,settingsSection(R.drawable.ic_sliders,"高级","网络、兼容与 ADB 安装",false,buildUaSettingsRow(),settingsSwitchRow(R.drawable.ic_open_with,"蓝奏链接直接解析打开",directLanzouListOpen,checked->{directLanzouListOpen=checked;persistSearchSettings();}),buildLanzouBaseOriginRow(),settingsSwitchRow(R.drawable.ic_refresh,"基础链接超时自动切换",sessionLanzouTimeoutFailover,checked->{sessionLanzouTimeoutFailover=checked;persistSearchSettings();}),settingsSwitchRow(R.drawable.ic_share,"网页外部打开",sessionOpenWebExternal,checked->{sessionOpenWebExternal=checked;persistSearchSettings();}),settingsSwitchRow(R.drawable.ic_file,"列表源展示链接",showSourceLinks,checked->{showSourceLinks=checked;persistSearchSettings();}),buildAdbPermissionCard()));addSettingsSection(body,settingsSection(R.drawable.ic_database,"数据与关于","下载显示与资源管理",false,settingsSwitchRow(R.drawable.ic_nav_grid,"批量下载逐项显示",sessionBatchDownloadSingleItem,checked->{sessionBatchDownloadSingleItem=checked;persistSearchSettings();if(pageKind==2)renderDownloads(downloadQuery);}),buildSourceSettingsPanel(),settingsAction(R.drawable.ic_notifications,"公告",v->showNoticeCenter(false)),settingsAction(R.drawable.ic_sources,"资源源管理",v->showSourcesFromSettings()),settingsAction(R.drawable.ic_refresh,"开源项目主页",v->openInBrowser(DFWX_REPOSITORY,""))));
   // T5-S §8:底部关于区——崩溃日志/参考致谢/关于移出"数据与关于"单独收底,三行顺序按用户指定(崩溃日志→参考致谢→关于);诚信付费按钮保持在设置页顶部
   LinearLayout footer=new LinearLayout(this);footer.setOrientation(LinearLayout.VERTICAL);GradientDrawable footerBg=new GradientDrawable();footerBg.setColor(SET_LOW);footerBg.setCornerRadius(dp(20));footerBg.setStroke(dp(1),SET_STROKE);footer.setBackground(footerBg);footer.setClipToOutline(true);footer.setTag(true);
   LinearLayout footerContent=new LinearLayout(this);footerContent.setOrientation(LinearLayout.VERTICAL);footerContent.setPadding(dp(4),0,dp(4),dp(6));
@@ -1772,7 +1977,13 @@ content=new LinearLayout(this);content.setOrientation(LinearLayout.VERTICAL);pag
   View footerDivider3=new View(this);footerDivider3.setBackgroundColor(SET_STROKE2);LinearLayout.LayoutParams fd3Lp=new LinearLayout.LayoutParams(-1,dp(1));fd3Lp.setMargins(dp(50),0,dp(8),0);footerDivider3.setLayoutParams(fd3Lp);footerContent.addView(footerDivider3);
   footerContent.addView(settingsAction(R.drawable.ic_copy,"关于"+PRODUCT_NAME,v->showAboutPage()),new LinearLayout.LayoutParams(-1,-2));
   footer.addView(footerContent,new LinearLayout.LayoutParams(-1,-2));settingsSearchSections.add(footer);body.addView(footer,new LinearLayout.LayoutParams(-1,-2));
-  LinearLayout.LayoutParams emptyLp=new LinearLayout.LayoutParams(-1,-2);emptyLp.setMargins(0,dp(40),0,0);settingsSearchEmpty=text("没有匹配的设置项",13,MUTED);settingsSearchEmpty.setGravity(Gravity.CENTER);settingsSearchEmpty.setVisibility(View.GONE);body.addView(settingsSearchEmpty,emptyLp);root.addView(buildSettingsSearch(),new LinearLayout.LayoutParams(-1,dp(48)));ScrollView scroll=new ScrollView(this);scroll.setFillViewport(true);scroll.setContentDescription("设置");scroll.addView(body,new ScrollView.LayoutParams(-1,-2));root.addView(scroll,new LinearLayout.LayoutParams(-1,0,1));refreshIndexProgressCard();}
+  LinearLayout.LayoutParams emptyLp=new LinearLayout.LayoutParams(-1,-2);emptyLp.setMargins(0,dp(40),0,0);settingsSearchEmpty=text("没有匹配的设置项",13,MUTED);settingsSearchEmpty.setGravity(Gravity.CENTER);settingsSearchEmpty.setVisibility(View.GONE);body.addView(settingsSearchEmpty,emptyLp);root.addView(buildSettingsSearch(),new LinearLayout.LayoutParams(-1,dp(48)));ScrollView scroll=new ScrollView(this);scroll.setFillViewport(true);scroll.setContentDescription("设置");scroll.addView(body,new ScrollView.LayoutParams(-1,-2));root.addView(scroll,new LinearLayout.LayoutParams(-1,0,1));
+    // [DFW-71] 让设置页也持有 pageScroll（原来只有目录/源列表/下载页持有），
+    // 否则离开时无从读取 scrollY，也就无法恢复。
+    pageScroll=scroll;
+    // 用现成的 OnPreDrawListener 恢复：必须在首次绘制**之前**跳到位，否则会先闪一下顶部。
+    if(settingsScrollY>0)restoreFolderScrollBeforeDraw(scroll,settingsScrollY);
+    refreshIndexProgressCard();}
   Uri toolImageUri;int toolQuality=70;String toolImageInfoText="";int toolTargetSizeKb=0;// v1.13.0 精修20：>0 时启用目标体积二分模式
   final java.util.ArrayDeque<String> toolBackStack=new java.util.ArrayDeque<>();
   ToolHost toolHost;
@@ -2288,9 +2499,25 @@ content=new LinearLayout(this);content.setOrientation(LinearLayout.VERTICAL);pag
   void renderSourceChunk(GridLayout grid,List<Models.Source> sources,int start,int columns,int token){if(token!=sourceRenderSession||grid!=sourceGrid||grid.getParent()==null)return;int active=itemColumns();if(active!=columns)reflowGrid(grid,active,true);int batch=sourceListDisplayCount(),end=batch<=0?sources.size():Math.min(start+batch,sources.size());for(int i=start;i<end;i++){Models.Source source=sources.get(i);View row=sourceRow(source);GridLayout.LayoutParams gp=new GridLayout.LayoutParams();gp.width=gridCellWidth(active);gp.height=showSourceLinks?ViewGroup.LayoutParams.WRAP_CONTENT:dp(64);gp.columnSpec=GridLayout.spec(i%active);gp.rowSpec=GridLayout.spec(i/active);gp.setMargins(dp(4),dp(1),dp(4),dp(1));grid.addView(row,gp);}if(sourceSelectionMode)updateSourceSelectionSummary();grid.postOnAnimation(()->fillSourceViewport(token,sources));}
   void fillSourceViewport(int token,List<Models.Source> sources){if(token!=sourceRenderSession||sourceGrid==null||pageScroll==null||pageKind!=1)return;int rendered=sourceGrid.getChildCount();if(rendered>=sources.size())return;int required=pageScroll.getHeight()+dp(240);if(sourceGrid.getHeight()<required)renderSourceChunk(sourceGrid,sources,rendered,itemColumns(),token);}
   void maybeLoadMoreSources(){if(pageKind!=1||sourceGrid==null||pageScroll==null||sourceGrid.getChildCount()>=visibleSources.size())return;if(pageScroll.getScrollY()+pageScroll.getHeight()+dp(320)<sourceGrid.getHeight())return;renderSourceChunk(sourceGrid,new ArrayList<>(visibleSources),sourceGrid.getChildCount(),itemColumns(),sourceRenderSession);}
-  void showSources(){if(restoreSourceListPage())return;SourceListPageState fallback=retainedSourceListPage!=null?retainedSourceListPage:sourceListRebuildFallback;retainedSourceListPage=null;sourceListRebuildFallback=null;showSources(fallback);}
+  /**
+   * [DFW-71] 资源源管理是不是**从设置页进来的**——决定它的返回目标是设置页还是首页。
+   *
+   * 缺陷根因（并行诊断确认，且**必然发生而非偶发**）：
+   * 设置里的「资源源管理」调的是 `showSources()`，它把 `systemBackAction` 清成 null、目的地设成 1；
+   * 返回时落进 `performSystemBack()` 的兜底 `if(primaryDestination>0) navigateHome()` → **软件库**。
+   * 用户的原话"有时候会突然回到软件库界面"，"有时候"其实取决于他点的是哪个按钮。
+   */
+  boolean sourceListFromSettings;
+
+  /** [DFW-71] 从设置页进入资源源管理：返回时回**设置页**。 */
+  void showSourcesFromSettings(){sourceListFromSettings=true;openSourceList();}
+
+  void showSources(){sourceListFromSettings=false;openSourceList();}
+
+  /** 真正的开页逻辑；两个入口共用，**标志位由调用方设置**（不能在内部清，否则会互相覆盖）。 */
+  void openSourceList(){if(restoreSourceListPage())return;SourceListPageState fallback=retainedSourceListPage!=null?retainedSourceListPage:sourceListRebuildFallback;retainedSourceListPage=null;sourceListRebuildFallback=null;showSources(fallback);}
   void showSources(SourceListPageState fallback){
-    String restoredQuery=fallback==null?"":fallback.query,restoredCategory=fallback==null?activeSourceCategory:fallback.activeSourceCategory;boolean restoreSelection=fallback!=null&&fallback.sourceSelectionMode;primaryBase(1);pageKind=1;final int viewSession=navigationSession;clearFolderTrail();activeSource=null;systemBackAction=null;loadSourceCategories();if(restoredCategory.equals("全部")||sourceCategories.containsKey(restoredCategory))activeSourceCategory=restoredCategory;if(fallback!=null){selectedSourceUrls.addAll(fallback.selectedSourceUrls);System.arraycopy(fallback.sourceSelectionKinds,0,sourceSelectionKinds,0,sourceSelectionKinds.length);}primaryHeader("更多");List<Models.Source> all=new ArrayList<>();sourcePageSources=all;sourceGrid=new GridLayout(this);sourceGrid.setColumnCount(itemColumns());sourceGrid.setAlignmentMode(GridLayout.ALIGN_BOUNDS);ImageButton importRules=iconButton(R.drawable.ic_folder,"导入源规则"),exportRules=iconButton(R.drawable.ic_share,"导出源规则"),add=iconButton(R.drawable.ic_add,"添加蓝奏源");pageHeaderRow.addView(importRules,new LinearLayout.LayoutParams(dp(44),dp(48)));pageHeaderRow.addView(exportRules,new LinearLayout.LayoutParams(dp(44),dp(48)));pageHeaderRow.addView(add,new LinearLayout.LayoutParams(dp(44),dp(48)));sourceHeading=text("软件 · 正在读取",12,MUTED);sourceHeading.setGravity(Gravity.START|Gravity.CENTER_VERTICAL);sourceHeading.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);root.addView(sourceHeading,new LinearLayout.LayoutParams(-1,dp(32)));sourceFilter=pageSearch(query->queueSourceListFilter(all,query,sourceHeading));if(!restoredQuery.isEmpty()){sourceFilter.setText(restoredQuery);sourceFilter.setSelection(restoredQuery.length());}addSourceCategoryBar(all);importRules.setOnClickListener(v->showImportRulesMenu());exportRules.setOnClickListener(v->exportSourceRules());add.setOnClickListener(v->addSourceDialog(all,sourceGrid,sourceFilter,sourceHeading,activeSourceCategory));pageScroll=new ScrollView(this);pageScroll.addView(sourceGrid);root.addView(draggableList(pageScroll,sourceGrid,"拖动软件列表"),new LinearLayout.LayoutParams(-1,0,1));
+    String restoredQuery=fallback==null?"":fallback.query,restoredCategory=fallback==null?activeSourceCategory:fallback.activeSourceCategory;boolean restoreSelection=fallback!=null&&fallback.sourceSelectionMode;primaryBase(1);pageKind=1;final int viewSession=navigationSession;clearFolderTrail();activeSource=null;systemBackAction=sourceListFromSettings?this::showSettings:null;loadSourceCategories();if(restoredCategory.equals("全部")||sourceCategories.containsKey(restoredCategory))activeSourceCategory=restoredCategory;if(fallback!=null){selectedSourceUrls.addAll(fallback.selectedSourceUrls);System.arraycopy(fallback.sourceSelectionKinds,0,sourceSelectionKinds,0,sourceSelectionKinds.length);}primaryHeader("更多");List<Models.Source> all=new ArrayList<>();sourcePageSources=all;sourceGrid=new GridLayout(this);sourceGrid.setColumnCount(itemColumns());sourceGrid.setAlignmentMode(GridLayout.ALIGN_BOUNDS);ImageButton importRules=iconButton(R.drawable.ic_folder,"导入源规则"),exportRules=iconButton(R.drawable.ic_share,"导出源规则"),add=iconButton(R.drawable.ic_add,"添加蓝奏源");pageHeaderRow.addView(importRules,new LinearLayout.LayoutParams(dp(44),dp(48)));pageHeaderRow.addView(exportRules,new LinearLayout.LayoutParams(dp(44),dp(48)));pageHeaderRow.addView(add,new LinearLayout.LayoutParams(dp(44),dp(48)));sourceHeading=text("软件 · 正在读取",12,MUTED);sourceHeading.setGravity(Gravity.START|Gravity.CENTER_VERTICAL);sourceHeading.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);root.addView(sourceHeading,new LinearLayout.LayoutParams(-1,dp(32)));sourceFilter=pageSearch(query->queueSourceListFilter(all,query,sourceHeading));if(!restoredQuery.isEmpty()){sourceFilter.setText(restoredQuery);sourceFilter.setSelection(restoredQuery.length());}addSourceCategoryBar(all);importRules.setOnClickListener(v->showImportRulesMenu());exportRules.setOnClickListener(v->exportSourceRules());add.setOnClickListener(v->addSourceDialog(all,sourceGrid,sourceFilter,sourceHeading,activeSourceCategory));pageScroll=new ScrollView(this);pageScroll.addView(sourceGrid);root.addView(draggableList(pageScroll,sourceGrid,"拖动软件列表"),new LinearLayout.LayoutParams(-1,0,1));
     if(fallback!=null&&fallback.sourceDataRevision==sourceDataRevision&&fallback.sourcePageSources!=null&&!fallback.sourcePageSources.isEmpty()){all.addAll(fallback.sourcePageSources);renderSources(sourceGrid,all,restoredQuery,sourceHeading);if(restoreSelection){enterSourceSelection();System.arraycopy(fallback.sourceSelectionKinds,0,sourceSelectionKinds,0,sourceSelectionKinds.length);updateSourceSelectionSummary();}}else loadSourcePageSnapshot(viewSession,all,sourceGrid,sourceFilter,sourceHeading);
   }
     void loadSourcePageSnapshot(int viewSession,List<Models.Source> all,GridLayout grid,EditText filter,TextView heading){final int loadRevision=sourceDataRevision;io.execute(()->{try{List<Models.Source> sources=core.sources();LinkedHashMap<String,String> corpora=buildSourceSearchCorpora(sources);LinkedHashMap<String,LinkedHashSet<String>> categories=migrateSourceCategoryIds(sources);runOnUiThread(()->{if(viewSession!=navigationSession||grid!=sourceGrid||all!=sourcePageSources)return;if(loadRevision!=sourceDataRevision){loadSourcePageSnapshot(viewSession,all,grid,filter,heading);return;}sourceCategories.clear();sourceCategories.putAll(categories);sourceSearchCorpora.clear();sourceSearchCorpora.putAll(corpora);sourceSearchCorporaRevision=sourceDataRevision;if(!activeSourceCategory.equals("全部")&&!sourceCategories.containsKey(activeSourceCategory))activeSourceCategory="全部";all.clear();all.addAll(sources);renderSourceCategories(all);renderSources(grid,all,filter.getText().toString().trim(),heading);});}catch(Exception error){runOnUiThread(()->{if(viewSession!=navigationSession||grid!=sourceGrid||all!=sourcePageSources)return;if(loadRevision!=sourceDataRevision){loadSourcePageSnapshot(viewSession,all,grid,filter,heading);return;}MainActivity.this.error(error);});}});}
