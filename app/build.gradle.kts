@@ -4,15 +4,22 @@ tasks.withType<JavaCompile>().configureEach { options.compilerArgs.add("-g:none"
 
 // [DFWX AI-004] 内置 AI 渠道的构建期注入已移除（含 ai.default.key 读取、resValue 三件套）。
 // 用户拍板：不再内置任何 API；后续免费额度只在官方群聊发放，由用户自行在 AI 设置里填写渠道。
-// v1.9.0（问题表单#5）：签名口令不入源码，读 local.properties 的 heiyao.storePassword/heiyao.keyPassword。
+// v1.9.0（问题表单#5）：签名口令不入源码，读 local.properties。
 // [DFWX-SEC-003] fail-closed：缺失时不再回退硬编码口令——release 构建直接失败并指明缺什么（见 buildTypes 门禁）；
 // CI 云构建用 -Pdfwx.unsigned 显式跳过签名出无签名包。
+//
+// [DFWX] DFW-57 品牌清理：变量名与签名配置名已改为 dfwx*。此处**仍是旧品牌字面量**的有三处，
+// 它们不是代码命名而是**外部约定**，必须与外部载体同时改，单独改这里会直接构建失败：
+//   ① 口令键 `heiyao.storePassword` / `heiyao.keyPassword` —— 键名定义在 local.properties（本仓库外，不入 git）；
+//   ② `keyAlias = "heiyao"`       —— 别名**写死在现有 keystore 里**，改字符串不等于改证书内容；
+//   ③ `../heiyao.keystore`        —— 实际文件名。
+// 三者统一随 DFW-58（重建签名证书、换 keystore）一次性迁移，届时同步删掉本条注释。
 fun signingSecret(name: String): String? = run {
  val f = rootProject.file("local.properties")
  if (f.exists()) f.readLines().firstOrNull { it.trim().startsWith("$name=") }?.substringAfter('=')?.trim()?.ifEmpty { null } else null
 }
-val heiyaoStorePassword: String? = signingSecret("heiyao.storePassword")
-val heiyaoKeyPassword: String? = signingSecret("heiyao.keyPassword")
+val dfwxStorePassword: String? = signingSecret("heiyao.storePassword")
+val dfwxKeyPassword: String? = signingSecret("heiyao.keyPassword")
 
 android {
  namespace = "cc.nkbr.lanzouplus"
@@ -54,6 +61,12 @@ android {
    all { it.maxHeapSize = "3g" }
   }
  }
+ // [DFWX] 品牌守卫（BrandingCleanlinessJvmTest）会**读本脚本本体**校验签名字面量，
+ // 但 Gradle 默认不把 build 脚本算作测试输入——实测只改 `keyAlias` 时 testEmptyDebugUnitTest
+ // 仍报 UP-TO-DATE，守卫在**最需要它的场景**下假绿。这里显式把脚本声明为输入：脚本一改，测试即重跑。
+ tasks.withType<Test>().configureEach {
+  inputs.file(file("build.gradle.kts")).withPropertyName("dfwxAppBuildScript")
+ }
  flavorDimensions += "catalog"
  productFlavors {
   create("empty") {
@@ -77,7 +90,7 @@ android {
    // 正式签名仍在本地出包，CI 先验证工具链）。开关关闭时行为与历史完全一致。
    val ciUnsigned = providers.gradleProperty("dfwx.unsigned").isPresent
    if (!ciUnsigned) {
-    val heiyaoKeystore = rootProject.file("../heiyao.keystore")
+    val dfwxKeystore = rootProject.file("../heiyao.keystore")
     // [DFWX-SEC-003] fail-closed 门禁（configuration cache 兼容：纯配置期判断，不挂 taskGraph 钩子）：
     // 本次构建涉及 release 任务而签名要素缺失时直接终止构建；错误只点名缺失项，绝不包含口令值。
     // 聚合任务（build/assemble 等）也会间接产出 release 变体，一并纳入拦截。
@@ -86,9 +99,9 @@ android {
     }
     if (requestsRelease) {
      val missing = buildList {
-      if (!heiyaoKeystore.isFile) add("keystore 文件 ${heiyaoKeystore.path} 不存在")
-      if (heiyaoStorePassword == null) add("local.properties 缺少 heiyao.storePassword")
-      if (heiyaoKeyPassword == null) add("local.properties 缺少 heiyao.keyPassword")
+      if (!dfwxKeystore.isFile) add("keystore 文件 ${dfwxKeystore.path} 不存在")
+      if (dfwxStorePassword == null) add("local.properties 缺少 heiyao.storePassword")
+      if (dfwxKeyPassword == null) add("local.properties 缺少 heiyao.keyPassword")
      }
      if (missing.isNotEmpty()) throw GradleException(
       "DFWX-SEC-003：release 签名配置不完整，构建终止（fail-closed）。\n" +
@@ -98,14 +111,14 @@ android {
      )
     }
     signingConfigs {
-     create("heiyao") {
-      storeFile = heiyaoKeystore
-      storePassword = heiyaoStorePassword
+     create("dfwx") {
+      storeFile = dfwxKeystore
+      storePassword = dfwxStorePassword
       keyAlias = "heiyao"
-      keyPassword = heiyaoKeyPassword
+      keyPassword = dfwxKeyPassword
      }
     }
-    signingConfig = signingConfigs.getByName("heiyao")
+    signingConfig = signingConfigs.getByName("dfwx")
    }
    ndk { abiFilters += "arm64-v8a" }  // v1.18.0 修复：release 只出 arm64（真机）——按构建类型静态判断，与任务名无关
   }

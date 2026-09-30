@@ -11,10 +11,10 @@ import android.graphics.Shader;
 import android.view.View;
 import android.view.animation.LinearInterpolator;
 
-/** 黑曜骨架屏:与真实目录卡片同构的占位块 + 紫光扫过动画。
+/** 东方无限骨架屏:与真实目录卡片同构的占位块 + 紫光扫过动画。
  *  理念二改自 skydoves/AndroidVeil(shimmer 骨架屏,Apache-2.0),纯自绘零依赖。
  *  数据到达时由宿主做交叉淡化,骨架与内容形状一致,视觉上"一气呵成"。 */
-final class HeiYaoSkeleton extends View {
+final class DfwxSkeleton extends View {
   private final Paint blockPaint=new Paint(Paint.ANTI_ALIAS_FLAG),shinePaint=new Paint(Paint.ANTI_ALIAS_FLAG);
   private final Matrix shineMatrix=new Matrix();
   private final int blockColor,columns;
@@ -26,7 +26,7 @@ final class HeiYaoSkeleton extends View {
   private float shineOffset;
   private LinearGradient shine;
 
-  HeiYaoSkeleton(Context context,int blockColor,int columns,int rows){super(context);this.blockColor=blockColor;this.columns=Math.max(1,columns);this.rows=Math.max(rows,4);density=getResources().getDisplayMetrics().density;iconSize=dp(40);rowHeight=dp(72);barH=dp(13);cellPad=dp(6);setWillNotDraw(false);setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_YES);setContentDescription("目录加载中");}
+  DfwxSkeleton(Context context,int blockColor,int columns,int rows){super(context);this.blockColor=blockColor;this.columns=Math.max(1,columns);this.rows=Math.max(rows,4);density=getResources().getDisplayMetrics().density;iconSize=dp(40);rowHeight=dp(72);barH=dp(13);cellPad=dp(6);setWillNotDraw(false);setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_YES);setContentDescription("目录加载中");}
   void setRows(int value){if(rows!=Math.max(value,4)){rows=Math.max(value,4);invalidate();}}
   private int dp(float v){return (int)(v*density+.5f);}
   @Override protected void onAttachedToWindow(){super.onAttachedToWindow();startShine();}

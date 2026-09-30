@@ -28,7 +28,7 @@ import java.util.List;
 /**
  * 工具箱宿主：列表页 = 奇妙工具箱式「组标题 + 个数徽章 + 折叠箭头 + 双列彩色 chip 流」，
  * 工具页 = 预览(若有) + 参数 + 动作 + 结果 + 复制。逻辑全在 Toolbox，本类只做 UI。
- * 命名与压缩风格跟随 MainActivity；颜色/动效 token 与全局黑曜紫一致。
+ * 命名与压缩风格跟随 MainActivity；颜色/动效 token 与全局主题紫一致。
  */
 final class ToolHost {
   /** MainActivity 注入的上下文缩写（仅用到其公开 helper；Java 内部类可直接访问外部实例字段，这里用构造注入保留扩展余地） */
