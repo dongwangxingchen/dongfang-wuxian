@@ -143,6 +143,44 @@ class BrandingCleanlinessJvmTest {
         }
     }
 
+    /**
+     * 用户能看到的文案里不得出现上游英文名 `LanzouPlus`。
+     *
+     * 这条是**实测发现的真实缺陷**：改名时漏了三处**用户可见**的字面量——
+     * 安装未知来源权限的弹窗正文、分享可导入源的菜单项与文件名、导出源规则的文件名。
+     * 它们会直接出现在用户眼前（其中两处还出现在系统文件选择器里），
+     * 而上面那些扫 `heiyao|黑曜` 的断言**一个都抓不到**，因为漏的是另一个词。
+     *
+     * 唯一放行的是「参考与致谢」的署名条目：那里必须写上游项目真名，
+     * 抹掉它反而是**不署名**，属于弄反了方向。
+     */
+    @Test
+    fun userVisibleTextHasNoUpstreamEnglishName() {
+        // 只查**字符串字面量**，不查标识符：`checkLanzouPlusUpdate` 这类方法名含该词但不是用户可见文案。
+        // 也不能只匹配精确的 `"LanzouPlus"`——第一版就是这么写的，结果探针用
+        // `"LanzouPlus 选择分享方式"` 一试就漏了（守卫过窄 = 假绿）。
+        val literal = Regex("\"([^\"\\\\]|\\\\.)*\"")
+        val offenders = mutableListOf<String>()
+        for (f in allFiles(mainDir).filter { it.name.endsWith(".java") || it.name.endsWith(".kt") }) {
+            f.readLines().forEachIndexed { i, line ->
+                // 整行注释里的提及不算用户可见。
+                val s = line.trimStart()
+                if (s.startsWith("//") || s.startsWith("*") || s.startsWith("/*")) return@forEachIndexed
+                // 致谢条目（ACK_ITEMS）是刻意署名，必须保留上游真名。
+                if (line.contains("ACK_ITEMS")) return@forEachIndexed
+                val hit = literal.findAll(line).any { it.value.contains("LanzouPlus") }
+                if (hit) offenders.add("${f.relativeTo(root)}:${i + 1}")
+            }
+        }
+        assertTrue(
+            "用户可见文案里不得出现上游英文名「LanzouPlus」（致谢署名除外）：\n${offenders.joinToString("\n")}",
+            offenders.isEmpty(),
+        )
+        // 反方向：致谢条目必须**保留**上游真名，否则变成不署名。
+        val ack = File(mainDir, "java/cc/nkbr/lanzouplus/MainActivity.java").readText(Charsets.UTF_8)
+        assertTrue("「参考与致谢」必须保留上游项目真名 LanzouPlus", ack.contains("{\"LanzouPlus\""))
+    }
+
     /** 应用名必须是「东方无限」（各语言都要覆盖，防 vendor 的 RikkaHub 命中）。 */
     @Test
     fun appNameIsDongfangWuxianEverywhere() {
