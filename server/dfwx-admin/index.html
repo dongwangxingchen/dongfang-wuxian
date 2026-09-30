@@ -285,6 +285,45 @@ function renderRelease(p){
 }
 
 /* ---------- 公告 ---------- */
+/** 当前正在编辑的公告 id（null = 列表态）。用一次重渲染来回切，不维护两套 DOM。 */
+let editingNoticeId = null;
+
+/** 公告编辑表单：**发布之后也要能改全部字段**（用户 2026-10-01 要求）。 */
+function noticeEditForm(n){
+  const pm = n.popupMode || "once";   // 与客户端 normalizeMode 一致：空值按「一次性」算
+  const opt = (v, label) => `<option value="${v}"${pm===v?" selected":""}>${label}</option>`;
+  return `
+    <label for="et_${n.id}">标题</label>
+    <input id="et_${n.id}" type="text" value="${esc(n.title||"")}" placeholder="例如：新版上线 / 重要通知">
+    <label for="eb_${n.id}">内容</label>
+    <textarea id="eb_${n.id}" placeholder="想对用户说的话">${esc(n.body||"")}</textarea>
+    <label for="el_${n.id}">重要程度</label>
+    <select id="el_${n.id}">
+      <option value="normal"${n.level==="important"||n.level==="urgent"?"":" selected"}>普通</option>
+      <option value="important"${n.level==="important"?" selected":""}>重要</option>
+      <option value="urgent"${n.level==="urgent"?" selected":""}>紧急</option>
+    </select>
+    <div class="switch">
+      <div><div class="t">弹出方式</div><div class="d">静默＝只进列表不打扰；一次性＝每条只弹一次；永久＝每次打开都弹</div></div>
+      <select id="ep_${n.id}" style="background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:10px;padding:9px 12px;font-size:14px;font-family:inherit">
+        ${opt("silent","静默")}${opt("once","一次性")}${opt("always","永久")}
+      </select>
+    </div>
+    <div class="switch">
+      <div><div class="t">置顶</div><div class="d">排在公告列表最前面</div></div>
+      <div class="tg${n.pinned?" on":""}" data-tg="pin_${n.id}"></div>
+    </div>
+    <div class="switch">
+      <div><div class="t">启用</div><div class="d">关掉后 App 不再下发这一条</div></div>
+      <div class="tg${n.enabled===false?"":" on"}" data-tg="en_${n.id}"></div>
+    </div>
+    <div style="height:12px"></div>
+    <div class="row">
+      <button class="btn-main" data-save="${n.id}">保存修改</button>
+      <button class="btn-sec" data-cancel="1">取消</button>
+    </div>`;
+}
+
 function renderNotice(p){
   const list = cache.notice || [];
   p.innerHTML = `
@@ -329,19 +368,40 @@ function renderNotice(p){
       <div class="top">
         <div>
           <div class="name">${esc(n.title || "(无标题)")}</div>
-          <div class="meta">${n.level==="urgent"?"紧急 · ":n.level==="important"?"重要 · ":""}${n.pinned?"置顶 · ":""}${({silent:"静默",once:"一次性弹出",always:"永久弹出"})[n.popupMode||"once"]}</div>
+          <div class="meta">${n.level==="urgent"?"紧急 · ":n.level==="important"?"重要 · ":""}${n.pinned?"置顶 · ":""}${n.enabled===false?"已停用 · ":""}${({silent:"静默",once:"一次性弹出",always:"永久弹出"})[n.popupMode||"once"]}</div>
         </div>
       </div>
+      ${editingNoticeId===n.id ? noticeEditForm(n) : `
       <div style="margin-top:8px;color:var(--muted);font-size:13.5px;white-space:pre-wrap">${esc(n.body)}</div>
       <div style="height:10px"></div>
       <div class="row">
+        <button class="btn-main" data-edit="${n.id}">编辑</button>
         <button class="btn-sec" data-pop="${n.id}">换成「${({silent:"一次性",once:"永久",always:"静默"})[n.popupMode||"once"]}」</button>
         <button class="btn-danger" data-del="${n.id}">删除</button>
-      </div>
+      </div>`}
     </div>`).join("");
   box.onclick = async e => {
-    const pop = e.target.closest("[data-pop]"), del = e.target.closest("[data-del]");
+    const edit = e.target.closest("[data-edit]"), cancel = e.target.closest("[data-cancel]"),
+          save = e.target.closest("[data-save]"), tg = e.target.closest("[data-tg]"),
+          pop = e.target.closest("[data-pop]"), del = e.target.closest("[data-del]");
+    // 开关就地切换，不重渲染——重渲染会把用户还没保存的输入冲掉
+    if (tg) { tg.classList.toggle("on"); return; }
     try {
+      if (edit) { editingNoticeId = edit.dataset.edit; renderNotice(p); return; }
+      if (cancel) { editingNoticeId = null; renderNotice(p); return; }
+      if (save) {
+        const id = save.dataset.save, title = $("#et_"+id).value.trim(), body = $("#eb_"+id).value.trim();
+        if (!title && !body) throw new Error("请至少填写标题或内容");
+        // 用 p（面板）而不是 box 找开关：renderNotice 会整块换 DOM，box 会变成游离节点
+        const pinEl = p.querySelector('[data-tg="pin_'+id+'"]'), enEl = p.querySelector('[data-tg="en_'+id+'"]');
+        await api("/notice/records/" + id, { method:"PATCH", body: JSON.stringify({
+          title, body, level: $("#el_"+id).value, popupMode: $("#ep_"+id).value,
+          pinned: !!(pinEl && pinEl.classList.contains("on")),
+          enabled: !!(enEl && enEl.classList.contains("on"))
+        })});
+        editingNoticeId = null;
+        toast("已保存", "ok"); await refresh(); return;
+      }
       if (pop) {
         const n = list.find(x => x.id === pop.dataset.pop);
         const next = ({silent:"once",once:"always",always:"silent"})[n.popupMode||"once"];
