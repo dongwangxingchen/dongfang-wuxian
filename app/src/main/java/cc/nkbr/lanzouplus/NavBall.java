@@ -2,6 +2,7 @@ package cc.nkbr.lanzouplus;
 
 import android.content.Context;
 import android.content.SharedPreferences;
+import android.graphics.Color;
 import android.graphics.drawable.GradientDrawable;
 import android.os.Handler;
 import android.os.Looper;
@@ -228,8 +229,15 @@ final class NavBall {
    */
   static int[] pillPalette(int bg, int primary, int primaryHi, int text, boolean active) {
     return new int[]{
-        PremiumSurface.over(bg, primary, active ? 0.38f : 0.20f),
-        active ? primaryHi : PremiumSurface.over(bg, primaryHi, 0.32f),
+        // 未选中 = **中性玻璃底**（白 10%），**不是品牌色 tint**。
+        //
+        // 规范 §5 的亮度阶梯是"白"的档位（Surface Low 5–7% / High 8–10%），
+        // 品牌色 tint 只留给 **Selected（16–24%）**。我上一版把品牌色当底色用，
+        // 于是整排按钮全是紫的 → 紫色不再表示"选中"，退化成"这个菜单的颜色"，
+        // 而且低饱和深紫填充读起来像"脏紫塑料"（用户原话："紫底感觉有点廉价"）。
+        active ? PremiumSurface.over(bg, primary, 0.28f) : PremiumSurface.over(bg, Color.WHITE, 0.10f),
+        // 描边保留用户认可的紫色调，但未选中时压淡（0.24），只在选中时提亮（0.70）。
+        active ? PremiumSurface.over(bg, primaryHi, 0.70f) : PremiumSurface.over(bg, primaryHi, 0.24f),
         active ? primaryHi : text,
     };
   }
@@ -254,8 +262,10 @@ final class NavBall {
       // 未选中：亮度阶梯里的一档 + **可见的描边**；图标与文字**同色**（原来图标 MUTED 比文字 TEXT 暗一档，
       // 看着不像一体，是"没质感"的第二个来源）。
       int[] colors = pillPalette(bg, host.PRIMARY(), host.PRIMARY_HI(), host.TEXT(), active);
-      p.bg = PremiumSurface.pill(colors[0], host.dp(PILL_H_DP), Math.max(1, host.dp(1)), colors[1], PremiumSurface.HIGHLIGHT);
-      p.view.setBackground(p.bg);
+      // 用**玻璃胶囊**（底层中性填充+描边，顶层自上而下的单侧高光）而不是整块斜向渐变——
+      // 浮在内容之上的胶囊更接近"被顶光照到的玻璃"，规范 §5 的 faux glass 就是这个做法。
+      p.view.setBackground(PremiumSurface.glassPill(
+          colors[0], host.dp(PILL_H_DP) / 2f, Math.max(1, host.dp(1)), colors[1], PremiumSurface.SHEEN));
       p.icon.setColorFilter(colors[2]);
       p.label.setTextColor(colors[2]);
     }

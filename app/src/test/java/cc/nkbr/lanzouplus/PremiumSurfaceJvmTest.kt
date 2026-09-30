@@ -155,4 +155,47 @@ class PremiumSurfaceJvmTest {
         assertTrue(PremiumSurface.STROKE_NORMAL in 0.08f..0.12f)
         assertTrue(PremiumSurface.STROKE_EMPHASIS in 0.18f..0.26f)
     }
+
+    // ── 底色中性 vs 品牌色 tint（DFW-69 的根因）──────────────────────────
+
+    /** 色偏：最大通道 - 最小通道。中性灰接近 0；品牌紫会明显偏大（B 远大于 G）。 */
+    private fun colorSpread(c: Int): Int =
+        maxOf(Color.red(c), Color.green(c), Color.blue(c)) - minOf(Color.red(c), Color.green(c), Color.blue(c))
+
+    @Test
+    fun pill_unselectedFillIsNeutral_notBrandTinted() {
+        // **规范 §5：亮度阶梯是"白"的档位（Surface Low 5–7% / High 8–10%），
+        // 品牌色 tint 只留给 Selected（16–24%）。**
+        //
+        // 上一版把品牌色当底色用 → 整排按钮全紫 → 紫色不再表示"选中"，
+        // 退化成"这个菜单的颜色"；低饱和深紫填充还读起来像"脏紫塑料"
+        // （用户原话："这些按钮的紫底感觉有点廉价"）。
+        val off = NavBall.pillPalette(bg, primary, primaryHi, text, false)
+        val spread = colorSpread(off[0])
+        assertTrue(
+            "未选中胶囊的底色必须是中性（白叠加纯黑），不能带品牌色偏；实测色偏=$spread（应 ≤6）",
+            spread <= 6,
+        )
+    }
+
+    @Test
+    fun pill_selectedFillIsBrandTinted_soPurpleMeansSelected() {
+        // 反过来：选中态**必须**是品牌色 tint，否则紫色就失去了"标记选中"的作用。
+        val on = NavBall.pillPalette(bg, primary, primaryHi, text, true)
+        val spread = colorSpread(on[0])
+        assertTrue("选中态应是品牌色 tint（带明显紫偏）；实测色偏=$spread（应 >10）", spread > 10)
+        // 蓝通道应显著高于绿通道 —— 这就是"紫"
+        assertTrue(
+            "选中态底色应偏紫（蓝 > 绿）",
+            Color.blue(on[0]) > Color.green(on[0]) + 10,
+        )
+    }
+
+    @Test
+    fun neutralSurface_isPureGreyWithNoHue() {
+        // 规范 §5 的亮度档：白叠加，R=G=B。
+        val fill = PremiumSurface.over(Color.BLACK, Color.WHITE, PremiumSurface.LEVEL_SURFACE_HIGH)
+        assertEquals("中性表面三通道必须相等", Color.red(fill), Color.green(fill))
+        assertEquals("中性表面三通道必须相等", Color.green(fill), Color.blue(fill))
+    }
 }

@@ -154,3 +154,18 @@
 2. **错误记忆协议**：用户每纠正一次做法，当场把教训蒸馏成一条"症状→根因→防再犯"追加进踩坑记录；开工前先检索踩坑记录与任务相关条目；条目一行一条不写长文，防上下文膨胀。
 3. **偏好沉淀**：用户表达审美/交互/工作方式偏好时，追加进 `<本地目录>/东方无限-用户偏好.md`。
 4. **开源参考库可检索化**：新核验的 GitHub 项目/设计规范/库必须落到 `黑曜/06-开源参考库/` 对应分类文件，条目带 star 快照/协议/用途/采用裁决；任何会话开工前先读 00-总索引.md 再按需取用。
+
+## 九、构建/测试环境坑（2026-09-30 实测）
+
+1. **被 kill 的测试任务会留下残留 worker JVM，导致后续测试大面积假失败**：
+   症状 = `java.lang.OutOfMemoryError: unable to create native thread: possibly out of memory or process/resource limits reached`，
+   表现为几十上百个测试类同时 `classMethod FAILED`，**看起来像代码改崩了，其实是环境**。
+   实测系统线程 2569/20480、单进程最高 121/4096 —— **都没到上限**，是残留进程累积。
+   处理：`./gradlew --stop` + `pkill -f GradleWorkerMain`，然后重跑即全绿。
+   **判据**：如果失败信息是 `OutOfMemoryError at Thread.java` 且失败面很宽，先怀疑环境，不要改代码。
+2. **`android.graphics.Color` 在纯 JVM 测试里是未实现的桩**：直接用会抛
+   `Method red in android.graphics.Color not mocked`。凡是要做颜色运算的测试，**必须挂 Robolectric**
+   （`@RunWith(RobolectricTestRunner::class)` + `@Config(sdk=[35])`）。
+3. **`github.com:443` 本机直连不通**：验证 GitHub Release 直链必须走代理
+   （`curl -sL -x http://127.0.0.1:7890 ...`），否则会长时间挂住或返回 `http=000`。
+   上传走 `gh`（已登录），不受影响。
