@@ -302,8 +302,12 @@ function renderNotice(p){
       <option value="urgent">紧急</option>
     </select>
     <div class="switch">
-      <div><div class="t">打开软件时弹出</div><div class="d">关掉则只放进公告列表，不打扰用户</div></div>
-      <div class="tg" id="np"></div>
+      <div><div class="t">弹出方式</div><div class="d">静默＝只进列表不打扰；一次性＝弹一次；永久＝每次打开都弹</div></div>
+      <select id="np" style="background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:10px;padding:9px 12px;font-size:14px;font-family:inherit">
+        <option value="silent">静默</option>
+        <option value="once" selected>一次性</option>
+        <option value="always">永久</option>
+      </select>
     </div>
     <div class="switch">
       <div><div class="t">置顶</div><div class="d">排在公告列表最前面</div></div>
@@ -317,7 +321,6 @@ function renderNotice(p){
     <p class="hint">越靠上的越新</p>
     <div id="nlist"></div>
   </div>`;
-  $("#np").onclick = () => $("#np").classList.toggle("on");
   $("#npin").onclick = () => $("#npin").classList.toggle("on");
   const box = $("#nlist");
   if (!list.length) box.innerHTML = '<div class="empty">还没有公告</div>';
@@ -326,13 +329,13 @@ function renderNotice(p){
       <div class="top">
         <div>
           <div class="name">${esc(n.title || "(无标题)")}</div>
-          <div class="meta">${n.level==="urgent"?"紧急 · ":n.level==="important"?"重要 · ":""}${n.pinned?"置顶 · ":""}${n.popup?"打开时弹出":"静默"}</div>
+          <div class="meta">${n.level==="urgent"?"紧急 · ":n.level==="important"?"重要 · ":""}${n.pinned?"置顶 · ":""}${({silent:"静默",once:"一次性弹出",always:"永久弹出"})[n.popupMode||"once"]}</div>
         </div>
       </div>
       <div style="margin-top:8px;color:var(--muted);font-size:13.5px;white-space:pre-wrap">${esc(n.body)}</div>
       <div style="height:10px"></div>
       <div class="row">
-        <button class="btn-sec" data-pop="${n.id}">${n.popup?"改为静默":"改为弹出"}</button>
+        <button class="btn-sec" data-pop="${n.id}">换成「${({silent:"一次性",once:"永久",always:"静默"})[n.popupMode||"once"]}」</button>
         <button class="btn-danger" data-del="${n.id}">删除</button>
       </div>
     </div>`).join("");
@@ -341,7 +344,8 @@ function renderNotice(p){
     try {
       if (pop) {
         const n = list.find(x => x.id === pop.dataset.pop);
-        await api("/notice/records/" + n.id, { method:"PATCH", body: JSON.stringify({ popup: !n.popup }) });
+        const next = ({silent:"once",once:"always",always:"silent"})[n.popupMode||"once"];
+        await api("/notice/records/" + n.id, { method:"PATCH", body: JSON.stringify({ popupMode: next }) });
         toast("已修改", "ok"); await refresh();
       } else if (del) {
         if (!confirm("确定删除这条公告？")) return;
@@ -357,7 +361,7 @@ function renderNotice(p){
       if (!title && !body) throw new Error("请至少填写标题或内容");
       await api("/notice/records", { method:"POST", body: JSON.stringify({
         title, body, level: $("#nl").value,
-        popup: $("#np").classList.contains("on"),
+        popupMode: $("#np").value,
         pinned: $("#npin").classList.contains("on"),
         enabled: true
       })});
