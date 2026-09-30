@@ -84,6 +84,38 @@ final class PremiumSurface {
     return g;
   }
 
+  /**
+   * **玻璃胶囊**（规范 §5 的 faux glass 做法）——浮层专用。
+   *
+   * 与 {@link #withHighlight} 的区别：那是一个横跨整块的斜向渐变，适合"一整块表面"；
+   * 而浮在内容之上的胶囊更接近**一块被顶光照到的玻璃**，所以改成：
+   * 底层（中性填充 + 描边）+ 顶层（自上而下由白到透明的**单侧高光**）。
+   *
+   * 规范原文："毛玻璃分层…API 26–30 用 faux glass：8–12% tinted fill + 0.5/1dp 不对称高光"。
+   * 这里就是这个配方的手写实现，不引任何库。
+   *
+   * @param sheenAlpha 顶部高光的白 alpha（0.06–0.12 之间；太高会糊成灰，太低看不出玻璃感）
+   */
+  static android.graphics.drawable.Drawable glassPill(int fill, float radiusPx, int strokePx,
+                                                      int strokeColor, float sheenAlpha) {
+    GradientDrawable base = new GradientDrawable();
+    base.setColor(fill);
+    base.setCornerRadius(radiusPx);
+    if (strokePx > 0) base.setStroke(strokePx, strokeColor);
+
+    int top = Color.argb(Math.round(255 * clamp01(sheenAlpha)), 255, 255, 255);
+    GradientDrawable sheen = new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
+        new int[]{top, Color.argb(0, 255, 255, 255)});
+    sheen.setCornerRadius(radiusPx);
+
+    return new android.graphics.drawable.LayerDrawable(new android.graphics.drawable.Drawable[]{base, sheen});
+  }
+
+  /** 顶部高光强度（玻璃胶囊用）。规范建议 0.06–0.12，取中值。 */
+  static final float SHEEN = 0.09f;
+
+  private static float clamp01(float v) { return v < 0f ? 0f : (v > 1f ? 1f : v); }
+
   /** 胶囊（全圆）表面。半径取高度一半。 */
   static GradientDrawable pill(int fill, int heightPx, int strokePx, int strokeColor, float highlightRatio) {
     return withHighlight(fill, heightPx / 2f, strokePx, strokeColor, highlightRatio);
