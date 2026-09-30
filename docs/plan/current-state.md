@@ -15,7 +15,11 @@
 - `rikkahub/`：Kotlin/Compose vendor（**上游锚点 = re-ovo/rikkahub tag `2.5.5`，versionCode 190**）与东方无限补丁层
 - 上游源码快照 `/tmp/rikkahub-255/`：**已清空**（临时目录），需要时重新下载
 - 桌面<本地备份> `东方无限_交接总包_20260920.zip`：禁止删除或移动
-- 版本号：versionCode `1039039` / versionName `1.22.19`（`app/build.gradle.kts:33-34`）；下一个版本递增为 `1039040` / `1.22.20`
+- 版本号：versionCode `10000` / versionName `1.0.0`（`app/build.gradle.kts:33-44`）
+  - **2026-09-30 归零**（用户决定）：从 `1039039` / `1.22.19` 重新计为 `1.0.0`，之后的更新基于此。
+  - 编号规则：`versionCode = major*10000 + minor*100 + patch`（1.0.1 → 10001，1.1.0 → 10100）。
+  - 守卫测试 `VersionSchemeJvmTest`：确保"改了版本名却没改版本号"这类错误无法通过。
+  - 旧版本 v1.2.x–v1.22.x 全部转入 GitHub **预发布**作"测试专区"存档（不删，见 DFW-63）。
 
 ## 1.1 v1.22.9 变更（2026-09-29，BRAND-003）
 

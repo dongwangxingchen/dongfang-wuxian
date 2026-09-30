@@ -30,8 +30,18 @@ android {
   applicationId = "dfwx.dongdang"
   minSdk = 26      // v1.8.0：24→26，RikkaHub 模块（convention minSdk 26）清单合并要求
   targetSdk = 37   // v1.8.0：对齐上游 RikkaHub 2.5.1
-  versionCode = 1039039
-  versionName = "1.22.19"
+  // ── 版本号（2026-09-30 归零，用户决定）──────────────────────────────────
+  // 历史：v1.2.x → v1.22.19（versionCode 1039039），全部转入 GitHub 预发布作"测试专区"存档。
+  // 现在起从 **1.0.0 重新计数**，之后的更新都基于此。
+  //
+  // 编号规则（新版）：versionCode = major*10000 + minor*100 + patch
+  //   1.0.0 → 10000    1.0.1 → 10001    1.1.0 → 10100    2.0.0 → 20000
+  // 递增即可被安卓识别为升级；与 versionName 一一对应，便于人核对。
+  //
+  // 为什么可以归零：用户会卸载旧版重装（无老用户需要兼容升级）。
+  // 若将来想改回大数字：只需保证**新的 versionCode 大于所有已发布过的值**。
+  versionCode = 10000
+  versionName = "1.0.0"
  }
  compileOptions { sourceCompatibility = JavaVersion.VERSION_17; targetCompatibility = JavaVersion.VERSION_17 }
  packaging {
