@@ -1,0 +1,461 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>东方无限 · 控制台</title>
+<style>
+:root{
+  --bg:#0f1013; --card:#191b20; --card2:#20232a; --line:#2b2f38;
+  --text:#eceff4; --muted:#8e96a5; --accent:#7c6df2; --accent2:#6a5ae0;
+  --ok:#3ddc97; --warn:#ffb020; --danger:#ff5c5c;
+  --r:14px;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;padding:0;background:var(--bg);color:var(--text);
+  font:15px/1.6 -apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif}
+.wrap{max-width:860px;margin:0 auto;padding:20px 16px 80px}
+h1{font-size:20px;margin:0 0 4px;font-weight:650;letter-spacing:.3px}
+.sub{color:var(--muted);font-size:13px;margin:0 0 20px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:18px;margin-bottom:14px}
+.card h2{font-size:16px;margin:0 0 4px;font-weight:620;display:flex;align-items:center;gap:8px}
+.card .hint{color:var(--muted);font-size:12.5px;margin:0 0 16px}
+label{display:block;font-size:13.5px;color:var(--muted);margin:12px 0 6px;font-weight:500}
+input[type=text],input[type=number],input[type=password],textarea,select{
+  width:100%;background:var(--card2);border:1px solid var(--line);border-radius:10px;
+  color:var(--text);padding:11px 13px;font-size:15px;font-family:inherit;outline:none;
+  transition:border-color .18s ease,box-shadow .18s ease}
+input:focus,textarea:focus,select:focus{border-color:var(--accent);
+  box-shadow:0 0 0 3px rgba(124,109,242,.16)}
+textarea{min-height:96px;resize:vertical;line-height:1.55}
+select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,var(--muted) 50%),linear-gradient(135deg,var(--muted) 50%,transparent 50%);
+  background-position:calc(100% - 18px) 20px,calc(100% - 13px) 20px;background-size:5px 5px;background-repeat:no-repeat;padding-right:36px}
+button{font-family:inherit;font-size:15px;font-weight:560;border:none;border-radius:11px;
+  padding:12px 18px;cursor:pointer;transition:transform .12s ease,opacity .18s ease,background .18s ease}
+button:active{transform:scale(.975)}
+.btn-main{background:linear-gradient(180deg,var(--accent),var(--accent2));color:#fff;width:100%}
+.btn-sec{background:var(--card2);color:var(--text);border:1px solid var(--line)}
+.btn-danger{background:rgba(255,92,92,.14);color:var(--danger);border:1px solid rgba(255,92,92,.3)}
+.row{display:flex;gap:10px;flex-wrap:wrap}
+.row>*{flex:1;min-width:120px}
+.switch{display:flex;align-items:center;justify-content:space-between;gap:12px;
+  background:var(--card2);border:1px solid var(--line);border-radius:11px;padding:13px 15px;margin:10px 0}
+.switch .t{font-size:14.5px;font-weight:500}
+.switch .d{font-size:12px;color:var(--muted);margin-top:2px}
+.tg{position:relative;width:50px;height:29px;flex:0 0 50px;border-radius:99px;
+  background:#3a3f4b;transition:background .22s cubic-bezier(.2,.8,.2,1);cursor:pointer}
+.tg::after{content:"";position:absolute;top:3px;left:3px;width:23px;height:23px;border-radius:50%;
+  background:#fff;transition:transform .22s cubic-bezier(.2,.8,.2,1)}
+.tg.on{background:var(--accent)}
+.tg.on::after{transform:translateX(21px)}
+.note{font-size:12.5px;color:var(--muted);background:var(--card2);border-left:3px solid var(--accent);
+  border-radius:0 9px 9px 0;padding:10px 13px;margin:12px 0}
+.note.warn{border-left-color:var(--warn)}
+.note.danger{border-left-color:var(--danger)}
+.item{background:var(--card2);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:10px}
+.item .top{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+.item .name{font-weight:600;font-size:14.5px}
+.item .meta{font-size:12px;color:var(--muted);margin-top:3px}
+.empty{color:var(--muted);font-size:13.5px;text-align:center;padding:26px 0}
+.toast{position:fixed;left:50%;bottom:32px;transform:translateX(-50%) translateY(20px);
+  background:#252932;border:1px solid var(--line);color:var(--text);padding:12px 20px;border-radius:12px;
+  font-size:14px;opacity:0;pointer-events:none;transition:opacity .24s ease,transform .24s cubic-bezier(.2,.8,.2,1);
+  box-shadow:0 12px 32px rgba(0,0,0,.45);z-index:99;max-width:90vw}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+.toast.ok{border-color:rgba(61,220,151,.5)}
+.toast.err{border-color:rgba(255,92,92,.5)}
+.hide{display:none!important}
+.tabs{display:flex;gap:6px;background:var(--card);border:1px solid var(--line);border-radius:12px;
+  padding:5px;margin-bottom:14px;overflow-x:auto}
+.tab{flex:1;min-width:78px;text-align:center;padding:9px 6px;border-radius:9px;font-size:13.5px;
+  color:var(--muted);cursor:pointer;white-space:nowrap;transition:background .18s ease,color .18s ease}
+.tab.active{background:var(--card2);color:var(--text);font-weight:600}
+.login{max-width:380px;margin:12vh auto 0}
+.login h1{text-align:center;font-size:22px}
+.login .sub{text-align:center}
+.spin{display:inline-block;width:15px;height:15px;border:2px solid rgba(255,255,255,.3);
+  border-top-color:#fff;border-radius:50%;animation:sp .7s linear infinite;vertical-align:-2px}
+@keyframes sp{to{transform:rotate(360deg)}}
+@media(max-width:520px){.wrap{padding:16px 12px 70px}h1{font-size:18px}}
+</style>
+</head>
+<body>
+<div class="wrap" id="app"></div>
+<div class="toast" id="toast"></div>
+<script>
+"use strict";
+const API = "/pb/api/collections";
+const AUTH = "/pb/api/collections/_superusers/auth-with-password";
+let token = localStorage.getItem("dfwx_token") || "";
+let tab = "总控";
+let cache = { control:null, release:null, notice:[], changelog:[] };
+let pending = {};
+
+/* ---------- 小工具 ---------- */
+const $ = (s, r=document) => r.querySelector(s);
+function esc(s){ return String(s==null?"":s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function toast(msg, kind){
+  const t = $("#toast");
+  t.textContent = msg;
+  t.className = "toast show" + (kind ? " " + kind : "");
+  clearTimeout(t._h);
+  t._h = setTimeout(() => { t.className = "toast" + (kind ? " " + kind : ""); }, 2600);
+}
+async function api(path, opts={}){
+  const o = Object.assign({}, opts);
+  o.headers = Object.assign({ "Content-Type":"application/json" }, o.headers || {});
+  if (token) o.headers["Authorization"] = token;
+  const r = await fetch(API + path, o);
+  if (r.status === 401 || r.status === 403) { logout(); throw new Error("登录已过期，请重新登录"); }
+  if (!r.ok) {
+    let m = "操作失败（" + r.status + "）";
+    try { const j = await r.json(); if (j && j.message) m = j.message; } catch(e){}
+    throw new Error(m);
+  }
+  if (r.status === 204) return null;
+  return r.json();
+}
+async function auth(pass, user){
+  const r = await fetch(AUTH, { method:"POST", headers:{ "Content-Type":"application/json" },
+    body: JSON.stringify({ identity:user, password:pass }) });
+  const j = await r.json().catch(()=>({}));
+  if (!r.ok) throw new Error(j.message || "邮箱或密码不正确");
+  return j.token;
+}
+function logout(){ token=""; localStorage.removeItem("dfwx_token"); boot(); }
+
+/* ---------- 登录 ---------- */
+function renderLogin(){
+  $("#app").innerHTML = `
+  <div class="login">
+    <h1>东方无限 · 控制台</h1>
+    <p class="sub">登录后即可发布公告、修改版本与维护状态</p>
+    <div class="card">
+      <label for="u">管理员邮箱</label>
+      <input id="u" type="text" value="<管理员账号>" autocomplete="username">
+      <label for="p">密码</label>
+      <input id="p" type="password" placeholder="请输入密码" autocomplete="current-password">
+      <div style="height:16px"></div>
+      <button class="btn-main" id="go">登 录</button>
+      <div class="note">密码存在你自己服务器上，不在这段网页里。</div>
+    </div>
+  </div>`;
+  const submit = async () => {
+    const b = $("#go");
+    const u = $("#u").value.trim(), p = $("#p").value;
+    if (!p) { toast("请输入密码", "err"); return; }
+    b.disabled = true; b.innerHTML = '<span class="spin"></span> 登录中…';
+    try {
+      token = await auth(p, u);
+      localStorage.setItem("dfwx_token", token);
+      toast("登录成功", "ok");
+      await boot();
+    } catch(e){
+      toast(e.message, "err");
+      b.disabled = false; b.textContent = "登 录";
+    }
+  };
+  $("#go").onclick = submit;
+  $("#p").onkeydown = e => { if (e.key === "Enter") submit(); };
+  $("#p").focus();
+}
+
+/* ---------- 骨架 ---------- */
+const TABS = ["总控","版本","公告","更新记录"];
+function renderShell(){
+  $("#app").innerHTML = `
+  <h1>东方无限 · 控制台</h1>
+  <p class="sub">在这里修改的内容，用户打开软件后会自动同步</p>
+  <div class="tabs" id="tabs">
+    ${TABS.map(t => `<div class="tab${t===tab?" active":""}" data-t="${t}">${t}</div>`).join("")}
+  </div>
+  <div id="pane"></div>
+  <div style="height:20px"></div>
+  <div class="row"><button class="btn-sec" id="out">退出登录</button></div>`;
+  $("#tabs").onclick = e => {
+    const t = e.target.closest(".tab"); if (!t) return;
+    tab = t.dataset.t; renderShell(); renderPane();
+  };
+  $("#out").onclick = logout;
+  renderPane();
+}
+
+/* ---------- 分页渲染 ---------- */
+function renderPane(){
+  const p = $("#pane");
+  if (tab === "总控") return renderControl(p);
+  if (tab === "版本") return renderRelease(p);
+  if (tab === "公告") return renderNotice(p);
+  if (tab === "更新记录") return renderChangelog(p);
+}
+
+/* ---------- 总控 ---------- */
+function renderControl(p){
+  const c = cache.control || { maintenanceOn:false, blocked:false, maintenanceTitle:"", maintenanceBody:"", maintenanceUntil:"" };
+  const on = !!c.maintenanceOn || !!c.blocked;
+  p.innerHTML = `
+  <div class="card">
+    <h2>维护 / 停用</h2>
+    <p class="hint">打开后，所有用户的软件会被全屏拦住，只能看到你写的公告</p>
+    <div class="switch">
+      <div><div class="t">开启维护模式</div><div class="d">用户将无法使用软件</div></div>
+      <div class="tg${on?" on":""}" id="mtg"></div>
+    </div>
+    <div id="mfields" class="${on?"":"hide"}">
+      <label for="mt">标题</label>
+      <input id="mt" type="text" placeholder="例如：维护中 / 已停更" value="${esc(c.maintenanceTitle)}">
+      <label for="mb">正文（想写什么就写什么）</label>
+      <textarea id="mb" placeholder="例如：服务器升级，预计今晚 20:00 恢复。">${esc(c.maintenanceBody)}</textarea>
+      <label for="mu">维护时间（单独显示一行；填“永久”也可以，留空则不显示）</label>
+      <input id="mu" type="text" placeholder="例如：永久 / 10 月 1 日 20:00" value="${esc(c.maintenanceUntil)}">
+    </div>
+    <div class="note warn">服务器连不上时，软件会当作“正常”处理，不会把用户锁在外面。</div>
+    <div style="height:14px"></div>
+    <button class="btn-main" id="save">保存</button>
+  </div>`;
+  const tg = $("#mtg");
+  tg.onclick = () => {
+    const nowOn = !tg.classList.contains("on");
+    tg.classList.toggle("on", nowOn);
+    $("#mfields").classList.toggle("hide", !nowOn);
+  };
+  $("#save").onclick = async () => {
+    const b = $("#save"); b.disabled = true; b.innerHTML = '<span class="spin"></span> 保存中…';
+    try {
+      const on2 = $("#mtg").classList.contains("on");
+      const body = {
+        maintenanceOn: on2, blocked: false,
+        maintenanceTitle: $("#mt").value.trim(),
+        maintenanceBody: $("#mb").value.trim(),
+        maintenanceUntil: $("#mu").value.trim()
+      };
+      await upsert("control", cache.control && cache.control.id, body);
+      toast(on2 ? "已开启维护，用户将看到你的公告" : "已关闭维护，用户恢复正常使用", "ok");
+      await refresh();
+    } catch(e){ toast(e.message, "err"); }
+    b.disabled = false; b.textContent = "保存";
+  };
+}
+
+/* ---------- 版本 ---------- */
+function renderRelease(p){
+  const r = cache.release || { versionName:"", versionCode:0, apkUrl:"", sha256:"", size:0, updateMode:"soft" };
+  p.innerHTML = `
+  <div class="card">
+    <h2>当前版本</h2>
+    <p class="hint">用户打开软件时会比对这里的版本号，低于它就会提示更新</p>
+    <label for="vn">版本号（例如 1.22.20）</label>
+    <input id="vn" type="text" placeholder="1.22.20" value="${esc(r.versionName)}">
+    <label for="um">更新方式</label>
+    <select id="um">
+      <option value="soft"${r.updateMode==="soft"?" selected":""}>软更新 —— 用户可以关闭、可以不再提示</option>
+      <option value="force"${r.updateMode==="force"?" selected":""}>强制更新 —— 必须更新才能用（文字自己写）</option>
+      <option value="off"${r.updateMode==="off"?" selected":""}>不提示 —— 静默发布，不弹任何窗口</option>
+    </select>
+    <label for="au">安装包下载地址</label>
+    <input id="au" type="text" placeholder="http://39.106.33.135/apk/dongfang-wuxian-v1.22.20.apk" value="${esc(r.apkUrl)}">
+    <label for="sh">安装包校验值（sha256，64 位）</label>
+    <input id="sh" type="text" placeholder="用于确认下载的包没被篡改" value="${esc(r.sha256)}">
+    <label for="sz">安装包大小（字节）</label>
+    <input id="sz" type="number" placeholder="36633009" value="${r.size||""}">
+    <div class="note">发新版时，通常由程序自动填好这里，你一般不用手改。</div>
+    <div style="height:14px"></div>
+    <button class="btn-main" id="save">保存</button>
+  </div>`;
+  $("#save").onclick = async () => {
+    const b = $("#save"); b.disabled = true; b.innerHTML = '<span class="spin"></span> 保存中…';
+    try {
+      const body = {
+        versionName: $("#vn").value.trim(),
+        versionCode: cache.release ? cache.release.versionCode : 0,
+        updateMode: $("#um").value,
+        apkUrl: $("#au").value.trim(),
+        sha256: $("#sh").value.trim().toLowerCase(),
+        size: Number($("#sz").value || 0)
+      };
+      if (!body.versionName) throw new Error("请填写版本号");
+      if (!/^[0-9a-f]{64}$/.test(body.sha256)) throw new Error("校验值必须是 64 位十六进制");
+      if (!(body.size > 0)) throw new Error("请填写正确的安装包大小");
+      await upsert("release", cache.release && cache.release.id, body);
+      toast("已保存，用户下次打开就会看到", "ok");
+      await refresh();
+    } catch(e){ toast(e.message, "err"); }
+    b.disabled = false; b.textContent = "保存";
+  };
+}
+
+/* ---------- 公告 ---------- */
+function renderNotice(p){
+  const list = cache.notice || [];
+  p.innerHTML = `
+  <div class="card">
+    <h2>发布新公告</h2>
+    <p class="hint">公告会一直保留，用户随时可以在软件里翻看</p>
+    <label for="nt">标题</label>
+    <input id="nt" type="text" placeholder="例如：新版上线 / 重要通知">
+    <label for="nb">内容</label>
+    <textarea id="nb" placeholder="想对用户说的话"></textarea>
+    <label for="nl">重要程度</label>
+    <select id="nl">
+      <option value="normal">普通</option>
+      <option value="important">重要</option>
+      <option value="urgent">紧急</option>
+    </select>
+    <div class="switch">
+      <div><div class="t">打开软件时弹出</div><div class="d">关掉则只放进公告列表，不打扰用户</div></div>
+      <div class="tg" id="np"></div>
+    </div>
+    <div class="switch">
+      <div><div class="t">置顶</div><div class="d">排在公告列表最前面</div></div>
+      <div class="tg" id="npin"></div>
+    </div>
+    <div style="height:12px"></div>
+    <button class="btn-main" id="pub">发 布</button>
+  </div>
+  <div class="card">
+    <h2>已发布的公告（${list.length}）</h2>
+    <p class="hint">越靠上的越新</p>
+    <div id="nlist"></div>
+  </div>`;
+  $("#np").onclick = () => $("#np").classList.toggle("on");
+  $("#npin").onclick = () => $("#npin").classList.toggle("on");
+  const box = $("#nlist");
+  if (!list.length) box.innerHTML = '<div class="empty">还没有公告</div>';
+  else box.innerHTML = list.map(n => `
+    <div class="item">
+      <div class="top">
+        <div>
+          <div class="name">${esc(n.title || "(无标题)")}</div>
+          <div class="meta">${n.level==="urgent"?"紧急 · ":n.level==="important"?"重要 · ":""}${n.pinned?"置顶 · ":""}${n.popup?"打开时弹出":"静默"}</div>
+        </div>
+      </div>
+      <div style="margin-top:8px;color:var(--muted);font-size:13.5px;white-space:pre-wrap">${esc(n.body)}</div>
+      <div style="height:10px"></div>
+      <div class="row">
+        <button class="btn-sec" data-pop="${n.id}">${n.popup?"改为静默":"改为弹出"}</button>
+        <button class="btn-danger" data-del="${n.id}">删除</button>
+      </div>
+    </div>`).join("");
+  box.onclick = async e => {
+    const pop = e.target.closest("[data-pop]"), del = e.target.closest("[data-del]");
+    try {
+      if (pop) {
+        const n = list.find(x => x.id === pop.dataset.pop);
+        await api("/notice/records/" + n.id, { method:"PATCH", body: JSON.stringify({ popup: !n.popup }) });
+        toast("已修改", "ok"); await refresh();
+      } else if (del) {
+        if (!confirm("确定删除这条公告？")) return;
+        await api("/notice/records/" + del.dataset.del, { method:"DELETE" });
+        toast("已删除", "ok"); await refresh();
+      }
+    } catch(e){ toast(e.message, "err"); }
+  };
+  $("#pub").onclick = async () => {
+    const b = $("#pub"); b.disabled = true; b.innerHTML = '<span class="spin"></span> 发布中…';
+    try {
+      const title = $("#nt").value.trim(), body = $("#nb").value.trim();
+      if (!title && !body) throw new Error("请至少填写标题或内容");
+      await api("/notice/records", { method:"POST", body: JSON.stringify({
+        title, body, level: $("#nl").value,
+        popup: $("#np").classList.contains("on"),
+        pinned: $("#npin").classList.contains("on"),
+        enabled: true
+      })});
+      toast("发布成功", "ok"); await refresh();
+    } catch(e){ toast(e.message, "err"); b.disabled = false; b.textContent = "发 布"; }
+  };
+}
+
+/* ---------- 更新记录 ---------- */
+function renderChangelog(p){
+  const list = cache.changelog || [];
+  p.innerHTML = `
+  <div class="card">
+    <h2>添加更新记录</h2>
+    <p class="hint">用户更新完会看到这里的内容，也可以随时翻看历史</p>
+    <label for="cv">版本号</label>
+    <input id="cv" type="text" placeholder="1.22.20">
+    <label for="cd">日期</label>
+    <input id="cd" type="text" placeholder="2026-10-01">
+    <label for="ch">这次改了什么（一行一条）</label>
+    <textarea id="ch" placeholder="修复了更新检查不动的问题&#10;新增公告中心"></textarea>
+    <div style="height:12px"></div>
+    <button class="btn-main" id="add">添 加</button>
+  </div>
+  <div class="card">
+    <h2>更新历史（${list.length}）</h2>
+    <p class="hint">越靠上的越新</p>
+    <div id="clist"></div>
+  </div>`;
+  const box = $("#clist");
+  if (!list.length) box.innerHTML = '<div class="empty">还没有更新记录</div>';
+  else box.innerHTML = list.map(c => `
+    <div class="item">
+      <div class="top">
+        <div>
+          <div class="name">${esc(c.versionName || "(未填版本)")}</div>
+          <div class="meta">${esc(c.date || "")}</div>
+        </div>
+        <button class="btn-danger" data-del="${c.id}" style="padding:8px 14px;font-size:13.5px">删除</button>
+      </div>
+      <div style="margin-top:8px;color:var(--muted);font-size:13.5px;white-space:pre-wrap">${esc(c.highlights)}</div>
+    </div>`).join("");
+  box.onclick = async e => {
+    const del = e.target.closest("[data-del]"); if (!del) return;
+    if (!confirm("确定删除这条更新记录？")) return;
+    try { await api("/changelog/records/" + del.dataset.del, { method:"DELETE" }); toast("已删除", "ok"); await refresh(); }
+    catch(e){ toast(e.message, "err"); }
+  };
+  $("#add").onclick = async () => {
+    const b = $("#add"); b.disabled = true; b.innerHTML = '<span class="spin"></span> 添加中…';
+    try {
+      const versionName = $("#cv").value.trim(), date = $("#cd").value.trim(), highlights = $("#ch").value.trim();
+      if (!versionName) throw new Error("请填写版本号");
+      await api("/changelog/records", { method:"POST", body: JSON.stringify({
+        versionName, date: date || new Date().toISOString().slice(0,10), highlights, enabled: true })});
+      toast("已添加", "ok"); await refresh();
+    } catch(e){ toast(e.message, "err"); b.disabled = false; b.textContent = "添 加"; }
+  };
+}
+
+/* ---------- 数据读写 ---------- */
+async function upsert(coll, id, body){
+  if (id) return api("/" + coll + "/records/" + id, { method:"PATCH", body: JSON.stringify(body) });
+  return api("/" + coll + "/records", { method:"POST", body: JSON.stringify(body) });
+}
+async function load(){
+  const [c, r, n, g] = await Promise.all([
+    api("/control/records?perPage=1").catch(()=>({items:[]})),
+    api("/release/records?perPage=1").catch(()=>({items:[]})),
+    api("/notice/records?perPage=200&sort=-id").catch(()=>({items:[]})),
+    api("/changelog/records?perPage=200&sort=-id").catch(()=>({items:[]}))
+  ]);
+  cache.control = (c.items && c.items[0]) || null;
+  cache.release = (r.items && r.items[0]) || null;
+  cache.notice = (n.items || []);
+  cache.changelog = (g.items || []);
+}
+
+/**
+ * 写操作完成后调用：重新拉数据**并重绘当前页**。
+ *
+ * 只 `await load()` 是不够的——那只是把数据放进 cache，界面不会自己变。
+ * 第一版就因此出现"提示发布成功，但列表还是旧的"（请求全 200、无报错，很容易误判成后端问题）。
+ */
+async function refresh(){
+  await load();
+  renderPane();
+}
+
+/* ---------- 启动 ---------- */
+async function boot(){
+  if (!token) { renderLogin(); return; }
+  $("#app").innerHTML = '<div class="empty" style="padding-top:22vh"><span class="spin"></span> 正在载入…</div>';
+  try { await load(); }
+  catch(e){ toast(e.message, "err"); renderLogin(); return; }
+  renderShell();
+}
+boot();
+</script>
+</body>
+</html>

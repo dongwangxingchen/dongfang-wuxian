@@ -69,11 +69,18 @@ class NetworkSecurityConfigJvmTest {
             "不得对任意域名放行明文（出现 cleartextTrafficPermitted=\"true\" 的 base-config 即为全局口子）",
             Regex("<base-config[^>]*cleartextTrafficPermitted=\"true\"").containsMatchIn(config),
         )
-        // 放行的 host 必须落在已知白名单里
+        // 放行的 host 必须落在已知白名单里。
+        // 新增条目必须**先找到代码里的调用点**（本测试的用意就是逼这一条）：
+        //  - lanzou* : LanzouCore.validatedRouteOrigin() / parseUserSourceInput() 接受 http 蓝奏链接
+        //  - localhost / 127.0.0.1 / ::1 / local : 内置 Web 服务 + MCP OAuth 回调（回环不出设备）
+        //  - 39.106.33.135 : RemoteConfigClient（DFW-19 自建后台：公告/版本/总控/更新记录），
+        //    用户决策 #33 走 HTTP，安全性由下载后 sha256+包名+签名三重校验保证。
+        //    调用点：RemoteConfigClient.BASE = "http://39.106.33.135/pb"
         val allowed = setOf(
             "lanzout.com", "lanzoux.com", "lanzouw.com", "lanzoup.com",
             "lanzouo.com", "lanzouz.com", "lanzou.com", "lanzov.com",
             "localhost", "127.0.0.1", "::1", "local",
+            "39.106.33.135",
         )
         val declared = Regex("<domain[^>]*>([^<]+)</domain>")
             .findAll(config).map { it.groupValues[1].trim() }.toList()
