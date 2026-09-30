@@ -86,7 +86,7 @@ final class UpdateClient {
       if(!"https".equalsIgnoreCase(current.getProtocol())||!expectedHost.equals(current.getHost().toLowerCase(Locale.ROOT))||current.getUserInfo()!=null||!defaultHttpsPort(current))throw new IOException("更新地址不受信任");
       HttpURLConnection connection=(HttpURLConnection)current.openConnection();
       connection.setConnectTimeout(7000);connection.setReadTimeout(10000);connection.setInstanceFollowRedirects(false);
-      connection.setRequestProperty("User-Agent","LanzouPlus-Update");connection.setRequestProperty("Accept","application/vnd.github+json, application/json");connection.setRequestProperty("Accept-Encoding","identity");
+      connection.setRequestProperty("User-Agent","DongfangWuxian-Update");connection.setRequestProperty("Accept","application/vnd.github+json, application/json");connection.setRequestProperty("Accept-Encoding","identity");
       try{
         int code=connection.getResponseCode();
         if(isRedirect(code)){

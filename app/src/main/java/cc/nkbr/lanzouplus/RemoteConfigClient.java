@@ -294,7 +294,7 @@ final class RemoteConfigClient {
       connection.setConnectTimeout(CONNECT_TIMEOUT_MS);
       connection.setReadTimeout(READ_TIMEOUT_MS);
       connection.setInstanceFollowRedirects(false);
-      connection.setRequestProperty("User-Agent", "LanzouPlus-Remote");
+      connection.setRequestProperty("User-Agent", "DongfangWuxian-Remote");
       connection.setRequestProperty("Accept", "application/json");
       connection.setRequestProperty("Accept-Encoding", "identity");
       int code = connection.getResponseCode();

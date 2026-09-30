@@ -779,8 +779,205 @@ android.graphics.Insets none=android.graphics.Insets.NONE;android.view.WindowIns
   void manualCheckForUpdates(){checkForUpdates(true);}
   void checkForUpdates(boolean manual){if(manual)manualUpdateFeedbackRequested.set(true);if(!updateCheckRunning.compareAndSet(false,true)){if(manual)showNotice("正在检查更新…",false);return;}if(manual)showNotice("正在检查更新…",false);checkLanzouPlusUpdate(manual);}
   void finishUpdateCheck(boolean manual,Runnable success,Exception error){runOnUiThread(()->{boolean report=manualUpdateFeedbackRequested.getAndSet(false)||manual;if(ownsStartupUpdateCheck)rememberAutoUpdateCheck(System.currentTimeMillis());ownsStartupUpdateCheck=false;updateCheckRunning.set(false);if(isFinishing()||isDestroyed())return;if(error!=null){if(report)showNotice("检查更新失败："+friendlyError(error),true);return;}if(success!=null)success.run();else if(report)showNotice(PRODUCT_NAME+" 已是最新版本（"+BuildConfig.VERSION_NAME+"）",false);});}
-  void checkLanzouPlusUpdate(boolean manual){io.execute(()->{try{UpdateClient.UpdateInfo info=UpdateClient.check(BuildConfig.VERSION_NAME);finishUpdateCheck(manual,info==null?null:()->showLanzouPlusUpdate(info),null);}catch(Exception error){finishUpdateCheck(manual,null,error);}});}
-  void showLanzouPlusUpdate(UpdateClient.UpdateInfo info){if(isFinishing()||isDestroyed())return;String notes=info.body.length()>600?info.body.substring(0,600)+"…":info.body;String message="版本 "+info.version+" · "+formatSize(info.size)+(notes.isEmpty()?"":"\n\n"+notes);AlertDialog prompt=new AlertDialog.Builder(this).setTitle("发现新版本 "+info.version).setMessage(message).setNegativeButton("稍后",null).setPositiveButton("更新",(d,w)->startLanzouPlusUpdate(info)).create();showRounded(prompt);}
+  /**
+   * [DFWX] DFW-59：更新检查改为**自有服务器优先、GitHub 兜底**。
+   *
+   * 三层决策：
+   *   ① 自有后台可达且给出比当前新的版本 → 用它（国内直连，快且能配 soft/force/off）；
+   *   ② 后台不可达、或后台版本不更新 → 退回 GitHub（fail-open：后台挂了不该让用户收不到更新）；
+   *   ③ 两边都没有更新 → 返回 null，由 finishUpdateCheck 报"已是最新"。
+   *
+   * **后台模式为 off 时不得再问 GitHub**：那是"我明确要求别提示这一版"，
+   * 若继续退到 GitHub 就会把 off 当成摆设。
+   */
+  UpdateOffer resolveUpdateOffer()throws Exception{
+    // 只拉一次：拉两次不但浪费一个请求，还可能在两次之间后台被改动导致判断自相矛盾。
+    RemoteConfigClient.Snapshot snapshot=null;
+    try{
+      snapshot=RemoteConfigClient.fetch();
+    }catch(Exception ignored){
+      // fail-open：后台不可达时静默退到 GitHub，不打扰用户
+    }
+    if(snapshot!=null&&snapshot.reachable&&snapshot.release()!=null){
+      RemoteConfigClient.Release release=snapshot.release();
+      UpdatePromptPolicy.Mode mode=UpdatePromptPolicy.Mode.parse(release.updateMode);
+      // 后台明确 off：尊重它，**不再退 GitHub**（否则 off 形同虚设）。
+      if(mode==UpdatePromptPolicy.Mode.OFF)return null;
+      UpdateOffer fromServer=UpdateOffer.fromRemote(
+          release,
+          changelogTextFor(snapshot,release.versionName),
+          BuildConfig.OFFICIAL_URL,
+          alternativePageUrl());
+      if(fromServer!=null&&fromServer.versionCode>BuildConfig.VERSION_CODE)return fromServer;
+    }
+    // 后台不可达 / 后台版本不比当前新 → GitHub 兜底。
+    UpdateClient.UpdateInfo info=UpdateClient.check(BuildConfig.VERSION_NAME);
+    return info==null?null:UpdateOffer.fromGithub(info,BuildConfig.OFFICIAL_URL);
+  }
+
+  /** 从后台的更新记录里挑出该版本的改动条目，拼成弹窗里的"更新内容"。 */
+  String changelogTextFor(RemoteConfigClient.Snapshot snapshot,String versionName){
+    if(snapshot==null||versionName==null)return"";
+    // enabled=false 的条目在 RemoteConfigClient 解析时已被过滤掉，这里不必再判。
+    for(RemoteConfigClient.Changelog entry:snapshot.changelogs()){
+      if(versionName.equals(entry.versionName))return entry.highlights;
+    }
+    return "";
+  }
+
+  /** 后台可配的第三方下载页（FlowUs 等）；留空则「其他下载方式」里不出现该项。 */
+  String alternativePageUrl(){
+    try{
+      String value=getSharedPreferences(UPDATE_CHECK_PREFS,MODE_PRIVATE).getString("alternative_page","");
+      return value==null?"":value.trim();
+    }catch(Exception ignored){return"";}
+  }
+
+  void checkLanzouPlusUpdate(boolean manual){io.execute(()->{try{UpdateOffer offer=resolveUpdateOffer();finishUpdateCheck(manual,offer==null?null:()->showUpdateOffer(offer,manual),null);}catch(Exception error){finishUpdateCheck(manual,null,error);}});}
+  /**
+   * [DFWX] DFW-59：更新弹窗的**四按钮布局**（用户明确要求）。
+   *
+   * 排布（M3 建议对话框最多 3 个动作，所以第 4 个不做成按钮，而是与「取消更新」同排的弱化文本钮）：
+   *   ┌────────────────────────────┐
+   *   │ 发现新版本 1.0.1            │
+   *   │ 更新内容（可滚动）           │
+   *   │ 36.6 MB · 下载后校验…       │
+   *   │ [      立即更新      ]      │ ← 主按钮（filled）
+   *   │ [   其他下载方式    ]      │ ← 次按钮（outlined）
+   *   │   取消更新  ·  不再显示     │ ← 弱化文本钮
+   *   └────────────────────────────┘
+   *
+   * **强制更新模式**（后台 updateMode=force）只有前两个按钮，**无取消、无不再显示**
+   * ——这是用户的原话要求，由 {@link UpdatePromptPolicy#buttonsFor} 决定，不在这里写 if。
+   */
+  void showUpdateOffer(UpdateOffer offer,boolean manual){
+    if(isFinishing()||isDestroyed())return;
+    UpdatePromptPolicy policy=updatePromptPolicy();
+    // 用户主动点「检查更新」时无视历史上的「不再显示」——否则手动入口回一句"已是最新"是骗人的。
+    if(manual)policy.clearDismissed();
+    if(!policy.shouldPrompt(offer.mode,offer.versionCode,BuildConfig.VERSION_CODE))return;
+    if(!offer.hasAnyDownload()){showNotice("发现新版本 "+offer.versionName+"，但下载地址还没准备好",true);return;}
+    UpdatePromptPolicy.Buttons buttons=UpdatePromptPolicy.buttonsFor(offer.mode);
+
+    LinearLayout panel=new LinearLayout(this);
+    panel.setOrientation(LinearLayout.VERTICAL);
+    panel.setPadding(dp(22),dp(18),dp(22),dp(8));
+
+    panel.addView(text("发现新版本 "+offer.versionName,19,TEXT,700),new LinearLayout.LayoutParams(-1,-2));
+
+    if(!offer.body.isEmpty()){
+      TextView notes=text(offer.body,13,MUTED);
+      notes.setLineSpacing(dp(3),1f);
+      ScrollView scroller=new ScrollView(this);
+      scroller.setVerticalScrollBarEnabled(true);
+      scroller.addView(notes,new ScrollView.LayoutParams(-1,-2));
+      // 更新内容可能很长（后台 changelog 会一直累积），给个上限让它内部滚动，不撑爆屏幕。
+      panel.addView(scroller,new LinearLayout.LayoutParams(-1,dp(168)));
+    }
+
+    // 措辞必须诚实：此处**还没下载**，不能说"已校验签名"。校验发生在下载之后（三重校验）。
+    String meta=offer.sizeText();
+    if(offer.installable()&&!meta.isEmpty())meta=meta+" · 下载后校验 sha256、包名与签名";
+    if(!meta.isEmpty())panel.addView(text(meta,12,MUTED),new LinearLayout.LayoutParams(-1,dp(34)));
+
+    Button update=updateActionButton("立即更新",true);
+    update.setContentDescription("立即更新到 "+offer.versionName);
+    update.setOnClickListener(v->startUpdateFromOffer(offer));
+    panel.addView(update,new LinearLayout.LayoutParams(-1,dp(50)));
+
+    Button alternatives=updateActionButton("其他下载方式",false);
+    alternatives.setContentDescription("其他下载方式，用浏览器打开");
+    alternatives.setOnClickListener(v->showAlternativeDownloads(offer));
+    LinearLayout.LayoutParams altParams=new LinearLayout.LayoutParams(-1,dp(48));
+    altParams.topMargin=dp(8);
+    panel.addView(alternatives,altParams);
+
+    if(buttons.cancel||buttons.neverRemind){
+      LinearLayout weakRow=new LinearLayout(this);
+      weakRow.setGravity(Gravity.CENTER);
+      if(buttons.cancel){
+        Button cancel=weakTextButton("取消更新");
+        cancel.setOnClickListener(v->dismissOfferDialog());
+        weakRow.addView(cancel,new LinearLayout.LayoutParams(-2,dp(44)));
+      }
+      if(buttons.cancel&&buttons.neverRemind)weakRow.addView(text("·",13,MUTED),new LinearLayout.LayoutParams(-2,dp(44)));
+      if(buttons.neverRemind){
+        Button never=weakTextButton("不再显示");
+        never.setContentDescription("不再显示 "+offer.versionName+" 的更新提示（换新版本仍会提示）");
+        never.setOnClickListener(v->{
+          // 只记这一版：换版本照弹（用户明确要求"只针对该具体版本"）。
+          policy.rememberDismissed(offer.versionCode);
+          dismissOfferDialog();
+        });
+        weakRow.addView(never,new LinearLayout.LayoutParams(-2,dp(44)));
+      }
+      panel.addView(weakRow,new LinearLayout.LayoutParams(-1,dp(46)));
+    }
+
+    AlertDialog dialog=new AlertDialog.Builder(this).setView(panel).create();
+    // 强制更新不许点外面关掉，否则"强制"就成了摆设。
+    dialog.setCanceledOnTouchOutside(buttons.cancel);
+    dialog.setCancelable(buttons.cancel);
+    offerDialog=dialog;
+    showRounded(dialog);
+  }
+
+  /** 全宽动作按钮：主按钮 filled、次按钮 outlined（均带按压缩放，走项目既有 applePressScale）。 */
+  Button updateActionButton(String label,boolean primary){
+    Button b=new Button(this);
+    b.setText(label);
+    b.setAllCaps(false);
+    b.setTextSize(15);
+    b.setTextColor(primary?BG:PRIMARY);
+    b.setTypeface(primary?AppFonts.medium(this):AppFonts.normal(this));
+    resetButtonChrome(b);
+    b.setBackground(filterRipple(primary?solidShape(PRIMARY,14):shape(SURFACE,14)));
+    return b;
+  }
+
+  /** 弱化文本钮：无底色、无描边，只靠主色文字（用于「取消更新 / 不再显示」）。 */
+  Button weakTextButton(String label){
+    Button b=toolbarTextButton(label);
+    b.setTextSize(13);
+    return b;
+  }
+
+  void dismissOfferDialog(){
+    if(offerDialog!=null){
+      try{offerDialog.dismiss();}catch(Exception ignored){}
+      offerDialog=null;
+    }
+  }
+
+  /** 「其他下载方式」第二层：GitHub 页（标注需科学上网）+ 后台可配的第三方页。 */
+  void showAlternativeDownloads(UpdateOffer offer){
+    final List<UpdateOffer.Alt> alternates=offer.alternates();
+    if(alternates.isEmpty()){showNotice("暂时没有其他下载方式",true);return;}
+    String[] labels=new String[alternates.size()];
+    for(int i=0;i<alternates.size();i++)labels[i]=alternates.get(i).label;
+    AlertDialog dialog=new AlertDialog.Builder(this)
+      .setTitle("其他下载方式")
+      .setItems(labels,(d,index)->openInBrowser(alternates.get(index).url,""))
+      .setNegativeButton("关闭",null)
+      .create();
+    showRounded(dialog);
+  }
+
+  /** 从归一后的供给启动下载；真正下载/校验/安装仍走 DFW-7 那条已验证的链路。 */
+  void startUpdateFromOffer(UpdateOffer offer){
+    dismissOfferDialog();
+    startLanzouPlusUpdate(new UpdateClient.UpdateInfo(
+      offer.versionName,offer.body,offer.primaryUrl,offer.fallbackUrl,offer.digest,offer.size,false));
+  }
+
+  /** DFW-59：更新提示的取舍策略（模式判定 + 「不再显示」的按版本记忆）。 */
+  UpdatePromptPolicy updatePromptPolicy;
+  UpdatePromptPolicy updatePromptPolicy(){
+    if(updatePromptPolicy==null)updatePromptPolicy=UpdatePromptPolicy.forContext(this);
+    return updatePromptPolicy;
+  }
+  AlertDialog offerDialog;
+  void showLanzouPlusUpdate(UpdateClient.UpdateInfo info){showUpdateOffer(UpdateOffer.fromGithub(info,BuildConfig.OFFICIAL_URL),false);}
   void startLanzouPlusUpdate(UpdateClient.UpdateInfo info){if(!ensureDirectStorageAuthorized(()->startLanzouPlusUpdate(info)))return;try{DownloadEntry entry=new DownloadEntry();entry.source=DOWNLOAD_SOURCE_UPDATE;entry.name="dongfang-wuxian-v"+info.version+".apk";entry.state=DOWNLOAD_RUNNING;entry.createdAt=entry.startedAt=System.currentTimeMillis();entry.totalBytes=entry.verifiedTotalBytes=info.size;entry.sourceSizeText=formatSize(info.size);entry.directUrl=info.primaryUrl();entry.resolvedAt=entry.createdAt;entry.autoInstall=true;entry.updateInfo=info;entry.target=createDownloadTarget(entry.name);entry.uriString=entry.target.toString();entry.parentUriString=currentDownloadParentReferenceUri().toString();downloadEntries.add(entry);persistDownloadHistory(entry);updateDownloadUi(entry);downloadLanzouPlusUpdate(info,entry,info.primaryUrl(),true);}catch(Exception error){showNotice("无法创建更新文件："+friendlyError(error),true);}}
   void downloadLanzouPlusUpdate(UpdateClient.UpdateInfo info,DownloadEntry entry,String url,boolean fallback){Uri destination;int generation;SegmentDownloader downloader;synchronized(entry){if(entry.stopRequested)return;destination=entry.target;entry.updateInfo=info;entry.directUrl=url;entry.state=DOWNLOAD_RUNNING;entry.error="";entry.startedAt=System.currentTimeMillis();entry.lastSpeedAt=entry.startedAt;entry.lastSpeedBytes=entry.downloadedBytes;generation=++entry.controlGeneration;downloader=new SegmentDownloader(this);entry.downloader=downloader;}updateDownloadUi(entry);downloader.startDirect(url,destination,new SegmentDownloader.Listener(){public void progress(long done,long total){synchronized(entry){if(entry.transferOwnedBy(generation,downloader)&&!entry.stopRequested)applyDownloadProgress(entry,done,total);}}public void completed(){synchronized(entry){if(entry.downloader!=downloader||generation!=entry.controlGeneration||entry.stopRequested||!entry.state.equals(DOWNLOAD_RUNNING))return;entry.downloader=null;entry.error="校验中";}updateDownloadUi(entry);io.execute(()->{try{verifyUpdateApk(destination,info);synchronized(entry){if(generation!=entry.controlGeneration||entry.stopRequested||!entry.state.equals(DOWNLOAD_RUNNING))return;entry.downloadedBytes=entry.totalBytes=entry.verifiedTotalBytes=info.size;entry.percent=100;entry.state=DOWNLOAD_COMPLETED;entry.error="";entry.completedAt=System.currentTimeMillis();}finishDownloadTarget(entry,true);updateDownloadUi(entry);runOnUiThread(()->{if(generation==entry.controlGeneration&&entry.state.equals(DOWNLOAD_COMPLETED))installEntry(entry);});}catch(Exception error){boolean failed;synchronized(entry){failed=generation==entry.controlGeneration&&!entry.stopRequested&&entry.state.equals(DOWNLOAD_RUNNING);if(failed){entry.state=DOWNLOAD_FAILED;entry.error="更新包校验未通过";entry.speedBps=0;entry.etaSeconds=-1;}}if(failed){updateDownloadUi(entry);showNotice("更新包校验未通过",true);}}});}public void paused(long done,long total){finishStoppedTransfer(entry,DOWNLOAD_PAUSED,done,total,generation,downloader);}public void cancelled(long done,long total){finishStoppedTransfer(entry,DOWNLOAD_CANCELLED,done,total,generation,downloader);}public void failed(String error){boolean useFallback;synchronized(entry){if(entry.downloader!=downloader)return;entry.downloader=null;if(generation!=entry.controlGeneration||entry.stopRequested)return;useFallback=fallback&&!info.fallbackUrl().isEmpty()&&!info.fallbackUrl().equals(url);if(useFallback){entry.state=DOWNLOAD_RESOLVING;entry.error="切换备用地址";}else{entry.state=DOWNLOAD_FAILED;entry.error=friendlyError(new IOException(error));entry.speedBps=0;entry.etaSeconds=-1;}}updateDownloadUi(entry);if(useFallback){synchronized(entry){if(generation!=entry.controlGeneration||entry.stopRequested||!entry.state.equals(DOWNLOAD_RESOLVING))return;downloadLanzouPlusUpdate(info,entry,info.fallbackUrl(),false);}}}});}
   void verifyUpdateApk(Uri uri,UpdateClient.UpdateInfo info)throws Exception{File temporary=File.createTempFile("verified-update-",".apk",getCacheDir());// DFWX-STAB-001（修审计 H-P1-7）：固定名 verified-update.apk 在手动+自动重试并发校验时互相覆盖，改唯一临时名
@@ -1802,9 +1999,9 @@ content=new LinearLayout(this);content.setOrientation(LinearLayout.VERTICAL);pag
   String selectedSourcesText(List<Models.Source> chosen){LinkedHashSet<String> lines=new LinkedHashSet<>();for(Models.Source source:chosen)appendSourceInputLines(lines,source);return String.join("\n",lines);}
   void copySelectedSources(){List<Models.Source> chosen=selectedSources();if(chosen.isEmpty())return;((ClipboardManager)getSystemService(CLIPBOARD_SERVICE)).setPrimaryClip(ClipData.newPlainText("蓝奏云源",selectedSourcesText(chosen)));showNotice("已复制 "+chosen.size()+" 个源",false);}
   void shareSelectedSources(){List<Models.Source> chosen=selectedSources();if(chosen.isEmpty())return;shareSources(chosen);}
-  void shareSources(List<Models.Source> chosen){if(chosen==null||chosen.isEmpty())return;AlertDialog prompt=new AlertDialog.Builder(this).setTitle("选择分享方式").setItems(new String[]{"分享文字","分享可导入的 LanzouPlus 源"},(dialog,index)->{if(index==0)shareText(selectedSourcesText(chosen),"分享蓝奏云源");else shareImportableSources(chosen);}).setNegativeButton("取消",null).create();showRounded(prompt);}
+  void shareSources(List<Models.Source> chosen){if(chosen==null||chosen.isEmpty())return;AlertDialog prompt=new AlertDialog.Builder(this).setTitle("选择分享方式").setItems(new String[]{"分享文字","分享可导入的源文件"},(dialog,index)->{if(index==0)shareText(selectedSourcesText(chosen),"分享蓝奏云源");else shareImportableSources(chosen);}).setNegativeButton("取消",null).create();showRounded(prompt);}
   void shareImportableSources(List<Models.Source> chosen){LinkedHashSet<String> ids=new LinkedHashSet<>();for(Models.Source source:chosen)ids.add(source.kind==Models.SOURCE_COMPOSITE&&!source.id.isEmpty()?source.id:sourceKey(source));io.execute(()->{try{String json=core.exportSourceRules(ids);runOnUiThread(()->shareRulesJson(json));}catch(Exception error){showNotice("生成可导入源失败："+friendlyError(error),true);}});}
-  void shareRulesJson(String json){Intent send=new Intent(Intent.ACTION_SEND);send.setType("application/json");send.putExtra(Intent.EXTRA_TEXT,json);send.putExtra(Intent.EXTRA_TITLE,"LanzouPlus"+" 可导入源.json");try{startActivity(Intent.createChooser(send,"分享可导入的 LanzouPlus 源"));}catch(Exception error){showNotice("没有可用的分享应用",true);}}
+  void shareRulesJson(String json){Intent send=new Intent(Intent.ACTION_SEND);send.setType("application/json");send.putExtra(Intent.EXTRA_TEXT,json);send.putExtra(Intent.EXTRA_TITLE,PRODUCT_NAME+" 可导入源.json");try{startActivity(Intent.createChooser(send,"分享可导入的源文件"));}catch(Exception error){showNotice("没有可用的分享应用",true);}}
   void confirmRetestSelectedSources(){List<Models.Source> chosen=selectedSources();chosen.removeIf(source->testingSourceUrls.contains(sourceKey(source)));if(chosen.isEmpty()){showNotice("所选源正在测试中",false);return;}int units=0;for(Models.Source source:chosen)units+=compositeSource(source)?Math.max(1,LanzouCore.realMemberCount(source)):1;int totalUnits=Math.max(1,units);LinearLayout panel=new LinearLayout(this);panel.setOrientation(LinearLayout.VERTICAL);panel.setPadding(dp(22),dp(4),dp(22),0);TextView note=text("将重新检测连通性、标题、搜索能力与最佳 UA。内部真实源与普通源进入同一并发队列；失败会保留原节点和分类。",12,MUTED);note.setMaxLines(3);TextView concurrency=text("并发测试：全部（"+totalUnits+" 项）",13,TEXT);LumaSlider bar=new LumaSlider(this);bar.setMax(totalUnits-1);bar.setProgressValue(totalUnits-1,false);bar.setEnabled(totalUnits>1);bar.setContentDescription("调整本次重新测试并发数");bar.setOnChangeListener((value,user)->{int selected=value+1;concurrency.setText(selected>=totalUnits?"并发测试：全部（"+totalUnits+" 项）":"并发测试："+selected+" / "+totalUnits);});panel.addView(note,new LinearLayout.LayoutParams(-1,dp(58)));panel.addView(concurrency,new LinearLayout.LayoutParams(-1,dp(34)));panel.addView(bar,new LinearLayout.LayoutParams(-1,dp(56)));AlertDialog prompt=new AlertDialog.Builder(this).setTitle("是否重新测试 "+chosen.size()+" 个源？").setView(panel).setNegativeButton("取消",null).setPositiveButton("测试",(dialog,which)->{int selected=bar.getProgress()+1;retestSelectedSources(chosen,selected>=totalUnits?0:selected);}).create();showRounded(prompt);}
   void retestSelectedSources(List<Models.Source> chosen,int concurrency){if(chosen.isEmpty())return;for(Models.Source source:chosen)testingSourceUrls.add(sourceKey(source));if(sourceGrid!=null&&sourcePageSources!=null)renderSources(sourceGrid,sourcePageSources,sourceFilter==null?"":sourceFilter.getText().toString().trim(),sourceHeading);int[] success={0},failed={0},skipped={0};LinearLayout panel=toastPanel();TextView label=text("准备测试 "+chosen.size()+" 个源",11,TEXT);label.setMaxLines(2);ProgressBar bar=new ProgressBar(this,null,android.R.attr.progressBarStyleHorizontal);bar.setMax(100);bar.setProgress(0);panel.addView(label,new LinearLayout.LayoutParams(-1,dp(42)));panel.addView(bar,new LinearLayout.LayoutParams(-1,dp(4)));addToastPanel(panel,62);io.execute(()->{try{core.retestSources(chosen,concurrency,new Models.SourceTestProgress(){@Override public void onMember(String sourceId,String memberTitle,int done,int total,boolean ok){String owner=sourceId;for(Models.Source source:chosen)if(sourceKey(source).equals(sourceId)){owner=source.title;break;}String ownerTitle=owner;runOnUiThread(()->{if(panel.getParent()!=toastLayer)return;bar.setProgress(done*100/Math.max(1,total));label.setText(ownerTitle+" · "+memberTitle+" · "+(ok?"通过":"失败")+"\n"+done+" / "+total);});}@Override public void onResult(Models.SourceTestResult result,int done,int total){runOnUiThread(()->{testingSourceUrls.remove(result.originalUrl);if(!result.applied)skipped[0]++;else{++sourceDataRevision;if(result.success)success[0]++;else failed[0]++;if(sourcePageSources!=null)for(Models.Source source:sourcePageSources)if(sourceKey(source).equals(result.originalUrl)){copySource(result.source,source);break;}}if(sourcePageSources!=null&&sourceGrid!=null&&sourceHeading!=null)renderSources(sourceGrid,sourcePageSources,sourceFilter==null?"":sourceFilter.getText().toString().trim(),sourceHeading);if(done==total){if(panel.getParent()==toastLayer)dismissPanel(panel,null);String message="测试完成："+success[0]+" 成功，"+failed[0]+" 错误"+(skipped[0]>0?"，"+skipped[0]+" 已跳过（源已变更）":"");showNotice(message,failed[0]>0);}});}});}catch(InterruptedException interrupted){Thread.currentThread().interrupt();runOnUiThread(()->{if(panel.getParent()==toastLayer)dismissPanel(panel,null);});finishRetestFailure(chosen,"重新测试已中断");}catch(Exception error){runOnUiThread(()->{if(panel.getParent()==toastLayer)dismissPanel(panel,null);});finishRetestFailure(chosen,"重新测试失败："+friendlyError(error));}});}
   void finishRetestFailure(List<Models.Source> chosen,String message){runOnUiThread(()->{for(Models.Source source:chosen)testingSourceUrls.remove(sourceKey(source));if(sourceGrid!=null&&sourcePageSources!=null)renderSources(sourceGrid,sourcePageSources,sourceFilter==null?"":sourceFilter.getText().toString().trim(),sourceHeading);showNotice(message,true);});}
@@ -1826,7 +2023,7 @@ content=new LinearLayout(this);content.setOrientation(LinearLayout.VERTICAL);pag
   }
   void showImportRulesMenu(){String[] actions={"从文件导入","从 HTTPS 链接获取"};AlertDialog menu=new AlertDialog.Builder(this).setTitle("导入源规则").setItems(actions,(d,index)->{if(index==0)pickSourceRulesFile();else showImportRulesLinkDialog();}).create();showRounded(menu);}
   void pickSourceRulesFile(){try{Intent intent=new Intent(Intent.ACTION_OPEN_DOCUMENT);intent.addCategory(Intent.CATEGORY_OPENABLE);intent.setType("text/*");startActivityForResult(intent,IMPORT_RULES);}catch(Exception error){showNotice("系统没有可用的文件选择器",true);}}
-  void exportSourceRules(){try{Intent intent=new Intent(Intent.ACTION_CREATE_DOCUMENT);intent.addCategory(Intent.CATEGORY_OPENABLE);intent.setType("text/plain");intent.putExtra(Intent.EXTRA_TITLE,"LanzouPlus"+"-sources.rules");startActivityForResult(intent,EXPORT_RULES);}catch(Exception error){showNotice("系统没有可用的文件保存器",true);}}
+  void exportSourceRules(){try{Intent intent=new Intent(Intent.ACTION_CREATE_DOCUMENT);intent.addCategory(Intent.CATEGORY_OPENABLE);intent.setType("text/plain");intent.putExtra(Intent.EXTRA_TITLE,PRODUCT_NAME+"-sources.rules");startActivityForResult(intent,EXPORT_RULES);}catch(Exception error){showNotice("系统没有可用的文件保存器",true);}}
   void showImportRulesLinkDialog(){
     LinearLayout panel=new LinearLayout(this);panel.setOrientation(LinearLayout.VERTICAL);panel.setPadding(dp(22),dp(8),dp(22),0);
     EditText link=new EditText(this);link.setSingleLine(true);link.setMaxLines(1);link.setHint("https://…");link.setTextColor(TEXT);link.setHintTextColor(MUTED);link.setTextSize(15);link.setInputType(android.text.InputType.TYPE_CLASS_TEXT|android.text.InputType.TYPE_TEXT_VARIATION_URI);link.setImeOptions(EditorInfo.IME_ACTION_DONE|EditorInfo.IME_FLAG_NO_EXTRACT_UI);link.setPadding(dp(16),0,dp(16),0);link.setBackground(shape(BG,16));link.setContentDescription("HTTPS 源规则链接");panel.addView(link,new LinearLayout.LayoutParams(-1,dp(56)));
@@ -1996,7 +2193,7 @@ content=new LinearLayout(this);content.setOrientation(LinearLayout.VERTICAL);pag
     for(DownloadEntry entry:entries)installers.execute(()->{AdbShellManager.InstallResult result=adbShell.install(getContentResolver(),externalUri(entry),entry.totalBytes>0?entry.totalBytes:entry.verifiedTotalBytes);if(!result.success&&single&&!adbShell.ready()){completed.incrementAndGet();remaining.decrementAndGet();installers.shutdown();runOnUiThread(()->{if(!isFinishing()&&!isDestroyed()){showNotice("Shell 安装已中断，改用系统安装器",false);installEntryWithSystemInstaller(entry);}});return;}if(result.success)succeeded.incrementAndGet();else{failed.incrementAndGet();errors.add(entry.name+"："+firstNonEmpty(result.message,"安装失败"));}int done=completed.incrementAndGet(),left=remaining.decrementAndGet();if(left>0)showNotice("Shell 安装进度 "+done+"/"+entries.size()+" · 成功 "+succeeded.get()+" · 失败 "+failed.get(),false);else{installers.shutdown();runOnUiThread(()->{if(isFinishing()||isDestroyed())return;int ok=succeeded.get(),bad=failed.get();showNotice("Shell 安装进度 "+done+"/"+entries.size()+" · 成功 "+ok+" · 失败 "+bad,bad>0);if(bad==0){if(downloadSelectionMode)exitDownloadSelection();}else showSilentInstallReport(ok,bad,errors);});}});
   }
   void showSilentInstallReport(int succeeded,int failed,Collection<String> errors){StringBuilder message=new StringBuilder("成功 ").append(succeeded).append(" · 失败 ").append(failed);int shown=0;for(String error:errors){if(shown++>=5){message.append("\n…其余失败项已省略");break;}message.append("\n").append(error);}AlertDialog report=new AlertDialog.Builder(this).setTitle("静默安装未全部完成").setMessage(message.toString()).setNegativeButton("关闭",null).setPositiveButton("检查权限",(dialog,which)->showAdbPermissionDialog()).create();showRounded(report);}
-  @android.annotation.SuppressLint("InlinedApi") void confirmUnknownInstallPermission(DownloadEntry entry){AlertDialog prompt=new AlertDialog.Builder(this).setTitle("允许安装此应用？").setMessage("Android 需要先允许 "+"LanzouPlus"+" 安装未知来源应用。授权后会自动继续打开安装器。").setNegativeButton("取消",null).setPositiveButton("前往授权",(d,w)->{try{pendingInstallEntry=entry;startActivity(new Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,Uri.parse("package:"+getPackageName())));}catch(Exception error){pendingInstallEntry=null;showNotice("无法打开安装权限设置",true);}}).create();showRounded(prompt);}
+  @android.annotation.SuppressLint("InlinedApi") void confirmUnknownInstallPermission(DownloadEntry entry){AlertDialog prompt=new AlertDialog.Builder(this).setTitle("允许安装此应用？").setMessage("Android 需要先允许「"+PRODUCT_NAME+"」安装未知来源应用。授权后会自动继续打开安装器。").setNegativeButton("取消",null).setPositiveButton("前往授权",(d,w)->{try{pendingInstallEntry=entry;startActivity(new Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,Uri.parse("package:"+getPackageName())));}catch(Exception error){pendingInstallEntry=null;showNotice("无法打开安装权限设置",true);}}).create();showRounded(prompt);}
   void downloadMenu(DownloadEntry entry){String[] actions={"跳转 Download 目录","安装","删除记录","删除文件","分享文件","分享蓝奏云链接","更多方式"};AlertDialog menu=new AlertDialog.Builder(this).setTitle(entry.name).setItems(actions,(dialog,index)->{switch(index){case 0:openDownloadDirectory();break;case 1:installEntry(entry);break;case 2:removeDownloadRecord(entry);break;case 3:confirmDeleteFile(entry);break;case 4:shareDownloadedFile(entry);break;case 5:shareDownloadLink(entry);break;case 6:openWithMore(entry);break;default:break;}}).create();showRounded(menu);}
   String downloadMimeType(DownloadEntry entry){Uri uri=entryUri(entry);if(uri!=null&&"content".equals(uri.getScheme()))try{String value=getContentResolver().getType(uri);if(value!=null&&!value.trim().isEmpty())return value;}catch(Exception ignored){android.util.Log.w("MainActivity", "MainActivity Exception: "+ignored.getMessage(), ignored);}return entry.name.toLowerCase(Locale.ROOT).endsWith(".apk")?"application/vnd.android.package-archive":"application/octet-stream";}
   void openWithMore(DownloadEntry entry){if(!readyFile(entry))return;if(!entry.expectedUpdateVersion.isEmpty()){installEntry(entry);return;}if(entry.name.toLowerCase(Locale.ROOT).endsWith(".apk")&&DownloadSourcePolicy.requiresInstallConfirmation(entry.source)){installEntry(entry);return;}try{Uri uri=externalUri(entry);Intent view=new Intent(Intent.ACTION_VIEW);view.setDataAndType(uri,downloadMimeType(entry));view.setClipData(ClipData.newRawUri(entry.name,uri));view.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);startActivity(Intent.createChooser(view,"更多方式打开"));}catch(Exception error){showNotice("没有更多可用方式",true);}}
