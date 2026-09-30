@@ -37,6 +37,8 @@ final class NavBall {
     boolean motionEnabled();
     void goToDestination(int destination);
     int currentDestination();
+    /** 当前高亮的目的地：公告页在前台时返回 NOTICE_DEST，这样菜单里不会同时亮两项。 */
+    int activeDestination();
     int contentWidth(); int contentHeight();
     boolean isAiPage();
     /** [DFW-70] 打开公告中心。 */
@@ -70,8 +72,9 @@ final class NavBall {
    * 首页那个右上角铃铛位置放错了、而且一关公告就消失（因为它只在有未读时出现），
    * 所以挪进这里**常驻可见**，有未读时亮红点。
    *
-   * `NOTICE_DEST` 是个**哨兵值**：公告中心不是"主目的地"（它是设置体系下的一个子页），
-   * 所以不能走 `goToDestination`，得单独开页面。
+   * `NOTICE_DEST` 是个**哨兵值**：公告页有自己的进出场与返回记忆，不走 `goToDestination`，
+   * 而是走 `host.openNoticeCenter()` 单独打开——但它在导航层级上**与另外五项同级**。
+   * （DFW-72 修正：旧版把公告做成"设置体系下的子页"，用户明确否掉了。）
    */
   private static final int NOTICE_DEST = -2;
   private static final int[] ITEM_DEST = {0, 4, 2, 5, 3, NOTICE_DEST};
@@ -289,10 +292,10 @@ final class NavBall {
   }
 
   private void refreshPillColors() {
-    int current = host.currentDestination();
+    int current = host.activeDestination();
     int bg = host.BG();
     for (Pill p : pills) {
-      boolean active = p.destination == NOTICE_DEST ? host.isNoticePage() : p.destination == current;
+      boolean active = isPillActive(p, current);
       // 未选中：亮度阶梯里的一档 + **可见的描边**；图标与文字**同色**（原来图标 MUTED 比文字 TEXT 暗一档，
       // 看着不像一体，是"没质感"的第二个来源）。
       int[] colors = pillPalette(bg, host.PRIMARY(), host.PRIMARY_HI(), host.TEXT(), active);
@@ -303,6 +306,25 @@ final class NavBall {
       p.icon.setColorFilter(colors[2]);
       p.label.setTextColor(colors[2]);
     }
+  }
+
+  /**
+   * 菜单项是否高亮。
+   *
+   * [DFW-72] 公告现在是**顶级页**：它在前台时 `activeDestination()` 返回 `NOTICE_DEST`，
+   * 于是其余各项自然都不亮——不会出现"公告和软件库同时亮着"。
+   */
+  private boolean isPillActive(Pill p, int current) {
+    if (p.destination == NOTICE_DEST) return host.isNoticePage();
+    return !host.isNoticePage() && p.destination == current;
+  }
+
+  /** 供测试：当前高亮的菜单项数量（公告页在前台时必须恰好 1 个）。 */
+  int activePillCountForTest() {
+    int count = 0;
+    int current = host.activeDestination();
+    for (Pill p : pills) if (isPillActive(p, current)) count++;
+    return count;
   }
 
   /** 供测试与外部查询：菜单项数量（含公告）。 */

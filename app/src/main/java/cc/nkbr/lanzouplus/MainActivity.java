@@ -46,7 +46,8 @@ public final class MainActivity extends androidx.activity.ComponentActivity impl
     @Override public int contentWidth(){return safeContentWidth();}
     @Override public int contentHeight(){return safeContentHeight();}
     @Override public boolean isAiPage(){return pageKind==5;}
-    @Override public void openNoticeCenter(){MainActivity.this.showNoticeCenter(false);}
+    @Override public void openNoticeCenter(){MainActivity.this.showNoticeCenter();}
+    @Override public int activeDestination(){return pageKind==10?-2:primaryDestination;}
     @Override public boolean isNoticePage(){return pageKind==10;}
     @Override public int unreadNoticeCount(){return noticeCenter().unreadCount(noticeSnapshot);}
   });
@@ -1217,112 +1218,142 @@ android.graphics.Insets none=android.graphics.Insets.NONE;android.view.WindowIns
   }
 
   /**
-   * [DFWX] DFW-70：**公告弹窗**。
+   * [DFWX] DFW-72：**公告弹窗（Liquid Glass）**。
    *
-   * 用户 2026-09-30："它弹出来那个公告弹窗就很丑，你需要优化，改成一个非常适合公告的UI和样子。"
+   * 用户 2026-10-01 真机反馈三条：
+   *   ① "你制作的公告适配都没适配好，太丑了"
+   *   ② "我点击知道后……应该是直接关掉这个弹窗"（不该跳到公告完整界面）
+   *   ③ "公告不该是设置的子页"（见 {@link #showNoticeCenter()}）
    *
-   * 按并行调研的规格重做（参考库 `黑曜/06-开源参考库/07-更新与公告UI动效专档.md` E 节，
-   * 规格来源是 AOSP `AlertController` + MDC `MaterialAlertDialog` 的实测值，Apache-2.0 可抄）。
-   *
-   * ## 公告 ≠ 普通对话框（这决定它不该长成普通 AlertDialog）
-   * 普通对话框是"**问用户要一个决定**"（双向、有取消）；公告是"**告诉用户一件事**"（单向）。
-   * 所以：**禁出现"取消"**（出现即降级成问答）、必须显示发布时间、正文可滚但只滚正文。
-   *
-   * ## 修掉的三条"丑"根因（都能在代码里指到）
-   * ① **底色发紫**：`roundDialog` 用的是 `solidShape(SURFACE,22)` 且走品牌色 tint 思路 →
-   *    按 §5 亮度阶梯的主体是**白**，底色必须是中性的，品牌色只能做点缀。
-   * ② **两个光秃秃的文字按钮**：`styleDialogButton` 给的是全透明底 + 紫/灰字、且没设字重。
-   * ③ **圆角被静默量化 + 违规阴影**：`solidShape` 把 28 量化成 26、把 22 量化成 20（Card 档），
-   *    而且带 `setElevation(dp(10))`——§5 明确"不用 elevation 阴影"。浮层该用 Panel(28dp)。
+   * ## 三条根因（都能在代码里指到，且都不会崩、只会让人觉得丑）
+   * ① **几百 dp 的空白**：正文容器高度被写死成 `Math.min(maxBody, dp(420))`，与内容长短无关——
+   *    短公告也占 420dp，于是弹窗下半截是一大片空的黑。现在改成
+   *    **WRAP_CONTENT + 上限兜底**（{@link MaxHeightScrollView}）：短内容贴合内容，长内容才滚动。
+   * ② **「知道了」乱跳**：文案是「知道了」但绑的动作是 `showNoticeCenter()`——文案与行为不一致。
+   *    现在一一对应：**「知道了」= 只关窗**；只有**还有未读**时才多出一个「查看全部」。
+   *    顺带删掉语义重复的「关闭」（两个按钮都只是关窗，摆两个是噪音）。
+   * ③ **丑在"材质"不在"圆角"**：旧版是不透明深灰 + 纯色填充，既没有"透"也没有"边"，
+   *    再准的圆角也只是块灰板子。现在走真·玻璃：系统级背景模糊 + 低 alpha 玻璃底 +
+   *    顶光 rim/镜面高光（配方见 {@link GlassSurface}，取值来源是 AOSP《Window blurs》
+   *    与 Kyant0/AndroidLiquidGlass、chrisbanes/haze、Prismal、iOS 26 规格文档）。
    */
-  void showNoticeDialog(RemoteConfigClient.Notice notice, int remainingCount, Runnable onDismissed){
+  void showNoticeDialog(RemoteConfigClient.Notice notice,int remainingCount,Runnable onDismissed){
     if(isFinishing()||isDestroyed())return;
     if(notice==null)return;
+    final boolean blur=GlassSurface.isBlurEnabled(this);
+    final float density=getResources().getDisplayMetrics().density;
+    final int radius=dp(28);
+    noticeDialogBlurApplied=blur;
+
     LinearLayout panel=new LinearLayout(this);
     panel.setOrientation(LinearLayout.VERTICAL);
-    // 中性底 = 白 12% 叠在纯黑上（§5 亮度档 11–14%）。
-    // **绝不能用品牌色 tint**：那会整块发紫，用户已经因此说过"廉价"。
-    int fill=noticeDialogFill(BG);
-    // 圆角 28dp（Panel 档，与 MDC m3_alert_dialog_corner_size 一致）。
-    // 用 PremiumSurface 而不是 solidShape——后者会把 28 量化成 26。
-    panel.setBackground(PremiumSurface.withHighlight(fill,dp(28),Math.max(1,dp(1)),0x1AFFFFFF,PremiumSurface.HIGHLIGHT));
+    // 面板**内部全透明**：玻璃的底色与模糊由窗口背景负责（圆角也只能写在窗口背景上，
+    // 否则模糊会溢成一个直角方块——AOSP 明确要求"带圆角的 ShapeDrawable 作为窗口背景"）。
+    // 这里只画"玻璃的边缘与高光"，画了填充就会把模糊盖死、又变回一块灰板子。
+    panel.setBackground(GlassSurface.panel(radius,Math.max(1,dp(1))));
     panel.setClipToOutline(true);
 
-    // ── 标题区（左右上下 24dp：AOSP dialog_padding_material / MDC top_padding）──
+    // ── 标题区（左右 24dp：AOSP dialog_padding_material / MDC top_padding）──
     LinearLayout titleRow=new LinearLayout(this);
     titleRow.setGravity(Gravity.CENTER_VERTICAL);
-    titleRow.setPadding(dp(24),dp(22),dp(16),0);
-    // 等级标识：6dp 圆点。**普通档不画**——每条都挂等于没有重点。
-    if(notice.isUrgent()||notice.isImportant()){
-      View dot=new View(this);
-      GradientDrawable dotBg=new GradientDrawable();
-      dotBg.setShape(GradientDrawable.OVAL);
-      dotBg.setColor(notice.isUrgent()?ERROR_TOKEN:PRIMARY);
-      dot.setBackground(dotBg);
-      LinearLayout.LayoutParams dotParams=new LinearLayout.LayoutParams(dp(6),dp(6));
-      dotParams.rightMargin=dp(8);
-      titleRow.addView(dot,dotParams);
-    }
-    TextView title=text(notice.title,18,TEXT,700);
-    title.setMaxLines(2);
+    titleRow.setPadding(dp(24),dp(24),dp(16),0);
+    TextView title=text(notice.title,20,TEXT,700);
+    title.setMaxLines(3);
     title.setEllipsize(android.text.TextUtils.TruncateAt.END);
+    title.setLineSpacing(dp(2),1f);
     titleRow.addView(title,new LinearLayout.LayoutParams(0,-2,1f));
-    // 关闭 X：紧急公告不给关闭（只留「查看全部」），其余给。触控区 48dp。
+    // 关闭 X：紧急公告不给关闭（只留「知道了」），其余给。触控区 44dp。
     if(!notice.isUrgent()){
       ImageButton close=iconButton(R.drawable.ic_close,"关闭公告");
       close.setColorFilter(MUTED);
       close.setOnClickListener(v->dismissNoticeDialog());
       LinearLayout.LayoutParams closeParams=new LinearLayout.LayoutParams(dp(44),dp(44));
-      closeParams.leftMargin=dp(4);
+      closeParams.leftMargin=dp(8);
       titleRow.addView(close,closeParams);
     }
     panel.addView(titleRow,new LinearLayout.LayoutParams(-1,-2));
 
-    // ── 元信息行：发布时间（公告与对话框最直观的区分信号）+ 还有几条 ──
+    // ── 元信息行：等级标签 + 发布时间 + 还有几条 ──
+    // 发布时间是**公告与普通对话框最直观的区分信号**。
+    // 等级改用**文字标签**而不是标题旁那颗 6dp 圆点——圆点在 20sp 标题旁边只会被当成噪点。
     LinearLayout metaRow=new LinearLayout(this);
     metaRow.setGravity(Gravity.CENTER_VERTICAL);
-    metaRow.setPadding(dp(24),dp(6),dp(24),0);
-    TextView date=text(noticeDateText(notice),12,MUTED);
-    metaRow.addView(date,new LinearLayout.LayoutParams(0,-2,1f));
-    if(remainingCount>0){
-      TextView more=text("还有 "+remainingCount+" 条",12,PRIMARY);
-      metaRow.addView(more,new LinearLayout.LayoutParams(-2,-2));
+    metaRow.setPadding(dp(24),dp(10),dp(24),0);
+    boolean hasMeta=false;
+    if(notice.isUrgent()||notice.isImportant()){
+      boolean urgent=notice.isUrgent();
+      TextView levelTag=text(urgent?"紧急":"重要",11,urgent?ERROR_TOKEN:PRIMARY,600);
+      levelTag.setGravity(Gravity.CENTER);
+      levelTag.setBackground(solidShape(SURFACE,9));
+      levelTag.setPadding(dp(8),dp(3),dp(8),dp(3));
+      metaRow.addView(levelTag,new LinearLayout.LayoutParams(-2,-2));
+      hasMeta=true;
     }
-    panel.addView(metaRow,new LinearLayout.LayoutParams(-1,-2));
+    String noticeDate=noticeDateText(notice);
+    if(!noticeDate.isEmpty()){
+      TextView date=text(noticeDate,12,MUTED);
+      LinearLayout.LayoutParams dateParams=new LinearLayout.LayoutParams(-2,-2);
+      if(hasMeta)dateParams.leftMargin=dp(8);
+      metaRow.addView(date,dateParams);
+      hasMeta=true;
+    }
+    if(remainingCount>0){
+      TextView more=text("还有 "+remainingCount+" 条",12,PRIMARY,600);
+      more.setGravity(Gravity.END);
+      LinearLayout.LayoutParams moreParams=new LinearLayout.LayoutParams(0,-2,1f);
+      if(hasMeta)moreParams.leftMargin=dp(8);
+      metaRow.addView(more,moreParams);
+      hasMeta=true;
+    }
+    if(hasMeta)panel.addView(metaRow,new LinearLayout.LayoutParams(-1,-2));
 
     // ── 正文（只滚正文：标题与按钮永远可见，用户不会迷路）──
     if(!notice.body.isEmpty()){
-      // 正文色：普通/重要用 MUTED；**紧急用 TEXT 而不是红**——
-      // 整段红像报错，大面积红本身就廉价。（等级已由标题那颗圆点表达。）
-      TextView body=text(notice.body,14,notice.isUrgent()?TEXT:MUTED,500);
-      body.setLineSpacing(dp(3),1f);
-      ScrollView scroller=new ScrollView(this);
+      // 正文用"TEXT 往底色方向退 14%"而不是 MUTED：玻璃底是半透明的，
+      // MUTED 的对比度落在模糊背景上会不够（iOS 26 规格同样要求玻璃上的文字高对比）。
+      TextView body=text(notice.body,15,PremiumSurface.over(TEXT,BG,0.14f),500);
+      body.setLineSpacing(dp(4),1f);
+      MaxHeightScrollView scroller=new MaxHeightScrollView(this);
+      scroller.setMaxHeightPx(noticeBodyMaxHeight());
       scroller.setVerticalScrollBarEnabled(false);
       scroller.setClipToPadding(false);
       scroller.addView(body,new ScrollView.LayoutParams(-1,-2));
-      int maxBody=Math.max(dp(120),safeContentHeight()-dp(300));
       LinearLayout.LayoutParams bodyParams=new LinearLayout.LayoutParams(-1,-2);
       bodyParams.topMargin=dp(14);
-      panel.addView(scroller,new LinearLayout.LayoutParams(-1,Math.min(maxBody,dp(420))));
+      panel.addView(scroller,bodyParams);
     }
 
     // ── 按钮区：**最多 2 个、右对齐**。公告是单向通知，**禁"取消"**。 ──
     LinearLayout actions=new LinearLayout(this);
     actions.setGravity(Gravity.CENTER_VERTICAL|Gravity.END);
-    actions.setPadding(dp(24),dp(16),dp(24),dp(20));
-    Button secondary=noticeDialogButton("关闭",false);
-    secondary.setOnClickListener(v->dismissNoticeDialog());
-    actions.addView(secondary,new LinearLayout.LayoutParams(-2,dp(48)));
-    Button primary=noticeDialogButton(remainingCount>0?"查看全部":"知道了",true);
-    primary.setOnClickListener(v->{dismissNoticeDialog();showNoticeCenter(false);});
-    LinearLayout.LayoutParams primaryParams=new LinearLayout.LayoutParams(-2,dp(48));
-    primaryParams.leftMargin=dp(8);
-    actions.addView(primary,primaryParams);
+    actions.setPadding(dp(24),dp(20),dp(24),dp(20));
+    noticeDialogPrimary=null;
+    noticeDialogSecondary=null;
+    if(remainingCount>0){
+      // 还有未读：次要动作=「知道了」（只关窗），主要动作=「查看全部」（去列表）。
+      Button ack=noticeDialogButton("知道了",false);
+      ack.setOnClickListener(v->dismissNoticeDialog());
+      actions.addView(ack,new LinearLayout.LayoutParams(-2,dp(48)));
+      Button all=noticeDialogButton("查看全部",true);
+      all.setOnClickListener(v->{dismissNoticeDialog();showNoticeCenter();});
+      LinearLayout.LayoutParams allParams=new LinearLayout.LayoutParams(-2,dp(48));
+      allParams.leftMargin=dp(10);
+      actions.addView(all,allParams);
+      noticeDialogSecondary=ack;
+      noticeDialogPrimary=all;
+    }else{
+      // 没有别的公告：只有一个动作，那就让它成为主要动作。
+      // **「知道了」就只是关窗**——用户 2026-10-01："点知道后不应该跳到那个公告完整界面。"
+      Button ack=noticeDialogButton("知道了",true);
+      ack.setOnClickListener(v->dismissNoticeDialog());
+      actions.addView(ack,new LinearLayout.LayoutParams(-2,dp(48)));
+      noticeDialogPrimary=ack;
+    }
     panel.addView(actions,new LinearLayout.LayoutParams(-1,-2));
 
     // 用**裸 Dialog** 而不是 AlertDialog + showRounded：
-    // showRounded 会把 panel 背景覆盖成 `solidShape(SURFACE,22)`（还会带上 §5 明令禁止的 elevation 阴影），
-    // 那样我上面精心设的 28dp 圆角 + 中性底 + 单侧高光就全白做了。
+    // showRounded 会把面板背景覆盖成 `solidShape(SURFACE,22)`（还会带上 §5 明令禁止的 elevation 阴影），
+    // 那样上面精心设的玻璃背景就全白做了。
     android.app.Dialog dialog=new android.app.Dialog(this);
     dialog.requestWindowFeature(android.view.Window.FEATURE_NO_TITLE);
     dialog.setContentView(panel);
@@ -1332,28 +1363,29 @@ android.graphics.Insets none=android.graphics.Insets.NONE;android.view.WindowIns
     dialog.setCanceledOnTouchOutside(noticeDialogCancelable);
     dialog.setCancelable(noticeDialogCancelable);
     dialog.setOnDismissListener(d->{
+      unregisterNoticeBlurListener();
       noticeDialog=null;
+      noticeDialogPrimary=null;
+      noticeDialogSecondary=null;
       // 弹过即把**这一条**标为已读（"一次性"模式靠它生效；"永久"模式会无视它，见 NoticeCenter）。
       noticeCenter().markRead(notice.id);
       refreshNoticeBell();
       if(onDismissed!=null)onDismissed.run();
     });
     noticeDialog=dialog;
-    if(dialog.getWindow()!=null){
-      android.view.Window window=dialog.getWindow();
-      window.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
-      // 遮罩 0.32（规范 §5 + MDC m3_comp_scrim_container_opacity 一致）。
-      window.addFlags(android.view.WindowManager.LayoutParams.FLAG_DIM_BEHIND);
-      window.setDimAmount(0.32f);
-      int viewport=safeContentWidth();
+    android.view.Window window=dialog.getWindow();
+    if(window!=null){
+      applyNoticeWindowGlass(window,blur,radius,density);
       android.view.WindowManager.LayoutParams lp=window.getAttributes();
       lp.gravity=Gravity.CENTER;
       // 宽度：M3 规格 min 280 / max 560，两侧各留 24dp。
-      lp.width=Math.max(dp(280),Math.min(dp(560),viewport-dp(48)));
+      lp.width=Math.max(dp(280),Math.min(dp(560),safeContentWidth()-dp(48)));
+      // 高度**交给内容**：旧版把正文写死 420dp，短公告因此撑出一大片空白。
       lp.height=android.view.WindowManager.LayoutParams.WRAP_CONTENT;
       window.setAttributes(lp);
     }
     dialog.show();
+    if(window!=null)registerNoticeBlurListener(window,radius);
     // 入场：alpha 0→1 + scale 0.92→1（0.92 是规范 §7.5 fadeThrough 的既有值，不新造数字）。
     if(motionEnabled()){
       panel.setAlpha(0f);
@@ -1364,19 +1396,105 @@ android.graphics.Insets none=android.graphics.Insets.NONE;android.view.WindowIns
     }
   }
 
-  android.app.Dialog noticeDialog;
-  /** 供测试：当前公告弹窗是否允许点空白/返回关闭。 */
-  boolean noticeDialogCancelable;
+  /**
+   * 把窗口变成一块玻璃（AOSP《Window blurs》规定的三步）。
+   *
+   * 1. 窗口必须 **translucent**，模糊才可见——`setFormat(TRANSLUCENT)` 就是
+   *    `windowIsTranslucent=true` 的代码等价物。
+   * 2. 圆角只能靠"带圆角的 ShapeDrawable 作为窗口背景"——模糊画在窗口 surface 下面，
+   *    背景形状决定它的可见轮廓。
+   * 3. 背景模糊（面板自身，80px 档）与 blur behind（整屏景深，20px 档）是两个独立开关。
+   */
+  void applyNoticeWindowGlass(android.view.Window window,boolean blur,int radius,float density){
+    window.setFormat(android.graphics.PixelFormat.TRANSLUCENT);
+    // 记一份引用供测试断言"玻璃背景真的装到窗口上了"，而不是只写了个没人调用的类。
+    noticeDialogWindowBackground=GlassSurface.windowBackground(radius,GlassSurface.windowFillColor(BG,blur));
+    window.setBackgroundDrawable(noticeDialogWindowBackground);
+    window.addFlags(android.view.WindowManager.LayoutParams.FLAG_DIM_BEHIND);
+    window.setDimAmount(GlassSurface.dimAmount(blur));
+    if(!blur)return;
+    window.addFlags(android.view.WindowManager.LayoutParams.FLAG_BLUR_BEHIND);
+    window.setBackgroundBlurRadius(GlassSurface.backgroundBlurPx(density));
+    android.view.WindowManager.LayoutParams lp=window.getAttributes();
+    lp.setBlurBehindRadius(GlassSurface.blurBehindPx(density));
+    window.setAttributes(lp);
+  }
 
   /**
-   * 公告弹窗底色：**中性**（白 12% 叠在纯黑上，落在 §5 的 11–14% 档）。
+   * 监听系统模糊开关。
    *
-   * 抽成纯函数是为了能直接断言"**不发紫**"——上一版正是把品牌色当底色用，
-   * 整块发紫，用户明确反馈"廉价"。品牌色在公告里只应出现在等级圆点和主按钮上。
+   * AOSP 明确要求处理"模糊被系统关掉"的情况（省电模式、播放某些视频、开发者选项都会临时关）：
+   * 这时按官方指引**提高窗口背景的不透明度并加大 dim**，否则半透明底会失效、文字压在画面内容上读不清。
    */
-  static int noticeDialogFill(int bg){
-    return PremiumSurface.over(bg,android.graphics.Color.WHITE,0.12f);
+  void registerNoticeBlurListener(android.view.Window window,int radius){
+    unregisterNoticeBlurListener();
+    if(!GlassSurface.blurApiAvailable()||window==null)return;
+    try{
+      android.view.WindowManager manager=(android.view.WindowManager)getSystemService(WINDOW_SERVICE);
+      if(manager==null)return;
+      final android.view.Window target=window;
+      java.util.function.Consumer<Boolean> listener=enabled->{
+        if(noticeDialog==null||!noticeDialog.isShowing())return;
+        boolean on=enabled!=null&&enabled;
+        try{
+          target.setBackgroundDrawable(GlassSurface.windowBackground(radius,GlassSurface.windowFillColor(BG,on)));
+          target.setDimAmount(GlassSurface.dimAmount(on));
+        }catch(Throwable ignored){}
+      };
+      manager.addCrossWindowBlurEnabledListener(listener);
+      noticeBlurListener=listener;
+    }catch(Throwable ignored){}
   }
+
+  void unregisterNoticeBlurListener(){
+    java.util.function.Consumer<Boolean> listener=noticeBlurListener;
+    noticeBlurListener=null;
+    if(listener==null)return;
+    try{
+      android.view.WindowManager manager=(android.view.WindowManager)getSystemService(WINDOW_SERVICE);
+      if(manager!=null)manager.removeCrossWindowBlurEnabledListener(listener);
+    }catch(Throwable ignored){}
+  }
+
+  /**
+   * 正文容器的**最大**高度。
+   *
+   * 短公告贴合内容（不再有空白），长公告到这里才滚动。给标题/元信息/按钮/边距留出位置，
+   * 并且不超过屏幕的 58%——弹窗高过这个比例就不像浮层、像整页了。
+   */
+  int noticeBodyMaxHeight(){
+    int h=safeContentHeight();
+    return Math.max(dp(96),Math.min(h-dp(240),Math.round(h*0.58f)));
+  }
+
+  /**
+   * 高度自适应但**有上限**的正文容器。
+   *
+   * 这是"几百 dp 空白"的直接解药：旧版给正文容器写死一个高度，内容再短也占满；
+   * 这里默认 WRAP_CONTENT 贴合内容，只有真的超长才被截到上限并内部滚动。
+   */
+  static final class MaxHeightScrollView extends android.widget.ScrollView {
+    private int maxHeightPx;
+    MaxHeightScrollView(android.content.Context context){super(context);}
+    void setMaxHeightPx(int px){maxHeightPx=px;requestLayout();}
+    int maxHeightPx(){return maxHeightPx;}
+    @Override protected void onMeasure(int widthSpec,int heightSpec){
+      super.onMeasure(widthSpec,heightSpec);
+      if(maxHeightPx>0&&getMeasuredHeight()>maxHeightPx)setMeasuredDimension(getMeasuredWidth(),maxHeightPx);
+    }
+  }
+
+  android.app.Dialog noticeDialog;
+  /** 本次弹窗的动作按钮（供测试与语义核对：主/次动作必须与文案一一对应）。 */
+  Button noticeDialogPrimary,noticeDialogSecondary;
+  /** 系统模糊开关监听（弹窗关闭时必须注销，否则泄漏）。 */
+  java.util.function.Consumer<Boolean> noticeBlurListener;
+  /** 本次弹窗是否真的用上了背景模糊（供测试）。 */
+  boolean noticeDialogBlurApplied;
+  /** 真正装到窗口上的玻璃背景（供测试断言装配发生了，而不是只写了个没人调用的类）。 */
+  android.graphics.drawable.Drawable noticeDialogWindowBackground;
+  /** 供测试：当前公告弹窗是否允许点空白/返回关闭。 */
+  boolean noticeDialogCancelable;
 
   void dismissNoticeDialog(){
     if(noticeDialog!=null){
@@ -1434,13 +1552,31 @@ android.graphics.Insets none=android.graphics.Insets.NONE;android.view.WindowIns
     showNoticeDialog(first,popups.size()-1,null);
   }
 
-  void showNoticeCenter(){showNoticeCenter(true);}
-
-  /** 公告列表页。`fromHome` 决定返回键回哪：从首页铃铛进来就回首页，从设置进来就回设置。 */
-  void showNoticeCenter(boolean fromHome){
-    primaryBase(fromHome?0:3);pageKind=10;activeSource=null;clearFolderTrail();
-    systemBackAction=fromHome?this::showHomeLanding:this::showSettings;
-    LinearLayout body=aboutBackBar("公告");
+  /**
+   * [DFW-72] **公告中心：顶级页面**。
+   *
+   * 用户 2026-10-01："我点击那个公告按钮之后，它就会先打开设置界面，然后再打开公告，
+   * 这会导致一个问题，就是说公告变成了子页面，然后设置变成了主页面……我从公告退出来后，
+   * 默认是达到了设置界面。但是按理来说不应该这样的。"
+   *
+   * 旧实现的两个毛病（都在代码里指得到）：
+   * - `primaryBase(fromHome?0:3)`：悬浮球进来走 `false` → **先把设置建成底座**，公告再叠上去，
+   *   于是在导航栈里公告天然成了设置的子页；
+   * - `systemBackAction` 与 `aboutBackBar` 又都写死回 `showSettings()`。
+   *
+   * 现在：底座用首页档（与"软件库/下载/工具箱"同级），返回动作 = **回到进来之前那一页**。
+   */
+  void showNoticeCenter(){
+    if(isFinishing()||isDestroyed())return;
+    // 先记下"从哪来"，再 `primaryBase` 重建页面——顺序反了，记到的就是公告页自己。
+    final Runnable back=noticeReturnAction();
+    primaryBase(0);
+    pageKind=10;
+    activeSource=null;
+    clearFolderTrail();
+    systemBackAction=back;
+    refreshNavBall();
+    LinearLayout body=aboutBackBar("公告",back);
     List<RemoteConfigClient.Notice> notices=noticeCenter().visible(noticeSnapshot);
     if(notices.isEmpty()){
       LinearLayout card=aboutCard();
@@ -1449,48 +1585,103 @@ android.graphics.Insets none=android.graphics.Insets.NONE;android.view.WindowIns
       card.addView(empty,new LinearLayout.LayoutParams(-1,dp(96)));
       body.addView(card,aboutCardLp());
     }else{
-      for(RemoteConfigClient.Notice notice:notices){
-        LinearLayout card=aboutCard();
-        LinearLayout titleRow=new LinearLayout(this);
-        titleRow.setGravity(Gravity.CENTER_VERTICAL);
-        TextView title=text(notice.title,16,TEXT,600);
-        titleRow.addView(title,new LinearLayout.LayoutParams(0,-2,1));
-        if(notice.pinned){
-          TextView pin=text("置顶",11,PRIMARY);
-          pin.setGravity(Gravity.CENTER);
-          pin.setBackground(solidShape(SURFACE,9));
-          pin.setPadding(dp(8),dp(3),dp(8),dp(3));
-          titleRow.addView(pin,new LinearLayout.LayoutParams(-2,-2));
-        }
-        // 等级色（卡要求：普通/重要/紧急）。**普通不挂标签**——每条都挂等于没有重点。
-        if(notice.isUrgent()||notice.isImportant()){
-          boolean urgent=notice.isUrgent();
-          TextView levelTag=text(urgent?"紧急":"重要",11,urgent?ERROR_TOKEN:PRIMARY);
-          levelTag.setGravity(Gravity.CENTER);
-          levelTag.setBackground(solidShape(SURFACE,9));
-          levelTag.setPadding(dp(8),dp(3),dp(8),dp(3));
-          LinearLayout.LayoutParams tagParams=new LinearLayout.LayoutParams(-2,-2);
-          tagParams.leftMargin=dp(6);
-          titleRow.addView(levelTag,tagParams);
-        }
-        card.addView(titleRow,new LinearLayout.LayoutParams(-1,-2));
-        if(!notice.body.isEmpty()){
-          TextView content=text(notice.body,14,notice.isUrgent()?ERROR_TOKEN:MUTED);
-          content.setLineSpacing(dp(3),1f);
-          LinearLayout.LayoutParams contentParams=new LinearLayout.LayoutParams(-1,-2);
-          contentParams.topMargin=dp(8);
-          card.addView(content,contentParams);
-        }
-        body.addView(card,aboutCardLp());
-      }
+      for(RemoteConfigClient.Notice notice:notices)body.addView(buildNoticeCard(notice),aboutCardLp());
     }
     // 打开即视为已读：用户进来看了就不该再亮红点。
+    // 必须放在建卡之后——卡上的未读圆点要反映"进来之前"的状态。
     noticeCenter().markAllRead(noticeSnapshot);
     refreshNoticeBell();
     ScrollView scroll=new ScrollView(this);
     scroll.setFillViewport(true);
     scroll.addView(body,new ScrollView.LayoutParams(-1,-2));
     root.addView(scroll,new LinearLayout.LayoutParams(-1,0,1));
+  }
+
+  /**
+   * 公告页的"从哪来回哪去"动作。
+   *
+   * 公告是**顶级页**（不占任何页面的"子页"位置），但用户从哪一页点进来、返回就该回哪一页——
+   * 而不是像别的目的地那样一律兜底回首页，更不是回设置。
+   */
+  Runnable noticeReturnAction(){
+    int kind=pageKind;
+    if(kind==3){
+      // 目录页：位置/滚动/已加载列表都在 FolderPageState 里，整体搬走再搬回来。
+      captureActiveFolderState();
+      final FolderPageState state=currentFolderState();
+      if(state!=null&&state.folder!=null){
+        final java.util.List<FolderPageState> trail=new ArrayList<>(folderTrail);
+        return ()->{folderTrail.clear();folderTrail.addAll(trail);restoreFolderPageState(state);};
+      }
+      return folderRootSources?this::restoreSourceListOrShow:this::navigateHome;
+    }
+    // 软件库列表：`primaryBase` 已经把列表快照 retain 下来了，优先回放快照
+    // （否则查询词/滚动位置/勾选会全丢——那就不是"回到原来那页"）。
+    if(kind==1)return this::restoreSourceListOrShow;
+    if(kind==2)return this::showDownloads;
+    if(kind==4)return this::showSettings;
+    if(kind==5)return this::showAiEmbedded;
+    if(kind==6)return this::showTools;
+    return this::navigateHome;
+  }
+
+  /** 回放软件库列表快照；快照没了才重建（顺序与 `navigateFolderBack` 一致）。 */
+  void restoreSourceListOrShow(){
+    if(!restoreSourceListPage())showSources();
+  }
+
+  /** 公告列表里的一张卡：未读圆点 + 标题 + 置顶/等级标签 + 发布时间 + 正文。 */
+  LinearLayout buildNoticeCard(RemoteConfigClient.Notice notice){
+    LinearLayout card=aboutCard();
+    LinearLayout titleRow=new LinearLayout(this);
+    titleRow.setGravity(Gravity.CENTER_VERTICAL);
+    // 未读圆点：进来就会全部标为已读，所以这里画的是"进来之前"的状态。
+    if(!noticeCenter().isRead(notice.id)){
+      View dot=new View(this);
+      GradientDrawable dotBg=new GradientDrawable();
+      dotBg.setShape(GradientDrawable.OVAL);
+      dotBg.setColor(PRIMARY);
+      dot.setBackground(dotBg);
+      LinearLayout.LayoutParams dotParams=new LinearLayout.LayoutParams(dp(6),dp(6));
+      dotParams.rightMargin=dp(8);
+      titleRow.addView(dot,dotParams);
+    }
+    TextView title=text(notice.title,16,TEXT,600);
+    titleRow.addView(title,new LinearLayout.LayoutParams(0,-2,1f));
+    if(notice.pinned){
+      TextView pin=text("置顶",11,PRIMARY,600);
+      pin.setGravity(Gravity.CENTER);
+      pin.setBackground(solidShape(SURFACE,9));
+      pin.setPadding(dp(8),dp(3),dp(8),dp(3));
+      titleRow.addView(pin,new LinearLayout.LayoutParams(-2,-2));
+    }
+    // 等级色（普通/重要/紧急）。**普通不挂标签**——每条都挂等于没有重点。
+    if(notice.isUrgent()||notice.isImportant()){
+      boolean urgent=notice.isUrgent();
+      TextView levelTag=text(urgent?"紧急":"重要",11,urgent?ERROR_TOKEN:PRIMARY,600);
+      levelTag.setGravity(Gravity.CENTER);
+      levelTag.setBackground(solidShape(SURFACE,9));
+      levelTag.setPadding(dp(8),dp(3),dp(8),dp(3));
+      LinearLayout.LayoutParams tagParams=new LinearLayout.LayoutParams(-2,-2);
+      tagParams.leftMargin=dp(6);
+      titleRow.addView(levelTag,tagParams);
+    }
+    card.addView(titleRow,new LinearLayout.LayoutParams(-1,-2));
+    String noticeDate=noticeDateText(notice);
+    if(!noticeDate.isEmpty()){
+      TextView date=text(noticeDate,12,MUTED);
+      LinearLayout.LayoutParams dateParams=new LinearLayout.LayoutParams(-1,-2);
+      dateParams.topMargin=dp(6);
+      card.addView(date,dateParams);
+    }
+    if(!notice.body.isEmpty()){
+      TextView content=text(notice.body,14,PremiumSurface.over(TEXT,BG,0.16f));
+      content.setLineSpacing(dp(3),1f);
+      LinearLayout.LayoutParams contentParams=new LinearLayout.LayoutParams(-1,-2);
+      contentParams.topMargin=dp(10);
+      card.addView(content,contentParams);
+    }
+    return card;
   }
 
   void showLanzouPlusUpdate(UpdateClient.UpdateInfo info){showUpdateOffer(UpdateOffer.fromGithub(info,BuildConfig.OFFICIAL_URL),false);}
@@ -1541,7 +1732,16 @@ android.graphics.Insets none=android.graphics.Insets.NONE;android.view.WindowIns
   LinearLayout.LayoutParams aboutCardLp(){LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2);lp.setMargins(0,dp(4),0,dp(10));return lp;}
   TextView aboutHeading(String s){TextView t=text(s,13,PRIMARY);t.setTypeface(AppFonts.bold(this));return t;}
   View aboutDivider(){View d=new View(this);d.setBackgroundColor(SET_STROKE2);LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,dp(1));lp.setMargins(0,dp(12),0,dp(12));d.setLayoutParams(lp);return d;}
-  LinearLayout aboutBackBar(String title){primaryHeader(title);ImageButton backBtn=iconButton(R.drawable.ic_back,"返回设置");backBtn.setOnClickListener(v->{pageDirection=-1;showSettings();});pageHeaderRow.addView(backBtn,0,new LinearLayout.LayoutParams(dp(44),dp(48)));LinearLayout body=new LinearLayout(this);body.setOrientation(LinearLayout.VERTICAL);return body;}
+  /** 设置体系下各子页的返回条（默认回设置页）。 */
+  LinearLayout aboutBackBar(String title){return aboutBackBar(title,this::showSettings);}
+
+  /**
+   * [DFW-72] 可指定返回动作的返回条。
+   *
+   * 公告页是顶级页，返回该回"进来之前那一页"、而不是设置页；a11y 文案也一并改成中性的「返回」，
+   * 否则公告页的返回按钮会被读屏念成"返回设置"。
+   */
+  LinearLayout aboutBackBar(String title,Runnable back){primaryHeader(title);ImageButton backBtn=iconButton(R.drawable.ic_back,"返回");backBtn.setOnClickListener(v->{pageDirection=-1;back.run();});pageHeaderRow.addView(backBtn,0,new LinearLayout.LayoutParams(dp(44),dp(48)));LinearLayout body=new LinearLayout(this);body.setOrientation(LinearLayout.VERTICAL);return body;}
   LinearLayout aboutPersonRow(int avatarRes,String name,String role,String desc){LinearLayout row=new LinearLayout(this);row.setOrientation(LinearLayout.HORIZONTAL);ImageView avatar=new ImageView(this);avatar.setImageResource(avatarRes);avatar.setScaleType(ImageView.ScaleType.CENTER_CROP);avatar.setClipToOutline(true);avatar.setOutlineProvider(new ViewOutlineProvider(){@Override public void getOutline(View view,Outline outline){outline.setOval(0,0,view.getWidth(),view.getHeight());}});LinearLayout.LayoutParams ap=new LinearLayout.LayoutParams(dp(46),dp(46));ap.setMargins(0,0,dp(12),0);row.addView(avatar,ap);LinearLayout copy=new LinearLayout(this);copy.setOrientation(LinearLayout.VERTICAL);LinearLayout titleLine=new LinearLayout(this);titleLine.setGravity(Gravity.CENTER_VERTICAL);TextView nameView=text(name,15,TEXT);nameView.setTypeface(AppFonts.bold(this));titleLine.addView(nameView,new LinearLayout.LayoutParams(-2,dp(24)));TextView roleView=text(role,11,PRIMARY);roleView.setPadding(dp(8),0,0,0);titleLine.addView(roleView,new LinearLayout.LayoutParams(-2,dp(24)));copy.addView(titleLine,new LinearLayout.LayoutParams(-1,dp(26)));TextView descView=text(desc,12,MUTED);descView.setLineSpacing(dp(2),1f);copy.addView(descView,new LinearLayout.LayoutParams(-1,-2));row.addView(copy,new LinearLayout.LayoutParams(0,-2,1));return row;}
   LinearLayout buildAckListBlock(String intro){LinearLayout block=new LinearLayout(this);block.setOrientation(LinearLayout.VERTICAL);if(intro!=null&&!intro.isEmpty()){TextView note=text(intro,12,MUTED);note.setLineSpacing(dp(2),1f);block.addView(note,new LinearLayout.LayoutParams(-1,-2));block.addView(aboutDivider());}boolean first=true;for(String[] item:ACK_ITEMS){if(!first)block.addView(aboutDivider());first=false;LinearLayout row=new LinearLayout(this);row.setOrientation(LinearLayout.VERTICAL);row.setClickable(true);row.setFocusable(true);row.setBackground(filterRipple(new ColorDrawable(Color.TRANSPARENT)));applePressScale(row);row.setContentDescription(item[0]+"，打开项目页");TextView nameView=text(item[0],14,TEXT);nameView.setTypeface(AppFonts.bold(this));TextView descView=text(item[1],11,MUTED);descView.setMaxLines(1);descView.setEllipsize(android.text.TextUtils.TruncateAt.END);row.addView(nameView,new LinearLayout.LayoutParams(-1,dp(24)));row.addView(descView,new LinearLayout.LayoutParams(-1,dp(20)));String url=item[2];row.setOnClickListener(v->openInBrowser(url,""));block.addView(row,new LinearLayout.LayoutParams(-1,-2));}return block;}
   void showAcknowledgementsPage(){primaryBase(3);pageKind=8;activeSource=null;clearFolderTrail();systemBackAction=this::showSettings;LinearLayout body=aboutBackBar("参考与致谢");LinearLayout card=aboutCard();card.addView(buildAckListBlock("东方无限参考/使用了以下开源项目与设计研究，感谢开源社区："),new LinearLayout.LayoutParams(-1,-2));body.addView(card,aboutCardLp());ScrollView scroll=new ScrollView(this);scroll.setFillViewport(true);scroll.addView(body,new ScrollView.LayoutParams(-1,-2));root.addView(scroll,new LinearLayout.LayoutParams(-1,0,1));}
@@ -1965,7 +2165,7 @@ content=new LinearLayout(this);content.setOrientation(LinearLayout.VERTICAL);pag
   void showSettings(){
     // [DFW-71] 必须在 primaryBase 拆掉旧视图树**之前**存位置，否则就读不到了。
     if(pageKind==4&&pageScroll!=null)settingsScrollY=pageScroll.getScrollY();
-    primaryBase(3);pageKind=4;settingsRefreshers.clear();settingsSearchSections.clear();activeSource=null;clearFolderTrail();systemBackAction=null;primaryHeader("设置");LinearLayout body=new LinearLayout(this);body.setOrientation(LinearLayout.VERTICAL);body.setPadding(0,dp(4),0,dp(18));/* v1.22.3 边距统一：左右 8dp→0，设置卡片与 header/首页同 16dp 基准（原 24dp 比首页多缩 8dp，造成"边距不齐像被挤住"观感） */LinearLayout.LayoutParams integrityPayLp=new LinearLayout.LayoutParams(-1,-2);integrityPayLp.bottomMargin=dp(10);body.addView(new IntegrityPayButton(this,ThemeEngine.active(this),getResources().getDisplayMetrics().density,Support.unlocked(this),motionEnabled(),this::openSupportActivity),integrityPayLp);applePressScale(integrityPayLp==null?null:(View)body.getChildAt(body.getChildCount()-1));/* v1.23 T5-S 四分区重排（v7 设计稿）：常用默认展开；性能模式收起（细项过渡态，三档芯片随后替换）；高级收起（网络兼容+ADB）；数据与关于收起 */addSettingsSection(body,settingsSection(R.drawable.ic_download,"常用","下载、搜索与列表浏览",true,buildDownloadPathPanel(),buildSearchModeRow(),buildRecursiveFoldersRow(),settingsSwitchRow(R.drawable.ic_expand,"浏览时自动加载更多",sessionAutoExpand,checked->{sessionAutoExpand=checked;persistSearchSettings();if(checked&&folderPullScroll!=null)folderPullScroll.post(this::maybeAutoExpand);}),buildAutoInstallDownloadsRow(),settingsSwitchRow(R.drawable.ic_home,"下载时推荐诚信付费",Support.askOnDownload(this),checked->{Support.setAskOnDownload(this,checked);})));addSettingsSection(body,settingsSection(R.drawable.ic_bolt,"性能模式","下载与动效的整体节奏",false,buildPerfTierCard(),buildSearchSettingsPanel(),buildDownloadSettingsPanel(),buildListDisplaySettings(),buildAutoExpandPageSettings(),buildIndexSliderSettings(),buildAdbInstallThreadSettings(),buildIndexProgressCard()));addSettingsSection(body,settingsSection(R.drawable.ic_sliders,"高级","网络、兼容与 ADB 安装",false,buildUaSettingsRow(),settingsSwitchRow(R.drawable.ic_open_with,"蓝奏链接直接解析打开",directLanzouListOpen,checked->{directLanzouListOpen=checked;persistSearchSettings();}),buildLanzouBaseOriginRow(),settingsSwitchRow(R.drawable.ic_refresh,"基础链接超时自动切换",sessionLanzouTimeoutFailover,checked->{sessionLanzouTimeoutFailover=checked;persistSearchSettings();}),settingsSwitchRow(R.drawable.ic_share,"网页外部打开",sessionOpenWebExternal,checked->{sessionOpenWebExternal=checked;persistSearchSettings();}),settingsSwitchRow(R.drawable.ic_file,"列表源展示链接",showSourceLinks,checked->{showSourceLinks=checked;persistSearchSettings();}),buildAdbPermissionCard()));addSettingsSection(body,settingsSection(R.drawable.ic_database,"数据与关于","下载显示与资源管理",false,settingsSwitchRow(R.drawable.ic_nav_grid,"批量下载逐项显示",sessionBatchDownloadSingleItem,checked->{sessionBatchDownloadSingleItem=checked;persistSearchSettings();if(pageKind==2)renderDownloads(downloadQuery);}),buildSourceSettingsPanel(),settingsAction(R.drawable.ic_notifications,"公告",v->showNoticeCenter(false)),settingsAction(R.drawable.ic_sources,"资源源管理",v->showSourcesFromSettings()),settingsAction(R.drawable.ic_refresh,"开源项目主页",v->openInBrowser(DFWX_REPOSITORY,""))));
+    primaryBase(3);pageKind=4;settingsRefreshers.clear();settingsSearchSections.clear();activeSource=null;clearFolderTrail();systemBackAction=null;primaryHeader("设置");LinearLayout body=new LinearLayout(this);body.setOrientation(LinearLayout.VERTICAL);body.setPadding(0,dp(4),0,dp(18));/* v1.22.3 边距统一：左右 8dp→0，设置卡片与 header/首页同 16dp 基准（原 24dp 比首页多缩 8dp，造成"边距不齐像被挤住"观感） */LinearLayout.LayoutParams integrityPayLp=new LinearLayout.LayoutParams(-1,-2);integrityPayLp.bottomMargin=dp(10);body.addView(new IntegrityPayButton(this,ThemeEngine.active(this),getResources().getDisplayMetrics().density,Support.unlocked(this),motionEnabled(),this::openSupportActivity),integrityPayLp);applePressScale(integrityPayLp==null?null:(View)body.getChildAt(body.getChildCount()-1));/* v1.23 T5-S 四分区重排（v7 设计稿）：常用默认展开；性能模式收起（细项过渡态，三档芯片随后替换）；高级收起（网络兼容+ADB）；数据与关于收起 */addSettingsSection(body,settingsSection(R.drawable.ic_download,"常用","下载、搜索与列表浏览",true,buildDownloadPathPanel(),buildSearchModeRow(),buildRecursiveFoldersRow(),settingsSwitchRow(R.drawable.ic_expand,"浏览时自动加载更多",sessionAutoExpand,checked->{sessionAutoExpand=checked;persistSearchSettings();if(checked&&folderPullScroll!=null)folderPullScroll.post(this::maybeAutoExpand);}),buildAutoInstallDownloadsRow(),settingsSwitchRow(R.drawable.ic_home,"下载时推荐诚信付费",Support.askOnDownload(this),checked->{Support.setAskOnDownload(this,checked);})));addSettingsSection(body,settingsSection(R.drawable.ic_bolt,"性能模式","下载与动效的整体节奏",false,buildPerfTierCard(),buildSearchSettingsPanel(),buildDownloadSettingsPanel(),buildListDisplaySettings(),buildAutoExpandPageSettings(),buildIndexSliderSettings(),buildAdbInstallThreadSettings(),buildIndexProgressCard()));addSettingsSection(body,settingsSection(R.drawable.ic_sliders,"高级","网络、兼容与 ADB 安装",false,buildUaSettingsRow(),settingsSwitchRow(R.drawable.ic_open_with,"蓝奏链接直接解析打开",directLanzouListOpen,checked->{directLanzouListOpen=checked;persistSearchSettings();}),buildLanzouBaseOriginRow(),settingsSwitchRow(R.drawable.ic_refresh,"基础链接超时自动切换",sessionLanzouTimeoutFailover,checked->{sessionLanzouTimeoutFailover=checked;persistSearchSettings();}),settingsSwitchRow(R.drawable.ic_share,"网页外部打开",sessionOpenWebExternal,checked->{sessionOpenWebExternal=checked;persistSearchSettings();}),settingsSwitchRow(R.drawable.ic_file,"列表源展示链接",showSourceLinks,checked->{showSourceLinks=checked;persistSearchSettings();}),buildAdbPermissionCard()));addSettingsSection(body,settingsSection(R.drawable.ic_database,"数据与关于","下载显示与资源管理",false,settingsSwitchRow(R.drawable.ic_nav_grid,"批量下载逐项显示",sessionBatchDownloadSingleItem,checked->{sessionBatchDownloadSingleItem=checked;persistSearchSettings();if(pageKind==2)renderDownloads(downloadQuery);}),buildSourceSettingsPanel(),settingsAction(R.drawable.ic_notifications,"公告",v->showNoticeCenter()),settingsAction(R.drawable.ic_sources,"资源源管理",v->showSourcesFromSettings()),settingsAction(R.drawable.ic_refresh,"开源项目主页",v->openInBrowser(DFWX_REPOSITORY,""))));
   // T5-S §8:底部关于区——崩溃日志/参考致谢/关于移出"数据与关于"单独收底,三行顺序按用户指定(崩溃日志→参考致谢→关于);诚信付费按钮保持在设置页顶部
   LinearLayout footer=new LinearLayout(this);footer.setOrientation(LinearLayout.VERTICAL);GradientDrawable footerBg=new GradientDrawable();footerBg.setColor(SET_LOW);footerBg.setCornerRadius(dp(20));footerBg.setStroke(dp(1),SET_STROKE);footer.setBackground(footerBg);footer.setClipToOutline(true);footer.setTag(true);
   LinearLayout footerContent=new LinearLayout(this);footerContent.setOrientation(LinearLayout.VERTICAL);footerContent.setPadding(dp(4),0,dp(4),dp(6));

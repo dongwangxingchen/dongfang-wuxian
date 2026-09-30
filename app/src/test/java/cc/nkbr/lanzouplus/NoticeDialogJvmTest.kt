@@ -76,12 +76,16 @@ class NoticeDialogJvmTest {
     fun dialogFill_isNeutral_notPurple() {
         // **上一版就是把品牌色当底色用**，整块发紫，用户反馈"廉价"。
         // 规范 §5：亮度阶梯的主体是"白"，品牌色 tint 只留给选中/强调态。
-        val fill = MainActivity.noticeDialogFill(Color.BLACK)
-        val spread = maxOf(Color.red(fill), Color.green(fill), Color.blue(fill)) -
-            minOf(Color.red(fill), Color.green(fill), Color.blue(fill))
-        assertTrue("公告弹窗底色必须是中性的（无色偏）；实测色偏=$spread（应 ≤4）", spread <= 4)
-        // 亮度要落在 §5 的 11–14% 档附近（白 12% ≈ 31/255）
-        assertTrue("底色亮度应在规范档位内，实测 R=${Color.red(fill)}", Color.red(fill) in 24..40)
+        // DFW-72 起底色由 GlassSurface 出（模糊开/关两套），这条守卫跟着搬过去，语义不变。
+        val glass = GlassSurface.windowFillColor(Color.BLACK, true)
+        val opaque = GlassSurface.windowFillColor(Color.BLACK, false)
+        for (fill in listOf(glass, opaque)) {
+            val spread = maxOf(Color.red(fill), Color.green(fill), Color.blue(fill)) -
+                minOf(Color.red(fill), Color.green(fill), Color.blue(fill))
+            assertTrue("公告弹窗底色必须是中性的（无色偏）；实测色偏=$spread（应 ≤4）", spread <= 4)
+        }
+        // 降级（无模糊）底色要落在 §5 的 11–14% 档附近（白 12% ≈ 31/255）
+        assertTrue("降级底色亮度应在规范档位内，实测 R=${Color.red(opaque)}", Color.red(opaque) in 24..40)
     }
 
     // ── ② 按钮：公告是单向通知，禁"取消" ────────────────────────────────
@@ -98,15 +102,17 @@ class NoticeDialogJvmTest {
     }
 
     @Test
-    fun dialog_hasAtMostTwoActionButtons() {
+    fun dialog_hasAtMostTwoActionButtons_andNoDuplicatedClose() {
         // 官方：Firebase Modal 2 个按钮、Banner 0 个。公告不需要第三个。
+        // DFW-72：旧版「关闭」+「知道了」两个按钮其实都只是关窗，摆两个是噪音、
+        // 还让人以为它们有区别——现在只有一条公告时只留「知道了」一个。
         val a = activity()
         a.showNoticeDialog(notice(), 0, null)
         shadowOf(Looper.getMainLooper()).idle()
         val labels = buttonsIn(rootOf(a)).map { it.text.toString() }.filter { it.isNotBlank() }
         assertTrue("公告弹窗最多两个动作：$labels", labels.size <= 2)
-        assertTrue("应有「关闭」：$labels", labels.contains("关闭"))
         assertTrue("应有「知道了」：$labels", labels.contains("知道了"))
+        assertFalse("语义重复的「关闭」不该再出现：$labels", labels.contains("关闭"))
     }
 
     @Test
@@ -145,7 +151,7 @@ class NoticeDialogJvmTest {
             if (v is ViewGroup) for (i in 0 until v.childCount) walk(v.getChildAt(i))
         }
         walk(rootOf(a))
-        assertEquals("标题必须限制 2 行（超长标题不能把弹窗撑爆）", 2, found!!.maxLines)
+        assertEquals("标题必须限制行数（超长标题不能把弹窗撑爆）", 3, found!!.maxLines)
     }
 
     @Test
