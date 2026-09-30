@@ -267,7 +267,10 @@ loadSearchSettings();applyUserAgentSettings();detectWeakDevice();installBackAnim
     if(storageAccessGranted())ensureCrashFolder();
     // DFW-7：冷启动 6 秒后静默查一次更新（错开启动高峰；24h 节流在 maybeCheckForUpdates 内）。
     // 自动检查"发现有更新"才弹窗，无更新/失败都不打扰——避免变成 T5-C 要清理的多余提示。
-    ui.postDelayed(this::maybeCheckForUpdates,6000);}
+    ui.postDelayed(this::maybeCheckForUpdates,6000);
+    // DFW-60：维护/停更拦截。放在启动后异步拉取，不阻塞首屏——拉不到就按正常放行（fail-open），
+    // 绝不因服务器故障把用户挡在门外。
+    ui.post(this::maybeEnterMaintenance);}
     @Override protected void onResume(){super.onResume();if(adbShell!=null)adbShell.refresh();
     // v1.22.11：用户可能在系统设置里自己开了"管理所有文件"（不走我们的引导），回来时补建一次崩溃目录。
     // 幂等且放后台线程，避免每次回前台都在主线程做文件 IO。
@@ -364,6 +367,9 @@ loadSearchSettings();applyUserAgentSettings();detectWeakDevice();installBackAnim
    *  根页面（主页无消费项）禁用 → 系统"回桌面"预览动画自动出现；有可返回项则启用 → 应用内预览。 */
   void syncBackCallbackEnabled(){if(backCallback==null)return;backCallback.setEnabled(canHandleBack());}
   boolean canHandleBack(){
+    // [DFW-60] 维护页拦截期间：返回键由我们消费掉，**不得**回主页、更不得退出应用。
+    // 用户明确要求"返回键无效"——维护页是纯粹通知，唯一的出路是那个隐藏后门。
+    if(maintenanceBlocking)return true;
     if(pageKind==5)return true; // AI 页：交 Compose dispatcher 或回主页
     if(sourceSelectionMode||downloadSelectionMode||selectionMode)return true;
     if(pageKind==6&&!toolBackStack.isEmpty())return true;
@@ -371,7 +377,7 @@ loadSearchSettings();applyUserAgentSettings();detectWeakDevice();installBackAnim
     if(primaryDestination>0)return true;
     return pageKind!=0;
   }
-  void performSystemBack(){if(SystemClock.uptimeMillis()-lastSystemBackAt<260)return;lastSystemBackAt=SystemClock.uptimeMillis();/* v1.10.0 内嵌 AI 页返回桥：有启用的 Compose 回调（抽屉/子路由）则交其消费，否则回主页 */if(pageKind==5){if(getOnBackPressedDispatcher().hasEnabledCallbacks()){getOnBackPressedDispatcher().onBackPressed();return;}navigateHome();return;}if(sourceSelectionMode){exitSourceSelection();return;}if(downloadSelectionMode){exitDownloadSelection();return;}if(selectionMode){exitSelection();return;}if(pageKind==6&&!toolBackStack.isEmpty()){pageDirection=-1;popToolBack();return;}if(systemBackAction!=null){Runnable action=systemBackAction;systemBackAction=null;pageDirection=-1;action.run();return;}/** F1:底栏页返回=回主页而非退出应用(预测式返回下"闪没/重置"的根因);主页再返回才退出 */if(primaryDestination>0){navigateHome();return;}finishAfterTransition();}
+  void performSystemBack(){if(maintenanceBlocking)return;if(SystemClock.uptimeMillis()-lastSystemBackAt<260)return;lastSystemBackAt=SystemClock.uptimeMillis();/* v1.10.0 内嵌 AI 页返回桥：有启用的 Compose 回调（抽屉/子路由）则交其消费，否则回主页 */if(pageKind==5){if(getOnBackPressedDispatcher().hasEnabledCallbacks()){getOnBackPressedDispatcher().onBackPressed();return;}navigateHome();return;}if(sourceSelectionMode){exitSourceSelection();return;}if(downloadSelectionMode){exitDownloadSelection();return;}if(selectionMode){exitSelection();return;}if(pageKind==6&&!toolBackStack.isEmpty()){pageDirection=-1;popToolBack();return;}if(systemBackAction!=null){Runnable action=systemBackAction;systemBackAction=null;pageDirection=-1;action.run();return;}/** F1:底栏页返回=回主页而非退出应用(预测式返回下"闪没/重置"的根因);主页再返回才退出 */if(primaryDestination>0){navigateHome();return;}finishAfterTransition();}
   /* v1.22.1 预返回：onBackPressed() 覆写已删除——覆写它会退回旧的按键式返回路径，系统预返回动画不会播。
      返回统一走 androidx OnBackPressedDispatcher（backCallback，见 installBackAnimationCallback）。 */
   String downloadHistoryJson(){return getSharedPreferences("download_history",MODE_PRIVATE).getString("items","[]");}
@@ -977,6 +983,116 @@ android.graphics.Insets none=android.graphics.Insets.NONE;android.view.WindowIns
     return updatePromptPolicy;
   }
   AlertDialog offerDialog;
+  /**
+   * [DFWX] DFW-60：维护 / 停更拦截页。
+   *
+   * 用户要求（原话）："只显示公告，直接没有按钮，而且点击空白处也不能关闭，就是纯粹的通知"、
+   * "维护时间用单独的 UI 界面显示…甚至我可以写上永久"。
+   *
+   * 三条必须同时成立：
+   *   ① 覆盖整屏、**无任何按钮**、点空白不关；
+   *   ② **返回键无效**（canHandleBack/performSystemBack 已拦）；
+   *   ③ 有个**不写在界面上的后门**：连点版本号 7 次可自救——否则后台误开就把用户和作者一起锁死。
+   * 判定与 fail-open 在 {@link MaintenanceGate}，这里只负责画与吞键。
+   */
+  MaintenanceGate maintenanceGate;
+  MaintenanceGate maintenanceGate(){
+    if(maintenanceGate==null)maintenanceGate=new MaintenanceGate();
+    return maintenanceGate;
+  }
+  boolean maintenanceBlocking;
+  View maintenanceOverlay;
+
+  /** 启动时静默拉一次后台配置，命中维护才铺拦截页（fail-open 在 MaintenanceGate 里）。 */
+  void maybeEnterMaintenance(){
+    io.execute(()->{
+      RemoteConfigClient.Snapshot snapshot=null;
+      try{snapshot=RemoteConfigClient.fetch();}catch(Exception ignored){/* 拉不到就按正常放行 */}
+      final RemoteConfigClient.Snapshot result=snapshot;
+      runOnUiThread(()->{
+        if(isFinishing()||isDestroyed())return;
+        MaintenanceGate.Screen screen=maintenanceGate().decide(result);
+        if(screen.block)showMaintenanceOverlay(screen);
+      });
+    });
+  }
+
+  void showMaintenanceOverlay(MaintenanceGate.Screen screen){
+    if(maintenanceOverlay!=null)return;
+    maintenanceBlocking=true;
+    // 让返回键由我们消费（canHandleBack 里已把 maintenanceBlocking 当作"可处理"）。
+    syncBackCallbackEnabled();
+
+    FrameLayout overlay=new FrameLayout(this);
+    overlay.setBackgroundColor(BG);
+    // 点空白处**不做任何事**——但必须可点，否则触摸会穿透到下面的界面。
+    overlay.setClickable(true);
+    overlay.setFocusable(true);
+    overlay.setContentDescription("维护通知");
+
+    LinearLayout column=new LinearLayout(this);
+    column.setOrientation(LinearLayout.VERTICAL);
+    column.setGravity(Gravity.CENTER);
+    column.setPadding(dp(28),dp(28),dp(28),dp(28));
+
+    TextView title=text(screen.title,21,TEXT,700);
+    title.setGravity(Gravity.CENTER);
+    column.addView(title,new LinearLayout.LayoutParams(-1,-2));
+
+    TextView body=text(screen.body,14,MUTED);
+    body.setGravity(Gravity.CENTER);
+    body.setLineSpacing(dp(4),1f);
+    LinearLayout.LayoutParams bodyParams=new LinearLayout.LayoutParams(-1,-2);
+    bodyParams.topMargin=dp(14);
+    column.addView(body,bodyParams);
+
+    // 「维护时间」独立区块：留空则整块不出现（用户要求）。原样透传用户填的自由文本（可写"永久"）。
+    if(!screen.untilText.isEmpty()){
+      LinearLayout untilBox=new LinearLayout(this);
+      untilBox.setOrientation(LinearLayout.VERTICAL);
+      untilBox.setGravity(Gravity.CENTER);
+      untilBox.setBackground(solidShape(SURFACE,16));
+      untilBox.setPadding(dp(18),dp(14),dp(18),dp(14));
+      TextView untilLabel=text("维护时间",11,MUTED);
+      untilLabel.setGravity(Gravity.CENTER);
+      untilBox.addView(untilLabel,new LinearLayout.LayoutParams(-1,-2));
+      TextView untilValue=text(screen.untilText,15,PRIMARY,500);
+      untilValue.setGravity(Gravity.CENTER);
+      LinearLayout.LayoutParams valueParams=new LinearLayout.LayoutParams(-1,-2);
+      valueParams.topMargin=dp(4);
+      untilBox.addView(untilValue,valueParams);
+      LinearLayout.LayoutParams boxParams=new LinearLayout.LayoutParams(-1,-2);
+      boxParams.topMargin=dp(22);
+      column.addView(untilBox,boxParams);
+    }
+
+    FrameLayout.LayoutParams columnParams=new FrameLayout.LayoutParams(-1,-2,Gravity.CENTER);
+    overlay.addView(column,columnParams);
+
+    // 隐藏后门：连点版本号 7 次放行。**界面上不写任何提示**——它是应急逃生口，不是给所有人用的功能。
+    TextView version=text(PRODUCT_NAME+" "+BuildConfig.VERSION_NAME,11,MUTED);
+    version.setGravity(Gravity.CENTER);
+    version.setPadding(dp(12),dp(10),dp(12),dp(10));
+    version.setOnClickListener(v->{
+      if(maintenanceGate().tapVersion())dismissMaintenanceOverlay();
+    });
+    FrameLayout.LayoutParams versionParams=new FrameLayout.LayoutParams(-2,-2,Gravity.BOTTOM|Gravity.CENTER_HORIZONTAL);
+    versionParams.bottomMargin=dp(28);
+    overlay.addView(version,versionParams);
+
+    maintenanceOverlay=overlay;
+    addContentView(overlay,new ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,ViewGroup.LayoutParams.MATCH_PARENT));
+  }
+
+  void dismissMaintenanceOverlay(){
+    maintenanceBlocking=false;
+    syncBackCallbackEnabled();
+    if(maintenanceOverlay!=null){
+      removeFromParent(maintenanceOverlay);
+      maintenanceOverlay=null;
+    }
+  }
+
   void showLanzouPlusUpdate(UpdateClient.UpdateInfo info){showUpdateOffer(UpdateOffer.fromGithub(info,BuildConfig.OFFICIAL_URL),false);}
   void startLanzouPlusUpdate(UpdateClient.UpdateInfo info){if(!ensureDirectStorageAuthorized(()->startLanzouPlusUpdate(info)))return;try{DownloadEntry entry=new DownloadEntry();entry.source=DOWNLOAD_SOURCE_UPDATE;entry.name="dongfang-wuxian-v"+info.version+".apk";entry.state=DOWNLOAD_RUNNING;entry.createdAt=entry.startedAt=System.currentTimeMillis();entry.totalBytes=entry.verifiedTotalBytes=info.size;entry.sourceSizeText=formatSize(info.size);entry.directUrl=info.primaryUrl();entry.resolvedAt=entry.createdAt;entry.autoInstall=true;entry.updateInfo=info;entry.target=createDownloadTarget(entry.name);entry.uriString=entry.target.toString();entry.parentUriString=currentDownloadParentReferenceUri().toString();downloadEntries.add(entry);persistDownloadHistory(entry);updateDownloadUi(entry);downloadLanzouPlusUpdate(info,entry,info.primaryUrl(),true);}catch(Exception error){showNotice("无法创建更新文件："+friendlyError(error),true);}}
   void downloadLanzouPlusUpdate(UpdateClient.UpdateInfo info,DownloadEntry entry,String url,boolean fallback){Uri destination;int generation;SegmentDownloader downloader;synchronized(entry){if(entry.stopRequested)return;destination=entry.target;entry.updateInfo=info;entry.directUrl=url;entry.state=DOWNLOAD_RUNNING;entry.error="";entry.startedAt=System.currentTimeMillis();entry.lastSpeedAt=entry.startedAt;entry.lastSpeedBytes=entry.downloadedBytes;generation=++entry.controlGeneration;downloader=new SegmentDownloader(this);entry.downloader=downloader;}updateDownloadUi(entry);downloader.startDirect(url,destination,new SegmentDownloader.Listener(){public void progress(long done,long total){synchronized(entry){if(entry.transferOwnedBy(generation,downloader)&&!entry.stopRequested)applyDownloadProgress(entry,done,total);}}public void completed(){synchronized(entry){if(entry.downloader!=downloader||generation!=entry.controlGeneration||entry.stopRequested||!entry.state.equals(DOWNLOAD_RUNNING))return;entry.downloader=null;entry.error="校验中";}updateDownloadUi(entry);io.execute(()->{try{verifyUpdateApk(destination,info);synchronized(entry){if(generation!=entry.controlGeneration||entry.stopRequested||!entry.state.equals(DOWNLOAD_RUNNING))return;entry.downloadedBytes=entry.totalBytes=entry.verifiedTotalBytes=info.size;entry.percent=100;entry.state=DOWNLOAD_COMPLETED;entry.error="";entry.completedAt=System.currentTimeMillis();}finishDownloadTarget(entry,true);updateDownloadUi(entry);runOnUiThread(()->{if(generation==entry.controlGeneration&&entry.state.equals(DOWNLOAD_COMPLETED))installEntry(entry);});}catch(Exception error){boolean failed;synchronized(entry){failed=generation==entry.controlGeneration&&!entry.stopRequested&&entry.state.equals(DOWNLOAD_RUNNING);if(failed){entry.state=DOWNLOAD_FAILED;entry.error="更新包校验未通过";entry.speedBps=0;entry.etaSeconds=-1;}}if(failed){updateDownloadUi(entry);showNotice("更新包校验未通过",true);}}});}public void paused(long done,long total){finishStoppedTransfer(entry,DOWNLOAD_PAUSED,done,total,generation,downloader);}public void cancelled(long done,long total){finishStoppedTransfer(entry,DOWNLOAD_CANCELLED,done,total,generation,downloader);}public void failed(String error){boolean useFallback;synchronized(entry){if(entry.downloader!=downloader)return;entry.downloader=null;if(generation!=entry.controlGeneration||entry.stopRequested)return;useFallback=fallback&&!info.fallbackUrl().isEmpty()&&!info.fallbackUrl().equals(url);if(useFallback){entry.state=DOWNLOAD_RESOLVING;entry.error="切换备用地址";}else{entry.state=DOWNLOAD_FAILED;entry.error=friendlyError(new IOException(error));entry.speedBps=0;entry.etaSeconds=-1;}}updateDownloadUi(entry);if(useFallback){synchronized(entry){if(generation!=entry.controlGeneration||entry.stopRequested||!entry.state.equals(DOWNLOAD_RESOLVING))return;downloadLanzouPlusUpdate(info,entry,info.fallbackUrl(),false);}}}});}
