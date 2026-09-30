@@ -1254,16 +1254,19 @@ android.graphics.Insets none=android.graphics.Insets.NONE;android.view.WindowIns
     panel.setClipToOutline(true);
 
     // ── 标题区（左右 24dp：AOSP dialog_padding_material / MDC top_padding）──
+    // 可关闭性：紧急公告不给关闭 X（否则"紧急"就成了摆设），其余给。触控区 44dp。
+    final boolean closable=!notice.isUrgent();
     LinearLayout titleRow=new LinearLayout(this);
     titleRow.setGravity(Gravity.CENTER_VERTICAL);
-    titleRow.setPadding(dp(24),dp(24),dp(16),0);
+    // 右侧：有 X 时留 16dp（X 自己占 44dp 触控区），**没有 X 时必须留满 24dp**——
+    // 否则标题的右边界比正文靠外，整块看着是偏的。
+    titleRow.setPadding(dp(24),dp(24),closable?dp(16):dp(24),0);
     TextView title=text(notice.title,20,TEXT,700);
     title.setMaxLines(3);
     title.setEllipsize(android.text.TextUtils.TruncateAt.END);
     title.setLineSpacing(dp(2),1f);
     titleRow.addView(title,new LinearLayout.LayoutParams(0,-2,1f));
-    // 关闭 X：紧急公告不给关闭（只留「知道了」），其余给。触控区 44dp。
-    if(!notice.isUrgent()){
+    if(closable){
       ImageButton close=iconButton(R.drawable.ic_close,"关闭公告");
       close.setColorFilter(MUTED);
       close.setOnClickListener(v->dismissNoticeDialog());
@@ -1317,6 +1320,10 @@ android.graphics.Insets none=android.graphics.Insets.NONE;android.view.WindowIns
       scroller.setMaxHeightPx(noticeBodyMaxHeight());
       scroller.setVerticalScrollBarEnabled(false);
       scroller.setClipToPadding(false);
+      // **左右各 24dp，和标题/日期/按钮用同一个内边距**。
+      // 用户 2026-10-01 真机反馈："文字左右两边都超出去了"——根因就是这个容器一个内边距都没设，
+      // 于是正文直接顶到面板圆角上、左边还压住了玻璃的高光描边。四个内容行必须共用一个左边距。
+      scroller.setPadding(dp(24),0,dp(24),0);
       scroller.addView(body,new ScrollView.LayoutParams(-1,-2));
       LinearLayout.LayoutParams bodyParams=new LinearLayout.LayoutParams(-1,-2);
       bodyParams.topMargin=dp(14);
