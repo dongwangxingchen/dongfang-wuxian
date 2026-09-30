@@ -225,4 +225,79 @@ class NoticeFlowJvmTest {
         assertTrue("弹窗高过屏幕 58% 就不像浮层、像整页了", cap <= screen * 0.58f + 1f)
         assertTrue(cap > 0)
     }
+
+    // ── ④ 边距对齐（用户 2026-10-01：「文字边距等间隔没整好，左右两边都超出去了」）──────
+
+    /** 弹窗面板 = 背景是玻璃 Drawable 的那个 LinearLayout。 */
+    private fun panelOf(a: MainActivity): ViewGroup {
+        val decor = a.noticeDialog!!.window!!.decorView
+        var found: ViewGroup? = null
+        fun walk(v: View) {
+            if (found != null) return
+            if (v is ViewGroup && v.background is GlassSurface.PanelDrawable) {
+                found = v
+                return
+            }
+            if (v is ViewGroup) for (i in 0 until v.childCount) walk(v.getChildAt(i))
+        }
+        walk(decor)
+        return found ?: error("找不到公告弹窗面板（背景不是 GlassSurface.PanelDrawable）")
+    }
+
+    @Test
+    fun everyContentRow_sharesTheSameLeftMargin() {
+        // 根因：正文容器一个内边距都没设（标题/日期是 24dp，正文是 0），于是正文左边压住圆角高光描边、
+        // 右边直接贴到面板边缘。四个内容行必须共用同一个左边距，否则整块看着就是歪的。
+        val a = activity()
+        a.showNoticeDialog(notice(), 0, null)
+        shadowOf(Looper.getMainLooper()).idle()
+        val panel = panelOf(a)
+        assertTrue("应有标题/元信息/正文/按钮多行，实测 ${panel.childCount} 行", panel.childCount >= 3)
+        for (i in 0 until panel.childCount) {
+            assertEquals(
+                "第 $i 行的左内边距必须和标题统一为 24dp",
+                a.dp(24), panel.getChildAt(i).paddingLeft,
+            )
+        }
+    }
+
+    @Test
+    fun bodyColumn_isInset24dpOnBothSides() {
+        val a = activity()
+        a.showNoticeDialog(notice(), 0, null)
+        shadowOf(Looper.getMainLooper()).idle()
+        val scroller = findCapScroll(a.noticeDialog!!.window!!.decorView)
+        assertNotNull("正文容器必须是 MaxHeightScrollView", scroller)
+        assertEquals("正文左边距必须与标题一致", a.dp(24), scroller!!.paddingLeft)
+        assertEquals("正文右边距——左右都超出去就是这里没设", a.dp(24), scroller.paddingRight)
+    }
+
+    @Test
+    fun bodyText_neverWiderThanTheContentColumn() {
+        val a = activity()
+        a.showNoticeDialog(notice(body = "很长很长的正文".repeat(30)), 0, null)
+        shadowOf(Looper.getMainLooper()).idle()
+        val panel = panelOf(a)
+        val panelWidth = a.dp(400)
+        panel.measure(
+            View.MeasureSpec.makeMeasureSpec(panelWidth, View.MeasureSpec.EXACTLY),
+            View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED),
+        )
+        val text = findCapScroll(a.noticeDialog!!.window!!.decorView)!!.getChildAt(0)
+        val column = panelWidth - a.dp(48)
+        assertTrue("正文文本宽度不能是 0", text.measuredWidth > 0)
+        assertTrue(
+            "正文文本宽度 ${text.measuredWidth} 超过了内容列 $column（面板宽 − 左右各 24dp）",
+            text.measuredWidth <= column,
+        )
+    }
+
+    @Test
+    fun titleRightPadding_isFull24dp_whenThereIsNoCloseButton() {
+        // 没有 X 的时候，标题右边界必须和正文/按钮对齐，否则整块看着偏。
+        val a = activity()
+        a.showNoticeDialog(notice(level = "urgent"), 0, null)
+        shadowOf(Looper.getMainLooper()).idle()
+        assertEquals("无关闭按钮时标题右侧要留满 24dp", a.dp(24), panelOf(a).getChildAt(0).paddingRight)
+    }
 }
