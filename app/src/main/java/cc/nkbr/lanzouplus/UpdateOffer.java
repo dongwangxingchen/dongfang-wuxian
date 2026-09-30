@@ -111,7 +111,7 @@ final class UpdateOffer {
     if (release == null) return null;
     long code = release.versionCode > 0 ? release.versionCode : codeFromName(release.versionName);
     return new UpdateOffer(
-        release.versionName, code, release.size, release.sha256, body,
+        release.versionName, code, release.size, normalizeDigest(release.sha256), body,
         release.apkUrl, "", githubPage, mirrorPage, UpdatePromptPolicy.Mode.parse(release.updateMode));
   }
 
@@ -119,9 +119,27 @@ final class UpdateOffer {
   static UpdateOffer fromGithub(UpdateClient.UpdateInfo info, String githubPage) {
     if (info == null) return null;
     return new UpdateOffer(
-        info.version, codeFromName(info.version), info.size, info.digest, info.body,
+        info.version, codeFromName(info.version), info.size, normalizeDigest(info.digest), info.body,
         info.primaryUrl(), info.fallbackUrl(), githubPage, "",
         UpdatePromptPolicy.Mode.SOFT);
+  }
+
+  /**
+   * 统一摘要格式为 `sha256:<64 hex>`。
+   *
+   * **这是两个来源的格式差异，不统一就会静默失效**：
+   * - 后台 `release.sha256` 存的是**裸 64 位 hex**（`RemoteConfigClient` 就是这么校验的）；
+   * - GitHub 的 `digest` 是**带 `sha256:` 前缀**的形式（`UpdateClient` 就是这么校验的）；
+   * - 而三重校验里的比对写的是 `("sha256:"+hex(...)).equals(info.digest)`。
+   *
+   * 不做归一的话，**自有服务器下到的包会 100% 校验失败**（"更新包摘要不一致"）——
+   * 下载看着成功、装永远装不上。这是"两个来源各自都对、拼起来错"的典型，必须有测试钉住。
+   */
+  static String normalizeDigest(String raw) {
+    if (raw == null) return "";
+    String value = raw.trim().toLowerCase(java.util.Locale.ROOT);
+    if (value.isEmpty()) return "";
+    return value.startsWith("sha256:") ? value : "sha256:" + value;
   }
 
   /**

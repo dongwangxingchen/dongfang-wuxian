@@ -181,4 +181,51 @@ class UpdateOfferJvmTest {
         val known = UpdateOffer("1.0.1", 10001L, 36_600_000L, validDigest, "", "http://a/b.apk", "", "", "", UpdatePromptPolicy.Mode.SOFT)
         assertTrue("已知大小要能读出来", known.sizeText().contains("MB"))
     }
+
+    // ── 摘要格式归一（两个来源格式不同，不统一就静默失效）────────────────
+
+    @Test
+    fun remoteOffer_plainHexDigest_isNormalizedToPrefixedForm() {
+        // **后台存的就是裸 64 位 hex**（RemoteConfigClient 的校验正则就是 [0-9a-fA-F]{64}），
+        // 而三重校验比对的是 "sha256:"+hex。不归一的话自有服务器下到的包 100% 校验失败——
+        // 下载看着成功、装永远装不上。这是"两个来源各自都对、拼起来错"的典型。
+        val hex = "c".repeat(64)
+        val offer = UpdateOffer.fromRemote(release(sha256 = hex), "", "", "")!!
+        assertEquals("后台裸 hex 必须补上 sha256: 前缀", "sha256:$hex", offer.digest)
+    }
+
+    @Test
+    fun githubOffer_prefixedDigest_isKeptAsIs() {
+        val hex = "d".repeat(64)
+        val info = UpdateClient.UpdateInfo(
+            "1.0.1", "notes", "https://github.com/x/y/releases/download/v1.0.1/dongfang-wuxian-v1.0.1.apk",
+            "", "sha256:$hex", 1000L, false,
+        )
+        val offer = UpdateOffer.fromGithub(info, "https://github.com/x/y")!!
+        assertEquals("GitHub 已带前缀，不得重复叠加", "sha256:$hex", offer.digest)
+    }
+
+    @Test
+    fun normalizeDigest_isIdempotent_andCaseInsensitive() {
+        val hex = "e".repeat(64)
+        assertEquals("sha256:$hex", UpdateOffer.normalizeDigest(hex))
+        assertEquals("sha256:$hex", UpdateOffer.normalizeDigest("sha256:$hex"))
+        assertEquals(
+            "重复归一不得叠加前缀",
+            "sha256:$hex",
+            UpdateOffer.normalizeDigest(UpdateOffer.normalizeDigest(hex)),
+        )
+        // 后台正则允许大写 A-F，归一必须统一成小写，否则校验比对会因大小写不等而失败
+        assertEquals("大写要归一成小写", "sha256:$hex", UpdateOffer.normalizeDigest("E".repeat(64)))
+        assertEquals("带前缀的大写也要归一", "sha256:$hex", UpdateOffer.normalizeDigest("SHA256:" + "E".repeat(64)))
+    }
+
+    @Test
+    fun normalizeDigest_emptyStaysEmpty_soInstallableStaysFalse() {
+        assertEquals("", UpdateOffer.normalizeDigest(""))
+        assertEquals("", UpdateOffer.normalizeDigest("   "))
+        assertEquals("", UpdateOffer.normalizeDigest(null))
+        // 空摘要绝不能变成 "sha256:"（那会让 installable() 误判为可安装）
+        assertFalse("空摘要归一后仍不可安装", UpdateOffer.fromRemote(release(sha256 = ""), "", "", "")!!.installable())
+    }
 }
