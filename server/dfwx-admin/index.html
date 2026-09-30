@@ -87,6 +87,12 @@ button:active{transform:scale(.975)}
 const API = "/pb/api/collections";
 const AUTH = "/pb/api/collections/_superusers/auth-with-password";
 let token = localStorage.getItem("dfwx_token") || "";
+/**
+ * 管理员身份与口令，**只放在内存里**（不写 localStorage）：
+ * 上传安装包走 nginx 的 basic auth，用的是同一套后台口令，省得再记一个。
+ * 刷新页面后会丢，届时上传会提示重新输入。
+ */
+let adminUser = "dongfang@dfwx.local", adminPass = "";
 let tab = "总控";
 let cache = { control:null, release:null, notice:[], changelog:[] };
 let pending = {};
@@ -147,6 +153,7 @@ function renderLogin(){
     b.disabled = true; b.innerHTML = '<span class="spin"></span> 登录中…';
     try {
       token = await auth(p, u);
+      adminUser = u; adminPass = p;   // 上传安装包时要复用这套凭据
       localStorage.setItem("dfwx_token", token);
       toast("登录成功", "ok");
       await boot();
@@ -158,6 +165,43 @@ function renderLogin(){
   $("#go").onclick = submit;
   $("#p").onkeydown = e => { if (e.key === "Enter") submit(); };
   $("#p").focus();
+}
+
+/* ---------- 安装包：本地算 sha256 与大小，并上传到服务器 ---------- */
+
+/** 把字节数说成人话（用户要的是"多少 MB"，不是一串数字）。 */
+function mbText(bytes){ return (bytes / 1048576).toFixed(2) + " MB"; }
+
+/** 浏览器端算 sha256。要求安全上下文（https 或 localhost），否则 WebCrypto 不可用。 */
+async function sha256Hex(file){
+  if (!(window.crypto && crypto.subtle && crypto.subtle.digest)) {
+    throw new Error("这个页面不是 https 打开的，浏览器不让算校验值——请改用 https://39.106.33.135/admin/");
+  }
+  const buf = await file.arrayBuffer();
+  const digest = await crypto.subtle.digest("SHA-256", buf);
+  return Array.from(new Uint8Array(digest)).map(b => b.toString(16).padStart(2, "0")).join("");
+}
+
+/** 从文件名里猜版本号：dongfang-wuxian-v1.0.0.apk → 1.0.0 */
+function versionFromName(name){
+  const m = /v?(\d+\.\d+\.\d+)/.exec(name || "");
+  return m ? m[1] : "";
+}
+
+/** 把安装包 PUT 到服务器（nginx dav + basic auth），成功后就落在 /apk/ 下。 */
+async function uploadApk(file, filename){
+  if (!adminPass) {
+    const p = prompt("上传需要后台密码（登录用的那个），只用于这一次上传：");
+    if (!p) throw new Error("已取消上传");
+    adminPass = p;
+  }
+  const r = await fetch("/admin/apk-upload/" + encodeURIComponent(filename), {
+    method: "PUT",
+    headers: { "Authorization": "Basic " + btoa(adminUser + ":" + adminPass) },
+    body: file
+  });
+  if (r.status === 401) { adminPass = ""; throw new Error("后台密码不对，请重试"); }
+  if (!r.ok) throw new Error("上传失败（" + r.status + "）");
 }
 
 /* ---------- 骨架 ---------- */
@@ -238,33 +282,76 @@ function renderControl(p){
 }
 
 /* ---------- 版本 ---------- */
+/** 待上传的安装包（选完文件后暂存，点保存时真正上传）。 */
+let pendingApk = null;
+/** 安装包对外地址的固定前缀：**故意用 http**——App 走的是明文下载，
+ *  改成 https 会因为那张证书不被设备信任而直接下载失败。 */
+const APK_ORIGIN = "http://39.106.33.135";
+
 function renderRelease(p){
   const r = cache.release || { versionName:"", versionCode:0, apkUrl:"", sha256:"", size:0, updateMode:"soft" };
+  pendingApk = null;
   p.innerHTML = `
   <div class="card">
-    <h2>当前版本</h2>
+    <h2>发新版</h2>
     <p class="hint">用户打开软件时会比对这里的版本号，低于它就会提示更新</p>
-    <label for="vn">版本号（例如 1.22.20）</label>
-    <input id="vn" type="text" placeholder="1.22.20" value="${esc(r.versionName)}">
-    <label for="um">更新方式</label>
+
+    <label for="apk">① 选择安装包（.apk）</label>
+    <input id="apk" type="file" accept=".apk,application/vnd.android.package-archive">
+    <div class="note" id="apkInfo">选好文件后，<b>大小与校验值会自动算好</b>，点保存时顺带传上服务器——不用手填。</div>
+
+    <label for="vn">② 版本号</label>
+    <input id="vn" type="text" placeholder="1.0.0" value="${esc(r.versionName)}">
+
+    <label for="um">③ 更新方式</label>
     <select id="um">
       <option value="soft"${r.updateMode==="soft"?" selected":""}>软更新 —— 用户可以关闭、可以不再提示</option>
-      <option value="force"${r.updateMode==="force"?" selected":""}>强制更新 —— 必须更新才能用（文字自己写）</option>
+      <option value="force"${r.updateMode==="force"?" selected":""}>强制更新 —— 必须更新才能用</option>
       <option value="off"${r.updateMode==="off"?" selected":""}>不提示 —— 静默发布，不弹任何窗口</option>
     </select>
-    <label for="au">安装包下载地址</label>
-    <input id="au" type="text" placeholder="http://39.106.33.135/apk/dongfang-wuxian-v1.22.20.apk" value="${esc(r.apkUrl)}">
-    <label for="sh">安装包校验值（sha256，64 位）</label>
-    <input id="sh" type="text" placeholder="用于确认下载的包没被篡改" value="${esc(r.sha256)}">
-    <label for="sz">安装包大小（字节）</label>
-    <input id="sz" type="number" placeholder="36633009" value="${r.size||""}">
-    <div class="note">发新版时，通常由程序自动填好这里，你一般不用手改。</div>
+
+    <div class="note">下面三项在选完安装包后自动带出，一般不用改。</div>
+    <label>安装包大小</label>
+    <input id="szText" type="text" readonly value="${r.size ? mbText(r.size) : "（选文件后自动算出）"}">
+    <label for="sh">校验值（sha256）</label>
+    <input id="sh" type="text" value="${esc(r.sha256)}">
+    <label for="au">下载地址</label>
+    <input id="au" type="text" value="${esc(r.apkUrl)}">
+    <input id="sz" type="hidden" value="${r.size||""}">
+
     <div style="height:14px"></div>
-    <button class="btn-main" id="save">保存</button>
+    <button class="btn-main" id="save">保存并发布</button>
   </div>`;
-  $("#save").onclick = async () => {
-    const b = $("#save"); b.disabled = true; b.innerHTML = '<span class="spin"></span> 保存中…';
+
+  $("#apk").onchange = async e => {
+    const f = e.target.files && e.target.files[0];
+    if (!f) return;
+    const info = $("#apkInfo");
     try {
+      info.textContent = "正在计算校验值…（" + mbText(f.size) + "）";
+      const hex = await sha256Hex(f);
+      pendingApk = { file: f, hex: hex, size: f.size, name: f.name };
+      $("#sh").value = hex;
+      $("#sz").value = f.size;
+      $("#szText").value = mbText(f.size);
+      const v = versionFromName(f.name);
+      if (v) $("#vn").value = v;              // 文件名里通常就带版本号
+      $("#au").value = APK_ORIGIN + "/apk/" + f.name;
+      info.innerHTML = "✅ 已就绪：<b>" + esc(f.name) + "</b> · " + mbText(f.size)
+        + " · 点「保存并发布」会上传并生效";
+    } catch(err){
+      pendingApk = null;
+      info.textContent = "❌ " + err.message;
+    }
+  };
+
+  $("#save").onclick = async () => {
+    const b = $("#save"); b.disabled = true; b.innerHTML = '<span class="spin"></span> 处理中…';
+    try {
+      if (pendingApk) {                       // 先传包，再写记录——顺序反了会出现"记录指向不存在的文件"
+        b.innerHTML = '<span class="spin"></span> 上传安装包…';
+        await uploadApk(pendingApk.file, pendingApk.name);
+      }
       const body = {
         versionName: $("#vn").value.trim(),
         versionCode: cache.release ? cache.release.versionCode : 0,
@@ -274,13 +361,14 @@ function renderRelease(p){
         size: Number($("#sz").value || 0)
       };
       if (!body.versionName) throw new Error("请填写版本号");
-      if (!/^[0-9a-f]{64}$/.test(body.sha256)) throw new Error("校验值必须是 64 位十六进制");
-      if (!(body.size > 0)) throw new Error("请填写正确的安装包大小");
+      if (!/^[0-9a-f]{64}$/.test(body.sha256)) throw new Error("校验值必须是 64 位十六进制（选一个安装包就会自动算好）");
+      if (!(body.size > 0)) throw new Error("请选择安装包，大小会自动算出来");
       await upsert("release", cache.release && cache.release.id, body);
-      toast("已保存，用户下次打开就会看到", "ok");
+      toast("已发布，用户下次打开就会看到", "ok");
+      pendingApk = null;
       await refresh();
     } catch(e){ toast(e.message, "err"); }
-    b.disabled = false; b.textContent = "保存";
+    b.disabled = false; b.textContent = "保存并发布";
   };
 }
 
