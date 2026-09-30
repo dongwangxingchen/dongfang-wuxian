@@ -69,7 +69,7 @@ class UpdateDialogJvmTest {
         return a
     }
 
-    private fun sheetOf(a: MainActivity): TopSheet {
+    private fun sheetOf(a: MainActivity): SlideSheet {
         val sheet = a.offerSheet
         assertNotNull("更新面板必须被记录（否则测试与后续关闭逻辑都摸不到它）", sheet)
         return sheet!!
@@ -304,7 +304,8 @@ class UpdateDialogJvmTest {
     }
 
     @Test
-    fun sheet_isAttachedToWindow_andSitsAtTheTop() {
+    fun sheet_isAttachedToWindow_andSitsAtTheBottom() {
+        // 用户要求"从底部往上升"，所以面板必须贴屏幕底。
         val a = activity()
         a.showUpdateOffer(offer(), false)
         shadowOf(Looper.getMainLooper()).idle()
@@ -312,8 +313,8 @@ class UpdateDialogJvmTest {
         assertNotNull("面板必须真的挂到界面上", panel.parent)
         val params = panel.layoutParams
         assertTrue(
-            "面板必须挂在顶部（从上面滑下来）",
-            params is FrameLayout.LayoutParams && params.gravity == Gravity.TOP,
+            "面板必须贴在底部（从下面升上来）",
+            params is FrameLayout.LayoutParams && params.gravity == Gravity.BOTTOM,
         )
     }
 }

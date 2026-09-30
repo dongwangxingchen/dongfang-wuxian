@@ -802,8 +802,8 @@ android.graphics.Insets none=android.graphics.Insets.NONE;android.view.WindowIns
   void rememberAutoUpdateCheck(long at){updateThrottle().remember(at);}
   /** 手动入口：显示当前版本 + 立即检查；不受 24h 节流限制。 */
   void manualCheckForUpdates(){checkForUpdates(true);}
-  void checkForUpdates(boolean manual){if(manual)manualUpdateFeedbackRequested.set(true);if(!updateCheckRunning.compareAndSet(false,true)){if(manual)showNotice("正在检查更新…",false);return;}if(manual)showNotice("正在检查更新…",false);checkLanzouPlusUpdate(manual);}
-  void finishUpdateCheck(boolean manual,Runnable success,Exception error){runOnUiThread(()->{boolean report=manualUpdateFeedbackRequested.getAndSet(false)||manual;if(ownsStartupUpdateCheck)rememberAutoUpdateCheck(System.currentTimeMillis());ownsStartupUpdateCheck=false;updateCheckRunning.set(false);if(isFinishing()||isDestroyed())return;if(error!=null){if(report)showNotice("检查更新失败："+friendlyError(error),true);return;}if(success!=null)success.run();else if(report)showNotice(PRODUCT_NAME+" 已是最新版本（"+BuildConfig.VERSION_NAME+"）",false);});}
+  void checkForUpdates(boolean manual){if(manual)manualUpdateFeedbackRequested.set(true);if(!updateCheckRunning.compareAndSet(false,true)){if(manual)showUpdateNotice("正在检查更新…",false);return;}if(manual)showUpdateNotice("正在检查更新…",false);checkLanzouPlusUpdate(manual);}
+  void finishUpdateCheck(boolean manual,Runnable success,Exception error){runOnUiThread(()->{boolean report=manualUpdateFeedbackRequested.getAndSet(false)||manual;if(ownsStartupUpdateCheck)rememberAutoUpdateCheck(System.currentTimeMillis());ownsStartupUpdateCheck=false;updateCheckRunning.set(false);if(isFinishing()||isDestroyed())return;if(error!=null){if(report)showUpdateNotice("检查更新失败："+friendlyError(error),true);return;}if(success!=null)success.run();else if(report)showUpdateNotice(PRODUCT_NAME+" 已是最新版本（"+BuildConfig.VERSION_NAME+"）",false);});}
   /**
    * [DFWX] DFW-59：更新检查改为**自有服务器优先、GitHub 兜底**。
    *
@@ -881,13 +881,13 @@ android.graphics.Insets none=android.graphics.Insets.NONE;android.view.WindowIns
     // 用户主动点「检查更新」时无视历史上的「不再显示」——否则手动入口回一句"已是最新"是骗人的。
     if(manual)policy.clearDismissed();
     if(!policy.shouldPrompt(offer.mode,offer.versionCode,BuildConfig.VERSION_CODE))return;
-    if(!offer.hasAnyDownload()){showNotice("发现新版本 "+offer.versionName+"，但下载地址还没准备好",true);return;}
+    if(!offer.hasAnyDownload()){showUpdateNotice("发现新版本 "+offer.versionName+"，但下载地址还没准备好",true);return;}
     UpdatePromptPolicy.Buttons buttons=UpdatePromptPolicy.buttonsFor(offer.mode);
 
     LinearLayout panel=new LinearLayout(this);
     panel.setOrientation(LinearLayout.VERTICAL);
-    // 顶部面板只有**下方**两角是圆的（上面贴着屏幕边），用圆角矩形会露出上方缝隙。
-    panel.setBackground(topSheetShape());
+    // 底部面板只有**上方**两角是圆的（下边贴着屏幕底），用四角圆会露出下方缝隙。
+    panel.setBackground(bottomSheetShape());
     panel.setClipToOutline(true);
     panel.setPadding(dp(22),dp(10),dp(22),dp(14));
     panel.setElevation(dp(12));
@@ -951,10 +951,10 @@ android.graphics.Insets none=android.graphics.Insets.NONE;android.view.WindowIns
       panel.addView(weakRow,new LinearLayout.LayoutParams(-1,dp(46)));
     }
 
-    // 顶部面板：从上方滑入，可上滑/左右滑关闭（用户要求）。
+    // 从**底部**升起（用户要求），可下滑/左右滑关闭。
     // **强制更新模式下三个方向与返回键全部关闭**——"不能关"必须是硬的，否则强制就是摆设。
-    offerSheet=TopSheet.create(this,sheetHost(),panel,()->{offerSheet=null;},motionEnabled())
-      .swipeUp(buttons.cancel)
+    offerSheet=SlideSheet.create(this,sheetHost(),panel,()->{offerSheet=null;},motionEnabled(),SlideSheet.Edge.BOTTOM)
+      .swipeAway(buttons.cancel)
       .swipeHorizontal(buttons.cancel)
       .dismissOnScrimTap(buttons.cancel)
       .dismissOnBack(buttons.cancel);
@@ -967,12 +967,15 @@ android.graphics.Insets none=android.graphics.Insets.NONE;android.view.WindowIns
     return content instanceof ViewGroup?(ViewGroup)content:root;
   }
 
-  /** 顶部面板背景：只有下方两角圆角（上边贴屏幕边，四角圆会露出缝隙）。 */
-  GradientDrawable topSheetShape(){
+  /**
+   * 底部面板背景：只有**上方**两角是圆的（下边贴着屏幕底，四角圆会露出缝隙）。
+   * 圆角顺序 = 左上、右上、右下、左下。
+   */
+  GradientDrawable bottomSheetShape(){
     GradientDrawable g=new GradientDrawable();
     g.setColor(SURFACE);
     float r=dp(26);
-    g.setCornerRadii(new float[]{0,0,0,0,r,r,r,r});
+    g.setCornerRadii(new float[]{r,r,r,r,0,0,0,0});
     g.setStroke(dp(1),BORDER);
     return g;
   }
@@ -1007,7 +1010,7 @@ android.graphics.Insets none=android.graphics.Insets.NONE;android.view.WindowIns
   /** 「其他下载方式」第二层：GitHub 页（标注需科学上网）+ 后台可配的第三方页。 */
   void showAlternativeDownloads(UpdateOffer offer){
     final List<UpdateOffer.Alt> alternates=offer.alternates();
-    if(alternates.isEmpty()){showNotice("暂时没有其他下载方式",true);return;}
+    if(alternates.isEmpty()){showUpdateNotice("暂时没有其他下载方式",true);return;}
     String[] labels=new String[alternates.size()];
     for(int i=0;i<alternates.size();i++)labels[i]=alternates.get(i).label;
     AlertDialog dialog=new AlertDialog.Builder(this)
@@ -1031,8 +1034,12 @@ android.graphics.Insets none=android.graphics.Insets.NONE;android.view.WindowIns
     if(updatePromptPolicy==null)updatePromptPolicy=UpdatePromptPolicy.forContext(this);
     return updatePromptPolicy;
   }
-  /** 更新提示的顶部面板（DFW-65 从 AlertDialog 改为 TopSheet：从上方滑入、可上滑/左右滑关闭）。 */
-  TopSheet offerSheet;
+  /**
+   * 更新提示面板。
+   * DFW-59 是居中 AlertDialog；DFW-65 曾误改成顶部面板；DFW-66 按用户要求改为
+   * **从底部升起**（用户原话："a 从底部往上升丝滑动画"）。
+   */
+  SlideSheet offerSheet;
   /**
    * [DFWX] DFW-60：维护 / 停更拦截页。
    *
@@ -2754,6 +2761,63 @@ void showCustomLanzouBaseOriginDialog(){EditText input=sourceInput("输入 oreoj
   long downloadUiIntervalMs(){int active=0;for(DownloadEntry entry:downloadEntries)if(isDownloadActive(entry))active++;return active>=64?500L:active>=24?250L:DOWNLOAD_UI_INTERVAL_MS;}
   void drainDownloadUi(){if(isFinishing()||isDestroyed())return;// DFWX-STAB-001：onDestroy close 链期间组件回调排入的晚到 UI 任务一律丢弃
     List<DownloadEntry> changed;synchronized(dirtyDownloadUi){changed=new ArrayList<>(dirtyDownloadUi);dirtyDownloadUi.clear();downloadUiFramePosted=false;}refreshDownloadGlobalControl();boolean rebuild=false,toastStructureChanged=false;List<DownloadEntry> toastContentChanged=new ArrayList<>();for(DownloadEntry entry:changed){boolean stateChanged=!entry.state.equals(entry.uiState);entry.uiState=entry.state;boolean terminal=entry.state.equals(DOWNLOAD_COMPLETED)||entry.state.equals(DOWNLOAD_FAILED)||entry.state.equals(DOWNLOAD_CANCELLED),parsing=entry.state.equals(DOWNLOAD_RESOLVING);if(downloadsPage){if(!entry.batchId.isEmpty()){if(stateChanged)rebuild=true;else updateBatchDownloadRow(entry.batchId);}else{boolean shown=downloadLabels.containsKey(entry),matches=downloadMatchesCurrentView(entry);if(shown!=matches)rebuild=true;else if(shown){TextView label=downloadLabels.get(entry);if(label!=null&&label.getParent()!=null)label.setText(downloadMetrics(entry));ProgressBar bar=downloadBars.get(entry);if(bar!=null&&bar.getParent()!=null){bar.setIndeterminate(parsing);if(!parsing){bar.setIndeterminate(false);bar.setProgress(entry.percent);}}if(stateChanged){LinearLayout actions=downloadActions.get(entry);if(actions!=null&&actions.getParent()!=null)bindDownloadActions(entry,actions);View row=downloadRows.get(entry);if(row!=null&&row.getParent()!=null)bindDownloadRowDescription(entry,row);}}}}boolean show=!parsing||!entry.suppressParseToast;if(show&&!entry.toastDismissed){if(downloadToastEntries.add(entry))toastStructureChanged=true;toastContentChanged.add(entry);if(terminal&&!entry.dismissScheduled){entry.dismissScheduled=true;int generation=entry.controlGeneration;ui.postDelayed(()->{if(generation!=entry.controlGeneration||!entry.dismissScheduled)return;entry.toastDismissed=true;downloadToastEntries.remove(entry);detachDownloadToast(entry);syncDownloadToastPresentation();},entry.state.equals(DOWNLOAD_COMPLETED)?5000:3200);}}}if(rebuild)renderDownloads(downloadQuery);if(toastStructureChanged)syncDownloadToastPresentation();else if(mergedDownloadToast!=null)updateMergedDownloadToast(visibleDownloadToastEntries());else for(DownloadEntry entry:toastContentChanged){LinearLayout panel=taskToasts.get(entry);if(panel!=null&&panel.getParent()==toastLayer)updateDownloadToast(entry,panel);else if(downloadToastEntries.contains(entry)){syncDownloadToastPresentation();break;}}}
+  /**
+   * [DFWX] DFW-66：**更新链路专用的顶部通知条**（用户要求"像手机收到的消息一样从顶部滑下来"）。
+   *
+   * 与 `showNotice` 的关系：`showNotice` 是**全站 227 处共用的旧底座**（飘在顶部的小黑胶囊，用户嫌丑）。
+   * 按用户 2026-09-30 的要求，**先只把"更新"这条链路换掉做测试**，
+   * 验证满意后再决定要不要全站推广——所以这里是**新增**一条路径，不是直接改底座。
+   */
+  NoticeBanner updateNoticeBanner;
+
+  void showUpdateNotice(String message,boolean longLived){
+    final String msg=(message==null||message.trim().isEmpty())?"操作未完成":message;
+    runOnUiThread(()->{
+      // 同一时刻只留一条：连点「检查更新」时旧条先撤，避免通知叠罗汉。
+      if(updateNoticeBanner!=null){updateNoticeBanner.dismiss();updateNoticeBanner=null;}
+      LinearLayout card=new LinearLayout(this);
+      card.setOrientation(LinearLayout.HORIZONTAL);
+      card.setGravity(Gravity.CENTER_VERTICAL);
+      card.setBackground(solidShape(SURFACE,18));
+      card.setElevation(dp(10));
+      card.setPadding(dp(14),dp(12),dp(14),dp(12));
+      ImageView icon=new ImageView(this);
+      icon.setImageResource(R.drawable.ic_refresh);
+      icon.setColorFilter(PRIMARY);
+      icon.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+      card.addView(icon,new LinearLayout.LayoutParams(dp(20),dp(20)));
+      TextView label=text(msg,14,TEXT);
+      // 文字多寡都要适配：容器 wrap_content 自动长高，正文最多 4 行、超出省略号。
+      // 内边距**不随行数变**，否则一行和四行看着会像两个不同的组件。
+      label.setMaxLines(NoticeBanner.maxLines());
+      label.setEllipsize(android.text.TextUtils.TruncateAt.END);
+      label.setLineSpacing(dp(2),1f);
+      LinearLayout.LayoutParams labelParams=new LinearLayout.LayoutParams(0,-2,1);
+      labelParams.leftMargin=dp(10);
+      card.addView(label,labelParams);
+      FrameLayout.LayoutParams cardParams=new FrameLayout.LayoutParams(-1,-2);
+      cardParams.leftMargin=dp(12);
+      cardParams.rightMargin=dp(12);
+      card.setLayoutParams(cardParams);
+      updateNoticeBanner=NoticeBanner.create(this,sheetHost(),card,()->{updateNoticeBanner=null;},
+          motionEnabled(),statusBarInset()+dp(8),longLived?5000:2500);
+      updateNoticeBanner.show();
+    });
+  }
+
+  /** 状态栏高度：通知条要落在它下面，否则会被状态栏压住半截。 */
+  int statusBarInset(){
+    if(Build.VERSION.SDK_INT>=30){
+      android.view.WindowInsets insets=getWindow()==null?null:getWindow().getDecorView().getRootWindowInsets();
+      if(insets!=null){
+        int top=insets.getInsets(android.view.WindowInsets.Type.statusBars()).top;
+        if(top>0)return top;
+      }
+    }
+    int id=getResources().getIdentifier("status_bar_height","dimen","android");
+    return id>0?getResources().getDimensionPixelSize(id):dp(24);
+  }
+
   public void showNotice(String message,boolean longLived){final String msg=(message==null||message.trim().isEmpty())?"操作未完成":message;// v1.5.1：空文字通知只剩边框的兜底
   runOnUiThread(()->{TextView notice=text(msg,12,TEXT);notice.setPadding(dp(4),0,dp(4),0);LinearLayout holder=toastPanel();holder.addView(notice,new LinearLayout.LayoutParams(-1,-1));addToastPanel(holder,48);notice.postDelayed(()->{if(holder.getParent()==toastLayer)dismissPanel(holder,null);},longLived?5000:2500);});}
   void postFolderIconPrefetch(List<Models.Item> items,int start,int limit){if(start>=items.size()||limit<=0)return;int session=navigationSession;List<Models.Item> snapshot=new ArrayList<>(items);ui.postDelayed(()->{if(session!=navigationSession||pageKind!=3)return;for(int i=start;i<Math.min(start+limit,snapshot.size());i++)requestImage(snapshot.get(i).iconUrl,null);},180);}
