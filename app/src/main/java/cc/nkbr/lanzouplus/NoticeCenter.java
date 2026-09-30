@@ -107,9 +107,16 @@ final class NoticeCenter {
    * 只在**真的删掉了东西**时才写盘（否则每次算未读都写盘是浪费）。
    */
   private Set<String> prunedReadIds(RemoteConfigClient.Snapshot snapshot) {
+    Set<String> read = store.readIds();
+    // **拿不到后台数据时绝不能清理**：`snapshot == null` 或 `reachable == false` 表示
+    // "还不知道后台有哪些公告"，而不是"公告都被删了"。旧实现把这两件事当成同一件，
+    // 于是这条链路会**每次启动都把已读集合清空并写盘**：
+    //   showHomeLanding() → refreshNoticeBell() → unreadCount(null) → 这里 → 清空
+    // 等公告拉回来时它又变成"未读" → 又弹一次。用户 2026-10-01 反馈的
+    // "发布后只弹一次你没做"就是它——不是没写模式，是已读状态每次开机都被抹掉。
+    if (snapshot == null || !snapshot.reachable) return read;
     Set<String> alive = new LinkedHashSet<>();
     for (RemoteConfigClient.Notice notice : visible(snapshot)) alive.add(notice.id);
-    Set<String> read = store.readIds();
     if (read.retainAll(alive)) store.setReadIds(read);
     return read;
   }

@@ -88,32 +88,102 @@ class SettingsBackNavigationJvmTest {
 
     // ── 缺陷 A：滚动位置 ──────────────────────────────────────────────────
 
-    @Test
-    fun settingsScrollPosition_survivesSubPageReturn() {
-        val a = activity()
+    /** 滚到"内容可滚范围内"的偏移并返回它（直接写死大数值会被 ScrollView 裁到上限，本测试第一版就踩了）。 */
+    private fun scrollSettingsToTarget(a: MainActivity): Int {
         val scroll = layoutSettings(a)
         assertTrue("设置内容应高于一屏，否则滚动位置无从谈起", scroll.getChildAt(0).height > 2400)
-
-        // 用"内容可滚范围内"的偏移：设置页默认收起多个分区，内容只比一屏高一点，
-        // 直接写 420 会被 ScrollView 裁到上限（本测试第一版就踩了）。
         val maxScroll = (scroll.getChildAt(0).height - scroll.height).coerceAtLeast(1)
         val target = minOf(120, maxScroll)
         scroll.scrollTo(0, target)
         assertEquals("前置条件：确实滚到了 $target（可滚上限 $maxScroll）", target, scroll.scrollY)
+        return target
+    }
 
-        // 进子页再返回（用户报的路径）。
-        // 注意：位置是在**再次进入 showSettings() 时**才被读走的（必须在拆旧视图树之前），
-        // 所以只能做端到端断言，不能在这之前去看 settingsScrollY。
-        a.showSettings()
-        shadowOf(Looper.getMainLooper()).idle()
-
+    private fun reopenedSettingsScroll(a: MainActivity): ScrollView {
         val reopened = findScrollWithDescription(a.root, "设置")!!
         reopened.measure(
             View.MeasureSpec.makeMeasureSpec(1080, View.MeasureSpec.EXACTLY),
             View.MeasureSpec.makeMeasureSpec(2400, View.MeasureSpec.EXACTLY),
         )
         reopened.layout(0, 0, 1080, 2400)
-        assertEquals("返回设置页必须停在离开前的位置，不能回顶", target, reopened.scrollY)
+        return reopened
+    }
+
+    private fun pressBack(a: MainActivity) {
+        // 绕开 260ms 节流，否则会因"太频繁"被直接丢弃 → 断言因为错误的原因变绿
+        a.lastSystemBackAt = -10_000L
+        a.performSystemBack()
+        shadowOf(Looper.getMainLooper()).idle()
+    }
+
+    /**
+     * **真链路**：进设置子页 → 按返回 → 必须停在离开前的位置。
+     *
+     * ⚠️ 这条用例以前是**假绿**：它直接调 `a.showSettings()` 模拟"返回"，
+     * 而那时 `pageKind` 仍是 4，恰好命中了写在 `showSettings()` 内部的记录语句。
+     * 用户真实走的是"进子页 → 返回"，那一刻 `pageKind` 已经是子页的值 —— 永远记不到，必然回顶。
+     * 现在记录点搬到了 `basePage()`（离开设置页的那一刻），并且本用例走真链路。
+     */
+    @Test
+    fun settingsScrollPosition_survivesSubPageReturn() {
+        val a = activity()
+        val target = scrollSettingsToTarget(a)
+
+        a.showAboutPage()
+        shadowOf(Looper.getMainLooper()).idle()
+        assertEquals("前置：确实进了子页", 7, a.pageKind)
+
+        pressBack(a)
+        assertEquals("返回必须回到设置页", 4, a.pageKind)
+        assertEquals("返回设置页必须停在离开前的位置，不能回顶", target, reopenedSettingsScroll(a).scrollY)
+    }
+
+    @Test
+    fun settingsScrollPosition_survivesEveryEntry() {
+        // 用户 2026-10-01："**全部按钮都是啊**，点击进去后退出，绝对返回到顶部，
+        // 这不是个问题，这是必然事件，我需要你修复这个问题。"
+        // 所以不能只测一个入口 —— 每个入口都要过一遍。
+        val entries: List<Pair<String, (MainActivity) -> Unit>> = listOf(
+            "关于" to { x -> x.showAboutPage() },
+            "参考与致谢" to { x -> x.showAcknowledgementsPage() },
+            "崩溃日志" to { x -> x.showCrashLogPage() },
+            "公告" to { x -> x.showNoticeCenter() },
+            "资源源管理" to { x -> x.showSourcesFromSettings() },
+        )
+        for ((name, open) in entries) {
+            val a = activity()
+            val target = scrollSettingsToTarget(a)
+
+            open(a)
+            shadowOf(Looper.getMainLooper()).idle()
+
+            pressBack(a)
+            assertEquals("[$name] 返回必须回到设置页", 4, a.pageKind)
+            assertEquals(
+                "[$name] 返回设置页必须停在离开前的位置，不能回顶",
+                target, reopenedSettingsScroll(a).scrollY,
+            )
+        }
+    }
+
+    @Test
+    fun reenteringSettingsFromMenu_startsAtTop() {
+        // 反向守卫：从悬浮球**重新进入**设置是"全新进入"，不是"返回"，必须回顶部。
+        // 否则用户点设置会莫名停在半中间，反而变成新 bug。
+        val a = activity()
+        scrollSettingsToTarget(a)
+
+        a.showAboutPage()
+        shadowOf(Looper.getMainLooper()).idle()
+        pressBack(a)
+        assertEquals("前置：返回后回到设置", 4, a.pageKind)
+
+        a.navigateHome()
+        shadowOf(Looper.getMainLooper()).idle()
+        a.goToDestination(3)
+        shadowOf(Looper.getMainLooper()).idle()
+        assertEquals("前置：确实重新进了设置", 4, a.pageKind)
+        assertEquals("从悬浮球重新进入设置应回到顶部", 0, reopenedSettingsScroll(a).scrollY)
     }
 
     @Test

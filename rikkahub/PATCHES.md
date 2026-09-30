@@ -269,3 +269,31 @@ pom 与 aar 均实测可取（HTTP 200）。`compileDebugKotlin` 与 `:rikkahub-
 验证：`TelemetryAndExposureTest`（5 例）断言 Web 控制台默认仅本机 + 默认不启动 +
 代码里不得再有任何遥测上报调用 + 不得再引入 firebase-analytics 依赖 + README 承诺与实现一致。
 鉴别力已验：把默认值改回 false，立刻 1 红。
+
+
+---
+
+## P38（DFW-72）AI 内嵌页顶栏不再自己吃系统栏 insets（DFWX-UI-005）
+
+**文件**：`rikkahub/app/src/main/java/me/rerere/rikkahub/ui/pages/chat/ChatPage.kt`（`TopBar` 内的 `TopAppBar`）
+
+**改动**：给 `TopAppBar` 显式加 `windowInsets = WindowInsets(0, 0, 0, 0)`（并补 `androidx.compose.foundation.layout.WindowInsets` 的 import）。
+
+**为什么**：宿主 `MainActivity` 已经
+（a）在 insets 监听里把 `statusBars` / `navigationBars` / `displayCutout` **全部裁成 NONE** 后派发给子级，
+（b）用 `host.paddingTop` 承担真实状态栏高度。
+所以顶栏的顶部留白**本来就只该有一个来源**。但 `TopAppBar` 不写 `windowInsets` 时会退回 M3 默认的
+`TopAppBarDefaults.windowInsets`（= `systemBarsForVisualComponents`）——一旦某一帧又派发了非零的
+`statusBar` inset（部分 ROM 在键盘动画期间会重派发），顶栏会整体下移一个状态栏高度再弹回来，
+表现就是用户报的"点击输入框后顶部那一大排会错位 / 动画崩坏"。
+
+**红线遵守**：这是**纯声明式几何**，没有引入 `ValueAnimator`、没有 insets 缓存、
+没有 `WindowInsetsAnimation.Callback` 计数器 —— 见本文件里 v1.22.8 的教训（自研 250ms 滑行器 +
+stickyBelow 缓存 + 动画计数器三者叠加导致输入框崩坏）。
+
+**同步上游时**：删掉这一行 `windowInsets` 与对应 import 即回到上游原样；
+届时必须重新确认宿主侧的 insets 裁剪契约是否还在（若宿主不再裁剪，则这一行反而会破坏顶栏留白）。
+
+**验证**：需要真机确认（静态截图看不出来，是逐帧问题）。
+判据：点输入框 → 键盘弹出/收起的**全过程**顶栏不跳、不抖、不残留错位；
+反复快速弹出收起、切换会话、旋转均无错位；输入框跟随不回归。

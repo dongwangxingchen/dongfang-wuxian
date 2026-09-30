@@ -300,4 +300,37 @@ class NoticeFlowJvmTest {
         shadowOf(Looper.getMainLooper()).idle()
         assertEquals("无关闭按钮时标题右侧要留满 24dp", a.dp(24), panelOf(a).getChildAt(0).paddingRight)
     }
+
+    // ── ⑤ 公告页是顶级页：没有返回箭头（DFW-66）────────────────────────────
+
+    private fun descriptionsIn(view: View, out: MutableList<String> = mutableListOf()): List<String> {
+        view.contentDescription?.toString()?.let { out.add(it) }
+        if (view is ViewGroup) for (i in 0 until view.childCount) descriptionsIn(view.getChildAt(i), out)
+        return out
+    }
+
+    @Test
+    fun noticePage_hasNoBackButton() {
+        // 用户 2026-10-01："公告界面改为单独的界面，所以你可以去掉左上角的返回按钮了，
+        // 这样不至于会和其他几个按钮的界面感到混乱。"
+        val a = activity()
+        a.navigateHome()
+        shadowOf(Looper.getMainLooper()).idle()
+        a.showNoticeCenter()
+        shadowOf(Looper.getMainLooper()).idle()
+        assertEquals("公告页应正常打开", 10, a.pageKind)
+        val backish = descriptionsIn(a.root).filter { it.contains("返回") }
+        assertTrue("公告页不该再有返回控件（实测还有：$backish）", backish.isEmpty())
+    }
+
+    @Test
+    fun settingsSubPage_stillHasTheBackButton() {
+        // 对照守卫：防止"顺手把所有返回按钮都删了"。设置子页必须仍然有「返回」。
+        val a = activity()
+        a.showSettings()
+        shadowOf(Looper.getMainLooper()).idle()
+        a.showAboutPage()
+        shadowOf(Looper.getMainLooper()).idle()
+        assertTrue("设置子页仍应有「返回」", descriptionsIn(a.root).contains("返回"))
+    }
 }

@@ -70,18 +70,43 @@ public class SupportActivity extends Activity {
     }
   }
 
+  /**
+   * [DFW-70] **统一页头：左上角「←」返回**。
+   *
+   * 用户 2026-10-01：
+   * > "我希望你把这种类型的子页面返回按钮统一一下，别这个子页面左上角是叉号关闭，
+   * >  那个子页面是右上角箭头关闭，这不纯胡闹呢？"
+   *
+   * 全站约定（用户已拍板）：**`ic_back` = 返回上一页，一律在左上角；`ic_close` 只留给弹窗/浮层**。
+   * 本页原来是右上角一个**文字「✕」**（全项目唯一用文字字形当关闭按钮的地方），
+   * 与设置子页的左上角箭头不一致，现在统一。
+   */
+  LinearLayout pageHeader(String kicker){
+    LinearLayout top=new LinearLayout(this);
+    top.setGravity(Gravity.CENTER_VERTICAL);
+    android.widget.ImageButton back=new android.widget.ImageButton(this);
+    back.setImageResource(R.drawable.ic_back);
+    back.setColorFilter(PRIMARY);
+    back.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
+    back.setPadding(dp(10),dp(10),dp(10),dp(10));
+    back.setBackground(ripple(new ColorDrawable(Color.TRANSPARENT)));
+    back.setContentDescription("返回");
+    back.setOnClickListener(v->finish());
+    top.addView(back,new LinearLayout.LayoutParams(dp(44),dp(44)));
+    TextView label=text(kicker,12,MUTED);
+    LinearLayout.LayoutParams labelLp=new LinearLayout.LayoutParams(0,dp(44),1);
+    labelLp.leftMargin=dp(6);
+    top.addView(label,labelLp);
+    return top;
+  }
+
   /** 未解锁：支持页 */
   void renderSupportPage(){
     thankYouMode=false;
     root.removeAllViews();
     LinearLayout page=new LinearLayout(this);page.setOrientation(LinearLayout.VERTICAL);page.setPadding(dp(20),dp(10),dp(20),dp(16));
-    // 顶栏：左上小字"支持开发者"，右上 × 永远可关（44dp 触达）
-    LinearLayout top=new LinearLayout(this);top.setGravity(Gravity.CENTER_VERTICAL);
-    TextView kicker=text("诚信付费 · 自愿",12,MUTED);top.addView(kicker,new LinearLayout.LayoutParams(0,dp(44),1));
-    TextView close=tool("✕",16);close.setContentDescription("关闭支持页面");
-    close.setOnClickListener(v->finish());
-    top.addView(close,new LinearLayout.LayoutParams(dp(44),dp(44)));
-    page.addView(top,new LinearLayout.LayoutParams(-1,dp(44)));
+    // [DFW-70] 统一页头：原来这里是**右上角一个文字「✕」**，与设置子页的左上角箭头不一致。
+    page.addView(pageHeader("诚信付费 · 自愿"),new LinearLayout.LayoutParams(-1,dp(44)));
     // 大标题 + 副标
     TextView title=text("支持 "+MainActivity.PRODUCT_NAME,24,TEXT);
     title.setTypeface(AppFonts.bold(this));title.setIncludeFontPadding(false);
@@ -96,11 +121,18 @@ public class SupportActivity extends Activity {
     letter.setTextColor(TEXT);letter.setTextSize(14);letter.setLineSpacing(dp(4),1f);letter.setTypeface(AppFonts.normal(this));
     letter.setPadding(dp(16),dp(14),dp(16),dp(14));
     letterCard.addView(letter,new LinearLayout.LayoutParams(-1,-2));
-    page.addView(letterCard,new LinearLayout.LayoutParams(-1,-2));
-    // 权益 3 条（图标 + 短语，≤14 字）
-    page.addView(benefitRow("🔓","全部下载权限直接开放"),new LinearLayout.LayoutParams(-1,dp(34)));
-    page.addView(benefitRow("🛠","35 个本地工具永久全功能"),new LinearLayout.LayoutParams(-1,dp(34)));
-    page.addView(benefitRow("🤖","AI 对话不限次 · 一次付费长期有效"),new LinearLayout.LayoutParams(-1,dp(34)));
+    LinearLayout.LayoutParams letterLp=new LinearLayout.LayoutParams(-1,-2);
+    letterLp.topMargin=dp(12);
+    page.addView(letterCard,letterLp);
+    // 权益 3 条（图标 + 短语，≤14 字）：装进同一张卡、等距排列，与上下块用同一个 12dp 间距基准
+    LinearLayout perks=card();
+    perks.setPadding(dp(14),dp(6),dp(14),dp(6));
+    String[][] perkItems={{"🔓","全部下载权限直接开放"},{"🛠","35 个本地工具永久全功能"},{"🤖","AI 对话不限次 · 一次付费长期有效"}};
+    for(String[] perk:perkItems)perks.addView(benefitRow(perk[0],perk[1]),new LinearLayout.LayoutParams(-1,dp(38)));
+    LinearLayout.LayoutParams perksLp=new LinearLayout.LayoutParams(-1,-2);
+    perksLp.topMargin=dp(12);
+    perksLp.bottomMargin=dp(12);
+    page.addView(perks,perksLp);
     // 价格大字（成熟付费页惯例：价格必须一眼可见）+ 永久更新承诺
     LinearLayout price=new LinearLayout(this);price.setGravity(Gravity.CENTER_VERTICAL);
     TextView amount=text("￥5",30,PRIMARY);amount.setTypeface(AppFonts.bold(this));
@@ -122,10 +154,11 @@ public class SupportActivity extends Activity {
     confirm.setText("诚信付费，解锁全部权限");
     confirm.setAllCaps(false);confirm.setTextSize(15);confirm.setTypeface(AppFonts.bold(this));
     confirm.setTextColor(BG);
-    GradientDrawable cta=solidShape(PRIMARY,24);
-    confirm.setBackground(ripple(cta));
+    // 真胶囊：`solidShape` 的半径量化会把 24 压成 26（做出来是圆角方块而不是胶囊），
+    // 所以直接走 PremiumSurface.pill（半径 = 高度一半）。高度也统一到 56dp。
+    confirm.setBackground(ripple(PremiumSurface.pill(PRIMARY,dp(56),0,0,PremiumSurface.HIGHLIGHT)));
     confirm.setOnClickListener(v->unlockNow());
-    LinearLayout.LayoutParams ctaParams=new LinearLayout.LayoutParams(-1,dp(52));ctaParams.setMargins(0,dp(14),0,0);
+    LinearLayout.LayoutParams ctaParams=new LinearLayout.LayoutParams(-1,dp(56));ctaParams.setMargins(0,dp(16),0,0);
     page.addView(confirm,ctaParams);
     // 辅助链接：暂时不支持（降级路径永远存在）
     TextView skip=text("暂时不支持，继续使用",13,PRIMARY);
@@ -146,11 +179,8 @@ public class SupportActivity extends Activity {
     thankYouMode=true;
     root.removeAllViews();
     LinearLayout page=new LinearLayout(this);page.setOrientation(LinearLayout.VERTICAL);page.setGravity(Gravity.CENTER);page.setPadding(dp(20),dp(10),dp(20),dp(16));
-    TextView top=tool("✕",16);top.setContentDescription("关闭支持页面");
-    top.setGravity(Gravity.CENTER);
-    LinearLayout topWrap=new LinearLayout(this);topWrap.setGravity(Gravity.END);
-    topWrap.addView(top,new LinearLayout.LayoutParams(dp(44),dp(44)));
-    page.addView(topWrap,new LinearLayout.LayoutParams(-1,dp(44)));
+    // [DFW-70] 两个状态页的返回控件必须长得一样：同样左上角「←」。
+    page.addView(pageHeader(""),new LinearLayout.LayoutParams(-1,dp(44)));
     TextView heart=text("❤",56,PRIMARY);
     heart.setGravity(Gravity.CENTER);
     page.addView(heart,new LinearLayout.LayoutParams(-1,dp(96)));

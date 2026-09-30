@@ -83,9 +83,23 @@ class BrandCreditsJvmTest {
     @Test
     fun aboutPage_keepsEachPersonsDescription() {
         val all = textsOf(openAbout().root).joinToString("\n")
-        for (keyword in listOf("全部设计与开发", "开发环境", "嗷呜小屋软件库资源")) {
+        // 2026-10-01 用户要求改写东方本人的说明，关键词随之更新
+        for (keyword in listOf("全部设计思路与开发实践", "开发环境", "嗷呜小屋软件库资源")) {
             assertTrue("署名说明必须保留「$keyword」", all.contains(keyword))
         }
+    }
+
+    @Test
+    fun aboutPage_keepsDongfangDescriptionVerbatim() {
+        // 用户 2026-10-01 给的原文，**逐字**保留（含标点），不得改写或润色。
+        val all = textsOf(openAbout().root).joinToString("\n")
+        assertTrue(
+            "东方本人的说明必须与用户给的原文一字不差",
+            all.contains(
+                "一个人全程主导了这款软件的全部设计思路与开发实践，" +
+                    "开发过程中使用Zcode+GLM和DeepSeek Harness+DeepSeek作为主要开发工具。",
+            ),
+        )
     }
 
     // ---------- 感谢语（逐字） ----------

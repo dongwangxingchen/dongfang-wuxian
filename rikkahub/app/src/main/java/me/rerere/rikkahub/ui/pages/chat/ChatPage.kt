@@ -3,6 +3,7 @@ package me.rerere.rikkahub.ui.pages.chat
 import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.lazy.LazyListState
@@ -637,6 +638,17 @@ private fun TopBar(
 
     TopAppBar(
         colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent),
+        // [DFWX P38 / DFWX-UI-005] **顶栏不再自己吃系统栏 insets**。
+        //
+        // 宿主 MainActivity 已经把 statusBars / navigationBars / displayCutout 全部裁成 NONE 后再派发给
+        // 子级（防 Compose 二次垫高），并且用 `host.paddingTop` 承担了真实状态栏高度。
+        // 也就是说顶部留白**本来就该只有一个来源**。但 TopAppBar 不写 windowInsets 时会退回
+        // M3 默认的 `TopAppBarDefaults.windowInsets`（systemBarsForVisualComponents）——
+        // 一旦某一帧又派发了非零的 statusBar inset（部分 ROM 在键盘动画期间会重派发），
+        // 顶栏就会整体下移一个状态栏高度再弹回来，表现为"一大排错位/动画崩坏"。
+        // 显式声明 0 之后，顶栏位置只由宿主 padding 决定，逐帧派发不再能撼动它。
+        // 这是纯声明式几何，**没有引入任何动画或 insets 缓存**（PATCHES.md 的红线）。
+        windowInsets = WindowInsets(0, 0, 0, 0),
         navigationIcon = {
             if (!bigScreen) {
                 IconButton(
