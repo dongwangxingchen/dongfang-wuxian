@@ -38,7 +38,7 @@ public final class MainActivity extends androidx.activity.ComponentActivity impl
   void installNavBall(){if(host==null)return;if(navBall==null)navBall=new NavBall(new NavBall.Host(){
     @Override public int dp(int v){return MainActivity.this.dp(v);}
     @Override public android.content.Context context(){return MainActivity.this;}
-    @Override public int SURFACE2(){return SURFACE2;}@Override public int PRIMARY(){return PRIMARY;}@Override public int PRIMARY_HI(){return PRIMARY_HI;}
+    @Override public int BG(){return BG;}@Override public int SURFACE2(){return SURFACE2;}@Override public int PRIMARY(){return PRIMARY;}@Override public int PRIMARY_HI(){return PRIMARY_HI;}
     @Override public int PRIMARY_LO(){return PRIMARY_LO;}@Override public int TEXT(){return TEXT;}@Override public int MUTED(){return MUTED;}@Override public int BORDER(){return BORDER;}
     @Override public boolean motionEnabled(){return MainActivity.this.motionEnabled();}
     @Override public void goToDestination(int destination){MainActivity.this.goToDestination(destination);}

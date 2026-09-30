@@ -123,18 +123,30 @@ class M3TokensJvmTest {
     fun typeScale_hasAllFifteenRoles_withOfficialSizes() {
         assertEquals("M3 的 type scale 恰好 15 个 role", 15, M3Tokens.TYPE_SCALE.size)
 
-        // 抽查几档官方值（size/lineHeight/weight）——行高序列已用 aar 里的 TypeScaleTokens 交叉核对过。
+        // 抽查几档官方值（size/lineHeight/weight/tracking）。
+        // tracking 用 **Android 侧 2025 值**：官方体系内部 Android 与官网 Web token 就不一致
+        // （displayLarge −0.2 vs −0.25、titleMedium 0.2 vs 0.15、bodyMedium 0.2 vs 0.25），
+        // 以 Android 为准——那是 APK 里跑的那一版。参考库 06/08 §3.1。
         assertEquals(57f, M3Tokens.DISPLAY_LARGE.sizeSp, 0.01f)
         assertEquals(64f, M3Tokens.DISPLAY_LARGE.lineHeightSp, 0.01f)
         assertEquals(16f, M3Tokens.BODY_LARGE.sizeSp, 0.01f)
         assertEquals(24f, M3Tokens.BODY_LARGE.lineHeightSp, 0.01f)
         assertEquals(14f, M3Tokens.LABEL_LARGE.sizeSp, 0.01f)
         assertEquals(11f, M3Tokens.LABEL_SMALL.sizeSp, 0.01f)
+        assertEquals(-0.2f, M3Tokens.DISPLAY_LARGE.trackingEm, 0.001f)
+        assertEquals(0.2f, M3Tokens.TITLE_MEDIUM.trackingEm, 0.001f)
+        assertEquals(0.2f, M3Tokens.BODY_MEDIUM.trackingEm, 0.001f)
         // 字重只有 400/500 两档——M3 就是靠这两档 + 字号做层级，不像主机区现在有 5 档零散值。
         for (role in M3Tokens.TYPE_SCALE) {
             assertTrue("${role.name} 的字重应是 400 或 500（M3 官方只这两档）", role.weight == 400 || role.weight == 500)
             assertTrue("${role.name} 的行高必须 ≥ 字号", role.lineHeightSp >= role.sizeSp)
         }
+    }
+
+    @Test
+    fun navBarHeight_isTheOfficialContainerHeight() {
+        // 官方 NavigationBarTokens.ContainerHeight = 64dp；80 是 M3E 的 tall 变体。
+        assertEquals(64, M3Tokens.NAV_BAR_HEIGHT)
     }
 
     @Test
