@@ -93,21 +93,62 @@ final class RemoteConfigClient {
     boolean isOff() { return "off".equalsIgnoreCase(updateMode); }
   }
 
-  /** 一条公告。 */
+  /**
+   * 一条公告。
+   *
+   * ## 弹出模式（DFW-70 改版）
+   * 用户要求三种（2026-09-30 原话）：
+   * - **静默**：发布后**不弹**，只在菜单里亮红点，等用户自己点进来看
+   * - **一次性**：弹出一次，之后不再弹
+   * - **永久**：每次打开软件都弹
+   *
+   * 原来只有一个 `popup` 布尔值（弹 / 不弹），表达不了"永久"与"一次性"的区别。
+   * 现在用字符串 `popupMode` 表达，并**兼容读取旧的布尔字段**：
+   * `popup=true` → 一次性、`popup=false` → 静默。
+   * 这样后台字段迁移前后 App 都能正确工作，不会出现"改后台那一刻大家全都收不到公告"。
+   */
   static final class Notice {
+    static final String MODE_SILENT = "silent";
+    static final String MODE_ONCE = "once";
+    static final String MODE_ALWAYS = "always";
+
     final String id, title, body, level;
-    final boolean pinned, popup;
+    final boolean pinned;
+    /** 见类注释；只会是三选一，非法值一律回落到"一次性"（宁可多弹一次，也不要静默漏掉公告）。 */
+    final String popupMode;
     final long createdMs;
 
-    Notice(String id, String title, String body, String level, boolean pinned, boolean popup, long createdMs) {
+    Notice(String id, String title, String body, String level, boolean pinned, String popupMode, long createdMs) {
       this.id = id == null ? "" : id;
       this.title = title == null ? "" : title.trim();
       this.body = body == null ? "" : body.trim();
       this.level = level == null ? "normal" : level.trim();
       this.pinned = pinned;
-      this.popup = popup;
+      this.popupMode = normalizeMode(popupMode);
       this.createdMs = createdMs;
     }
+
+    /** 兼容旧布尔字段的构造：true → 一次性，false → 静默。 */
+    Notice(String id, String title, String body, String level, boolean pinned, boolean popup, long createdMs) {
+      this(id, title, body, level, pinned, popup ? MODE_ONCE : MODE_SILENT, createdMs);
+    }
+
+    static String normalizeMode(String raw) {
+      if (raw != null) {
+        String value = raw.trim().toLowerCase(java.util.Locale.ROOT);
+        if (MODE_SILENT.equals(value)) return MODE_SILENT;
+        if (MODE_ALWAYS.equals(value)) return MODE_ALWAYS;
+        if (MODE_ONCE.equals(value)) return MODE_ONCE;
+      }
+      // 空值/拼错 → 一次性。**不能默认静默**：那会让后台一次手误把公告全部吞掉，用户永远看不到。
+      return MODE_ONCE;
+    }
+
+    boolean isSilent() { return MODE_SILENT.equals(popupMode); }
+    boolean isAlwaysPopup() { return MODE_ALWAYS.equals(popupMode); }
+
+    /** 是否会自动弹（静默以外都会进弹窗候选，具体还取决于"读过没有"）。 */
+    boolean autoPopup() { return !isSilent(); }
 
     boolean isUrgent() { return "urgent".equalsIgnoreCase(level); }
     boolean isImportant() { return "important".equalsIgnoreCase(level); }
@@ -157,7 +198,7 @@ final class RemoteConfigClient {
     /** 需要弹窗的公告（后台勾了 popup）。 */
     List<Notice> popupNotices() {
       List<Notice> out = new ArrayList<>();
-      for (Notice n : notices) if (n.popup) out.add(n);
+      for (Notice n : notices) if (n.autoPopup()) out.add(n);
       return out;
     }
   }
@@ -245,8 +286,22 @@ final class RemoteConfigClient {
       String title = o.optString("title", "").trim();
       String body = o.optString("body", "").trim();
       if (title.isEmpty() && body.isEmpty()) continue;
+      // 优先读新字段 popupMode；后台还没迁移时回落到旧的 popup 布尔（见 Notice 类注释）。
+      //
+      // **必须区分"字段不存在"与"字段存在但为空"**（本逻辑第一版把两者混为一谈，被测试抓出来）：
+      // - `popupMode` **存在**（哪怕为空）→ 认它是新数据，空值交给 normalizeMode 回落到"一次性"；
+      // - `popupMode` **不存在**但 `popup` 存在 → 认它是迁移前的旧数据，按布尔映射；
+      // - 两个都不存在 → 也是"一次性"（宁可多弹一次，也不能因为后台漏填就把公告全吞掉）。
+      String mode;
+      if (o.has("popupMode")) {
+        mode = o.optString("popupMode", "").trim();
+      } else if (o.has("popup")) {
+        mode = o.optBoolean("popup", false) ? Notice.MODE_ONCE : Notice.MODE_SILENT;
+      } else {
+        mode = "";
+      }
       out.add(new Notice(o.optString("id", ""), title, body, o.optString("level", "normal"),
-          o.optBoolean("pinned", false), o.optBoolean("popup", false), createdMs(o, now)));
+          o.optBoolean("pinned", false), mode, createdMs(o, now)));
     }
     // 置顶优先，其余保持后台顺序
     List<Notice> pinned = new ArrayList<>(), rest = new ArrayList<>();

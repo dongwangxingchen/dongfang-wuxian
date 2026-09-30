@@ -224,14 +224,51 @@ class RemoteConfigClientJvmTest {
 
     /** popup 开关：用户要求"想弹就弹、不想弹就静默发"。 */
     @Test
-    fun notices_popupFlagIsIndependent() {
+    fun notices_popupMode_isParsed() {
+        // [DFW-70] 三档模式：silent（静默）/ once（一次性）/ always（永久）。
         val list = parseNotices("""
         [
-          {"id":"1","title":"弹窗的","body":"x","popup":true,"enabled":true},
-          {"id":"2","title":"静默的","body":"y","popup":false,"enabled":true}
+          {"id":"1","title":"静默的","body":"x","popupMode":"silent","enabled":true},
+          {"id":"2","title":"一次的","body":"y","popupMode":"once","enabled":true},
+          {"id":"3","title":"永久的","body":"z","popupMode":"always","enabled":true}
         ]""")
-        assertTrue("勾了 popup 的要弹", fieldBoolean(list[0], "popup"))
-        assertFalse("没勾的不弹（只在公告中心）", fieldBoolean(list[1], "popup"))
+        assertEquals("静默", RemoteConfigClient.Notice.MODE_SILENT, fieldString(list[0], "popupMode"))
+        assertEquals("一次性", RemoteConfigClient.Notice.MODE_ONCE, fieldString(list[1], "popupMode"))
+        assertEquals("永久", RemoteConfigClient.Notice.MODE_ALWAYS, fieldString(list[2], "popupMode"))
+    }
+
+    @Test
+    fun notices_legacyPopupBoolean_isStillHonoured() {
+        // **兼容读取**：后台还没迁移到 popupMode 时，旧布尔字段必须仍然管用——
+        // 否则切字段的那一刻全体用户都收不到公告。
+        val list = parseNotices("""
+        [
+          {"id":"1","title":"旧的弹的","body":"x","popup":true,"enabled":true},
+          {"id":"2","title":"旧的不弹","body":"y","popup":false,"enabled":true}
+        ]""")
+        assertEquals("旧 popup=true 应落到「一次性」", RemoteConfigClient.Notice.MODE_ONCE, fieldString(list[0], "popupMode"))
+        assertEquals("旧 popup=false 应落到「静默」", RemoteConfigClient.Notice.MODE_SILENT, fieldString(list[1], "popupMode"))
+    }
+
+    @Test
+    fun notices_unknownPopupMode_fallsBackToOnce_neverToSilent() {
+        // 拼错/空值 → 一次性（宁可多弹一次，也不能因为后台一次手误把公告全吞掉）。
+        val list = parseNotices("""
+        [
+          {"id":"1","title":"拼错的","body":"x","popupMode":"alway","enabled":true},
+          {"id":"2","title":"空的","body":"y","popupMode":"","enabled":true}
+        ]""")
+        assertEquals(RemoteConfigClient.Notice.MODE_ONCE, fieldString(list[0], "popupMode"))
+        assertEquals(RemoteConfigClient.Notice.MODE_ONCE, fieldString(list[1], "popupMode"))
+    }
+
+    @Test
+    fun notices_newFieldWins_overLegacyBoolean() {
+        val list = parseNotices("""
+        [
+          {"id":"1","title":"新字段优先","body":"x","popup":false,"popupMode":"always","enabled":true}
+        ]""")
+        assertEquals("同时存在时应以新字段为准", RemoteConfigClient.Notice.MODE_ALWAYS, fieldString(list[0], "popupMode"))
     }
 
     // ---------- changelog：更新记录 ----------

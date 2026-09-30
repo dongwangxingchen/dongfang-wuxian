@@ -17,11 +17,15 @@ import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 
 /**
- * [DFWX] DFW-61：公告中心与未读红点的**界面验收**。
+ * [DFWX] DFW-61 / DFW-70：公告中心的**界面与接线验收**。
  *
- * 策略层（未读/排序/垃圾回收）已在 `NoticeCenterJvmTest` 测过；这里验的是**接线**：
- * 入口在不在、红点该亮时亮不该亮时灭、打开公告后红点是否消掉。
- * 策略对了但界面忘了调它，用户照样看不到公告或红点永远不消。
+ * DFW-70 的变化（用户 2026-09-30 要求）：
+ * - 公告入口从首页铃铛**挪到悬浮球菜单第 6 项**（放在「设置」下面）。
+ *   原因：首页铃铛位置不对，而且**关掉公告它就消失**（只在有未读时出现），用户以为功能没了。
+ * - 现在是**常驻可见 + 有未读亮红点**。
+ * - 三档模式：静默 / 一次性 / 永久。
+ *
+ * 策略层（未读/排序/垃圾回收/三模式）在 `NoticeCenterJvmTest` 测；这里验**接线**。
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35], qualifiers = "w411dp-h891dp-420dpi")
@@ -31,8 +35,13 @@ class NoticeCenterUiJvmTest {
         @BeforeClass @JvmStatic fun silenceAutoImport() { MainActivity.LIBRARY_AUTO_IMPORT = false }
     }
 
-    private fun notice(id: String, title: String = "公告", pinned: Boolean = false, popup: Boolean = false, createdMs: Long = 0L) =
-        RemoteConfigClient.Notice(id, title, "正文内容", "normal", pinned, popup, createdMs)
+    private fun notice(
+        id: String,
+        title: String = "公告",
+        mode: String = RemoteConfigClient.Notice.MODE_ONCE,
+        pinned: Boolean = false,
+        createdMs: Long = 0L,
+    ) = RemoteConfigClient.Notice(id, title, "正文内容", "normal", pinned, mode, createdMs)
 
     private fun snapshot(vararg notices: RemoteConfigClient.Notice) =
         RemoteConfigClient.Snapshot(true, RemoteConfigClient.Control.normal(), null, notices.toList(), emptyList())
@@ -51,59 +60,77 @@ class NoticeCenterUiJvmTest {
         return out
     }
 
-    // ── 入口 ──────────────────────────────────────────────────────────────
+    // ── 入口：挪进悬浮球菜单 ──────────────────────────────────────────────
 
     @Test
-    fun settingsPage_hasNoticeEntry() {
+    fun navBall_hasSixItems_includingNoticeBelowSettings() {
+        val a = activity()
+        assertNotNull("悬浮球必须已安装", a.navBall)
+        assertEquals("菜单应有 6 项（新增「公告」）", 6, a.navBall!!.itemCount())
+        assertTrue("菜单必须含「公告」项", a.navBall!!.hasNoticeItem())
+    }
+
+    @Test
+    fun settingsPage_stillHasNoticeEntry() {
+        // 设置页入口保留（两处都能进，不多余）。
         val a = activity()
         a.showSettings()
         shadowOf(Looper.getMainLooper()).idle()
-        val labels = textsIn(a.root)
-        assertTrue("设置页必须有「公告」入口，否则用户找不到公告中心：$labels", labels.contains("公告"))
+        assertTrue("设置页仍应有「公告」入口：${textsIn(a.root)}", textsIn(a.root).contains("公告"))
     }
 
     @Test
-    fun homeHasBellRow() {
+    fun homeNoLongerHasBell() {
+        // 用户明确要求把首页那个放错位置、关掉就消失的铃铛移走。
         val a = activity()
-        assertNotNull("首页必须挂铃铛行（用户要求首页右上角铃铛）", a.noticeBellRow)
+        assertTrue("首页不该再有铃铛行", a.noticeBellRowGoneForTest())
     }
 
-    // ── 红点该亮时亮、不该亮时灭 ──────────────────────────────────────────
+    // ── 红点 ──────────────────────────────────────────────────────────────
 
     @Test
-    fun bellRow_isHiddenWhenNoUnread() {
+    fun noticeItem_hasNoDotWhenNothingUnread() {
         val a = activity()
         a.noticeSnapshot = snapshot()
         a.refreshNoticeBell()
         shadowOf(Looper.getMainLooper()).idle()
-        assertEquals(
-            "没有未读时整行必须隐藏（用户要求：有未读才出现，常驻空铃铛是视觉噪音）",
-            View.GONE, a.noticeBellRow!!.visibility,
-        )
-        assertNotNull(a.noticeBadge)
-        assertEquals("没有未读时角标数字应为 0", 0, a.noticeBadge!!.count())
+        a.navBall!!.refreshNoticeBadge()
+        assertFalse("没有未读时不该有红点", a.navBall!!.noticeDotVisible())
     }
 
     @Test
-    fun bellRow_appearsWhenUnread_andShowsCount() {
+    fun noticeItem_showsDotWhenUnread() {
         val a = activity()
-        a.noticeSnapshot = snapshot(notice("a"), notice("b"), notice("c"))
+        a.noticeSnapshot = snapshot(notice("a"), notice("b"))
         a.refreshNoticeBell()
         shadowOf(Looper.getMainLooper()).idle()
-
-        assertEquals("有未读时整行必须出现", View.VISIBLE, a.noticeBellRow!!.visibility)
-        assertEquals("红点数字要等于未读数", 3, a.noticeBadge!!.count())
-        assertEquals("红点文本", "3", a.noticeBadge!!.text.toString())
+        a.navBall!!.refreshNoticeBadge()
+        assertTrue("有未读时必须在「公告」项上亮红点", a.navBall!!.noticeDotVisible())
     }
 
     @Test
-    fun badgeText_capsAt99Plus() {
+    fun dot_disappearsAfterReading() {
+        // 红点不能永久亮着——看过就该灭。
         val a = activity()
-        val many = (1..120).map { notice("n$it") }.toTypedArray()
-        a.noticeSnapshot = snapshot(*many)
+        a.noticeSnapshot = snapshot(notice("a"))
         a.refreshNoticeBell()
+        a.navBall!!.refreshNoticeBadge()
+        assertTrue(a.navBall!!.noticeDotVisible())
+
+        a.showNoticeCenter()
         shadowOf(Looper.getMainLooper()).idle()
-        assertEquals("超过 99 必须显示 99+，否则三位数会把圆点撑成一条", "99+", a.noticeBadge!!.text.toString())
+        a.navBall!!.refreshNoticeBadge()
+        assertFalse("打开公告后红点必须消失", a.navBall!!.noticeDotVisible())
+    }
+
+    @Test
+    fun dot_isStillThereForSilentNotices() {
+        // 静默模式：不弹窗，但**红点必须有**——否则用户完全无从知道有新公告。
+        val a = activity()
+        a.noticeSnapshot = snapshot(notice("s", mode = RemoteConfigClient.Notice.MODE_SILENT))
+        a.refreshNoticeBell()
+        a.navBall!!.refreshNoticeBadge()
+        assertTrue("静默公告也要亮红点（它只是不弹窗）", a.navBall!!.noticeDotVisible())
     }
 
     // ── 公告列表页 ────────────────────────────────────────────────────────
@@ -117,15 +144,10 @@ class NoticeCenterUiJvmTest {
         )
         a.showNoticeCenter()
         shadowOf(Looper.getMainLooper()).idle()
-
         val labels = textsIn(a.root)
         assertTrue("要显示普通公告：$labels", labels.contains("普通公告"))
         assertTrue("要显示置顶公告：$labels", labels.contains("置顶公告"))
-        assertTrue("置顶要有标识：$labels", labels.contains("置顶"))
-        // 置顶必须排在前面
-        val pinnedIndex = labels.indexOf("置顶公告")
-        val normalIndex = labels.indexOf("普通公告")
-        assertTrue("置顶必须排在普通公告之前（$pinnedIndex vs $normalIndex）", pinnedIndex < normalIndex)
+        assertTrue("置顶必须排在前面", labels.indexOf("置顶公告") < labels.indexOf("普通公告"))
     }
 
     @Test
@@ -134,96 +156,78 @@ class NoticeCenterUiJvmTest {
         a.noticeSnapshot = snapshot()
         a.showNoticeCenter()
         shadowOf(Looper.getMainLooper()).idle()
-        assertTrue("没有公告时要给空态，不能是一片空白：${textsIn(a.root)}", textsIn(a.root).contains("暂无公告"))
-    }
-
-    @Test
-    fun openingNoticeCenter_clearsUnread_andHidesBell() {
-        // 用户"随时可以看"，看完就不该再亮红点——否则红点永远消不掉。
-        val a = activity()
-        a.noticeSnapshot = snapshot(notice("a"), notice("b"))
-        a.refreshNoticeBell()
-        shadowOf(Looper.getMainLooper()).idle()
-        assertEquals(2, a.noticeBadge!!.count())
-
-        a.showNoticeCenter()
-        shadowOf(Looper.getMainLooper()).idle()
-        assertEquals("打开公告后未读必须清零", 0, a.noticeBadge!!.count())
-        assertEquals("红点必须消失", View.GONE, a.noticeBellRow!!.visibility)
-    }
-
-    @Test
-    fun readState_survivesReturningHome() {
-        // 回到首页时不能"红点又冒出来"——那是用户最反感的观感 bug 之一。
-        val a = activity()
-        a.noticeSnapshot = snapshot(notice("a"))
-        a.refreshNoticeBell()
-        a.showNoticeCenter()
-        shadowOf(Looper.getMainLooper()).idle()
-
-        a.showHomeLanding()
-        shadowOf(Looper.getMainLooper()).idle()
-        assertEquals("返回首页后红点不得复活", View.GONE, a.noticeBellRow!!.visibility)
-    }
-
-    @Test
-    fun newNoticeAfterReading_lightsUpAgain() {
-        // "发布式公告"的核心：读过老的之后，后台再发一条必须重新亮红点。
-        val a = activity()
-        a.noticeSnapshot = snapshot(notice("a"))
-        a.refreshNoticeBell()
-        a.showNoticeCenter()
-        shadowOf(Looper.getMainLooper()).idle()
-        assertEquals(0, a.noticeBadge!!.count())
-
-        a.showHomeLanding()
-        a.noticeSnapshot = snapshot(notice("a"), notice("new"))
-        a.refreshNoticeBell()
-        shadowOf(Looper.getMainLooper()).idle()
-        assertEquals("新公告必须重新亮红点", 1, a.noticeBadge!!.count())
-        assertEquals(View.VISIBLE, a.noticeBellRow!!.visibility)
-    }
-
-    // ── 弹窗开关 ──────────────────────────────────────────────────────────
-
-    @Test
-    fun popupOnlyForNoticesFlaggedByBackend() {
-        // 后台的 popup 开关是唯一决定因素：没勾的只进红点，不该打断用户。
-        val a = activity()
-        val s = snapshot(notice("plain", "普通", popup = false), notice("loud", "要弹的", popup = true))
-        a.noticeSnapshot = s
-        val popups = a.noticeCenter().popupNotices(s)
-        assertEquals("只有勾了 popup 的才弹", listOf("loud"), popups.map { it.id })
-    }
-
-    @Test
-    fun badgeView_isNotVisibleBeforeAnyFetch() {
-        // 还没拉到公告时不该显示红点（否则用户会看到一个无意义的 0 或空点）。
-        val a = activity()
-        a.noticeSnapshot = null
-        a.refreshNoticeBell()
-        shadowOf(Looper.getMainLooper()).idle()
-        assertEquals(View.GONE, a.noticeBellRow!!.visibility)
-        assertEquals(0, a.noticeBadge!!.count())
+        assertTrue("没有公告要给空态，不能一片空白", textsIn(a.root).contains("暂无公告"))
     }
 
     @Test
     fun noticeCenter_showsLevelTags_onlyForImportantAndUrgent() {
-        // 卡要求等级色（普通/重要/紧急）。普通**不挂标签**——每条都挂等于没有重点。
         val a = activity()
         a.noticeSnapshot = snapshot(
-            RemoteConfigClient.Notice("n1", "普通公告", "正文", "normal", false, false, 10),
-            RemoteConfigClient.Notice("n2", "重要公告", "正文", "important", false, false, 20),
-            RemoteConfigClient.Notice("n3", "紧急公告", "正文", "urgent", false, false, 30),
+            RemoteConfigClient.Notice("n1", "甲公告", "正文", "normal", false, RemoteConfigClient.Notice.MODE_ONCE, 10),
+            RemoteConfigClient.Notice("n2", "乙公告", "正文", "important", false, RemoteConfigClient.Notice.MODE_ONCE, 20),
+            RemoteConfigClient.Notice("n3", "丙公告", "正文", "urgent", false, RemoteConfigClient.Notice.MODE_ONCE, 30),
         )
         a.showNoticeCenter()
         shadowOf(Looper.getMainLooper()).idle()
-
         val labels = textsIn(a.root)
-        assertTrue("重要公告要有「重要」标签：$labels", labels.contains("重要"))
-        assertTrue("紧急公告要有「紧急」标签：$labels", labels.contains("紧急"))
-        // 普通公告不得挂标签：只有两个标签存在
+        // 标题刻意不叫"重要/紧急"，否则标题会和等级标签重名，把计数弄成 2（本测试第一版就踩了）。
+        assertTrue("重要公告要挂「重要」标签", labels.contains("重要"))
+        assertTrue("紧急公告要挂「紧急」标签", labels.contains("紧急"))
         assertEquals("只有重要/紧急挂标签，普通不挂", 1, labels.count { it == "重要" })
         assertEquals("只有重要/紧急挂标签，普通不挂", 1, labels.count { it == "紧急" })
+    }
+
+    @Test
+    fun newNoticeAfterReading_lightsDotAgain() {
+        val a = activity()
+        a.noticeSnapshot = snapshot(notice("a"))
+        a.refreshNoticeBell()
+        a.showNoticeCenter()
+        shadowOf(Looper.getMainLooper()).idle()
+        a.navBall!!.refreshNoticeBadge()
+        assertFalse("读过之后红点应消失", a.navBall!!.noticeDotVisible())
+
+        a.showHomeLanding()
+        a.noticeSnapshot = snapshot(notice("a"), notice("new"))
+        a.refreshNoticeBell()
+        a.navBall!!.refreshNoticeBadge()
+        assertTrue("后台再发一条必须重新亮红点", a.navBall!!.noticeDotVisible())
+    }
+
+    // ── 三档弹出模式（与策略层对齐）──────────────────────────────────────
+
+    @Test
+    fun silentMode_neverPops() {
+        val a = activity()
+        val s = snapshot(notice("s", mode = RemoteConfigClient.Notice.MODE_SILENT))
+        assertTrue("静默模式不得进弹窗候选", a.noticeCenter().popupNotices(s).isEmpty())
+    }
+
+    @Test
+    fun onceMode_popsOnlyWhenUnread() {
+        val a = activity()
+        val s = snapshot(notice("o", mode = RemoteConfigClient.Notice.MODE_ONCE))
+        assertEquals("未读时应弹", 1, a.noticeCenter().popupNotices(s).size)
+        a.noticeCenter().markRead("o")
+        assertTrue("读过之后不再弹", a.noticeCenter().popupNotices(s).isEmpty())
+    }
+
+    @Test
+    fun alwaysMode_popsEveryTime_evenAfterReading() {
+        // 用户要的"永久弹出"：每次打开软件都弹，无视已读。
+        val a = activity()
+        val s = snapshot(notice("p", mode = RemoteConfigClient.Notice.MODE_ALWAYS))
+        assertEquals("首次应弹", 1, a.noticeCenter().popupNotices(s).size)
+        a.noticeCenter().markRead("p")
+        assertEquals("读过之后**仍然**要弹（这正是「永久」的含义）", 1, a.noticeCenter().popupNotices(s).size)
+    }
+
+    @Test
+    fun noticeItem_isNotVisibleInMenuBeforeAnyFetch() {
+        val a = activity()
+        a.noticeSnapshot = null
+        a.refreshNoticeBell()
+        a.navBall!!.refreshNoticeBadge()
+        assertFalse("还没拉到公告时不该有红点", a.navBall!!.noticeDotVisible())
     }
 }

@@ -93,18 +93,25 @@ final class NoticeCenter {
    * 不做这件事，已读集合会随公告的增删只增不减，长期变成无法清理的垃圾。
    */
   List<RemoteConfigClient.Notice> unread(RemoteConfigClient.Snapshot snapshot) {
-    List<RemoteConfigClient.Notice> all = visible(snapshot);
-    Set<String> alive = new LinkedHashSet<>();
-    for (RemoteConfigClient.Notice notice : all) alive.add(notice.id);
-
-    Set<String> read = store.readIds();
-    if (read.retainAll(alive)) store.setReadIds(read);   // 只在真的删掉了东西时才写盘
-
+    Set<String> read = prunedReadIds(snapshot);
     List<RemoteConfigClient.Notice> out = new ArrayList<>();
-    for (RemoteConfigClient.Notice notice : all) {
+    for (RemoteConfigClient.Notice notice : visible(snapshot)) {
       if (!read.contains(notice.id)) out.add(notice);
     }
     return out;
+  }
+
+  /**
+   * 本地已读集合，**顺带做垃圾回收**：剔除后台已经没有的公告 id 并落盘。
+   * 不做这件事，已读集合会随公告增删只增不减，长期变成无法清理的垃圾。
+   * 只在**真的删掉了东西**时才写盘（否则每次算未读都写盘是浪费）。
+   */
+  private Set<String> prunedReadIds(RemoteConfigClient.Snapshot snapshot) {
+    Set<String> alive = new LinkedHashSet<>();
+    for (RemoteConfigClient.Notice notice : visible(snapshot)) alive.add(notice.id);
+    Set<String> read = store.readIds();
+    if (read.retainAll(alive)) store.setReadIds(read);
+    return read;
   }
 
   int unreadCount(RemoteConfigClient.Snapshot snapshot) {
@@ -133,13 +140,21 @@ final class NoticeCenter {
   /**
    * 需要**主动弹窗**的公告：后台勾了 `popup` 且**还没读过**。
    *
-   * 两条都要满足：勾了 popup 但已读的再弹一次就是骚扰；
-   * 没勾 popup 的即便未读也只该在红点里提示，不该打断用户。
+   * ## 三种模式（DFW-70，用户 2026-09-30 要求）
+   * - **静默**：永不自动弹，只亮红点，等用户自己点进菜单看
+   * - **一次性**：弹一次，读过就不再弹（`popup=true` 的旧数据落到这一档）
+   * - **永久**：每次打开软件都弹，**无视已读**（用户明确要"一直弹出来显示这个公告"）
+   *
+   * 注意"永久"这一档是**刻意无视已读状态**的：用户要的就是"每次打开都能看到"。
+   * 其余两档仍然尊重已读——否则同一条件读过的公告反复弹就是骚扰。
    */
   List<RemoteConfigClient.Notice> popupNotices(RemoteConfigClient.Snapshot snapshot) {
     List<RemoteConfigClient.Notice> out = new ArrayList<>();
-    for (RemoteConfigClient.Notice notice : unread(snapshot)) {
-      if (notice.popup) out.add(notice);
+    Set<String> read = prunedReadIds(snapshot);
+    for (RemoteConfigClient.Notice notice : visible(snapshot)) {
+      if (notice.isSilent()) continue;               // 静默：永不弹
+      if (notice.isAlwaysPopup()) { out.add(notice); continue; }  // 永久：无视已读
+      if (!read.contains(notice.id)) out.add(notice);            // 一次性：未读才弹
     }
     return out;
   }
