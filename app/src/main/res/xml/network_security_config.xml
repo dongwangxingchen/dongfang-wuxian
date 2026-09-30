@@ -45,6 +45,17 @@
         <domain includeSubdomains="true">lanzov.com</domain>
     </domain-config>
 
+    <!--
+      [DFWX 2026-09-30] 自有后台（远程公告/版本/更新记录/总控）。
+      用户决策：走 HTTP（决策 #33），安全性由**下载后三重校验**保证
+      （sha256 + 包名 + 签名证书，系统级比对，篡改包装不上），用户零维护、不用管证书。
+      放行范围**只有这一个 IP**：精确主机（含其子域无意义，IP 无子域），并限定为明文。
+      App 只读取该后台的 JSON（RemoteConfigClient），写入侧由服务端 405 + 超管令牌双重保护。
+    -->
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">39.106.33.135</domain>
+    </domain-config>
+
     <!-- 回环与本地域名：内置 Web 服务 + MCP OAuth 回调。回环流量不出设备。 -->
     <domain-config cleartextTrafficPermitted="true">
         <domain includeSubdomains="true">localhost</domain>
