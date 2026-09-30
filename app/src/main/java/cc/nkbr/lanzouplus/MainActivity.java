@@ -372,6 +372,8 @@ loadSearchSettings();applyUserAgentSettings();detectWeakDevice();installBackAnim
     // [DFW-60] 维护页拦截期间：返回键由我们消费掉，**不得**回主页、更不得退出应用。
     // 用户明确要求"返回键无效"——维护页是纯粹通知，唯一的出路是那个隐藏后门。
     if(maintenanceBlocking)return true;
+    // [DFW-65] 更新面板开着时返回键归它管：软更新=关闭，强制更新=消费掉但不关（handleBack 里决定）。
+    if(offerSheet!=null&&offerSheet.isShowing())return true;
     if(pageKind==5)return true; // AI 页：交 Compose dispatcher 或回主页
     if(sourceSelectionMode||downloadSelectionMode||selectionMode)return true;
     if(pageKind==6&&!toolBackStack.isEmpty())return true;
@@ -379,7 +381,7 @@ loadSearchSettings();applyUserAgentSettings();detectWeakDevice();installBackAnim
     if(primaryDestination>0)return true;
     return pageKind!=0;
   }
-  void performSystemBack(){if(maintenanceBlocking)return;if(SystemClock.uptimeMillis()-lastSystemBackAt<260)return;lastSystemBackAt=SystemClock.uptimeMillis();/* v1.10.0 内嵌 AI 页返回桥：有启用的 Compose 回调（抽屉/子路由）则交其消费，否则回主页 */if(pageKind==5){if(getOnBackPressedDispatcher().hasEnabledCallbacks()){getOnBackPressedDispatcher().onBackPressed();return;}navigateHome();return;}if(sourceSelectionMode){exitSourceSelection();return;}if(downloadSelectionMode){exitDownloadSelection();return;}if(selectionMode){exitSelection();return;}if(pageKind==6&&!toolBackStack.isEmpty()){pageDirection=-1;popToolBack();return;}if(systemBackAction!=null){Runnable action=systemBackAction;systemBackAction=null;pageDirection=-1;action.run();return;}/** F1:底栏页返回=回主页而非退出应用(预测式返回下"闪没/重置"的根因);主页再返回才退出 */if(primaryDestination>0){navigateHome();return;}finishAfterTransition();}
+  void performSystemBack(){if(maintenanceBlocking)return;if(offerSheet!=null&&offerSheet.isShowing()){offerSheet.handleBack();return;}if(SystemClock.uptimeMillis()-lastSystemBackAt<260)return;lastSystemBackAt=SystemClock.uptimeMillis();/* v1.10.0 内嵌 AI 页返回桥：有启用的 Compose 回调（抽屉/子路由）则交其消费，否则回主页 */if(pageKind==5){if(getOnBackPressedDispatcher().hasEnabledCallbacks()){getOnBackPressedDispatcher().onBackPressed();return;}navigateHome();return;}if(sourceSelectionMode){exitSourceSelection();return;}if(downloadSelectionMode){exitDownloadSelection();return;}if(selectionMode){exitSelection();return;}if(pageKind==6&&!toolBackStack.isEmpty()){pageDirection=-1;popToolBack();return;}if(systemBackAction!=null){Runnable action=systemBackAction;systemBackAction=null;pageDirection=-1;action.run();return;}/** F1:底栏页返回=回主页而非退出应用(预测式返回下"闪没/重置"的根因);主页再返回才退出 */if(primaryDestination>0){navigateHome();return;}finishAfterTransition();}
   /* v1.22.1 预返回：onBackPressed() 覆写已删除——覆写它会退回旧的按键式返回路径，系统预返回动画不会播。
      返回统一走 androidx OnBackPressedDispatcher（backCallback，见 installBackAnimationCallback）。 */
   String downloadHistoryJson(){return getSharedPreferences("download_history",MODE_PRIVATE).getString("items","[]");}
@@ -884,7 +886,19 @@ android.graphics.Insets none=android.graphics.Insets.NONE;android.view.WindowIns
 
     LinearLayout panel=new LinearLayout(this);
     panel.setOrientation(LinearLayout.VERTICAL);
-    panel.setPadding(dp(22),dp(18),dp(22),dp(8));
+    // 顶部面板只有**下方**两角是圆的（上面贴着屏幕边），用圆角矩形会露出上方缝隙。
+    panel.setBackground(topSheetShape());
+    panel.setClipToOutline(true);
+    panel.setPadding(dp(22),dp(10),dp(22),dp(14));
+    panel.setElevation(dp(12));
+
+    // 拖拽手柄：让"可以滑走"这件事被看见。没有它用户不会想到去滑，功能等于不存在。
+    View handle=new View(this);
+    handle.setBackground(solidShape(BORDER,2));
+    LinearLayout.LayoutParams handleParams=new LinearLayout.LayoutParams(dp(38),dp(4));
+    handleParams.gravity=Gravity.CENTER_HORIZONTAL;
+    handleParams.bottomMargin=dp(12);
+    panel.addView(handle,handleParams);
 
     panel.addView(text("发现新版本 "+offer.versionName,19,TEXT,700),new LinearLayout.LayoutParams(-1,-2));
 
@@ -937,12 +951,30 @@ android.graphics.Insets none=android.graphics.Insets.NONE;android.view.WindowIns
       panel.addView(weakRow,new LinearLayout.LayoutParams(-1,dp(46)));
     }
 
-    AlertDialog dialog=new AlertDialog.Builder(this).setView(panel).create();
-    // 强制更新不许点外面关掉，否则"强制"就成了摆设。
-    dialog.setCanceledOnTouchOutside(buttons.cancel);
-    dialog.setCancelable(buttons.cancel);
-    offerDialog=dialog;
-    showRounded(dialog);
+    // 顶部面板：从上方滑入，可上滑/左右滑关闭（用户要求）。
+    // **强制更新模式下三个方向与返回键全部关闭**——"不能关"必须是硬的，否则强制就是摆设。
+    offerSheet=TopSheet.create(this,sheetHost(),panel,()->{offerSheet=null;},motionEnabled())
+      .swipeUp(buttons.cancel)
+      .swipeHorizontal(buttons.cancel)
+      .dismissOnScrimTap(buttons.cancel)
+      .dismissOnBack(buttons.cancel);
+    offerSheet.show();
+  }
+
+  /** 顶部面板的挂载容器：用 decorView 的 content 区，保证盖住整屏（含状态栏下方）。 */
+  ViewGroup sheetHost(){
+    View content=findViewById(android.R.id.content);
+    return content instanceof ViewGroup?(ViewGroup)content:root;
+  }
+
+  /** 顶部面板背景：只有下方两角圆角（上边贴屏幕边，四角圆会露出缝隙）。 */
+  GradientDrawable topSheetShape(){
+    GradientDrawable g=new GradientDrawable();
+    g.setColor(SURFACE);
+    float r=dp(26);
+    g.setCornerRadii(new float[]{0,0,0,0,r,r,r,r});
+    g.setStroke(dp(1),BORDER);
+    return g;
   }
 
   /** 全宽动作按钮：主按钮 filled、次按钮 outlined（均带按压缩放，走项目既有 applePressScale）。 */
@@ -966,9 +998,9 @@ android.graphics.Insets none=android.graphics.Insets.NONE;android.view.WindowIns
   }
 
   void dismissOfferDialog(){
-    if(offerDialog!=null){
-      try{offerDialog.dismiss();}catch(Exception ignored){}
-      offerDialog=null;
+    if(offerSheet!=null){
+      offerSheet.dismiss();
+      offerSheet=null;
     }
   }
 
@@ -999,7 +1031,8 @@ android.graphics.Insets none=android.graphics.Insets.NONE;android.view.WindowIns
     if(updatePromptPolicy==null)updatePromptPolicy=UpdatePromptPolicy.forContext(this);
     return updatePromptPolicy;
   }
-  AlertDialog offerDialog;
+  /** 更新提示的顶部面板（DFW-65 从 AlertDialog 改为 TopSheet：从上方滑入、可上滑/左右滑关闭）。 */
+  TopSheet offerSheet;
   /**
    * [DFWX] DFW-60：维护 / 停更拦截页。
    *
