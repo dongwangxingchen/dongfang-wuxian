@@ -399,7 +399,24 @@ loadSearchSettings();applyUserAgentSettings();detectWeakDevice();installBackAnim
   /** [DFW-73] 预测式返回的跟手预览何时允许：
    *  - AI 内嵌页不预览（用户明确要求"AI 对话保持原有动画"）；
    *  - 顶级页不预览（返回语义只是"再返回一次退出软件"，页面本身并不离开）。 */
-  boolean predictiveBackPreviewAllowed(){return pageKind!=5&&!atTopLevelRoot();}
+  /**
+   * [DFW-79] 预测式返回的跟手预览：**已关闭**。
+   *
+   * 这是用户 2026-10-01 明确要求关掉的：
+   * > "我不希望有预动画。就是说这个我就不需要有那些提前预判我返回的动画了，
+   * >  因为看起来很难看很卡。"
+   *
+   * 历史：v1.22.1 用户**要求**过"侧滑时提前出现过渡动画，没拉完就弹回"（见上面 backCallback 的注释），
+   * 所以 DFW-73 实现了跟手预览（缩放 1→0.93 + 侧移 ≤26dp）。现在用户改主意了 ——
+   * 侧滑到一半整页就开始缩放位移，看起来是"页面在抖"，而且跟手期间走的是逐帧 set（零动画器），
+   * 在弱机上就是"卡"。**以用户最新意见为准**：预览关掉，页面在松手前完全不动，
+   * 只有真正返回时才走一次完整的弹出转场。
+   *
+   * 保留这个开关而不是删掉整段代码，是因为它随时可能被再次要求打开；
+   * 关掉后 `handleOnBackProgressed` 会在第一行就 return，`backPreviewActive` 恒为 false，
+   * `handleOnBackCancelled` 也自然什么都不做。
+   */
+  boolean predictiveBackPreviewAllowed(){return false;}
   /**
    * [DFW-73] 恒为 true —— 顶级页也必须由**我们自己**消费这次返回。
    *
@@ -850,7 +867,10 @@ android.graphics.Insets none=android.graphics.Insets.NONE;android.view.WindowIns
     // （用户 2026-10-01："全部按钮都是啊，点击进去后退出，绝对返回到顶部，这是必然事件"）。
     if(pageKind==4&&pageScroll!=null)settingsScrollY=pageScroll.getScrollY();
     clearHomeBrandCiallo();navigationSession++;invalidateSearchRenderSurface();synchronized(sourceSearchLock){sourceSearchSession++;sourceSearchRunning=false;sourceSearchPaused=false;sourceSearchLock.notifyAll();}sourceRenderSession++;dismissBreadcrumbChooser();cancelFolderPullWork();systemBackAction=null;liveGrid=null;itemsGrid=null;sourceGrid=null;sourceHeading=null;sourceFilter=null;sourceCategoryStrip=null;searchDragBar=null;searchScrollFrame=null;searchPauseButton=null;progress=null;status=null;statusRight=null;liveUrls.clear();currentSourceSearchUrls.clear();selectedUrls.clear();selectionChecks.clear();selectionMode=false;selectionBar=null;selectionSummary=null;selectionCopyDescription=null;selectionCategorize=null;selectionRenameFolder=null;selectedSourceUrls.clear();sourceSelectionChecks.clear();visibleSources.clear();sourcePageSources=null;sourceSelectionMode=false;sourceSelectionBar=null;sourceSelectionSummary=null;sourceSelectionRename=null;selectedDownloads.clear();downloadChecks.clear();downloadSelectionMode=false;downloadSelectionBar=null;downloadSelectionSummary=null;downloadGlobalControlButton=null;downloadsPage=false;downloadLabels.clear();downloadBars.clear();folderPullFrame=null;folderPullScroll=null;folderPullIndicator=null;folderPullLabel=null;folderMoreSpinner=null;pageHeaderRow=null;settingsDownloadPathText=null;settingsSearchInput=null;settingsSearchEmpty=null;settingsSearchSections.clear();profilePresent=false;folderProfilePending=false;homeSearchFocused=false;homeStage=null;homeBrand=null;homeHistory=null;homeRecommendations=null;homeRecommendationsScroll=null;homeRecommendation=null;homeSearchBox=null;homeSearchCategory=null;homeCategoryPicker=null;homeLibsBand=null;if(sourceSearchRunnable!=null)ui.removeCallbacks(sourceSearchRunnable);if(sourceListFilterRunnable!=null)ui.removeCallbacks(sourceListFilterRunnable);sourceListFilterRunnable=null;if(searchDebounceRunnable!=null)ui.removeCallbacks(searchDebounceRunnable);searchDebounceRunnable=null;downloadRenderGeneration++;View previous=pageFrame;root=new LinearLayout(this);root.setOrientation(LinearLayout.VERTICAL);root.setPadding(dp(16),dp(8),dp(16),dp(16));root.addOnLayoutChangeListener((v,l,t,r,b,ol,ot,or_,ob)->{int width=r-l;if(width>0&&Math.abs(width-lastLayoutWidth)>dp(12)){lastLayoutWidth=width;ui.post(this::refreshAdaptiveLayout);}});
-    selectionAllButton=null;sourceSelectionAllButton=null;downloadSelectionAllButton=null;if(host==null){host=new FrameLayout(this);host.setBackgroundColor(BG);host.addOnLayoutChangeListener((v,l,t,r,b,ol,ot,or_,ob)->{int width=r-l,height=b-t;if(width>0&&height>0&&(Math.abs(width-lastHostWidth)>dp(2)||Math.abs(height-lastHostHeight)>dp(2))){lastHostWidth=width;lastHostHeight=height;ui.post(this::refreshAdaptiveLayout);ui.post(this::reflowNavBall);}});pageHost=new FrameLayout(this);host.addView(pageHost,new FrameLayout.LayoutParams(-1,-1));toastScroll=new ScrollView(this);toastScroll.setFillViewport(false);toastScroll.setVerticalScrollBarEnabled(false);toastScroll.setVisibility(View.GONE);toastLayer=new LinearLayout(this);toastLayer.setOrientation(LinearLayout.VERTICAL);toastScroll.addView(toastLayer,new ScrollView.LayoutParams(-1,-2));FrameLayout.LayoutParams tp=new FrameLayout.LayoutParams(Math.max(dp(1),Math.min(dp(250),safeContentWidth()-dp(24))),0,Gravity.TOP|Gravity.END);tp.setMargins(dp(12),dp(64),dp(12),0);host.addView(toastScroll,tp);setContentView(host);installSystemNavigationInsets();installNavBall();prewarmAiCompose();}
+    selectionAllButton=null;sourceSelectionAllButton=null;downloadSelectionAllButton=null;if(host==null){host=new FrameLayout(this);host.setBackgroundColor(BG);host.addOnLayoutChangeListener((v,l,t,r,b,ol,ot,or_,ob)->{int width=r-l,height=b-t;if(width>0&&height>0&&(Math.abs(width-lastHostWidth)>dp(2)||Math.abs(height-lastHostHeight)>dp(2))){lastHostWidth=width;lastHostHeight=height;ui.post(this::refreshAdaptiveLayout);ui.post(this::reflowNavBall);}});pageHost=new FrameLayout(this);host.addView(pageHost,new FrameLayout.LayoutParams(-1,-1));toastScroll=new ScrollView(this);toastScroll.setFillViewport(false);toastScroll.setVerticalScrollBarEnabled(false);toastScroll.setVisibility(View.GONE);toastLayer=new LinearLayout(this);toastLayer.setOrientation(LinearLayout.VERTICAL);toastScroll.addView(toastLayer,new ScrollView.LayoutParams(-1,-2));/* [DFW-54] 下载卡的起始位置原来写死 64dp，而顶部通知条占的是
+       [状态栏高度+8, 状态栏高度+52] —— 两者会**物理重叠**（有状态栏的机器上必然撞）。
+       改成跟着状态栏让位，保证通知条出现时下载卡在它下面。 */
+FrameLayout.LayoutParams tp=new FrameLayout.LayoutParams(Math.max(dp(1),Math.min(dp(250),safeContentWidth()-dp(24))),0,Gravity.TOP|Gravity.END);tp.setMargins(dp(12),statusBarInset()+dp(64),dp(12),0);host.addView(toastScroll,tp);setContentView(host);installSystemNavigationInsets();installNavBall();prewarmAiCompose();}
     primaryDestination=destination;if(destination>=0){primaryShell=new LinearLayout(this);composePrimaryShell();pageFrame=primaryShell;}else{primaryShell=null;pageFrame=root;}
     /* [DFW-73 修正] 页面本身必须**不透明**。root 以前没有底色，页面内容又填不满整屏（比如崩溃日志页），
        于是"整页实体位移"的转场里，新页滑进来的过程中下面那截会透出旧页（旧页又被压暗到 55%）
@@ -928,30 +948,47 @@ android.graphics.Insets none=android.graphics.Insets.NONE;android.view.WindowIns
     // 铁律：全部有界 VPA ≤300ms（v1.19.7 弱机事故教训）；600ms 兜底结算幂等。
     next.animate().cancel();next.setTranslationX(0);next.setScaleX(1f);next.setScaleY(1f);next.setAlpha(1f);if(previous==null){next.setEnabled(true);return;}previous.animate().cancel();previous.setTranslationX(0);previous.setScaleX(1f);previous.setScaleY(1f);previous.setAlpha(1f);previous.setEnabled(false);next.setEnabled(false);/** F4:260ms 超时兜底——正常 endAction 与兜底幂等;修复动画被打断后结算丢失导致的旧页残留/新页整页不可点 */ui.postDelayed(()->{if(pageFrame==next)settlePageTransition();},600);if(!motionEnabled()){settlePageTransition();return;}
     android.view.animation.Interpolator emphasized=new android.view.animation.PathInterpolator(0.05f,0.7f,0.1f,1f),accel=new android.view.animation.PathInterpolator(0.3f,0f,0.8f,0.15f);
-    if(direction==0){next.setAlpha(0f);next.setScaleX(0.92f);next.setScaleY(0.92f);next.post(()->{if(pageFrame!=next)return;previous.animate().alpha(0f).setDuration(90).start();next.animate().alpha(1f).scaleX(1f).scaleY(1f).setDuration(210).setInterpolator(emphasized).withEndAction(()->finishPageTransition(previous,next)).start();});return;}
+    /* [DFW-79] 切 tab / 原位刷新用 fadeThrough —— 这两页之间**没有空间关系**，淡入淡出语义是对的，
+       不能像推入那样用位移（会让用户以为"层级变了"）。但把缩放从 0.92 收到 0.96、旧页淡出从 90ms 收到 70ms：
+       0.92 那档缩放太"缩"，在黑底上像整页在往里塌。 */if(direction==0){next.setAlpha(0f);next.setScaleX(0.96f);next.setScaleY(0.96f);next.post(()->{if(pageFrame!=next)return;previous.animate().alpha(0f).setDuration(70).start();next.animate().alpha(1f).scaleX(1f).scaleY(1f).setDuration(190).setInterpolator(emphasized).withEndAction(()->finishPageTransition(previous,next)).start();});return;}
     if(weakDevice||perfLowMotion){next.setAlpha(0f);next.setScaleX(0.96f);next.setScaleY(0.96f);next.post(()->{if(pageFrame!=next)return;previous.animate().alpha(0f).setDuration(140).start();next.animate().alpha(1f).scaleX(1f).scaleY(1f).setDuration(190).withEndAction(()->finishPageTransition(previous,next)).start();});return;}
     // [DFW-73] 子页面推入/返回改成**整页实体位移**（用户 2026-10-01："现在的过渡像碎纸条"）。
     // 病根：旧实现在黑色底上让两页同时"位移+淡出"，两层半透明内容叠在黑底上被看成两条互不相干的纸片。
     // 新做法遵循真正的层级语义——**下面那一页永远不透明地待在原地**，只有盖在上面那一页在动：
     //   推入：新页从右侧整页滑入（不淡入），旧页原地退回并压暗 → 纵深；
     //   返回：上层页向右滑走并淡出，露出下面那页 → 抽纸感。
-    int travel=Math.max(dp(80),(int)(safeContentWidth()*0.28f));
+    /* [DFW-79] 转场重写（用户 2026-10-01）：
+       > "我有点不太喜欢那种动画效果了，就是那种有点渐隐式的……每次打开或关闭的时候，
+       >  总感觉不够丝滑。我希望你给它改成很有效率感、很顺畅、回馈感不错的那种动画效果。"
+    
+       病根就是 **alpha**：旧版返回时"上一页滑走 + 淡出"，推入时"下层页淡到 55% + 缩到 0.94"。
+       在 OLED 纯黑底上，淡出不是"渐隐"而是"变暗糊掉"——两层半透明内容叠在黑底上，
+       观感就是用户说的"不够丝滑"。
+    
+       新做法 = **两页同时实体位移、谁也不淡、谁也不缩**（iOS 推入式视差）：
+         推入：新页从右侧整屏滑入（+100% → 0），旧页向左让出 30%；
+         返回：上层页向右整屏滑走（0 → +100%），下层页从 -30% 归位到 0。
+       因为两页是**刚性连接**的（一个进多少、另一个就退多少），所以有明确的层级与方向感，
+       不会像"碎纸条"。全部只动 translationX，不碰 alpha / scale。
+       时长 280/240ms：比旧版 300/240 略快，取"有效率感"；退场 ≤ 入场，符合规范自检项。 */
+    int travel=Math.max(dp(120),safeContentWidth());
+    int parallax=Math.max(dp(48),(int)(travel*0.30f));
     if(direction<0){
-      next.setAlpha(1f);next.setTranslationX(0f);next.setScaleX(1f);next.setScaleY(1f);
+      next.setAlpha(1f);next.setScaleX(1f);next.setScaleY(1f);next.setTranslationX(-parallax);
       previous.setAlpha(1f);previous.setScaleX(1f);previous.setScaleY(1f);previous.setTranslationX(0f);
       previous.post(()->{
         if(pageFrame!=next)return;
-        previous.animate().translationX(travel).alpha(0f).setDuration(240).setInterpolator(emphasized).withEndAction(()->finishPageTransition(previous,next)).start();
+        previous.animate().translationX(travel).setDuration(240).setInterpolator(emphasized).withEndAction(()->finishPageTransition(previous,next)).start();
+        next.animate().translationX(0f).setDuration(240).setInterpolator(emphasized).start();
       });
       return;
     }
     next.setAlpha(1f);next.setScaleX(1f);next.setScaleY(1f);next.setTranslationX(travel);
-    previous.setAlpha(1f);previous.setTranslationX(0f);
-    previous.setPivotX(previous.getWidth()/2f);previous.setPivotY(previous.getHeight()/2f);
+    previous.setAlpha(1f);previous.setScaleX(1f);previous.setScaleY(1f);previous.setTranslationX(0f);
     next.post(()->{
       if(pageFrame!=next)return;
-      previous.animate().scaleX(0.94f).scaleY(0.94f).alpha(0.55f).setDuration(300).setInterpolator(emphasized).start();
-      next.animate().translationX(0f).setDuration(300).setInterpolator(emphasized).withEndAction(()->finishPageTransition(previous,next)).start();
+      previous.animate().translationX(-parallax).setDuration(280).setInterpolator(emphasized).start();
+      next.animate().translationX(0f).setDuration(280).setInterpolator(emphasized).withEndAction(()->finishPageTransition(previous,next)).start();
     });
   }
   void finishPageTransition(View previous,View next){if(pageFrame!=next)return;settlePageTransition();}
@@ -2165,7 +2202,11 @@ android.graphics.Insets none=android.graphics.Insets.NONE;android.view.WindowIns
     for(int i=0;i<a.items.size();i++){Models.Item x=a.items.get(i),y=b.items.get(i);if(x==null||y==null)return false;if(!Objects.equals(x.url,y.url)||!Objects.equals(x.title,y.title)||!Objects.equals(x.size,y.size)||!Objects.equals(x.time,y.time)||!Objects.equals(x.iconUrl,y.iconUrl)||x.folder!=y.folder||!Objects.equals(x.description,y.description)||!Objects.equals(x.error,y.error))return false;}
     return true;}
   void renderFolder(Models.Folder f){
-    if(!restoringFolderState&&f!=null&&activeFolderProfile!=null&&!isDirectoryPlaceholder(activeFolderProfile)&&!isDirectoryPlaceholder(f)&&folderVisuallySame(activeFolderProfile,f)){folderProfilePending=false;if(progress!=null)progress.setVisibility(View.GONE);return;}
+    if(!restoringFolderState&&f!=null&&activeFolderProfile!=null&&!isDirectoryPlaceholder(activeFolderProfile)&&!isDirectoryPlaceholder(f)&&folderVisuallySame(activeFolderProfile,f)){
+      /* [DFW-54] "内容没变就直接 return" 这条早退**必须照样清理下拉/刷新状态**。
+         旧版直接 return，跳过了 cancelFolderPullWork() → 指示器永远停在「正在刷新目录」，
+         用户看到的是"明明已经加载完了、状态行都写「已全部加载」了，那个转圈还在转"。 */
+      cancelFolderPullWork();folderProfilePending=false;if(progress!=null)progress.setVisibility(View.GONE);return;}
     cancelFolderPullWork();progress.setVisibility(View.GONE);boolean wasPlaceholder=isDirectoryPlaceholder(activeFolderProfile);content.removeAllViews();activeFolderProfile=f;FolderPageState saved=restoringFolderState?activeFolderState:null;int restoredScroll=0;if(saved!=null){currentSourceQuery=saved.query;folderItems=new ArrayList<>(saved.folderItems);current=new ArrayList<>(saved.current);visible=Math.min(saved.visible,current.size());folderNextPage=saved.nextPage;folderHasMore=saved.hasMore;folderNextReadyAt=saved.nextReadyAt;restoredScroll=saved.scrollY;}else{currentSourceQuery="";folderItems=new ArrayList<>(f.items);if(activeSource!=null&&activeSource.url.equals(home.url))homeItems=new ArrayList<>(folderItems);current=new ArrayList<>(folderItems);visible=listInitialVisible(current.size());folderNextPage=Math.max(2,f.page+1);folderHasMore=f.hasMore;if(folderItems.isEmpty())folderHasMore=false;folderNextReadyAt=Math.max(System.currentTimeMillis(),f.nextPageReadyAt);}invalidateFolderSearchIndex();
     LinearLayout profile=new LinearLayout(this);profile.setOrientation(LinearLayout.VERTICAL);profile.setPadding(0,dp(10),0,dp(10));
     LinearLayout identity=new LinearLayout(this);identity.setGravity(Gravity.TOP);
@@ -2209,12 +2250,20 @@ android.graphics.Insets none=android.graphics.Insets.NONE;android.view.WindowIns
   void maybeAutoExpand(){if(!sessionAutoExpand||folderLoadingMore||!folderPullAvailable()||folderPullScroll==null||content==null)return;boolean initial=sessionAutoExpandInitialPages==0||folderAutoExpandInitialRemaining>0;if(initial){if(sessionAutoExpandInitialPages>0)folderAutoExpandInitialRemaining--;expandMore();return;}boolean chained=sessionAutoExpandNextPages==0||folderAutoExpandNextRemaining>0;if(chained){if(sessionAutoExpandNextPages>0)folderAutoExpandNextRemaining--;expandMore();return;}int remaining=content.getHeight()-folderPullScroll.getScrollY()-folderPullScroll.getHeight();if(remaining<=dp(180)){folderAutoExpandNextRemaining=sessionAutoExpandNextPages; if(sessionAutoExpandNextPages>0)folderAutoExpandNextRemaining--;expandMore();}}
   void showFolderEndNoticeOnce(){long now=System.currentTimeMillis();if(now<folderEndNoticeUntil)return;folderEndNoticeUntil=now+2500L;showNotice("已全部加载",false);}
   void updateFolderPullAvailability(){if(pageScroll==null||pageKind!=3)return;boolean more=folderPullAvailable(),refresh=folderRefreshAvailable();pageScroll.setContentDescription(folderRefreshing?"目录列表，正在刷新目录":folderLoadingMore?"目录列表，正在加载下一页":refresh&&more?"目录列表，顶部下拉刷新，底部上拉加载下一页":refresh?"目录列表，顶部下拉刷新":more?"目录列表，到底后继续上拉并松手加载下一页":"目录列表，已全部加载");if(folderPullIndicator!=null&&!folderLoadingMore&&!folderRefreshing&&!more&&folderPullScroll!=null&&folderPullScroll.getTranslationY()!=0f)collapseFolderPull(true);pageScroll.sendAccessibilityEvent(android.view.accessibility.AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED);}
-  void updateFolderPull(float distance){if(folderPullIndicator==null||folderMoreSpinner==null||folderPullLabel==null)return;positionFolderPullIndicator(Gravity.BOTTOM);folderPullIndicator.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_AUTO);folderMoreSpinner.setVisibility(View.VISIBLE);folderMoreSpinner.setRingSpinning(false);folderMoreSpinner.setRingProgress(distance/Math.max(1,dp(FOLDER_PULL_THRESHOLD_DP)));boolean armed=distance>=dp(FOLDER_PULL_THRESHOLD_DP);folderPullLabel.setText(armed?"松手加载下一页":"继续上拉加载下一页");folderPullLabel.setTextColor(armed?PRIMARY:MUTED);}
-  void updateFolderRefreshPull(float distance){if(folderPullIndicator==null||folderMoreSpinner==null||folderPullLabel==null)return;positionFolderPullIndicator(Gravity.TOP);folderPullIndicator.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_AUTO);folderMoreSpinner.setVisibility(View.VISIBLE);folderMoreSpinner.setRingSpinning(false);folderMoreSpinner.setRingProgress(distance/Math.max(1,dp(FOLDER_PULL_THRESHOLD_DP)));boolean armed=distance>=dp(FOLDER_PULL_THRESHOLD_DP);folderPullLabel.setText(armed?"松手刷新目录":"继续下拉刷新目录");folderPullLabel.setTextColor(armed?PRIMARY:MUTED);}
+  /**
+   * [DFW-54] 跟手：**一个 float 驱动全部**（Ultra-Pull-To-Refresh 的 PtrIndicator 模型）。
+   *
+   * `pull` 同时决定：环的弧长、整条指示器的透明度、文字的透明度。
+   * 不是"到阈值才 if/else 显示"，所以不会出现"啪一下冒出来"的突兀感。
+   * 指示器本身在列表**下面**，靠列表位移露出来 —— 透明度只是让它跟着手指"长出来"。
+   */
+  void updateFolderPull(float distance){if(folderPullIndicator==null||folderMoreSpinner==null||folderPullLabel==null)return;positionFolderPullIndicator(Gravity.BOTTOM);folderPullIndicator.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_AUTO);float pull=Math.min(1f,distance/Math.max(1,dp(FOLDER_PULL_THRESHOLD_DP)));folderMoreSpinner.setVisibility(View.VISIBLE);folderMoreSpinner.setRingSpinning(false);folderMoreSpinner.setRingProgress(pull);folderPullIndicator.setAlpha(pull);boolean armed=distance>=dp(FOLDER_PULL_THRESHOLD_DP);folderPullLabel.setText(armed?"松手加载下一页":"继续上拉加载下一页");folderPullLabel.setTextColor(armed?PRIMARY:MUTED);}
+  void updateFolderRefreshPull(float distance){if(folderPullIndicator==null||folderMoreSpinner==null||folderPullLabel==null)return;positionFolderPullIndicator(Gravity.TOP);folderPullIndicator.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_AUTO);float pull=Math.min(1f,distance/Math.max(1,dp(FOLDER_PULL_THRESHOLD_DP)));folderMoreSpinner.setVisibility(View.VISIBLE);folderMoreSpinner.setRingSpinning(false);folderMoreSpinner.setRingProgress(pull);folderPullIndicator.setAlpha(pull);boolean armed=distance>=dp(FOLDER_PULL_THRESHOLD_DP);folderPullLabel.setText(armed?"松手刷新目录":"继续下拉刷新目录");folderPullLabel.setTextColor(armed?PRIMARY:MUTED);}
   void positionFolderPullIndicator(int gravity){if(folderPullIndicator==null)return;ViewGroup.LayoutParams raw=folderPullIndicator.getLayoutParams();if(raw instanceof FrameLayout.LayoutParams){FrameLayout.LayoutParams params=(FrameLayout.LayoutParams)raw;int target=gravity|Gravity.CENTER_HORIZONTAL;if(params.gravity!=target){params.gravity=target;folderPullIndicator.setLayoutParams(params);}}}
-  void resetFolderPullIndicator(){positionFolderPullIndicator(Gravity.BOTTOM);if(folderMoreSpinner!=null){folderMoreSpinner.setRingSpinning(false);folderMoreSpinner.setRingProgress(0f);folderMoreSpinner.setVisibility(View.VISIBLE);}if(folderPullLabel!=null){folderPullLabel.setText("上拉并松手加载下一页");folderPullLabel.setTextColor(MUTED);}if(folderPullIndicator!=null)folderPullIndicator.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS);}
-  void holdFolderPull(){positionFolderPullIndicator(Gravity.BOTTOM);if(folderPullIndicator!=null)folderPullIndicator.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_AUTO);if(folderPullScroll!=null)folderPullScroll.animatePullTo(dp(FOLDER_PULL_SETTLE_DP),motionEnabled());}
-  void holdFolderRefresh(){positionFolderPullIndicator(Gravity.TOP);if(folderPullIndicator!=null)folderPullIndicator.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_AUTO);if(folderPullScroll!=null)folderPullScroll.animateRefreshTo(dp(FOLDER_PULL_SETTLE_DP),motionEnabled());}
+  void resetFolderPullIndicator(){positionFolderPullIndicator(Gravity.BOTTOM);if(folderMoreSpinner!=null){folderMoreSpinner.setRingSpinning(false);folderMoreSpinner.setRingProgress(0f);folderMoreSpinner.setVisibility(View.VISIBLE);}if(folderPullLabel!=null){folderPullLabel.setText("上拉并松手加载下一页");folderPullLabel.setTextColor(MUTED);}/* [DFW-54] 空闲态必须**完全透明**：指示器虽然在列表下面，但只要列表被位移过就会露出来，
+       不置 0 就会出现"什么都没在加载，底下还挂着一行东西"。 */if(folderPullIndicator!=null){folderPullIndicator.setAlpha(0f);folderPullIndicator.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS);}}
+  void holdFolderPull(){positionFolderPullIndicator(Gravity.BOTTOM);if(folderPullIndicator!=null){folderPullIndicator.setAlpha(1f);folderPullIndicator.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_AUTO);}if(folderPullScroll!=null)folderPullScroll.animatePullTo(dp(FOLDER_PULL_SETTLE_DP),motionEnabled());}
+  void holdFolderRefresh(){positionFolderPullIndicator(Gravity.TOP);if(folderPullIndicator!=null){folderPullIndicator.setAlpha(1f);folderPullIndicator.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_AUTO);}if(folderPullScroll!=null)folderPullScroll.animateRefreshTo(dp(FOLDER_PULL_SETTLE_DP),motionEnabled());}
   void startMoreWaiting(){holdFolderPull();if(folderMoreSpinner!=null){folderMoreSpinner.setVisibility(View.VISIBLE);folderMoreSpinner.setRingSpinning(motionEnabled());if(!motionEnabled())folderMoreSpinner.setRingProgress(1f);}updateMoreWaiting();updateFolderPullAvailability();}
   /**
    * [DFW-54] 加载下一页时的提示文案。
@@ -3871,7 +3920,14 @@ content=new LinearLayout(this);content.setOrientation(LinearLayout.VERTICAL);pag
        ② 系统 ProgressBar 的颜色/粗细/节奏都不受我们控制，而且 determinate↔indeterminate
           切换会重建 drawable，松手瞬间形态突变。
        胶囊 + 自绘环后，指示器和 NoticeBanner / 下载卡是同一套"浮起的圆角面"语言。 */
-folderPullIndicator=new LinearLayout(this);folderPullIndicator.setGravity(Gravity.CENTER);folderPullIndicator.setPadding(dp(16),0,dp(20),0);GradientDrawable folderPullBg=new GradientDrawable();folderPullBg.setColor(SURFACE2);folderPullBg.setCornerRadius(dp(24));folderPullBg.setStroke(dp(1),BORDER);folderPullIndicator.setBackground(folderPullBg);folderPullIndicator.setElevation(dp(6));folderMoreSpinner=new DfwxLoadingRing(this,PRIMARY,2f,motionEnabled());folderMoreSpinner.setRingProgress(0f);folderPullIndicator.addView(folderMoreSpinner,new LinearLayout.LayoutParams(dp(20),dp(20)));folderPullLabel=text("上拉并松手加载下一页",12,MUTED);folderPullLabel.setGravity(Gravity.CENTER_VERTICAL);folderPullLabel.setPadding(dp(10),0,0,0);folderPullLabel.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);folderPullIndicator.addView(folderPullLabel,new LinearLayout.LayoutParams(-2,dp(48)));FrameLayout.LayoutParams indicator=new FrameLayout.LayoutParams(-2,dp(48),Gravity.BOTTOM|Gravity.CENTER_HORIZONTAL);indicator.bottomMargin=dp(14);frame.addView(folderPullIndicator,indicator);frame.addView(scroll,new FrameLayout.LayoutParams(-1,-1));SearchDragBar bar=new SearchDragBar(scroll,body,description);FrameLayout.LayoutParams drag=new FrameLayout.LayoutParams(dp(24),-1,Gravity.END);frame.addView(bar,drag);searchDragBar=bar;Runnable update=()->{boolean scrollable=body.getHeight()>Math.round(scroll.getHeight()*1.15f)+dp(2);bar.setVisibility(scrollable?View.VISIBLE:View.GONE);if(scrollable)bar.bumpActivity();bar.invalidate();};// v1.6.1（R-B3）：内容不足 1.15 屏强制隐藏，防边缘闪烁
+/* [DFW-54] 指示器：**和列表同底色、无边框、无阴影、无圆角**，就一行"环 + 字"。
+       两条踩过的坑写在这里，别再犯：
+       ① 上一版给它加了 `setElevation`。FrameLayout 里 elevation 会改**绘制层级**，
+          结果它被顶到 ScrollView **上面**，永远浮在列表上盖住内容 —— 指示器必须留在列表**下面**，
+          靠列表位移把它"让"出来，绝不能靠层级浮上去；
+       ② 上一版是 SURFACE2 胶囊 + 描边。露出来时和列表底色不同，就是一条突兀的横带。
+          现在底色用 BG（= 列表底色），露出来只是"列表里多了一行"，没有色带。 */
+folderPullIndicator=new LinearLayout(this);folderPullIndicator.setGravity(Gravity.CENTER);folderPullIndicator.setBackgroundColor(BG);folderPullIndicator.setAlpha(0f);folderMoreSpinner=new DfwxLoadingRing(this,PRIMARY,2f,motionEnabled());folderMoreSpinner.setRingProgress(0f);folderPullIndicator.addView(folderMoreSpinner,new LinearLayout.LayoutParams(dp(18),dp(18)));folderPullLabel=text("上拉并松手加载下一页",12,MUTED);folderPullLabel.setGravity(Gravity.CENTER_VERTICAL);folderPullLabel.setPadding(dp(9),0,0,0);folderPullLabel.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);folderPullIndicator.addView(folderPullLabel,new LinearLayout.LayoutParams(-2,dp(56)));FrameLayout.LayoutParams indicator=new FrameLayout.LayoutParams(-1,dp(56),Gravity.BOTTOM);frame.addView(folderPullIndicator,indicator);frame.addView(scroll,new FrameLayout.LayoutParams(-1,-1));SearchDragBar bar=new SearchDragBar(scroll,body,description);FrameLayout.LayoutParams drag=new FrameLayout.LayoutParams(dp(24),-1,Gravity.END);frame.addView(bar,drag);searchDragBar=bar;Runnable update=()->{boolean scrollable=body.getHeight()>Math.round(scroll.getHeight()*1.15f)+dp(2);bar.setVisibility(scrollable?View.VISIBLE:View.GONE);if(scrollable)bar.bumpActivity();bar.invalidate();};// v1.6.1（R-B3）：内容不足 1.15 屏强制隐藏，防边缘闪烁
 scroll.setOnScrollChangeListener((v,x,y,oldX,oldY)->bar.bumpActivity());body.addOnLayoutChangeListener((v,l,t,r,b,ol,ot,or_,ob)->update.run());frame.addOnLayoutChangeListener((v,l,t,r,b,ol,ot,or_,ob)->update.run());resetFolderPullIndicator();return frame;}
   FrameLayout draggableList(ScrollView scroll,View body,String description){FrameLayout frame=new FrameLayout(this);frame.addView(scroll,new FrameLayout.LayoutParams(-1,-1));SearchDragBar bar=new SearchDragBar(scroll,body,description);FrameLayout.LayoutParams drag=new FrameLayout.LayoutParams(dp(24),-1,Gravity.END);frame.addView(bar,drag);searchDragBar=bar;Runnable update=()->{boolean scrollable=body.getHeight()>Math.round(scroll.getHeight()*1.15f)+dp(2);bar.setVisibility(scrollable?View.VISIBLE:View.GONE);if(scrollable)bar.bumpActivity();bar.invalidate();};// v1.6.1（R-B3）：内容不足 1.15 屏强制隐藏，防边缘闪烁
 scroll.setOnScrollChangeListener((v,x,y,oldX,oldY)->{bar.bumpActivity();maybeLoadMoreSources();if(y+scroll.getHeight()+dp(240)>=body.getHeight())maybeAppendSearchWindow();});body.addOnLayoutChangeListener((v,l,t,r,b,ol,ot,or_,ob)->update.run());frame.addOnLayoutChangeListener((v,l,t,r,b,ol,ot,or_,ob)->update.run());return frame;}
@@ -4040,11 +4096,17 @@ void showCustomLanzouBaseOriginDialog(){EditText input=sourceInput("输入 oreoj
   TextView webHistoryRow(Context context,String value,Runnable click){TextView row=textFor(context,value,12,TEXT);row.setMaxLines(3);row.setEllipsize(android.text.TextUtils.TruncateAt.END);row.setPadding(dp(12),0,dp(12),0);row.setClickable(true);row.setFocusable(true);row.setBackground(filterRipple(new ColorDrawable(Color.TRANSPARENT)));row.setOnClickListener(v->click.run());return row;}
   void handleDownloadHistoryClick(DownloadEntry entry){if(entry==null)return;if(entry.state.equals(DOWNLOAD_FAILED))requestRetryDownload(entry);else if(entry.state.equals(DOWNLOAD_PAUSED))resumeDownload(entry);else if(entry.state.equals(DOWNLOAD_COMPLETED))installEntry(entry);else if(isDownloadActive(entry))pauseDownload(entry);}
   LinearLayout toastPanel(){LinearLayout panel=new LinearLayout(this);panel.setOrientation(LinearLayout.VERTICAL);panel.setPadding(dp(10),dp(8),dp(10),dp(8));panel.setBackground(solidShape(SURFACE,16));panel.setElevation(dp(6));return panel;}
-  void addToastPanel(LinearLayout panel,int height){LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,dp(height));lp.setMargins(0,0,0,dp(5));toastLayer.addView(panel,lp);updateToastViewport();swipePanel(panel,()->dismissPanel(panel,null),null);toastScroll.post(()->{if(motionEnabled())toastScroll.smoothScrollTo(0,toastLayer.getHeight());else toastScroll.scrollTo(0,toastLayer.getHeight());});if(motionEnabled()){panel.setAlpha(0f);panel.setTranslationX(-dp(260));panel.animate().alpha(1f).translationX(0).setDuration(210).start();}else{panel.setAlpha(1f);panel.setTranslationX(0);}}
-   void resetSwipePanel(View view){if(motionEnabled())view.animate().translationX(0).alpha(1f).setDuration(140).start();else{view.setTranslationX(0);view.setAlpha(1f);}}
+  void addToastPanel(LinearLayout panel,int height){LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,dp(height));lp.setMargins(0,0,0,dp(5));toastLayer.addView(panel,lp);updateToastViewport();swipePanel(panel,()->dismissPanel(panel,null),null);toastScroll.post(()->{if(motionEnabled())toastScroll.smoothScrollTo(0,toastLayer.getHeight());else toastScroll.scrollTo(0,toastLayer.getHeight());});/* [DFW-54] 入场语言统一：旧版是**从左边横着滑进来**（translationX -260dp，210ms），
+       全站只有下载卡是横向入场 —— 顶部通知条、弹窗、页面转场全是纵向，所以看起来"割裂"。
+       现在改成和顶部通知条同一方向：从上往下落 8dp + 淡入，240ms，用站内统一的
+       PathInterpolator(0.2,0,0,1)（= M3 emphasized 减速段）。
+       退场 160ms 且方向相反 —— 规范自检项要求**入场时长 ≥ 退场时长**，
+       旧版退场 230ms > 入场 210ms，是"进得急、走得慢"的廉价感来源。 */
+if(motionEnabled()){panel.setAlpha(0f);panel.setTranslationY(-dp(8));panel.animate().alpha(1f).translationY(0).setDuration(240).setInterpolator(new android.view.animation.PathInterpolator(0.2f,0f,0f,1f)).start();}else{panel.setAlpha(1f);panel.setTranslationY(0);}}
+   void resetSwipePanel(View view){if(motionEnabled())view.animate().translationX(0).translationY(0).alpha(1f).setDuration(160).setInterpolator(new android.view.animation.PathInterpolator(0.2f,0f,0f,1f)).start();else{view.setTranslationX(0);view.setTranslationY(0);view.setAlpha(1f);}}
    @android.annotation.SuppressLint("ClickableViewAccessibility") void swipePanel(View panel,Runnable dismiss,Runnable tap){swipePanel(panel,dismiss,tap,null);}
    @android.annotation.SuppressLint("ClickableViewAccessibility") void swipePanel(View panel,Runnable dismiss,Runnable tap,Runnable hold){panel.setClickable(true);panel.setOnClickListener(tap==null?null:view->tap.run());panel.setLongClickable(hold!=null);panel.setOnLongClickListener(view->{if(hold==null)return false;hold.run();return true;});panel.setOnTouchListener(new View.OnTouchListener(){float startX,startY;int gesture;boolean held;final Runnable longAction=()->{if(gesture==0&&hold!=null)held=panel.performLongClick();};public boolean onTouch(View view,MotionEvent event){switch(event.getActionMasked()){case MotionEvent.ACTION_DOWN:startX=event.getRawX();startY=event.getRawY();gesture=0;held=false;view.animate().cancel();view.postDelayed(longAction,ViewConfiguration.getLongPressTimeout());view.getParent().requestDisallowInterceptTouchEvent(true);return true;case MotionEvent.ACTION_MOVE:float dx=event.getRawX()-startX,dy=event.getRawY()-startY;if(gesture==0&&Math.max(Math.abs(dx),Math.abs(dy))>dp(5)){gesture=Math.abs(dx)>=Math.abs(dy)?1:2;view.removeCallbacks(longAction);}if(gesture==2){view.getParent().requestDisallowInterceptTouchEvent(false);return false;}float shift=Math.max(0,dx);view.setTranslationX(shift);view.setAlpha(Math.max(.35f,1f-shift/Math.max(1f,dp(260))));return true;case MotionEvent.ACTION_UP:view.removeCallbacks(longAction);view.getParent().requestDisallowInterceptTouchEvent(false);if(held){resetSwipePanel(view);return true;}float distance=Math.max(0,event.getRawX()-startX);if(gesture==1&&distance>dp(72)){dismiss.run();return true;}resetSwipePanel(view);if(gesture==0)view.performClick();return true;default:view.removeCallbacks(longAction);view.getParent().requestDisallowInterceptTouchEvent(false);resetSwipePanel(view);return true;}}});}
-  void dismissPanel(View panel,Runnable after){Runnable remove=()->{if(panel.getParent()==toastLayer)toastLayer.removeView(panel);updateToastViewport();if(after!=null)after.run();};if(!motionEnabled()){remove.run();return;}panel.animate().cancel();panel.animate().alpha(0f).translationX(dp(270)).setDuration(230).withEndAction(remove).start();}
+  void dismissPanel(View panel,Runnable after){Runnable remove=()->{if(panel.getParent()==toastLayer)toastLayer.removeView(panel);updateToastViewport();if(after!=null)after.run();};if(!motionEnabled()){remove.run();return;}panel.animate().cancel();panel.animate().alpha(0f).translationY(-dp(8)).setDuration(160).setInterpolator(new android.view.animation.PathInterpolator(0.2f,0f,0f,1f)).withEndAction(remove).start();}
   void dismissDownloadToast(DownloadEntry entry,LinearLayout panel){dismissPanel(panel,()->{if(taskToasts.get(entry)==panel){taskToasts.remove(entry);toastLabels.remove(entry);toastBars.remove(entry);}});}
   BatchToastState createBatchParsingToast(List<Models.Item> items,List<DownloadEntry> entries){BatchToastState state=new BatchToastState();state.total=items.size();state.remaining.set(state.total);downloadToastEntries.addAll(entries);syncDownloadToastPresentation();return state;}
   void finishBatchParsing(BatchToastState batch){if(batch==null)return;batch.remaining.updateAndGet(value->Math.max(0,value-1));runOnUiThread(()->{if(mergedDownloadToast!=null)updateMergedDownloadToast(visibleDownloadToastEntries());});}

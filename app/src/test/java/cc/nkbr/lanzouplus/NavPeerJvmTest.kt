@@ -260,18 +260,27 @@ class NavPeerJvmTest {
     // ── 预测式返回预览：AI 页 / 顶级页不跟手 ────────────────────────────────
 
     @Test
-    fun predictivePreview_isSuppressedOnTopLevelRoot() {
+    fun predictivePreview_isSuppressedEverywhere() {
+        /*
+         * [DFW-79] 需求已反转 —— 用户 2026-10-01：
+         * > "我不希望有预动画。就是说这个我就不需要有那些提前预判我返回的动画了，
+         * >  因为看起来很难看很卡。"
+         *
+         * 历史：v1.22.1 用户**要求**过跟手预览，所以 DFW-73 实现了它（缩放 1→0.93 + 侧移 ≤26dp）。
+         * 现在用户改主意了 → 全站关闭。这条用例随之从"子页必须有预览"改成"哪里都不许有预览"。
+         * 开关本身保留（`predictiveBackPreviewAllowed()`），随时可以再打开。
+         */
         val a = activity()
         assertFalse(
-            "顶级页的返回语义只是「再返回一次退出软件」，页面本身不离开，所以不该有跟手缩放",
+            "顶级页的返回语义只是「再返回一次退出软件」，页面本身不离开，不该有跟手缩放",
             a.predictiveBackPreviewAllowed(),
         )
         a.showSettings()
         shadowOf(Looper.getMainLooper()).idle()
-        assertFalse(a.predictiveBackPreviewAllowed())
+        assertFalse("设置页也不许有跟手预览（用户明确不要预动画）", a.predictiveBackPreviewAllowed())
         a.showAboutPage()
         shadowOf(Looper.getMainLooper()).idle()
-        assertTrue("子页必须有跟手预览（预测式返回）", a.predictiveBackPreviewAllowed())
+        assertFalse("子页同样不许有跟手预览 —— 侧滑到一半整页就开始缩放位移，用户觉得『很难看很卡』", a.predictiveBackPreviewAllowed())
     }
 
     // ── AI 页根态返回键（DFW-26 审计查出的必现 bug） ──────────────────────
