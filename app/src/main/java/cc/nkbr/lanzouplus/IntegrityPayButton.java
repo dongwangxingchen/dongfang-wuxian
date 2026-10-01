@@ -26,13 +26,13 @@ import android.widget.TextView;
  *  onDetachedFromWindow 取消，省电。
  *  <p>2026-10-01 真机反馈修复（用户逐字："白色的流光效果只覆盖了 2/3 的地方，看起来有那种割裂感"）。
  *  病根两条：
- *  ① 旧扫光层是**固定 40dp 高 + 垂直居中**，而按钮实测高约 60~66dp（上下内距 12dp + 标题 20dp
- *     + 副标约 15dp）—— 40/62≈65%，正好就是用户说的"2/3"：上下各留一条**永远扫不到**的硬边，
- *     这两条边就是割裂感的来源；
+ *  ① 旧扫光层是**固定 40dp 高 + 垂直居中**，而按钮实测高约 63dp（JVM 实测 166px @420dpi，
+ *     上下内距 12dp + 标题行 20dp + 副标约 15dp）—— 40/63≈63%，正好就是用户说的"2/3"：
+ *     上下各留一条**永远扫不到**的硬边，这两条边就是割裂感的来源；
  *  ② 旧渐变是 TL_BR **斜向**，白光是一条斜带，在圆角矩形里被 setClipToOutline 切出斜硬边。
  *  修法：高度铺满整块按钮（见 onMeasure/onLayout），渐变改水平方向，亮带宽度随按钮宽度走。
- *  顺带修掉旧位移公式的"空转"：旧式 -sw + t*(w + 2sw) 会让亮带在 t≈0.70 就整条移出右缘，
- *  剩下 30% 的周期完全没有光；新式见 shineOffset。 */
+ *  顺带修掉旧位移公式的"空转"：旧式 -sw + t*(w + 2sw) 会让亮带亮心在 t≈0.70 就移出按钮右缘
+ *  （整条移出约 t≈0.79），之后约 30% 的周期按钮上基本无光；新式见 shineOffset。 */
 public class IntegrityPayButton extends FrameLayout {
   private final boolean paid;
   private final boolean motionEnabled;
@@ -143,7 +143,8 @@ public class IntegrityPayButton extends FrameLayout {
 
   /** 扫光层铺满整块按钮（**含 padding 区**）：FrameLayout 的子视图一定会被父 padding 内缩，
    *  只靠 LayoutParams 只能覆盖到内容区，上下仍各留一条 padding 高的硬边 —— 那正是用户看到的割裂感。
-   *  所以 super.onLayout 之后把扫光层的绘制框直接钉到 (0,0,亮带宽,按钮高)。
+   *  所以 super.onLayout 之后把扫光层的绘制框直接钉到 (0,0,亮带宽,按钮高)：
+   *  既绕开 padding 内缩，也补上 onMeasure 里"为了不被撑高而量成 0"的那个高度。
    *  亮带宽度 = 按钮宽的 62%（下限 132dp）：旧实现固定 110dp，在宽屏上只是"一小块"，
    *  现在窄屏不显小、宽屏就是"一整片光扫过去"，且随按钮宽度自适应、不用改代码。 */
   @Override protected void onLayout(boolean changed, int left, int top, int right, int bottom) {
@@ -168,7 +169,8 @@ public class IntegrityPayButton extends FrameLayout {
   /** 扫光位移（纯函数，抽出来是为了让 JVM 用例能直接推演几何）：
    *  t=0 时亮带**右缘正好贴住按钮左缘**、t=1 时亮带**左缘正好贴住按钮右缘**，
    *  中间单调平移 —— 于是按钮宽度上每一点都会被扫到、且周期里没有任何"完全无光"的时段。
-   *  旧实现是 -sw + t*(w + 2sw)：亮带在 t≈0.70 就整条移出右缘，剩下 30% 周期空转（约 780ms 全黑）。 */
+   *  旧实现是 -sw + t*(w + 2sw)：亮带亮心在 t≈0.70 就移出按钮右缘（整条移出约 t≈0.79），
+   *  之后约 30% 的周期按钮上基本无光（约 780ms 空转）。 */
   static float shineOffset(float t, float buttonWidth, float bandWidth) {
     return -bandWidth + t * (buttonWidth + bandWidth);
   }

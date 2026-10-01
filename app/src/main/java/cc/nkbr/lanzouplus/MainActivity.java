@@ -2392,7 +2392,40 @@ content=new LinearLayout(this);content.setOrientation(LinearLayout.VERTICAL);pag
   View buildSettingsSearch(){FrameLayout box=new FrameLayout(this);box.setBackground(shape(SURFACE,14));box.setDescendantFocusability(ViewGroup.FOCUS_BEFORE_DESCENDANTS);box.setFocusableInTouchMode(true);box.setFocusable(true);EditText input=new EditText(this);input.setSingleLine();input.setTextColor(TEXT);input.setHintTextColor(MUTED);input.setHint("搜索设置项");input.setTextSize(14);input.setBackgroundColor(Color.TRANSPARENT);input.setPadding(dp(14),0,dp(52),0);input.setImeOptions(EditorInfo.IME_ACTION_DONE);box.addView(input,new FrameLayout.LayoutParams(-1,-1));ImageButton clear=iconButton(R.drawable.ic_close,"清除搜索");clear.setVisibility(View.GONE);FrameLayout.LayoutParams fp=new FrameLayout.LayoutParams(dp(44),dp(44),Gravity.END|Gravity.CENTER_VERTICAL);box.addView(clear,fp);settingsSearchInput=input;Runnable run=()->{String q=input.getText().toString().trim();clear.setVisibility(q.isEmpty()?View.GONE:View.VISIBLE);applySettingsFilter(q);};clear.setOnClickListener(v->{input.setText("");input.clearFocus();});input.addTextChangedListener(new TextWatcher(){public void beforeTextChanged(CharSequence s,int start,int count,int after){}public void onTextChanged(CharSequence s,int start,int before,int count){if(searchDebounceRunnable!=null)ui.removeCallbacks(searchDebounceRunnable);searchDebounceRunnable=run;ui.postDelayed(run,150);}public void afterTextChanged(Editable e){}});return box;}
   void applySettingsFilter(String query){if(settingsSearchSections.isEmpty())return;String q=query.trim();boolean searching=!q.isEmpty();int visibleSections=0;for(View sectionObj:settingsSearchSections){LinearLayout section=(LinearLayout)sectionObj;LinearLayout content=(LinearLayout)section.getChildAt(section.getChildCount()>1?1:0);if(!searching){section.setVisibility(View.VISIBLE);content.setVisibility(Boolean.TRUE.equals(section.getTag())?View.VISIBLE:View.GONE);for(int r=0;r<content.getChildCount();r++)content.getChildAt(r).setVisibility(View.VISIBLE);continue;}int hits=0;for(int r=0;r<content.getChildCount();r++){View row=content.getChildAt(r);StringBuilder sb=new StringBuilder();collectSettingsText(row,sb);boolean hit=sb.length()>0&&sb.toString().contains(q);row.setVisibility(hit?View.VISIBLE:View.GONE);if(hit)hits++;}section.setVisibility(hits>0?View.VISIBLE:View.GONE);if(hits>0){content.setVisibility(View.VISIBLE);visibleSections++;}}if(settingsSearchEmpty!=null)settingsSearchEmpty.setVisibility(searching&&visibleSections==0?View.VISIBLE:View.GONE);}
   void collectSettingsText(View view,StringBuilder sb){if(view instanceof TextView){String t=((TextView)view).getText().toString();if(!t.isEmpty()){if(sb.length()>0)sb.append(' ');sb.append(t);}}else if(view instanceof ViewGroup){ViewGroup group=(ViewGroup)view;for(int i=0;i<group.getChildCount();i++)collectSettingsText(group.getChildAt(i),sb);}else{CharSequence cd=view.getContentDescription();if(cd!=null&&cd.length()>0){if(sb.length()>0)sb.append(' ');sb.append(cd);}}}
-  void showCrashLogPage(){primaryBase(3);pageKind=9;activeSource=null;clearFolderTrail();systemBackAction=this::showSettings;LinearLayout body=aboutBackBar("崩溃日志");
+  /**
+   * [DFW-73] 崩溃日志页。
+   *
+   * 用户 2026-10-01 真机反馈："我点击之后，动画效果卡一下，我点击后按理来说会像其他的一样直接进去。
+   * 但是我点击后能看到上半部分打开的样子，以及下半部分透明。"
+   *
+   * 两个原因都在这一页上：
+   *  1. **卡一下**：`buildCrashReport()`（可能很长）和 `ensureCrashFolder()`（文件 IO）原来是在
+   *     **转场那一帧**同步跑的，把整页推入动画的主线程整个占住 —— 点下去先僵一下，然后才动。
+   *     现在先只上"壳子"，正文挪到下一帧再填：转场先跑起来，用户看到的就是"直接进去"。
+   *  2. **下半部分透明**：页面帧以前没有底色（见 `basePage()` 的说明），新页滑进来的过程中
+   *     下面那截会透出旧页（旧页还被压暗到 55%）。
+   */
+  void showCrashLogPage(){
+    primaryBase(3);pageKind=9;activeSource=null;clearFolderTrail();systemBackAction=this::showSettings;
+    LinearLayout body=aboutBackBar("崩溃日志");
+    ScrollView scroll=new ScrollView(this);scroll.setFillViewport(true);
+    scroll.addView(body,new ScrollView.LayoutParams(-1,-2));
+    root.addView(scroll,new LinearLayout.LayoutParams(-1,0,1));
+    // v1.22.11 修"打开后瞬间闪一下、顶上 4 个按钮被滚走"（用户 2026-09-29 第二轮反馈）：
+    // 正文设了 setTextIsSelectable(true)，它同时是"触摸模式下可获焦"的视图；页面铺开后系统在触摸模式里
+    // 自动把焦点交给子树里第一个触摸可获焦的视图（就是那块长正文），ScrollView 随即把它滚进可视区，
+    // 实测 scrollY 0→756，于是顶部操作卡被顶出屏幕——表现为"闪了一下就看不到按钮了"。
+    // 修法：让滚动容器自己当触摸模式焦点锚点（FOCUS_BEFORE_DESCENDANTS 抢在子树之前），焦点落在容器上就不会产生任何滚动。
+    // 正文延后一帧再加，所以这里先把锚点抢好，后加的子树抢不走它。
+    scroll.setFocusableInTouchMode(true);
+    scroll.setDescendantFocusability(ViewGroup.FOCUS_BEFORE_DESCENDANTS);
+    scroll.post(()->{if(pageFrame!=null&&scroll.getParent()!=null){scroll.requestFocus();scroll.scrollTo(0,0);}});
+    final int session=navigationSession;
+    ui.post(()->{if(pageKind!=9||session!=navigationSession||isFinishing()||isDestroyed())return;fillCrashLogBody(body);});
+  }
+
+  /** 崩溃日志页的正文（重活：报告生成 + 目录检查 + 三张卡）。只在壳子上屏之后调用。 */
+  void fillCrashLogBody(LinearLayout body){
     String report=buildCrashReport();
     boolean folderReady=storageAccessGranted()&&ensureCrashFolder();
     // v1.22.10（用户反馈："按钮什么的从最底部改到最顶部"）：操作卡置于正文卡之上，长日志也不用手滑到底。
@@ -2415,15 +2448,7 @@ content=new LinearLayout(this);content.setOrientation(LinearLayout.VERTICAL);pag
     LinearLayout logCard=aboutCard();TextView logView;
     if(report.isEmpty()){logView=text("暂无崩溃记录，应用运行正常",13,MUTED);}else{logView=text(report,11,TEXT);logView.setTypeface(android.graphics.Typeface.MONOSPACE);logView.setTextIsSelectable(true);}
     logCard.addView(logView,new LinearLayout.LayoutParams(-1,-2));body.addView(logCard,aboutCardLp());
-    ScrollView scroll=new ScrollView(this);scroll.setFillViewport(true);scroll.addView(body,new ScrollView.LayoutParams(-1,-2));root.addView(scroll,new LinearLayout.LayoutParams(-1,0,1));
-    // v1.22.11 修"打开后瞬间闪一下、顶上 4 个按钮被滚走"（用户 2026-09-29 第二轮反馈）：
-    // 正文设了 setTextIsSelectable(true)，它同时是"触摸模式下可获焦"的视图；页面铺开后系统在触摸模式里
-    // 自动把焦点交给子树里第一个触摸可获焦的视图（就是那块长正文），ScrollView 随即把它滚进可视区，
-    // 实测 scrollY 0→756，于是顶部操作卡被顶出屏幕——表现为"闪了一下就看不到按钮了"。
-    // 修法：让滚动容器自己当触摸模式焦点锚点（FOCUS_BEFORE_DESCENDANTS 抢在子树之前），焦点落在容器上就不会产生任何滚动。
-    scroll.setFocusableInTouchMode(true);
-    scroll.setDescendantFocusability(ViewGroup.FOCUS_BEFORE_DESCENDANTS);
-    scroll.post(()->{if(pageFrame!=null&&scroll.getParent()!=null){scroll.requestFocus();scroll.scrollTo(0,0);}});}
+  }
   /**
    * 崩溃日志存哪、现在能不能写：把**绝对路径**直接摆在页面上（v1.22.11）。
    * 用户 2026-09-29 反馈"在 MT 管理器里没有找到东方无限文件夹"——与其让用户去猜，

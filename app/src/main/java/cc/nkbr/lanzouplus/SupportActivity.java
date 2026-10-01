@@ -56,8 +56,8 @@ public class SupportActivity extends Activity {
    * > "诚信付费的那个预返回动画与其他的不一样，就是崩溃日志或者是其他的那种返回效果并不一样。
    * >  能不能给它们统一为一个非常好的效果？"
    *
-   * 病根：本页是**独立 Activity**，此前完全没设转场动画 —— 进场/退场走系统默认（新页从下方淡入那一套），
-   * 与站内子页（MainActivity.animatePage 的 sharedAxis 推入/抽纸式返回）完全不同。
+   * 病根：本页是**独立 Activity**，此前完全没设转场动画 —— 进场/退场走系统默认转场，
+   * 与站内子页（MainActivity.animatePage 的 sharedAxis 推入/抽纸式返回）完全不是一套。
    * 现在把 animatePage 的语义原样搬成窗口动画资源，对应关系写在 res/anim/dfwx_page_*.xml 顶部注释里：
    *   推入 300ms：新页从右侧 28% 屏宽滑入（dfwx_page_open_in）+ 旧页原地缩到 94% 并压暗到 55%（dfwx_page_open_out）；
    *   返回 240ms：上层页向右滑走并淡出（dfwx_page_close_out）+ 下层页不透明不动（dfwx_page_close_in）。
