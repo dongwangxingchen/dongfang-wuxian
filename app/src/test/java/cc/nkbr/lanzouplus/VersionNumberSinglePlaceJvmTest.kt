@@ -154,7 +154,12 @@ class VersionNumberSinglePlaceJvmTest {
     @Test
     fun shellScriptsNeverGlueAVariableToChineseText() {
         val trap = Regex("\\\\$[A-Za-z_][A-Za-z0-9_]*[^\\x00-\\x7F]")
-        for (rel in listOf("tools/release.sh", "tools/ci-gate.sh", "tools/dfwx-publish-apk.sh")) {
+        // 扫描 tools/ 下**所有** shell 脚本 —— 写死三个文件名是不够的：
+        // 本次新加的 tools/bump-version.sh 就立刻又踩了同一个坑（`$CODE（`）。
+        val scripts = File(root, "tools").listFiles { f -> f.name.endsWith(".sh") }!!
+            .map { "tools/" + it.name }.sorted()
+        assertTrue("tools/ 下应当有若干 shell 脚本，扫描列表不该为空", scripts.size >= 4)
+        for (rel in scripts) {
             val hits = read(rel).lines().withIndex()
                 .flatMap { (i, line) -> trap.findAll(line).map { "${rel}:${i + 1} ${it.value}" } }
             assertTrue(

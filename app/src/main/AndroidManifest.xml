@@ -10,6 +10,7 @@
    <application android:name=".App" tools:replace="android:name,android:theme,android:icon,android:label,android:allowBackup,android:usesCleartextTraffic,android:networkSecurityConfig" android:theme="@style/AppTheme" android:label="@string/dfwx_app_name" android:icon="@mipmap/app_icon" android:usesCleartextTraffic="false" android:networkSecurityConfig="@xml/network_security_config" android:allowBackup="false">
  <provider android:name=".DownloadFileProvider" android:authorities="${applicationId}.downloads" android:exported="false" android:grantUriPermissions="true"/>
   <provider android:name="rikka.shizuku.ShizukuProvider" android:authorities="${applicationId}.shizuku" android:multiprocess="false" android:enabled="true" android:exported="true" android:permission="android.permission.INTERACT_ACROSS_USERS_FULL"/>
+  <activity android:name=".FeedbackPage" android:exported="false" android:configChanges="orientation|screenSize|keyboardHidden|uiMode"/>
   <activity android:name=".LanzouWebActivity" android:exported="false" android:configChanges="orientation|screenSize|keyboardHidden|uiMode"/>
   <!-- [DFW-78] SupportActivity 已降级为**遗留**页面：应用内没有任何 startActivity 指向它
        （诚信付费改走站内页 MainActivity.showSupportPage()），exported="false" 也挡掉了外部 Intent。

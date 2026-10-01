@@ -2925,6 +2925,13 @@ content=new LinearLayout(this);content.setOrientation(LinearLayout.VERTICAL);pag
      它本来就是"关于这个软件"的东西，和崩溃日志/参考致谢/关于放一起才对。 */
   footerContent.addView(settingsAction(R.drawable.ic_history,"更新记录",v->showChangelogCenter()),new LinearLayout.LayoutParams(-1,-2));
   View footerDivider2=new View(this);footerDivider2.setBackgroundColor(SET_STROKE2);LinearLayout.LayoutParams fd2Lp=new LinearLayout.LayoutParams(-1,dp(1));fd2Lp.setMargins(dp(50),0,dp(8),0);footerContent.addView(footerDivider2,fd2Lp);
+  /*
+   * [DFW-97] 「反馈与建议」放在「检查更新」**上方**（用户 2026-10-02 指定）。
+   * 位置理由：反馈是"我想说点什么"（高频、主动），检查更新是"我怀疑有问题"（低频、被动），
+   * 主动的放上面更顺手。
+   */
+  footerContent.addView(settingsAction(R.drawable.ic_tool_heart,"反馈与建议",v->startActivity(new Intent(this,FeedbackPage.class))),new LinearLayout.LayoutParams(-1,-2));
+  View footerDividerFeedback=new View(this);footerDividerFeedback.setBackgroundColor(SET_STROKE2);LinearLayout.LayoutParams fdFbLp=new LinearLayout.LayoutParams(-1,dp(1));fdFbLp.setMargins(dp(50),0,dp(8),0);footerContent.addView(footerDividerFeedback,fdFbLp);
   footerContent.addView(settingsAction(R.drawable.ic_refresh,"检查更新",BuildConfig.VERSION_NAME,v->manualCheckForUpdates()),new LinearLayout.LayoutParams(-1,-2));
   View footerDivider3=new View(this);footerDivider3.setBackgroundColor(SET_STROKE2);LinearLayout.LayoutParams fd3Lp=new LinearLayout.LayoutParams(-1,dp(1));fd3Lp.setMargins(dp(50),0,dp(8),0);footerDivider3.setLayoutParams(fd3Lp);footerContent.addView(footerDivider3);
   footerContent.addView(settingsAction(R.drawable.ic_tool_info,"关于"+PRODUCT_NAME,v->showAboutPage()),new LinearLayout.LayoutParams(-1,-2));
