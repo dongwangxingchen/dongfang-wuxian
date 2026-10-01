@@ -26,6 +26,8 @@ import androidx.core.view.WindowInsetsCompat;
  *  结构：开发者信 → 权益 1 条（用户 2026-10-01 口述：原 3 条 emoji 短语精简为 1 条长句）→ 收款码微信单卡全宽
  *  （真实码 v1.3.3 嵌入；v1.4.1 起确认不收款支付宝）→「我已完成支付」零验证解锁 → 感谢页（解锁后本页变成状态页）。
  *  独立 Activity 自己处理窗口 insets（见 installSystemBarInsets）：页头返回箭头与底部小字都不被系统栏压住。
+ *  [DFW-74] 独立 Activity 的**进出场动画也自己设**，语义与站内子页 MainActivity.animatePage 完全一致
+ *  （推入 300ms 右滑入 + 旧页压暗 / 返回 240ms 右滑走淡出），见 installPageTransitions 与 closePage。
  *  红线：不付费也能完整使用；本页任何位置都有"暂时不支持"退出路径。 */
 public class SupportActivity extends Activity {
   int BG,SURFACE,SURFACE2,BORDER,PRIMARY,PRIMARY_HI,PRIMARY_LO,TEXT,MUTED;
@@ -47,8 +49,60 @@ public class SupportActivity extends Activity {
     return super.getResources();
   }
 
+  /**
+   * [DFW-74] **本页进出场与站内子页转场统一**。
+   *
+   * 用户 2026-10-01：
+   * > "诚信付费的那个预返回动画与其他的不一样，就是崩溃日志或者是其他的那种返回效果并不一样。
+   * >  能不能给它们统一为一个非常好的效果？"
+   *
+   * 病根：本页是**独立 Activity**，此前完全没设转场动画 —— 进场/退场走系统默认（新页从下方淡入那一套），
+   * 与站内子页（MainActivity.animatePage 的 sharedAxis 推入/抽纸式返回）完全不同。
+   * 现在把 animatePage 的语义原样搬成窗口动画资源，对应关系写在 res/anim/dfwx_page_*.xml 顶部注释里：
+   *   推入 300ms：新页从右侧 28% 屏宽滑入（dfwx_page_open_in）+ 旧页原地缩到 94% 并压暗到 55%（dfwx_page_open_out）；
+   *   返回 240ms：上层页向右滑走并淡出（dfwx_page_close_out）+ 下层页不透明不动（dfwx_page_close_in）。
+   * 曲线一律用系统 @android:interpolator/fast_out_slow_in（= 站内那条 M3 emphasized），不自己造。
+   *
+   * **为什么两条 API 都设**（这是本页必须自己设、又必须设对的关键）：
+   * ① 任务指定的 {@code overridePendingTransition} 在**被启动页的 onCreate 里调用会被系统直接丢弃** ——
+   *    AOSP `ActivityClientController.overridePendingTransition` 有状态门禁：
+   *    `if (r != null && r.isState(RESUMED, PAUSING))` 才生效，而 onCreate 时本页还是 INITIALIZING/STARTED
+   *    （android13-release 与 main 分支实现一致，均已核对）。也就是说只靠它，付费页的**进场**动画在真机上
+   *    根本不会出现（用户反馈的正是真机观感）。它仍然保留：低版本只有这一条路，且官方文档说它的优先级
+   *    高于下面这条，两条设成同一组资源，谁生效结果都一样。
+   * ② API 34+ 用 {@code overrideActivityTransition}：官方文档明确写了"想定制从 A 打开 B 的转场，
+   *    就在 B 的 onCreate 里用 OVERRIDE_TRANSITION_OPEN"，且 AMS 侧
+   *    `ActivityClientController.overrideActivityTransition` **没有状态门禁**（直接写 ActivityRecord）。
+   *    这才是"被启动页自己定进场动画"的可靠做法，用户真机 Android 16 走的正是这条。
+   *
+   * 系统"动画时长缩放 = 0"时，窗口动画会被系统整体跳过（动画时长按 0 处理），这里不需要额外门控。
+   */
+  void installPageTransitions(){
+    if(Build.VERSION.SDK_INT>=34){
+      overrideActivityTransition(OVERRIDE_TRANSITION_OPEN,R.anim.dfwx_page_open_in,R.anim.dfwx_page_open_out);
+      overrideActivityTransition(OVERRIDE_TRANSITION_CLOSE,R.anim.dfwx_page_close_in,R.anim.dfwx_page_close_out);
+    }
+    overridePendingTransition(R.anim.dfwx_page_open_in,R.anim.dfwx_page_open_out);
+  }
+
+  /** [DFW-74] 本页唯一的退场出口：所有返回路径都走这里，保证退场动画与站内子页一致。
+   *  先设动画再 finish()：此刻本页确定处于 RESUMED（正是 overridePendingTransition 状态门禁要求的），
+   *  设完再退，AMS 会把这条动画用在紧随其后的关闭转场里。 */
+  void closePage(){
+    overridePendingTransition(R.anim.dfwx_page_close_in,R.anim.dfwx_page_close_out);
+    finish();
+  }
+
+  /** 系统返回（边缘滑动 / 返回键）也走同一个退场：本页没有 enableOnBackInvokedCallback，
+   *  走的是传统 onBackPressed 链路；默认实现就是裸 finish()，不接管的话这条路径的退场
+   *  又会退回系统默认动画，跟左上角返回箭头不一致（用户要求的就是"统一"）。 */
+  @Override public void onBackPressed(){
+    closePage();
+  }
+
   @Override public void onCreate(Bundle savedInstanceState){
     super.onCreate(savedInstanceState);
+    installPageTransitions();
     applyPalette();
     density=getResources().getDisplayMetrics().density;
     root=new LinearLayout(this);root.setOrientation(LinearLayout.VERTICAL);root.setBackgroundColor(BG);
@@ -123,7 +177,7 @@ public class SupportActivity extends Activity {
     back.setPadding(dp(10),dp(10),dp(10),dp(10));
     back.setBackground(ripple(new ColorDrawable(Color.TRANSPARENT)));
     back.setContentDescription("返回");
-    back.setOnClickListener(v->finish());
+    back.setOnClickListener(v->closePage());
     top.addView(back,new LinearLayout.LayoutParams(dp(44),dp(44)));
     return top;
   }
@@ -208,7 +262,7 @@ public class SupportActivity extends Activity {
     // 而这恰恰是"不付费也能走"的唯一出口，最不该让人怀疑自己点没点到。
     skip.setBackground(ripple(new ColorDrawable(Color.TRANSPARENT)));
     skip.setContentDescription("暂时不支持，继续使用（不付费也能完整使用其它功能）");
-    skip.setOnClickListener(v->finish());
+    skip.setOnClickListener(v->closePage());
     LinearLayout.LayoutParams skipLp=new LinearLayout.LayoutParams(-1,dp(44));
     skipLp.topMargin=dp(6);
     page.addView(skip,skipLp);

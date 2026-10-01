@@ -35,7 +35,16 @@ final class UpdateClient {
     if(!hasMirror)endpoints=new String[]{GITHUB_LATEST};
     else endpoints=china?new String[]{SITE_LATEST,GITHUB_LATEST}:new String[]{GITHUB_LATEST,SITE_LATEST};
     IOException first=null;
-    for(String endpoint:endpoints)try{return parse(fetch(endpoint),current,hasMirror&&SITE_LATEST.equals(endpoint));}catch(IOException error){if(first==null)first=error;}
+    boolean sawNoRelease=false;
+    for(String endpoint:endpoints)try{return parse(fetch(endpoint),current,hasMirror&&SITE_LATEST.equals(endpoint));}
+      catch(IOException error){
+        /* [DFW-73] 404 = 「这个源上没有任何正式版本」，**不是故障**。
+           我们把全部旧版本标成预发布之后，GitHub 的 /releases/latest 就是 404；
+           旧实现把它当失败 → 用户点「检查更新」看到"检查更新失败"，而正确答案是"已是最新版本"。 */
+        if(isNoReleaseError(error.getMessage())){sawNoRelease=true;continue;}
+        if(first==null)first=error;
+      }
+    if(sawNoRelease&&first==null)return null;
     throw new IOException("无法获取更新信息",first);
   }
 
@@ -77,6 +86,17 @@ final class UpdateClient {
     if(!value.startsWith(ASSET_PREFIX)||!value.endsWith(".apk"))return false;
     String middle=value.substring(ASSET_PREFIX.length(),value.length()-4);
     return middle.matches("(?:0|[1-9][0-9]*)\\.(?:0|[1-9][0-9]*)\\.(?:0|[1-9][0-9]*)");
+  }
+
+  /**
+   * [DFW-73] **404 = "这个源上没有任何正式版本"，不是故障。**
+   *
+   * 我们把全部旧版本标成预发布之后，GitHub 的 `/releases/latest` 就是 404；
+   * 旧实现把它当失败 → 用户点「检查更新」看到的是"检查更新失败"，而正确答案是"已是最新版本"。
+   * 其余错误码仍然是真故障，不许被这条吞掉。
+   */
+  static boolean isNoReleaseError(String message){
+    return message != null && message.contains("HTTP 404");
   }
 
   private static JSONObject fetch(String endpoint)throws IOException{

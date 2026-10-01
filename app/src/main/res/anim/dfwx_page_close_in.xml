@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  [DFW-74] 从诚信付费页返回时**下层页**（设置页 / MainActivity）的重新露出：
+  保持不透明、原地不动 —— 与站内子页转场 MainActivity.animatePage 的"返回"分支完全一致：
+  那一段里 previous（下面那页）**完全不做任何动画**，next 被移除后它原样露出来。
+  这里写成 240ms 的零位移，只是为了和 dfwx_page_close_out 的时长对齐（窗口转场时长取两条里最长的一条），
+  视觉上与被系统直接跳过没有区别：不缩放、不改透明度、不位移。
+  系统"动画时长缩放 = 0"时窗口动画被系统整体跳过，不需要额外门控。
+-->
+<set xmlns:android="http://schemas.android.com/apk/res/android"
+     android:shareInterpolator="false"
+     android:interpolator="@android:interpolator/fast_out_slow_in">
+    <translate
+        android:fromXDelta="0"
+        android:toXDelta="0"
+        android:duration="240" />
+</set>
