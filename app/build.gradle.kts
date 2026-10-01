@@ -48,8 +48,8 @@ android {
   //
   // 为什么可以归零：用户会卸载旧版重装（无老用户需要兼容升级）。
   // 若将来想改回大数字：只需保证**新的 versionCode 大于所有已发布过的值**。
-  versionCode = 10011
-  versionName = "1.0.11"
+  versionCode = 10012
+  versionName = "1.0.12"
  }
  compileOptions { sourceCompatibility = JavaVersion.VERSION_17; targetCompatibility = JavaVersion.VERSION_17 }
  packaging {

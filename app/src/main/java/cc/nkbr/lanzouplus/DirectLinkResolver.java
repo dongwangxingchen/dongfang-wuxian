@@ -1,6 +1,10 @@
 package cc.nkbr.lanzouplus;
 
 import android.content.*;
+import android.os.*;
+import java.io.*;
+import java.text.*;
+import java.nio.charset.*;
 import java.util.*;
 import java.util.concurrent.*;
 
@@ -58,6 +62,7 @@ final class DirectLinkResolver implements AutoCloseable {
 
   Ticket resolve(String shareUrl,boolean confirmed,Callback callback){
     String url=clean(shareUrl);if(url.isEmpty()){if(callback!=null)callback.failed("缺少蓝奏云链接");return()->false;}
+    trace("resolve 收到请求 url="+url);
     if(closed){if(callback!=null)callback.failed("直链解析已取消");return()->false;}
     String rememberedPassword=cachedPassword(url);Cache hit=rememberedPassword.isEmpty()?cached(url):null;if(hit!=null){if(callback!=null)callback.resolved(hit.url,hit.at,true);return()->false;}
     boolean cancelled=false;
@@ -91,7 +96,7 @@ final class DirectLinkResolver implements AutoCloseable {
   private Cache cached(String url){url=clean(url);if(url.isEmpty())return null;long at=prefs.getLong(TIME+url,0),age=clock.now()-at;String direct=prefs.getString(DIRECT+url,"");if(!direct.isEmpty()&&at>0&&age>=0&&age<TTL_MS)return new Cache(direct,at);if(at!=0||!direct.isEmpty())prefs.edit().remove(DIRECT+url).remove(TIME+url).apply();return null;}
   private void cleanupExpired(){long now=clock.now();SharedPreferences.Editor edit=null;for(Map.Entry<String,?> entry:prefs.getAll().entrySet())if(entry.getKey().startsWith(TIME)){long at=entry.getValue() instanceof Number?((Number)entry.getValue()).longValue():0;if(at<=0||now-at<0||now-at>=TTL_MS){if(edit==null)edit=prefs.edit();String url=entry.getKey().substring(TIME.length());edit.remove(entry.getKey()).remove(DIRECT+url);}}if(edit!=null)edit.apply();}
 
-  private void finished(Request request,String direct,long at,String error){List<Callback> callbacks;synchronized(lock){if(request.done)return;request.done=true;request.awaitingPassword=false;if(request.queued){pending.remove(request);request.queued=false;}inflight.remove(request.url,request);callbacks=new ArrayList<>(request.callbacks);}if(error==null)prefs.edit().putString(DIRECT+request.url,direct).putLong(TIME+request.url,at).apply();if(error==null)for(Callback callback:callbacks)try{callback.resolved(direct,at,false);}catch(RuntimeException ignored){android.util.Log.w("DirectLinkResolver.java", "DirectLinkResolver.java RuntimeException: "+ignored.getMessage(), ignored);}else for(Callback callback:callbacks)try{callback.failed(error);}catch(RuntimeException ignored){android.util.Log.w("DirectLinkResolver.java", "DirectLinkResolver.java RuntimeException: "+ignored.getMessage(), ignored);}}
+  private void finished(Request request,String direct,long at,String error){trace("回调发出 "+(error==null?"resolved":"failed: "+error)+" url="+request.url);List<Callback> callbacks;synchronized(lock){if(request.done)return;request.done=true;request.awaitingPassword=false;if(request.queued){pending.remove(request);request.queued=false;}inflight.remove(request.url,request);callbacks=new ArrayList<>(request.callbacks);}if(error==null)prefs.edit().putString(DIRECT+request.url,direct).putLong(TIME+request.url,at).apply();if(error==null)for(Callback callback:callbacks)try{callback.resolved(direct,at,false);}catch(RuntimeException ignored){android.util.Log.w("DirectLinkResolver.java", "DirectLinkResolver.java RuntimeException: "+ignored.getMessage(), ignored);}else for(Callback callback:callbacks)try{callback.failed(error);}catch(RuntimeException ignored){android.util.Log.w("DirectLinkResolver.java", "DirectLinkResolver.java RuntimeException: "+ignored.getMessage(), ignored);}}
   private void defer(Request request,long delay){synchronized(lock){if(request.done||closed||request.awaitingPassword)return;}try{retries.schedule(()->{synchronized(lock){if(request.done||closed||request.awaitingPassword)return;enqueueLocked(request);}},Math.max(1,delay),TimeUnit.MILLISECONDS);}catch(RejectedExecutionException rejected){if(!closed)finished(request,null,0,"直链解析已取消");}}
   private void awaitPassword(Request request,boolean rejectedPrevious){PasswordCallback interactive=null;synchronized(lock){if(request.done||closed)return;request.awaitingPassword=true;request.password="";for(Callback callback:request.callbacks)if(callback instanceof PasswordCallback){interactive=(PasswordCallback)callback;break;}}if(interactive==null){finished(request,null,0,"无法解析下载链接：需要访问密码");return;}try{interactive.passwordRequired(rejectedPrevious);}catch(RuntimeException ignored){android.util.Log.w("DirectLinkResolver.java", "DirectLinkResolver.java RuntimeException: "+ignored.getMessage(), ignored);}}
 
@@ -108,6 +113,33 @@ final class DirectLinkResolver implements AutoCloseable {
    *   `无法解析下载链接：[SSLHandshakeException] Trust anchor for certification path not found`
    * 这样用户截一张图，就能直接定位到是哪一类故障。
    */
+  // ── [DFW-100 2026-10-01] 直链解析诊断埋点 ──────────────────────────────────
+  //
+  // 为什么加这个：用户连续 5 个版本报"下载一直显示解析中"，我猜了 5 轮
+  // （VPN 证书 / 域名证书过期 / TLS 换线开关 / 下载付费门 / renderFolder 空指针）
+  // **全都没解决**。崩溃日志里没有任何报错 —— 说明解析请求既没成功也没失败，
+  // 卡在中间某个环节，而代码里没有任何地方记录它走到哪了。
+  //
+  // 结论：**不要再猜，让软件自己说**。这里在解析链路的关键节点各记一行，
+  // 写到 `Download/东方无限/崩溃日志/download.log`（和 crash.log 同一个目录，
+  // 用户在「崩溃日志」页导出时能一并取走）。
+  //
+  // 定位完成后这段埋点可以保留（开销极小，只在解析时各写一行），
+  // 因为它解决的是"以后同类问题怎么快速定位"，不是一次性的。
+  private static void trace(String message){
+    try{
+      File dir=new File(Environment.getExternalStorageDirectory(),"Download/东方无限/崩溃日志");
+      if(!dir.exists()&&!dir.mkdirs())return;
+      File file=new File(dir,"download.log");
+      if(file.exists()&&file.length()>256*1024)file.delete();
+      String line=new SimpleDateFormat("MM-dd HH:mm:ss.SSS",Locale.US).format(new Date())+"  "+message+"\n";
+      FileOutputStream out=new FileOutputStream(file,true);
+      try{out.write(line.getBytes(StandardCharsets.UTF_8));}finally{out.close();}
+    }catch(Throwable ignored){
+      // 埋点绝不能影响主流程
+    }
+  }
+
   private static String failureMessage(Throwable error){
     StringBuilder chain=new StringBuilder();
     for(Throwable current=error;current!=null;current=current.getCause()){
@@ -128,6 +160,6 @@ final class DirectLinkResolver implements AutoCloseable {
   private final class Request {
     final String url;final List<Callback> callbacks=new ArrayList<>();final long sequence;volatile boolean confirmed,running,queued,done,awaitingPassword,resumePending;String password;int failures;
     Request(String url,boolean confirmed,long sequence,String password){this.url=url;this.confirmed=confirmed;this.sequence=sequence;this.password=password==null?"":password;}
-        void resolveNow(){try{LanzouCore.DirectLink link=core.resolveDirect(url,password);if(link==null||link.url==null||link.url.isEmpty())throw new IllegalStateException("未解析到下载直链");long at=clock.now();if(!password.isEmpty())rememberPassword(url,password);recordPressureFreeSuccess();finished(this,link.url,at,null);}catch(LanzouCore.DirectPasswordException rejected){boolean hadPassword=!password.isEmpty();if(hadPassword)forgetPassword(url);awaitPassword(this,hadPassword);}catch(InterruptedException interrupted){Thread.currentThread().interrupt();if(!closed)finished(this,null,0,failureMessage(interrupted));}catch(Exception error){++failures;if(upstreamPressure(error)&&adaptToUpstreamPressure()){synchronized(lock){if(!done&&!closed)resumePending=true;}return;}long delay=LanzouCore.directRetryDelay(error,failures);if(delay>0)defer(this,delay);else finished(this,null,0,failureMessage(error));}}
+        void resolveNow(){trace("开始解析 url="+url+" pwd="+(password.isEmpty()?"无":"有"));try{LanzouCore.DirectLink link=core.resolveDirect(url,password);trace("解析成功 -> "+link.url);if(link==null||link.url==null||link.url.isEmpty())throw new IllegalStateException("未解析到下载直链");long at=clock.now();if(!password.isEmpty())rememberPassword(url,password);recordPressureFreeSuccess();finished(this,link.url,at,null);}catch(LanzouCore.DirectPasswordException rejected){boolean hadPassword=!password.isEmpty();if(hadPassword)forgetPassword(url);awaitPassword(this,hadPassword);}catch(InterruptedException interrupted){Thread.currentThread().interrupt();if(!closed)finished(this,null,0,failureMessage(interrupted));}catch(Exception error){++failures;if(upstreamPressure(error)&&adaptToUpstreamPressure()){synchronized(lock){if(!done&&!closed)resumePending=true;}return;}long delay=LanzouCore.directRetryDelay(error,failures);if(delay>0)defer(this,delay);else{trace("解析失败 -> "+failureMessage(error));finished(this,null,0,failureMessage(error));}}}
   }
 }
