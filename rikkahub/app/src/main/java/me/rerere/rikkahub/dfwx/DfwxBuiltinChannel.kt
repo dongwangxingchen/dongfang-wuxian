@@ -8,6 +8,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import me.rerere.ai.provider.Model
 import me.rerere.ai.provider.ModelAbility
+import me.rerere.ai.provider.Modality
 import me.rerere.ai.provider.ProviderSetting
 import me.rerere.rikkahub.data.datastore.Settings
 import me.rerere.rikkahub.data.datastore.SettingsStore
@@ -154,6 +155,25 @@ object DfwxBuiltinChannel {
             displayName = cfg.effectiveDisplayName,
             id = existing?.models?.firstOrNull()?.id ?: Uuid.random(),
             abilities = listOf(ModelAbility.TOOL, ModelAbility.REASONING),
+            /*
+             * [DFW-81] **必须显式声明图片输入**，否则用户发图 AI 只能看到 "[Image]"。
+             *
+             * 踩过的坑，链条完整记在这里：
+             *  1. `Model.inputModalities` 默认值是 `listOf(Modality.TEXT)` —— **不含 IMAGE**；
+             *  2. `OcrTransformer.transform()` 第一行是
+             *     `if (ctx.model.inputModalities.contains(Modality.IMAGE)) return messages`
+             *     —— 模型声明了能看图就直接放行，没声明就走 OCR 降级；
+             *  3. `OcrTransformer.performOcr()` 在没配 OCR 模型时 `return "[Image]"`，
+             *     于是图片被替换成**字面量文本** "[Image]" 发给上游 —— 这就是用户说的"括号图片"。
+             *
+             * 上游是**真的支持**看图的（2026-10-01 用 1x1 红色 PNG 实测：
+             * `deepseek-v4.1-flash` 答"粉色"、`glm-5.3-flash` 答"深红"）。
+             * 所以这里补上 IMAGE 就修好了，不需要 OCR 兜底。
+             *
+             * 注意：只影响内置渠道这一个模型；用户自己接的渠道有各自的 `inputModalities`，不受影响。
+             */
+            inputModalities = listOf(Modality.TEXT, Modality.IMAGE),
+            outputModalities = listOf(Modality.TEXT),
         )
         val provider = ProviderSetting.OpenAI(
             id = existing?.id ?: Uuid.random(),

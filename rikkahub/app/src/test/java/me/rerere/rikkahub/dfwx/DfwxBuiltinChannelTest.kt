@@ -1,6 +1,7 @@
 package me.rerere.rikkahub.dfwx
 
 import me.rerere.ai.provider.Model
+import me.rerere.ai.provider.Modality
 import me.rerere.ai.provider.ProviderSetting
 import me.rerere.rikkahub.data.datastore.Settings
 import org.junit.After
@@ -388,4 +389,43 @@ class DfwxBuiltinChannelTest {
             }
         }
     }
+    // ── [DFW-81] 看图能力 ────────────────────────────────────────────────
+
+    /**
+     * 用户 2026-10-01：给 AI 发图片，它只能看到"括号图片"。
+     *
+     * 链条：`Model.inputModalities` 默认只有 TEXT →
+     * `OcrTransformer` 判定"模型看不见图" → 走 OCR 降级 →
+     * OCR 模型没配 → `performOcr` 返回字面量 `"[Image]"` → 图片被替换成这段文字发给上游。
+     *
+     * 上游实测**支持**看图（1x1 红色 PNG：deepseek-v4.1-flash 答"粉色"、glm-5.3-flash 答"深红"），
+     * 所以必须显式声明 IMAGE 输入。
+     */
+    @Test
+    fun builtinModel_declaresImageInput_soImagesAreNotReplacedByTheImagePlaceholder() {
+        val seeded = DfwxBuiltinChannel.buildSyncedSettings(Settings().copy(providers = emptyList()))
+        val model = seeded.providers
+            .filterIsInstance<ProviderSetting.OpenAI>()
+            .first { it.name == DfwxBuiltinChannel.PROVIDER_NAME }
+            .models.single()
+        assertTrue(
+            "内置模型必须声明 IMAGE 输入，否则 OcrTransformer 会把图片替换成字面量 [Image]（用户看到的『括号图片』）",
+            Modality.IMAGE in model.inputModalities,
+        )
+        assertTrue("文本输入当然也要保留", Modality.TEXT in model.inputModalities)
+        assertTrue("输出仍然只声明文本（这个模型不产图）", Modality.IMAGE !in model.outputModalities)
+    }
+
+    @Test
+    fun reSync_keepsTheImageInputModality() {
+        // 幂等性：第二轮同步（例如后台改了模型名之后）不能把 IMAGE 丢掉。
+        val first = DfwxBuiltinChannel.buildSyncedSettings(Settings().copy(providers = emptyList()))
+        val second = DfwxBuiltinChannel.buildSyncedSettings(first)
+        val model = second.providers
+            .filterIsInstance<ProviderSetting.OpenAI>()
+            .first { it.name == DfwxBuiltinChannel.PROVIDER_NAME }
+            .models.single()
+        assertTrue("重复同步后仍须保留 IMAGE 输入", Modality.IMAGE in model.inputModalities)
+    }
+
 }
