@@ -56,15 +56,20 @@ final class RemoteConfigClient {
     final String aiBaseUrl;
     final String aiToken;
     final String aiModel;
+    /** [DFW-77] 用户在 App 里看到的名字；空 = 跟模型名一样。 */
+    final String aiDisplayName;
+    /** [DFW-77] 请求路径；空 = 用 RikkaHub 的默认 /chat/completions。 */
+    final String aiChatPath;
     final int aiMaxTokens;
     final boolean aiDisabled;
 
     Control(boolean maintenanceOn, boolean blocked, String title, String body, String until) {
-      this(maintenanceOn, blocked, title, body, until, "", "", "", 0, false);
+      this(maintenanceOn, blocked, title, body, until, "", "", "", "", "", 0, false);
     }
 
     Control(boolean maintenanceOn, boolean blocked, String title, String body, String until,
-            String aiBaseUrl, String aiToken, String aiModel, int aiMaxTokens, boolean aiDisabled) {
+            String aiBaseUrl, String aiToken, String aiModel, String aiDisplayName, String aiChatPath,
+            int aiMaxTokens, boolean aiDisabled) {
       this.maintenanceOn = maintenanceOn;
       this.blocked = blocked;
       this.maintenanceTitle = title == null ? "" : title.trim();
@@ -73,6 +78,8 @@ final class RemoteConfigClient {
       this.aiBaseUrl = aiBaseUrl == null ? "" : aiBaseUrl.trim();
       this.aiToken = aiToken == null ? "" : aiToken.trim();
       this.aiModel = aiModel == null ? "" : aiModel.trim();
+      this.aiDisplayName = aiDisplayName == null ? "" : aiDisplayName.trim();
+      this.aiChatPath = aiChatPath == null ? "" : aiChatPath.trim();
       this.aiMaxTokens = aiMaxTokens;
       this.aiDisabled = aiDisabled;
     }
@@ -281,6 +288,9 @@ final class RemoteConfigClient {
         o.optString("ai_base_url", ""),
         o.optString("ai_token", ""),
         o.optString("ai_model", ""),
+        // [DFW-77] 显示名与请求路径：后台控制台新增的两个字段（老后台没这两列时取空串，行为不变）
+        o.optString("ai_display_name", ""),
+        o.optString("ai_chat_path", ""),
         o.optInt("ai_max_tokens", 0),
         o.optBoolean("ai_disabled", false));
   }

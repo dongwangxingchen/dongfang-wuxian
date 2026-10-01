@@ -25,6 +25,8 @@ import me.rerere.rikkahub.dfwx.DfwxBuiltinChannel;
 final class BuiltinAiChannel {
   /** APK 内置值（resValue），后台留空的字段一律回落到这里。 */
   private static volatile String bakedUrl, bakedToken, bakedModel;
+  /** [DFW-77] 内置的显示名与请求路径。显示名留空 = 跟模型名一样；路径留空 = RikkaHub 默认值。 */
+  private static volatile String bakedDisplayName = "", bakedChatPath = "";
   private static volatile int bakedMaxTokens;
 
   private BuiltinAiChannel() {}
@@ -40,7 +42,7 @@ final class BuiltinAiChannel {
       bakedToken = token;
       bakedModel = model;
       bakedMaxTokens = maxTokens;
-      push(url, token, model, maxTokens, true);
+      push(url, token, model, "", "", maxTokens, true);
       // 付费门：读的是实时状态（Support.unlocked 每次现读 SharedPreferences），
       // 所以用户刚在诚信付费页解锁，回 AI 页就已经放行，不需要重启。
       DfwxBuiltinChannel.INSTANCE.setPaidProvider(() -> Support.unlocked(context));
@@ -50,10 +52,11 @@ final class BuiltinAiChannel {
   }
 
   /**
-   * [DFW-73] 后台下发的渠道覆盖（`control` 行的 ai_base_url / ai_token / ai_model / ai_max_tokens / ai_disabled）。
+   * [DFW-73/DFW-77] 后台下发的渠道覆盖（`control` 行的 ai_* 一组字段）。
    *
    * 全部**留空即沿用 APK 内置值**（fail-open）：后台字段没建、或误填成空，都不会把内置渠道弄坏。
-   * 换服务器地址、换应用令牌、换模型名、调最大输出，都改后台就行，用户不用更新 APK。
+   * 换服务器地址、换应用令牌、换模型名/显示名、换请求路径、调最大输出，都改后台控制台就行，
+   * 用户不用更新 APK —— 这就是用户 2026-10-01 要的"远程控制，而不是在软件内切换"。
    */
   static void applyRemote(RemoteConfigClient.Control control) {
     if (control == null || bakedUrl == null) return;
@@ -61,6 +64,8 @@ final class BuiltinAiChannel {
       String url = control.aiBaseUrl.isEmpty() ? bakedUrl : control.aiBaseUrl;
       String token = control.aiToken.isEmpty() ? bakedToken : control.aiToken;
       String model = control.aiModel.isEmpty() ? bakedModel : control.aiModel;
+      String displayName = control.aiDisplayName.isEmpty() ? bakedDisplayName : control.aiDisplayName;
+      String chatPath = control.aiChatPath.isEmpty() ? bakedChatPath : control.aiChatPath;
       int maxTokens = control.aiMaxTokens > 0 ? control.aiMaxTokens : bakedMaxTokens;
       // 本次启动已同步过的渠道按新配置重播一次；配置没变时 syncIfNeeded 内部会因为"无差异"直接返回。
       boolean changed = !url.equals(DfwxBuiltinChannel.INSTANCE.current().getBaseUrl())
@@ -69,7 +74,7 @@ final class BuiltinAiChannel {
           || maxTokens != DfwxBuiltinChannel.INSTANCE.current().getMaxTokens()
           || control.aiDisabled == DfwxBuiltinChannel.INSTANCE.current().getEnabled();
       if (!changed) return;
-      push(url, token, model, maxTokens, !control.aiDisabled);
+      push(url, token, model, displayName, chatPath, maxTokens, !control.aiDisabled);
       DfwxBuiltinChannel.INSTANCE.syncNow();
       android.util.Log.i("DfwxBuiltinAi", "builtin channel overridden by backend (disabled=" + control.aiDisabled + ")");
     } catch (Throwable t) {
@@ -77,9 +82,11 @@ final class BuiltinAiChannel {
     }
   }
 
-  private static void push(String url, String token, String model, int maxTokens, boolean enabled) {
+  private static void push(String url, String token, String model, String displayName, String chatPath,
+                           int maxTokens, boolean enabled) {
     boolean usable = enabled && !url.isEmpty() && !token.isEmpty() && !model.isEmpty() && maxTokens > 0;
-    DfwxBuiltinChannel.INSTANCE.install(new DfwxBuiltinChannel.Config(url, token, model, maxTokens, usable));
+    DfwxBuiltinChannel.INSTANCE.install(
+        new DfwxBuiltinChannel.Config(url, token, model, displayName, chatPath, maxTokens, usable));
     if (!usable) android.util.Log.w("DfwxBuiltinAi", "builtin channel config incomplete, disabled");
   }
 }

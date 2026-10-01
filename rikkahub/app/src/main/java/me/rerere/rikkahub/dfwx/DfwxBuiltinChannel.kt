@@ -46,15 +46,35 @@ object DfwxBuiltinChannel {
     const val DEFAULT_BASE_URL = "https://39.106.33.135/ai/v1"
     const val DEFAULT_MODEL_ID = "deepseek-v4.1-flash"
     const val DEFAULT_MAX_TOKENS = 8192
+    /** RikkaHub 的 OpenAI 渠道默认路径（`ProviderSetting.OpenAI.chatCompletionsPath` 的默认值）。 */
+    const val DEFAULT_CHAT_PATH = "/chat/completions"
 
     /** 渠道配置。令牌为空 = 这条渠道不可用（宿主没注入 / 用户关了远程开关）。 */
     data class Config(
         val baseUrl: String = DEFAULT_BASE_URL,
         val token: String = "",
         val modelId: String = DEFAULT_MODEL_ID,
+        /**
+         * [DFW-77] 用户在 App 里看到的模型名。空 = 跟 [modelId] 一样。
+         *
+         * 为什么要有它：后台换上游模型时，`modelId` 是**发给上游的真实名字**（可能很丑，
+         * 比如 `glm-5.3-flashx`），而用户界面上应该显示一个我们自己起的名字。两者解耦。
+         */
+        val displayName: String = "",
+        /**
+         * [DFW-77] chat completions 的请求路径。空 = 用 RikkaHub 的默认 `/chat/completions`。
+         * 留着它是为了"上游哪天换了路径"时不用发版。
+         */
+        val chatPath: String = "",
         val maxTokens: Int = DEFAULT_MAX_TOKENS,
         val enabled: Boolean = true,
-    )
+    ) {
+        /** 实际显示名：没配就回落到模型名。 */
+        val effectiveDisplayName: String get() = displayName.ifBlank { modelId }
+
+        /** 实际请求路径：没配就回落到上游默认。 */
+        val effectiveChatPath: String get() = chatPath.ifBlank { DEFAULT_CHAT_PATH }
+    }
 
     @Volatile
     private var config: Config? = null
@@ -130,7 +150,8 @@ object DfwxBuiltinChannel {
         val existing = if (index >= 0) settings.providers[index] else null
         val model = Model(
             modelId = cfg.modelId,
-            displayName = cfg.modelId,
+            // [DFW-77] 显示名与"发给上游的模型名"解耦：后台可以换一个丑模型但界面显示漂亮名字。
+            displayName = cfg.effectiveDisplayName,
             id = existing?.models?.firstOrNull()?.id ?: Uuid.random(),
             abilities = listOf(ModelAbility.TOOL, ModelAbility.REASONING),
         )
@@ -139,6 +160,8 @@ object DfwxBuiltinChannel {
             name = PROVIDER_NAME,
             apiKey = cfg.token,
             baseUrl = cfg.baseUrl,
+            // [DFW-77] 请求路径可远程改；留空则沿用 RikkaHub 默认值。
+            chatCompletionsPath = cfg.effectiveChatPath,
             models = listOf(model),
         )
         val providers = if (index >= 0) {
