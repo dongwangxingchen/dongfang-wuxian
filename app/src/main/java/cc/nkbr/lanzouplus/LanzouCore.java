@@ -340,11 +340,26 @@ final class LanzouCore {
     // 且报错只有一句 `Trust anchor for certification path not found`，完全指不出是哪条线路。
     // 实测（2026-10-01）：域名池里 `wwc.lanzoux.com` 证书已过期，`curl -sv` 与 python ssl 双双确认。
     if(isTlsFailure(last)){
+      // [DFW-102 2026-10-01] TLS 失败时的兜底：**同域名降级到 http 再试一轮**。
+      //
+      // 用户真机（v1.0.13）拿到确凿证据：
+      //   `无法解析下载链接：[IOException <- SSLHandshakeException ...]`
+      // 且**所有线路都握手失败** —— 而同一个 App 浏览文件夹是正常的（能看到文件列表），
+      // 说明不是全局 TLS 坏掉，而是"拿直链"这一步走的某条 TLS 通道在用户设备上不通
+      // （可能是蓝奏 2025 新中间证书不在设备信任库、也可能是 VPN 中间人）。
+      //
+      // 为什么降级到 http 是**可接受**的：
+      // 1. `network_security_config.xml` **本来就为蓝奏域名放行了明文**
+      //    （DFW-10 的既定设计：用户可粘贴 http 分享链接）；
+      // 2. 下载的安全底线**不靠 TLS**，而是下载后的三重校验：
+      //    sha256 + 包名 + 签名证书（系统级比对，篡改的包装不上）；
+      // 3. 只在 **https 已经失败** 时才降级，正常环境仍走 https。
       List<RouteCandidate> all=new ArrayList<>();
       for(String origin:LANZOU_BASE_ORIGINS)try{
         String normalized=validatedRouteOrigin(origin);
         if(normalized.isEmpty())continue;
-        RouteCandidate candidate=new RouteCandidate(routeTarget(normalized,shareUrl),normalized,UA_ANDROID,UA_SCOPE_DIRECT);
+        String httpOrigin=normalized.startsWith("https://")?"http://"+normalized.substring(8):normalized;
+        RouteCandidate candidate=new RouteCandidate(routeTarget(httpOrigin,shareUrl),httpOrigin,UA_ANDROID,UA_SCOPE_DIRECT);
         boolean seen=false;
         for(RouteCandidate existing:all)if(existing.key().equals(candidate.key())){seen=true;break;}
         if(!seen)all.add(candidate);
