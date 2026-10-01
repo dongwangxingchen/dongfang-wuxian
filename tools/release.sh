@@ -23,6 +23,11 @@
 
 set -euo pipefail
 
+# [DFW-91] 与 ci-gate.sh 同款：把线程软上限顶到硬上限。
+# 本机软上限 2666、常驻进程已占 ~2600，构建/测试会报
+# `OutOfMemoryError: unable to create native thread`（看起来像代码炸了，其实不是）。
+ulimit -u "$(ulimit -Hu)" 2>/dev/null || true
+
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_ROOT"
 

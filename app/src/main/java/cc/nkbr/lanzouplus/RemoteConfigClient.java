@@ -36,8 +36,13 @@ final class RemoteConfigClient {
   /** 后台地址。走服务器自身（国内快），不依赖 GitHub。 */
   static final String BASE = "http://39.106.33.135/pb";
   private static final String API = BASE + "/api/collections/";
-  private static final int CONNECT_TIMEOUT_MS = 6000;
-  private static final int READ_TIMEOUT_MS = 8000;
+  /*
+   * [DFW-103] 超时收紧：原来是 6s + 8s，最坏情况用户要等 **14 秒**公告才弹出来。
+   * 服务器在国内（北京），一个几百字节的 JSON 用不了这么久；
+   * 宁可早点失败（失败就不弹，不打扰），也不要让用户干等。
+   */
+  private static final int CONNECT_TIMEOUT_MS = 3000;
+  private static final int READ_TIMEOUT_MS = 4000;
   private static final int JSON_LIMIT = 256 * 1024;
 
   private RemoteConfigClient() {}
@@ -234,7 +239,70 @@ final class RemoteConfigClient {
    *
    * 调用方必须在**后台线程**执行（本方法阻塞）。
    */
+  /**
+   * [DFW-103] 上一次成功拉到的**四个集合的原始 JSON**。
+   *
+   * 为什么存原始 JSON 而不是存解析后的对象：还原时能**复用同一套解析器**
+   * （`parseControl` / `parseRelease` / `parseNotices` / `parseChangelogs`），
+   * 不会出现"缓存格式和线上格式不一致"这种只在离线路径才炸的坑。
+   */
+  static final class Raw {
+    JSONArray control, release, notice, changelog;
+  }
+
   static Snapshot fetch() {
+    return fetch(null);
+  }
+
+  private static final String CACHE_PREFS = "remote_config_cache-v1";
+
+  /** 把这一次成功拉到的原始 JSON 落盘（下次启动先用它，网络回来再覆盖）。 */
+  static void storeCache(android.content.Context ctx, Raw raw) {
+    if (ctx == null || raw == null) return;
+    try {
+      JSONObject o = new JSONObject();
+      if (raw.control != null) o.put("control", raw.control);
+      if (raw.release != null) o.put("release", raw.release);
+      if (raw.notice != null) o.put("notice", raw.notice);
+      if (raw.changelog != null) o.put("changelog", raw.changelog);
+      ctx.getSharedPreferences(CACHE_PREFS, android.content.Context.MODE_PRIVATE)
+          .edit().putString("raw", o.toString()).apply();
+    } catch (Exception ignored) { /* 缓存失败无所谓，下次重新拉 */ }
+  }
+
+  /**
+   * 读上次的快照。读不到或解析失败一律返回 {@code null}（调用方按"没有缓存"处理）。
+   *
+   * [DFW-103] 用户反馈"公告弹窗弹出太慢"——根因是启动后要**等一次完整网络往返**才弹。
+   * 有了它，第二次以后打开软件是**零延迟**弹出来的（先弹上次的，网络回来再补新的）。
+   */
+  static Snapshot loadCache(android.content.Context ctx) {
+    if (ctx == null) return null;
+    try {
+      String raw = ctx.getSharedPreferences(CACHE_PREFS, android.content.Context.MODE_PRIVATE)
+          .getString("raw", "");
+      if (raw == null || raw.isEmpty()) return null;
+      JSONObject o = new JSONObject(raw);
+
+      Control control = Control.normal();
+      JSONArray ctl = o.optJSONArray("control");
+      if (ctl != null && ctl.length() > 0) control = parseControl(ctl.getJSONObject(0));
+
+      Release release = null;
+      JSONArray rel = o.optJSONArray("release");
+      if (rel != null && rel.length() > 0) release = parseRelease(rel.getJSONObject(0));
+
+      JSONArray notice = o.optJSONArray("notice");
+      JSONArray changelog = o.optJSONArray("changelog");
+      return new Snapshot(true, control, release,
+          parseNotices(notice == null ? new JSONArray() : notice),
+          parseChangelogs(changelog == null ? new JSONArray() : changelog));
+    } catch (Exception ignored) {
+      return null;
+    }
+  }
+
+  static Snapshot fetch(Raw sink) {
     Control control = Control.normal();
     Release release = null;
     List<Notice> notices = Collections.emptyList();
@@ -243,11 +311,13 @@ final class RemoteConfigClient {
 
     try {
       JSONArray items = items("control");
+      if (sink != null) sink.control = items;
       if (items.length() > 0) { control = parseControl(items.getJSONObject(0)); anyOk = true; }
     } catch (Exception ignored) { /* fail-open：保持 normal */ }
 
     try {
       JSONArray items = items("release");
+      if (sink != null) sink.release = items;
       if (items.length() > 0) {
         Release parsed = parseRelease(items.getJSONObject(0));
         if (parsed != null) { release = parsed; anyOk = true; }
@@ -255,12 +325,16 @@ final class RemoteConfigClient {
     } catch (Exception ignored) { /* 更新检查失败不影响公告 */ }
 
     try {
-      notices = parseNotices(items("notice"));
+      JSONArray items = items("notice");
+      if (sink != null) sink.notice = items;
+      notices = parseNotices(items);
       anyOk = true;
     } catch (Exception ignored) { /* 公告失败不影响更新 */ }
 
     try {
-      changelogs = parseChangelogs(items("changelog"));
+      JSONArray items = items("changelog");
+      if (sink != null) sink.changelog = items;
+      changelogs = parseChangelogs(items);
       anyOk = true;
     } catch (Exception ignored) { /* 更新记录失败不影响其它 */ }
 

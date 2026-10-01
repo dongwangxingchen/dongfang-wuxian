@@ -103,7 +103,15 @@ class SearchAndSettingsPolishJvmTest {
 
     @Test fun searchOptions_actuallyUsesThePureFunction() {
         val src = File(repoRoot, "app/src/main/java/cc/nkbr/lanzouplus/MainActivity.java").readText()
-        val body = methodBody(src, "Models.SearchOptions searchOptions(int total)")
+        // [DFW-96] 时间片逻辑现在住在带 maxPages 的那个重载里（为了把"全局每源 3 页"和
+        // "单源翻页"拆成两个独立预算）；三参版本只负责转调。断言跟着搬，但**两条都要守**：
+        // 入口必须转调、真正的实现必须仍走纯函数。
+        val entry = methodBody(src, "Models.SearchOptions searchOptions(int total)")
+        assertTrue(
+            "三参入口必须转调四参重载（否则两个预算会各写一份）",
+            entry.contains("searchOptions(total,SEARCH_MAX_PAGES_GLOBAL)"),
+        )
+        val body = methodBody(src, "Models.SearchOptions searchOptions(int total,int maxPages)")
         assertTrue(
             "searchOptions 必须走 sourceSwitchDelayMillis，不许再把时间片逻辑内联回去",
             body.contains("sourceSwitchDelayMillis(requested,total,"),
