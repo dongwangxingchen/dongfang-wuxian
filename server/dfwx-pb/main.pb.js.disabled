@@ -1,0 +1,83 @@
+/// <reference path="../pb_data/types.d.ts" />
+
+/**
+ * [DFW-86 后续] release 集合的 versionCode 服务端兜底。
+ *
+ * ## 为什么放在服务端
+ * 控制台页面旧版**没有 versionCode 输入框**，保存时把旧值原样写回。用户浏览器把旧页面缓存死了
+ * （服务端补 no-store 也作废不了已缓存的响应），于是：
+ *   版本号改成 1.0.6 → versionName=1.0.6 但 versionCode 仍是 10005
+ *   → App 比的是 versionCode（10005 > 10005 为假）→ 永远「已是最新」。
+ * 客户端修不了（用户拿不到新页面），所以**必须在服务端保证**。
+ *
+ * ## 两条踩过的坑（都写在代码里，别再犯）
+ * 1. **钩子名不带 `Before`**：这个版本是 `onRecordCreateRequest` / `onRecordUpdateRequest`，
+ *    写 `onRecordBeforeCreateRequest` 会 `ReferenceError`（PocketBase 只会记一行日志并跳过钩子，不会崩）。
+ * 2. **顶层函数在 handler 里看不见**：PocketBase 的 JSVM 把 handler 放进独立运行时执行，
+ *    文件顶层声明的 `function foo()` 在 handler 内部是 `undefined`（报 `foo is not defined`）。
+ *    所以逻辑**必须全部内联在 handler 里**，或者用 `require(__hooks + "/xxx.js")`。
+ *
+ * ## 铁律：这个钩子**绝不能**让保存失败
+ * 它只是兜底，不是校验。任何异常都必须吞掉并记日志 ——
+ * 否则一次 hook 报错就会让「发新版」这个核心动作直接 400 失败，比原问题更糟。
+ */
+
+onRecordCreateRequest(function (e) {
+  try {
+    var name = String(e.record.get("versionName") || "").trim();
+    var m = name.match(/^(\d+)\.(\d+)\.(\d+)$/);
+    if (!m) return;
+    var fromName = parseInt(m[1], 10) * 10000 + parseInt(m[2], 10) * 100 + parseInt(m[3], 10);
+    if (fromName <= 0) return;
+
+    var prevMax = 0;
+    try {
+      var rows = $app.findRecordsByFilter("release", "id != ''", "-versionCode", 100, 0);
+      for (var i = 0; i < rows.length; i++) {
+        if (e.record.id && rows[i].id === e.record.id) continue;
+        var c = parseInt(rows[i].get("versionCode"), 10) || 0;
+        if (c > prevMax) prevMax = c;
+      }
+    } catch (inner) {
+      console.log("[dfwx] 查历史失败，只用版本号推导: " + inner);
+    }
+
+    var finalCode = Math.max(fromName, prevMax);
+    if ((parseInt(e.record.get("versionCode"), 10) || 0) !== finalCode) {
+      e.record.set("versionCode", finalCode);
+      console.log("[dfwx] create 兜底 versionCode -> " + finalCode + " (versionName=" + name + ")");
+    }
+  } catch (err) {
+    console.log("[dfwx] create 钩子异常（已吞掉，不影响保存）: " + err);
+  }
+}, "release");
+
+onRecordUpdateRequest(function (e) {
+  try {
+    var name = String(e.record.get("versionName") || "").trim();
+    var m = name.match(/^(\d+)\.(\d+)\.(\d+)$/);
+    if (!m) return;
+    var fromName = parseInt(m[1], 10) * 10000 + parseInt(m[2], 10) * 100 + parseInt(m[3], 10);
+    if (fromName <= 0) return;
+
+    var prevMax = 0;
+    try {
+      var rows = $app.findRecordsByFilter("release", "id != ''", "-versionCode", 100, 0);
+      for (var i = 0; i < rows.length; i++) {
+        if (e.record.id && rows[i].id === e.record.id) continue;
+        var c = parseInt(rows[i].get("versionCode"), 10) || 0;
+        if (c > prevMax) prevMax = c;
+      }
+    } catch (inner) {
+      console.log("[dfwx] 查历史失败，只用版本号推导: " + inner);
+    }
+
+    var finalCode = Math.max(fromName, prevMax);
+    if ((parseInt(e.record.get("versionCode"), 10) || 0) !== finalCode) {
+      e.record.set("versionCode", finalCode);
+      console.log("[dfwx] update 兜底 versionCode -> " + finalCode + " (versionName=" + name + ")");
+    }
+  } catch (err) {
+    console.log("[dfwx] update 钩子异常（已吞掉，不影响保存）: " + err);
+  }
+}, "release");
