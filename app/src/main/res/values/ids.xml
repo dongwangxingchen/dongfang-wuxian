@@ -4,5 +4,4 @@
 <resources>
     <item name="dfwx_section_arrow" type="id" />
     <item name="dfwx_section_title" type="id" />
-  <item name="dfwx_first_run_scrim" type="id"/>
 </resources>
