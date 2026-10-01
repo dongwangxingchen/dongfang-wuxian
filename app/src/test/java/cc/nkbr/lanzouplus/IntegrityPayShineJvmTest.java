@@ -149,15 +149,22 @@ public class IntegrityPayShineJvmTest {
 
   @Test public void detach_cancelsTheRunningAnimator() {
     IntegrityPayButton b = button(true, true);
-    attach(b);
+    SupportActivity host = Robolectric.buildActivity(SupportActivity.class).setup().get();
+    // 不 idle：Robolectric 的 ShadowValueAnimator 把 setRepeatCount 拦在 shadow 里，
+    // 真实动画器仍是 repeatCount=0，推进虚拟时间会让它"跑完一轮就结束"（纯测试环境假象）。
+    host.root.addView(b, new ViewGroup.LayoutParams(
+        ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
     assertNotNull("motionEnabled=true 且已付费 → 挂上窗口就该开始扫光", b.shineAnimator);
-    assertTrue("扫光必须是无限循环的", b.shineAnimator.getRepeatCount() == ValueAnimator.INFINITE);
-    assertTrue("挂上窗口后动画应在跑", b.shineAnimator.isRunning());
+    // Robolectric 的 ShadowValueAnimator 拦截了 setRepeatCount（真值存在 shadow 里），所以走 shadow 读
+    assertEquals("扫光必须是无限循环的",
+        ValueAnimator.INFINITE, Shadows.shadowOf(b.shineAnimator).getActualRepeatCount());
+    // isStarted 是 start() 里同步置位的，比 isRunning（依赖帧脉冲）稳，不会被测试环境的时钟抖动影响
+    assertTrue("挂上窗口后动画必须真的被 start()", b.shineAnimator.isStarted());
 
     ValueAnimator started = b.shineAnimator;
     ((ViewGroup) b.getParent()).removeView(b);
-    Shadows.shadowOf(Looper.getMainLooper()).idle();
-    assertFalse("离开窗口必须取消动画（省电红线）", started.isRunning());
+    assertFalse("离开窗口必须取消动画（省电红线）", started.isStarted());
+    assertFalse("取消后不许还在跑", started.isRunning());
     assertNull("动画器引用也要清掉", b.shineAnimator);
   }
 

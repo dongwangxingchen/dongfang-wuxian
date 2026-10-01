@@ -55,3 +55,33 @@
    不是我们的 bug；若用户在意，属于要不要在文案上回避的产品决定。
 3. `Access-Control-Allow-Origin: *` 由上游带回，`/ai/` 未剥离（原生 Android 客户端无影响）。
    若将来要连浏览器侧滥用一起堵，加一行 `proxy_hide_header Access-Control-Allow-Origin;` 即可。
+
+---
+
+## 5. 追加：2026-10-01 真机试用后的四条反馈 + DFW-26 审计查出的两条硬伤
+
+用户装 `test-20261001-3` 试用后反馈 4 条（本轮全部修完）：
+
+| # | 反馈原话要点 | 根因 | 处置 |
+|---|---|---|---|
+| 1 | 付费成功后扫光"只覆盖 2/3、有割裂感" | shine 只有 40dp 高（按钮约 76dp），且是对角渐变被圆角裁出硬边 | `IntegrityPayButton`：铺满整高、改水平柔和亮带 |
+| 2 | 付费页预返回动画与其他页不一致 | `SupportActivity` 是独立 Activity，走系统默认转场 | 用 `overridePendingTransition` + `res/anim/dfwx_page_*` 对齐站内推入/返回语义 |
+| 2b | 崩溃日志"点进去卡一下，上半部分打开、下半部分透明" | ① `buildCrashReport()`+文件 IO 在**转场那一帧**同步跑；② 页面帧没有底色，滑入时下面那截透出旧页 | 正文延后一帧再填；`basePage` 给页面帧统一刷 BG |
+| 3 | 点「检查更新」显示"检查更新失败，无法获取更新信息" | 后台可达但版本不比当前新 → 继续走 GitHub 兜底 → `/releases/latest` 因全部旧版本标成预发布而 **404** → 抛异常 | 后台能回答就以它为准（不再打 GitHub）；`UpdateClient.isNoReleaseError()` 把 404 视为"该源没有正式版本" |
+| 4 | 设置里点初始界面芯片后弹出的提示"特别割裂"，要求全部改用图三那种顶部样式 | `showNotice`（227 处共用底座）是右上角 250dp 小胶囊 + 从**左边**横滑 + 淡入 | 全站统一到 DFW-66 的 `NoticeBanner`（顶部滑下、无遮罩、可滑动关闭）；抽出唯一构造点 `showTopBanner()` |
+
+同时 DFW-26（AI 页整体验收）审计查出两条**必现**硬伤，也一并修了：
+
+- **AI 页根态系统返回键完全失效**：`performSystemBack` 里那句「AI 页若 Compose 还有回调就转交给它」用的
+  `getOnBackPressedDispatcher().hasEnabledCallbacks()` 语义是"任意 enabled handler"，而我们自己的
+  backCallback 在 DFW-73 之后恒启用 → 判据恒真 → **自我派发** → 被 260ms 节流挡回 → 毫无反应。
+  正确判据不用写：dispatcher 后注册优先，Compose 要消费根本轮不到我们。
+- **内置渠道每次启动重造模型 UUID** → `chatModelId` 悬空、**每次重启都要重选模型**；
+  且 `next == settings` 永假 → 每次启动白写 DataStore。同步时改为沿用已存在的 id；
+  顺带修掉 `maxTokens=8192` 静默失效（`Assistant.chatModelId` 默认是 null，判据要覆盖"跟随全局"这一种）。
+
+### 一个必须记住的教训
+
+`getOnBackPressedDispatcher().hasEnabledCallbacks()` **不是**"除我之外还有人能处理返回"的意思，
+而是"任意 enabled handler"——只要自己的回调是启用的，它就恒为 true。
+凡是想用它判断"要不要把返回让给别人"的地方，都是错的。
