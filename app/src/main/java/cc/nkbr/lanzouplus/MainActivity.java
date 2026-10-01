@@ -1074,11 +1074,58 @@ FrameLayout.LayoutParams tp=new FrameLayout.LayoutParams(Math.max(dp(1),Math.min
     String restored; synchronized(globalSearch){restored=globalSearch.query;}if(!restored.isEmpty()){search.setText(restored);search.setSelection(restored.length());}search.setOnFocusChangeListener((v,focused)->{if(focused)enterHomeSearchFocus();});search.setOnClickListener(v->enterHomeSearchFocus());search.setOnEditorActionListener((v,a,e)->{runSearch(search.getText().toString().trim());return true;});if(homeSearchRequested)homeColumn.post(()->showHomeSearchMode(false));}
   void enterHomeSearchFocus(){showHomeSearchMode(true);}
   void settleHomeSearchPosition(boolean focused){if(homeStage==null||homeSearchBox==null)return;clearHomeBrandCiallo();if(homeHistory!=null&&focused)homeHistory.setLayoutParams(new LinearLayout.LayoutParams(homeSearchWidth(),homeHistoryH()));}// v1.20.0：位移落位机制随品牌头退役，只保留搜索历史列表高度校准
-  int homeHistoryH(){int vh=homeScroll!=null&&homeScroll.getHeight()>0?homeScroll.getHeight():dp(500);return Math.max(dp(240),vh-dp(64));// v1.20.0：搜索态库分类 GONE，结果列表吃满滚动区；64=框52+间距12
+  /**
+   * 搜索结果区的高度 = **整个滚动区高度**。
+   *
+   * [DFW-95] 这里原来写的是 `vh - dp(64)`，注释说「64=框52+间距12」——
+   * 那个假设是**错的**：搜索框（52dp）和它下面的间距（12dp）是 `homeScroll` 的**兄弟节点**，
+   * 本来就在滚动区**外面**（实测：搜索框 top=0..137px、间距 137..169px、`homeScroll` 从 169px 才开始）。
+   * 再扣一次 64dp，结果就是**搜索页底部永久留下 64dp 空白**——
+   * 任何内容都到不了那里，列表滚到底也补不上。用户 2026-10-02 的原话是
+   * 「搜索页面搜索后，底部出现了黑色留白，很丑」。
+   *
+   * 实测证据（`@GraphicsMode(NATIVE)` 截图 + 逐行扫像素，视口 1078×2338 @2.625）：
+   * 改前结果区在 y=2119 结束，下方 218px（83dp）恒为空白；
+   * 改后结果区延伸到 y≈2275，只剩导航条 inset 那一条（正常）。
+   */
+  int homeHistoryH(){int vh=homeScroll!=null&&homeScroll.getHeight()>0?homeScroll.getHeight():dp(500);return Math.max(dp(240),vh);
   }
-  void showHomeSearchMode(boolean focusInput){if(homeStage==null)return;homeSearchRequested=true;if(homeSearchFocused){if(focusInput&&search!=null)search.requestFocus();return;}homeSearchFocused=true;systemBackAction=this::exitHomeSearchFocus;syncBackCallbackEnabled();searchBack.setVisibility(View.VISIBLE);fitHomeSearchControls(homeSearchWidth());if(homeSearchBox!=null)homeSearchBox.setBackground(searchBoxShape(true));if(homeLibsBand!=null)homeLibsBand.setVisibility(View.GONE);// v1.20.0：搜索态让位给历史/结果列表
-    String query; synchronized(globalSearch){query=globalSearch.query;}if(!homeSearchHistoryOnly&&!query.isEmpty()&&query.equals(search.getText().toString().trim()))renderSearchResults();else renderSearchHistory();homeHistory.setVisibility(View.VISIBLE);if(homeScroll!=null)homeHistory.setLayoutParams(new LinearLayout.LayoutParams(homeSearchWidth(),homeHistoryH()));if(focusInput&&search!=null){search.requestFocus();((android.view.inputmethod.InputMethodManager)getSystemService(INPUT_METHOD_SERVICE)).showSoftInput(search,0);}}// v1.20.0：搜索框钉顶，点搜索直接弹键盘（显式 showSoftInput——首次聚焦走布局变更路径时系统自动弹会失效），无任何位移动画
-  void exitHomeSearchFocus(){if(!homeSearchFocused){navigateHome();return;}invalidateSearchRenderSurface();homeSearchRequested=false;homeSearchHistoryOnly=true;homeSearchFocused=false;systemBackAction=null;syncBackCallbackEnabled();pageDirection=1;searchBack.setVisibility(View.GONE);fitHomeSearchControls(homeSearchWidth());if(homeSearchBox!=null)homeSearchBox.setBackground(searchBoxShape(false));if(homeHistory!=null)homeHistory.setVisibility(View.GONE);if(homeLibsBand!=null)homeLibsBand.setVisibility(View.VISIBLE);search.clearFocus();((android.view.inputmethod.InputMethodManager)getSystemService(INPUT_METHOD_SERVICE)).hideSoftInputFromWindow(search.getWindowToken(),0);if(homeScroll!=null)homeScroll.smoothScrollTo(0,0);clearHomeBrandCiallo();}
+  void showHomeSearchMode(boolean focusInput){if(homeStage==null)return;homeSearchRequested=true;if(homeSearchFocused){if(focusInput&&search!=null)search.requestFocus();return;}homeSearchFocused=true;systemBackAction=this::exitHomeSearchFocus;syncBackCallbackEnabled();searchBack.setVisibility(View.VISIBLE);fitHomeSearchControls(homeSearchWidth());if(homeSearchBox!=null)homeSearchBox.setBackground(searchBoxShape(true));// v1.20.0：搜索态让位给历史/结果列表。// [DFW-95] 与退出方向对称，同样走交叉淡化（原来也是硬切）
+    String query; synchronized(globalSearch){query=globalSearch.query;}if(!homeSearchHistoryOnly&&!query.isEmpty()&&query.equals(search.getText().toString().trim()))renderSearchResults();else renderSearchHistory();if(homeScroll!=null)homeHistory.setLayoutParams(new LinearLayout.LayoutParams(homeSearchWidth(),homeHistoryH()));crossFadeHomeSection(homeLibsBand,homeHistory);if(focusInput&&search!=null){search.requestFocus();((android.view.inputmethod.InputMethodManager)getSystemService(INPUT_METHOD_SERVICE)).showSoftInput(search,0);}}// v1.20.0：搜索框钉顶，点搜索直接弹键盘（显式 showSoftInput——首次聚焦走布局变更路径时系统自动弹会失效），无任何位移动画
+  /**
+   * [DFW-95] 搜索态 ↔ 软件库主页的**原位交叉淡化**。
+   *
+   * 用户原话：「从搜索界面，我如果使用了安卓的返回，它没有任何的动画效果，然后直接返回到了我的
+   * 软件库主页……我希望你可以修复一下，给它加个，比如什么动画效果吧。渐隐啥的。」
+   *
+   * 根因：`exitHomeSearchFocus()` 原来是**直接把两个 View 的可见性一开一关**（硬切）。
+   *
+   * 节奏与曲线**照抄全站现成的 `transitionSourceFilter`**（退 `DUR_EXIT_FAST`=100ms → 换内容 →
+   * 进 `DUR_SMALL`=150ms，曲线 `standardEase()`），不另发明数值 —— 用户 2026-09-25 定的规矩是
+   * 动效只用 `docs/design/wear-ui-system.md` 里的 token，触摸路径全程 VPA ≤ 300ms。
+   *
+   * 为什么**先退后进、而不是同时交叉**：两者是同一个 LinearLayout 里的兄弟节点，
+   * 同时可见会让列表高度瞬间叠加、滚动位置跳一下。同一时刻只留一个可见就没有这个问题。
+   */
+  void crossFadeHomeSection(View out,View in){
+    if(out==null||in==null||!motionEnabled()){
+      if(out!=null){out.animate().cancel();out.setAlpha(1f);out.setVisibility(View.GONE);}
+      if(in!=null){in.animate().cancel();in.setVisibility(View.VISIBLE);in.setAlpha(1f);}
+      return;
+    }
+    out.animate().cancel();
+    in.animate().cancel();
+    in.setVisibility(View.GONE);
+    out.animate().alpha(0f).setDuration(DUR_EXIT_FAST).setInterpolator(standardEase()).withEndAction(()->{
+      out.setVisibility(View.GONE);
+      out.setAlpha(1f);
+      in.setAlpha(0f);
+      in.setVisibility(View.VISIBLE);
+      in.animate().alpha(1f).setDuration(DUR_SMALL).setInterpolator(standardEase()).start();
+    }).start();
+  }
+
+  void exitHomeSearchFocus(){if(!homeSearchFocused){navigateHome();return;}invalidateSearchRenderSurface();homeSearchRequested=false;homeSearchHistoryOnly=true;homeSearchFocused=false;systemBackAction=null;syncBackCallbackEnabled();pageDirection=1;searchBack.setVisibility(View.GONE);fitHomeSearchControls(homeSearchWidth());if(homeSearchBox!=null)homeSearchBox.setBackground(searchBoxShape(false));crossFadeHomeSection(homeHistory,homeLibsBand);search.clearFocus();((android.view.inputmethod.InputMethodManager)getSystemService(INPUT_METHOD_SERVICE)).hideSoftInputFromWindow(search.getWindowToken(),0);if(homeScroll!=null)homeScroll.smoothScrollTo(0,0);clearHomeBrandCiallo();}
   List<String> searchHistory(){LinkedHashSet<String> unique=new LinkedHashSet<>();try{org.json.JSONArray values=new org.json.JSONArray(getSharedPreferences("search_history",MODE_PRIVATE).getString("items","[]"));for(int i=0;i<values.length();i++){String value=values.optString(i).trim();if(!value.isEmpty())unique.add(value);}}catch(Exception ignored){android.util.Log.w("MainActivity", "MainActivity Exception: "+ignored.getMessage(), ignored);}return new ArrayList<>(unique);}
   void writeSearchHistory(List<String> history){try{org.json.JSONArray values=new org.json.JSONArray();for(int i=0;i<Math.min(12,history.size());i++)values.put(history.get(i));getSharedPreferences("search_history",MODE_PRIVATE).edit().putString("items",values.toString()).apply();}catch(Exception ignored){android.util.Log.w("MainActivity", "MainActivity Exception: "+ignored.getMessage(), ignored);}}
   void saveSearchHistory(String query){List<String> history=searchHistory();history.remove(query);history.add(0,query);writeSearchHistory(history);}
@@ -1627,14 +1674,35 @@ FrameLayout.LayoutParams tp=new FrameLayout.LayoutParams(Math.max(dp(1),Math.min
   RemoteConfigClient.Snapshot noticeSnapshot;
   NoticeBadge noticeBadge;
 
-  /** 启动时静默拉一次公告；拉不到就什么都不做（不打扰、不报错）。 */
+  /** [DFW-103] 本次会话已经弹过哪条公告 —— 防止"缓存先弹一次、网络回来又弹一次"。 */
+  String lastPopupNoticeId="";
+
+  /**
+   * 启动时拉公告：**先用本地缓存秒弹，再拉网络补新的**。
+   *
+   * 用户 2026-10-01 反馈「公告弹窗弹出太慢」。根因：启动后要**等一次完整网络往返**才弹
+   * （超时是连接 6s + 读取 8s，最坏 14 秒），而且**没有任何本地缓存**，每次都是现拉。
+   *
+   * 现在：第二次以后打开软件，公告是**零延迟**弹出来的（先弹上次拉到的），
+   * 网络回来若有新公告再补弹。网络失败时保留缓存内容，不会把已经显示的公告变没。
+   */
   void maybeFetchNotices(){
+    RemoteConfigClient.Snapshot cached=RemoteConfigClient.loadCache(this);
+    if(cached!=null){
+      noticeSnapshot=cached;
+      refreshNoticeBell();
+      maybePopupNotices();
+    }
     io.execute(()->{
+      RemoteConfigClient.Raw raw=new RemoteConfigClient.Raw();
       RemoteConfigClient.Snapshot snapshot=null;
-      try{snapshot=RemoteConfigClient.fetch();}catch(Exception ignored){}
+      try{snapshot=RemoteConfigClient.fetch(raw);}catch(Exception ignored){}
       final RemoteConfigClient.Snapshot result=snapshot;
+      final RemoteConfigClient.Raw collected=raw;
       runOnUiThread(()->{
         if(isFinishing()||isDestroyed())return;
+        if(result==null||!result.reachable)return;
+        RemoteConfigClient.storeCache(MainActivity.this,collected);
         noticeSnapshot=result;
         refreshNoticeBell();
         maybePopupNotices();
@@ -1994,6 +2062,10 @@ FrameLayout.LayoutParams tp=new FrameLayout.LayoutParams(Math.max(dp(1),Math.min
     final List<RemoteConfigClient.Notice> popups=noticeCenter().popupNotices(noticeSnapshot);
     if(popups.isEmpty())return;
     final RemoteConfigClient.Notice first=popups.get(0);
+    // [DFW-103] 现在启动会**两次**走到这里（先缓存、后网络）。同一条公告只许弹一次，
+    // 否则用户会看到两个叠在一起的对话框。
+    if(first.id.equals(lastPopupNoticeId))return;
+    lastPopupNoticeId=first.id;
     showNoticeDialog(first,popups.size()-1,null);
   }
 
@@ -2276,7 +2348,7 @@ FrameLayout.LayoutParams tp=new FrameLayout.LayoutParams(Math.max(dp(1),Math.min
   void renderSkeletonRows(){DfwxSkeleton skeleton=new DfwxSkeleton(this,SURFACE2,itemColumns(),6);content.addView(skeleton,new LinearLayout.LayoutParams(-1,dp(216)));folderRenderingRows=false;updateFolderPullAvailability();}
 
   void scheduleInitialFolderAutoExpand(){/*进入目录不再自动预取下一页:加载只发生一次,后续由滚动接近底部触发,消除打开即多次加载与闪烁*/}
-  void queueCurrentSourceSearch(String query){currentSourceQuery=query;int token;synchronized(sourceSearchLock){token=++sourceSearchSession;sourceSearchRunning=false;sourceSearchPaused=false;sourceSearchLock.notifyAll();}sourceSearchPages=0;applyLocalSourceSearch(query);ui.removeCallbacks(sourceSearchRunnable);int points=query.codePointCount(0,query.length());if(query.isEmpty()||activeSource==null||points<2){setDirectoryIndexSearchPaused(false);if(progress!=null)progress.setVisibility(View.GONE);if(searchPauseButton!=null)searchPauseButton.setVisibility(View.GONE);if(statusRight!=null)statusRight.setText(points==1?"仅名称匹配":"");return;}setDirectoryIndexSearchPaused(true);Models.Source source=activeSource;List<Models.Item> local=new ArrayList<>(folderItems);Models.SearchOptions options=searchOptions(1).withRecursiveFolders(true).withModeMask(sessionFileListModeMask);synchronized(sourceSearchLock){if(token!=sourceSearchSession)return;sourceSearchRunning=true;}refreshCurrentSourceSearchUi(token,compositeSource(source)?"合集递归匹配中":options.apiOnly()?"API 搜索中":"缓存优先匹配中");if(options.indexOnly()){searchIndexIo.execute(()->{try{Set<String> ids=Collections.singleton(sourceKey(source));acceptCurrentSourceSearchBatch(token,source,query,core.cachedPartialIndexMatches(query,ids,fuzzyIndexEnabled()));}catch(Exception ignored){android.util.Log.w("MainActivity", "MainActivity Exception: "+ignored.getMessage(), ignored);}finally{runOnUiThread(()->finishCurrentSourceSearch(token,source,query,false));}});return;}if(options.indexEnabled()){io.execute(()->{try{if(options.indexEnabled())acceptCurrentSourceSearchBatch(token,source,query,core.cachedPartialIndexMatches(query,Collections.singleton(sourceKey(source)),fuzzyIndexEnabled()));}catch(Exception ignored){android.util.Log.w("MainActivity", "MainActivity Exception: "+ignored.getMessage(), ignored);}});searchIndexIo.execute(()->{try{acceptCurrentSourceSearchBatch(token,source,query,core.cachedDirectoryMatchesWarm(query,Collections.singleton(sourceKey(source)),true,sessionSearchMaxPages,fuzzyIndexEnabled()));}catch(Exception ignored){android.util.Log.w("MainActivity", "MainActivity Exception: "+ignored.getMessage(), ignored);}});}sourceSearchRunnable=()->io.execute(()->{java.util.concurrent.atomic.AtomicBoolean failed=new java.util.concurrent.atomic.AtomicBoolean();try{List<Models.Item> result=core.search(query,source,local,options,Collections.singleton(sourceKey(source)),new Models.Progress(){@Override public boolean isCancelled(){synchronized(sourceSearchLock){return token!=sourceSearchSession;}}@Override public boolean awaitIfPaused(){synchronized(sourceSearchLock){while(token==sourceSearchSession&&sourceSearchPaused)try{sourceSearchLock.wait();}catch(InterruptedException interrupted){Thread.currentThread().interrupt();return false;}return token==sourceSearchSession;}}@Override public void onBatch(List<Models.Item> batch){acceptCurrentSourceSearchBatch(token,source,query,batch);core.mergeSearchResultsIntoIndex(batch,indexRetentionMillis());}@Override public void onItemUpdated(Models.Item item){acceptCurrentSourceSearchUpdate(token,source,query,item);}@Override public void onFailure(String name){failed.set(true);}@Override public void onPage(String name,int page,int pageItems,int sourceFound,int totalPagesSeen){runOnUiThread(()->{if(!currentSourceSearchUiCurrent(token,source,query))return;sourceSearchPages=Math.max(sourceSearchPages,totalPagesSeen);statusRight.setText("第 "+page+" 页 · 累计 "+sourceSearchPages+" 页");});}@Override public void onProgress(int done,int total,int found,String name){runOnUiThread(()->refreshCurrentSourceSearchUi(token,"已找到 "+current.size()));}});acceptCurrentSourceSearchBatch(token,source,query,result);runOnUiThread(()->finishCurrentSourceSearch(token,source,query,failed.get()));}catch(Exception error){runOnUiThread(()->finishCurrentSourceSearch(token,source,query,true));}});ui.postDelayed(sourceSearchRunnable,280);}
+  void queueCurrentSourceSearch(String query){currentSourceQuery=query;int token;synchronized(sourceSearchLock){token=++sourceSearchSession;sourceSearchRunning=false;sourceSearchPaused=false;sourceSearchLock.notifyAll();}sourceSearchPages=0;applyLocalSourceSearch(query);ui.removeCallbacks(sourceSearchRunnable);int points=query.codePointCount(0,query.length());if(query.isEmpty()||activeSource==null||points<2){setDirectoryIndexSearchPaused(false);if(progress!=null)progress.setVisibility(View.GONE);if(searchPauseButton!=null)searchPauseButton.setVisibility(View.GONE);if(statusRight!=null)statusRight.setText(points==1?"仅名称匹配":"");return;}setDirectoryIndexSearchPaused(true);Models.Source source=activeSource;List<Models.Item> local=new ArrayList<>(folderItems);Models.SearchOptions options=searchOptions(1,sessionSearchMaxPages).withRecursiveFolders(true).withModeMask(sessionFileListModeMask);synchronized(sourceSearchLock){if(token!=sourceSearchSession)return;sourceSearchRunning=true;}refreshCurrentSourceSearchUi(token,compositeSource(source)?"合集递归匹配中":options.apiOnly()?"API 搜索中":"缓存优先匹配中");if(options.indexOnly()){searchIndexIo.execute(()->{try{Set<String> ids=Collections.singleton(sourceKey(source));acceptCurrentSourceSearchBatch(token,source,query,core.cachedPartialIndexMatches(query,ids,fuzzyIndexEnabled()));}catch(Exception ignored){android.util.Log.w("MainActivity", "MainActivity Exception: "+ignored.getMessage(), ignored);}finally{runOnUiThread(()->finishCurrentSourceSearch(token,source,query,false));}});return;}if(options.indexEnabled()){io.execute(()->{try{if(options.indexEnabled())acceptCurrentSourceSearchBatch(token,source,query,core.cachedPartialIndexMatches(query,Collections.singleton(sourceKey(source)),fuzzyIndexEnabled()));}catch(Exception ignored){android.util.Log.w("MainActivity", "MainActivity Exception: "+ignored.getMessage(), ignored);}});searchIndexIo.execute(()->{try{acceptCurrentSourceSearchBatch(token,source,query,core.cachedDirectoryMatchesWarm(query,Collections.singleton(sourceKey(source)),true,sessionSearchMaxPages,fuzzyIndexEnabled()));}catch(Exception ignored){android.util.Log.w("MainActivity", "MainActivity Exception: "+ignored.getMessage(), ignored);}});}sourceSearchRunnable=()->io.execute(()->{java.util.concurrent.atomic.AtomicBoolean failed=new java.util.concurrent.atomic.AtomicBoolean();try{List<Models.Item> result=core.search(query,source,local,options,Collections.singleton(sourceKey(source)),new Models.Progress(){@Override public boolean isCancelled(){synchronized(sourceSearchLock){return token!=sourceSearchSession;}}@Override public boolean awaitIfPaused(){synchronized(sourceSearchLock){while(token==sourceSearchSession&&sourceSearchPaused)try{sourceSearchLock.wait();}catch(InterruptedException interrupted){Thread.currentThread().interrupt();return false;}return token==sourceSearchSession;}}@Override public void onBatch(List<Models.Item> batch){acceptCurrentSourceSearchBatch(token,source,query,batch);core.mergeSearchResultsIntoIndex(batch,indexRetentionMillis());}@Override public void onItemUpdated(Models.Item item){acceptCurrentSourceSearchUpdate(token,source,query,item);}@Override public void onFailure(String name){failed.set(true);}@Override public void onPage(String name,int page,int pageItems,int sourceFound,int totalPagesSeen){runOnUiThread(()->{if(!currentSourceSearchUiCurrent(token,source,query))return;sourceSearchPages=Math.max(sourceSearchPages,totalPagesSeen);statusRight.setText("第 "+page+" 页 · 累计 "+sourceSearchPages+" 页");});}@Override public void onProgress(int done,int total,int found,String name){runOnUiThread(()->refreshCurrentSourceSearchUi(token,"已找到 "+current.size()));}});acceptCurrentSourceSearchBatch(token,source,query,result);runOnUiThread(()->finishCurrentSourceSearch(token,source,query,failed.get()));}catch(Exception error){runOnUiThread(()->finishCurrentSourceSearch(token,source,query,true));}});ui.postDelayed(sourceSearchRunnable,280);}
   boolean currentSourceSearchUiCurrent(int token,Models.Source source,String query){return token==sourceSearchSession&&pageKind==3&&activeSource!=null&&sourceKey(source).equals(sourceKey(activeSource))&&query.equals(currentSourceQuery)&&itemsGrid!=null&&content!=null&&itemsGrid.getParent()==content;}
   void acceptCurrentSourceSearchBatch(int token,Models.Source source,String query,List<Models.Item> batch){if(batch==null||batch.isEmpty())return;List<Models.Item> copy=new ArrayList<>(batch);runOnUiThread(()->{if(!currentSourceSearchUiCurrent(token,source,query))return;boolean changed=false;for(Models.Item item:copy){int present=indexOfItem(current,item.url);if(present>=0){mergeSearchItem(current.get(present),item);changed=true;}else if(currentSourceSearchUrls.add(item.url)){insertSearchItem(current,item);changed=true;}}if(!changed)return;visible=Math.min(current.size(),Math.max(SEARCH_WINDOW,visible));reconcileFolderSearchGrid();if(searchDragBar!=null)searchDragBar.invalidate();refreshCurrentSourceSearchUi(token,"已找到 "+current.size());updateFolderPullAvailability();captureActiveFolderState();});}
   void acceptCurrentSourceSearchUpdate(int token,Models.Source source,String query,Models.Item item){if(item==null||item.url.isEmpty())return;runOnUiThread(()->{if(!currentSourceSearchUiCurrent(token,source,query))return;int old=indexOfItem(current,item.url);if(old<0)return;replaceSearchItem(current,item);if(replaceItem(folderItems,item))invalidateFolderSearchIndex();if(old<itemsGrid.getChildCount())bindItemCard(itemsGrid.getChildAt(old),item);reconcileFolderSearchGrid();captureActiveFolderState();});}
@@ -2462,7 +2534,27 @@ content=new LinearLayout(this);content.setOrientation(LinearLayout.VERTICAL);pag
     if(requested>0&&requested>=total)return 0L;
     return Math.max(1,batchSeconds)*1000L;
   }
-  Models.SearchOptions searchOptions(int total){int requested=sessionSearchConcurrency<=0?0:Math.min(Math.max(1,total),sessionSearchConcurrency);long switchDelay=sourceSwitchDelayMillis(requested,total,sessionSearchBatchSeconds);return new Models.SearchOptions(requested,switchDelay,true,sessionSearchMaxPages).withRecursiveFolders(sessionSearchRecursiveFolders).withModeMask(sessionSearchModeMask).withFuzzyMatching(fuzzyDirectoryEnabled());}
+  /**
+   * [DFW-96] **全局搜索**时每个源最多翻几页。
+   *
+   * 用户 2026-10-02 反馈「搜索全部搜完要等太久」。实测根因：
+   * 全局搜索原来直接复用 `sessionSearchMaxPages`，而它的默认值 0 在
+   * `LanzouCore.pageLimit()`（`LanzouCore.java:393`）里被当成 **1000 页** ——
+   * 也就是"每个源翻到底"。再叠上"同域名每页至少间隔 1100ms"（`ORIGIN_PAGE_SLOT_MS`）
+   * 和"文件夹递归"，跑满 180 秒的搜索预算（`DEFAULT_SEARCH_BUDGET_MS`）是常态，不是意外。
+   *
+   * 搜索是"找东西"，不是"备份整个目录"：前 3 页（约 150 条/源）足够命中绝大多数目标。
+   * 想深挖某个源时，点进那个源单独翻页**不受此限**（那条路走 `sessionSearchMaxPages`，
+   * 界面上叫「单源翻页」）。
+   *
+   * 注意 DFW-96 卡里的红线是"搜索必须仍然**覆盖全部源**"——
+   * 源一个不少，只是每个源不再翻到底。这与红线不冲突。
+   */
+  static final int SEARCH_MAX_PAGES_GLOBAL=3;
+
+  Models.SearchOptions searchOptions(int total){return searchOptions(total,SEARCH_MAX_PAGES_GLOBAL);}
+
+  Models.SearchOptions searchOptions(int total,int maxPages){int requested=sessionSearchConcurrency<=0?0:Math.min(Math.max(1,total),sessionSearchConcurrency);long switchDelay=sourceSwitchDelayMillis(requested,total,sessionSearchBatchSeconds);return new Models.SearchOptions(requested,switchDelay,true,maxPages).withRecursiveFolders(sessionSearchRecursiveFolders).withModeMask(sessionSearchModeMask).withFuzzyMatching(fuzzyDirectoryEnabled());}
   String concurrencyText(int value,int total){return value<=0?"搜索线程数：自动（设备自适应 · 共 "+total+" 源）":"搜索线程数："+Math.min(value,Math.max(0,total))+" / "+total;}
   String concurrencyDescription(int value,int total){return concurrencyText(value,total)+"；自动模式按 CPU、内存与运行时网络压力动态开窗，不一次性激活全部源";}
   static int validSearchViewRate(int value){switch(value){case 0:case 50:case 100:case 200:case 500:case 1000:case 2000:return value;default:return 100;}}
@@ -2751,7 +2843,7 @@ content=new LinearLayout(this);content.setOrientation(LinearLayout.VERTICAL);pag
   LinearLayout perfChipRow,perfMotionRow;TextView perfTierSummary;
   LinearLayout buildRecursiveFoldersRow(){final LinearLayout row=settingsSwitchRow(R.drawable.ic_folder,"文件夹递归",sessionSearchRecursiveFolders,checked->{if(perfTier==0){showNotice("节能模式下文件夹递归保持关闭",false);return;}sessionSearchRecursiveFolders=checked;persistSearchSettings();});settingsRefreshers.add(()->{View toggle=(View)row.getTag();if(toggle!=null){toggle.setEnabled(perfTier!=0);row.setAlpha(perfTier!=0?1f:.45f);}});return row;}
   String perfTierDescription(int tier){if(tier==2)return"下载最快，请求也最密，更容易被蓝奏云限速。App 会自动把控节奏，一般不用管。";if(tier==1)return"平时就选这个。下载稳定，耗电正常，下面的细项一般不用再调。";return"减少后台请求与自动翻页，发热和流量更低，适合电量紧张时。";}
-  String perfTierFacts(){int transfers=downloadTransferParallelism();String motion=perfTier==0?(perfLowMotion?"低":"全开"):"全开";return"同时下载 "+(transfers==0?"自动":transfers)+" ｜ 单源翻页 "+(sessionSearchMaxPages==0?"无限":sessionSearchMaxPages+" 页")+" ｜ 预翻页 "+sessionAutoExpandInitialPages+" 页 ｜ 动效 "+motion;}
+  String perfTierFacts(){int transfers=downloadTransferParallelism();String motion=perfTier==0?(perfLowMotion?"低":"全开"):"全开";return"同时下载 "+(transfers==0?"自动":transfers)+" ｜ 全局每源 "+SEARCH_MAX_PAGES_GLOBAL+" 页 ｜ 单源翻页 "+(sessionSearchMaxPages==0?"无限":sessionSearchMaxPages+" 页")+" ｜ 预翻页 "+sessionAutoExpandInitialPages+" 页 ｜ 动效 "+motion;}
   void applyPerfTier(int tier){perfTier=Math.max(0,Math.min(2,tier));if(perfTier==0){// §6 节能列：砍链长（单源 5 页）、砍并发（下载 2）、砍后台（索引 1 线程/6h/不自动更新）、降动效；0 会被滑条读成"无限"，所以"不预翻"走总开关
       sessionSearchBatchSeconds=30;sessionSearchMaxPages=5;sessionSearchViewRate=200;sessionSourceListDisplayCount=SOURCE_LIST_MIN_DISPLAY;sessionAutoExpand=false;sessionAutoExpandInitialPages=1;sessionAutoExpandNextPages=1;sessionSearchRecursiveFolders=false;sessionBackgroundIndex=false;sessionIndexThreads=1;sessionIndexRetentionHours=6;setSourceProbeParallelism(0);setDirectResolveParallelism(0);setDownloadTransferParallelism(2);setInstallParallelism(1);perfLowMotion=true;}else{sessionSearchBatchSeconds=15;sessionSearchMaxPages=0;sessionSearchViewRate=0;sessionSourceListDisplayCount=perfTier==2?0:SOURCE_LIST_MIN_DISPLAY;sessionAutoExpand=true;sessionAutoExpandInitialPages=1;sessionAutoExpandNextPages=1;sessionBackgroundIndex=true;sessionIndexThreads=0;sessionIndexRetentionHours=perfTier==2?720:24;setSourceProbeParallelism(0);setDirectResolveParallelism(0);setDownloadTransferParallelism(0);setInstallParallelism(0);perfLowMotion=false;}
     persistSearchSettings();refreshSettingsInPlace();updatePerfTierUi();}
@@ -3938,7 +4030,21 @@ content=new LinearLayout(this);content.setOrientation(LinearLayout.VERTICAL);pag
     AlertDialog prompt=new AlertDialog.Builder(this).setTitle("确认安装外部 APK？").setMessage("文件："+entry.name+"\n来源："+host+"\n\n该文件来自网页外部下载，不属于应用内置更新。请确认你信任来源并了解安装风险。确认后只打开系统安装器，不会静默安装。").setNegativeButton("取消",null).setPositiveButton("确认并打开安装器",(dialog,which)->{entry.installConfirmationGranted=true;installEntryWithSystemInstaller(entry);}).create();showRounded(prompt);
   }
   void verifyCloudUpdateEntry(DownloadEntry entry){synchronized(entry){if(entry.updateVerificationRunning)return;entry.updateVerificationRunning=true;}showNotice("正在校验更新包…",false);io.execute(()->{try{Uri verified=verifyArchiveUpdate(entryUri(entry),entry.expectedUpdateVersion);synchronized(entry){entry.verifiedUpdateUri=verified;entry.updateVerified=true;entry.updateVerificationRunning=false;}runOnUiThread(()->installEntry(entry));}catch(Exception error){synchronized(entry){entry.verifiedUpdateUri=null;entry.updateVerified=false;entry.updateVerificationRunning=false;}showNotice("更新包校验未通过："+friendlyError(error),true);}});}
-  Uri verifyArchiveUpdate(Uri uri,String expectedVersion)throws Exception{if(uri==null)throw new IOException("无法读取更新包");String version=expectedVersion==null?"":expectedVersion.trim();if(!version.matches("(?:0|[1-9][0-9]*)\\.(?:0|[1-9][0-9]*)\\.(?:0|[1-9][0-9]*)"))throw new IOException("更新包版本信息无效");File root=new File(getFilesDir(),"verified-updates");if(!root.isDirectory()&&!root.mkdirs())throw new IOException("无法创建更新校验目录");long now=System.currentTimeMillis();File[] stale=root.listFiles();if(stale!=null)for(File file:stale)if(file.getName().startsWith("candidate-")||now-file.lastModified()>48L*60*60*1000)file.delete();String token=version+'-'+Long.toHexString(System.nanoTime());File temporary=new File(root,"candidate-"+token+".apk"),verified=new File(root,"verified-"+token+".apk");long size=0;try{try(InputStream input=openUriInput(uri);OutputStream output=new FileOutputStream(temporary)){byte[] buffer=new byte[32768];for(int count;(count=input.read(buffer))>0;){size+=count;if(size>512L*1024*1024)throw new IOException("更新包大小异常");output.write(buffer,0,count);}}int flags=Build.VERSION.SDK_INT>=28?PackageManager.GET_SIGNING_CERTIFICATES:PackageManager.GET_SIGNATURES;android.content.pm.PackageInfo current=getPackageManager().getPackageInfo(getPackageName(),flags),archive=getPackageManager().getPackageArchiveInfo(temporary.getAbsolutePath(),flags);if(archive==null||!getPackageName().equals(archive.packageName))throw new IOException("更新包包名不一致");if(!signatureDigests(current).equals(signatureDigests(archive)))throw new IOException("更新包签名不一致");if(!version.equals(archive.versionName))throw new IOException("更新包版本不一致");long currentCode=Build.VERSION.SDK_INT>=28?current.getLongVersionCode():current.versionCode,archiveCode=Build.VERSION.SDK_INT>=28?archive.getLongVersionCode():archive.versionCode;if(archiveCode<=currentCode)throw new IOException("更新包版本代码未提升");if(!temporary.renameTo(verified))throw new IOException("无法封存已校验更新包");return new Uri.Builder().scheme("content").authority(getPackageName()+".downloads").appendPath("verified").appendPath(verified.getName()).build();}finally{if(temporary.isFile())temporary.delete();}}
+  Uri verifyArchiveUpdate(Uri uri,String expectedVersion)throws Exception{if(uri==null)throw new IOException("无法读取更新包");String version=expectedVersion==null?"":expectedVersion.trim();
+    /*
+     * [DFW-90] 这里原来要求版本名必须严格是 `x.y.z`，否则整个更新被拒。
+     * 但后台的版本名是**人手填的自由文本**（控制台没有格式校验），
+     * 用户填个 `1.0.24-beta` 就会让所有用户收不到更新，而报错只有一句"版本信息无效"。
+     * 去掉第 ④ 条校验之后，version 只剩一个用途：拼临时文件名 —— 所以只要非空，
+     * 并且**过滤掉文件名里不能有的字符**就够了。
+     */
+    if(version.isEmpty())throw new IOException("更新包版本信息无效");File root=new File(getFilesDir(),"verified-updates");if(!root.isDirectory()&&!root.mkdirs())throw new IOException("无法创建更新校验目录");long now=System.currentTimeMillis();File[] stale=root.listFiles();if(stale!=null)for(File file:stale)if(file.getName().startsWith("candidate-")||now-file.lastModified()>48L*60*60*1000)file.delete();String token=version.replaceAll("[^0-9A-Za-z._-]","_")+'-'+Long.toHexString(System.nanoTime());File temporary=new File(root,"candidate-"+token+".apk"),verified=new File(root,"verified-"+token+".apk");long size=0;try{try(InputStream input=openUriInput(uri);OutputStream output=new FileOutputStream(temporary)){byte[] buffer=new byte[32768];for(int count;(count=input.read(buffer))>0;){size+=count;if(size>512L*1024*1024)throw new IOException("更新包大小异常");output.write(buffer,0,count);}}int flags=Build.VERSION.SDK_INT>=28?PackageManager.GET_SIGNING_CERTIFICATES:PackageManager.GET_SIGNATURES;android.content.pm.PackageInfo current=getPackageManager().getPackageInfo(getPackageName(),flags),archive=getPackageManager().getPackageArchiveInfo(temporary.getAbsolutePath(),flags);if(archive==null||!getPackageName().equals(archive.packageName))throw new IOException("更新包包名不一致");if(!signatureDigests(current).equals(signatureDigests(archive)))throw new IOException("更新包签名不一致");long currentCode=Build.VERSION.SDK_INT>=28?current.getLongVersionCode():current.versionCode,archiveCode=Build.VERSION.SDK_INT>=28?archive.getLongVersionCode():archive.versionCode;/*
+       * [DFW-90] **这条是安全底线，必须留。**
+       * 后台填的版本号只决定"要不要提醒更新"；用户真正装上的还是这个包。
+       * 如果包本身不比当前版本新，装完版本没变、后台却说有新版本 → 无限循环提示。
+       * 报错改成大白话：原来那句技术黑话用户根本看不懂，也说不清该怎么办。
+       */
+      if(archiveCode<=currentCode)throw new IOException("这个安装包并不比当前版本新（包内 "+archive.versionName+"，当前 "+current.versionName+"），已取消安装");if(!temporary.renameTo(verified))throw new IOException("无法封存已校验更新包");return new Uri.Builder().scheme("content").authority(getPackageName()+".downloads").appendPath("verified").appendPath(verified.getName()).build();}finally{if(temporary.isFile())temporary.delete();}}
   void autoInstallCompletedEntry(DownloadEntry entry){if(!readyFile(entry)||!entry.name.toLowerCase(Locale.ROOT).endsWith(".apk"))return;if(!DownloadSourcePolicy.allowsAutomaticInstall(entry.source)){installEntry(entry);return;}if(silentInstallPreference()&&adbShell.ready()){silentInstallEntries(Collections.singletonList(entry));return;}installEntryWithSystemInstaller(entry);}
   void installEntryWithSystemInstaller(DownloadEntry entry){
     if(!readyFile(entry))return;if(!entry.name.toLowerCase(Locale.ROOT).endsWith(".apk")){showNotice("该文件不是 APK，无法安装",false);return;}
@@ -4085,7 +4191,7 @@ void showCustomLanzouBaseOriginDialog(){EditText input=sourceInput("输入 oreoj
     beginDownload(item,null,false);
   }
     void requestItemDownload(Models.Item item,boolean autoInstall){beginDownload(item,null,autoInstall);}
-    void requestVerifiedUpdateDownload(Models.Item item,String version){String expected=version==null?"":version.trim();if(!expected.matches("(?:0|[1-9][0-9]*)\\.(?:0|[1-9][0-9]*)\\.(?:0|[1-9][0-9]*)")){showNotice("更新版本信息无效",true);return;}beginVerifiedUpdateDownload(item,expected);}
+    void requestVerifiedUpdateDownload(Models.Item item,String version){String expected=version==null?"":version.trim();if(expected.isEmpty()){showNotice("更新版本信息无效",true);return;}beginVerifiedUpdateDownload(item,expected);}
   void startBulkDownloads(List<Models.Item> items){startBulkDownloadsGated(items);}
   void startBulkDownloadsGated(List<Models.Item> items){if(!ensureDirectStorageAuthorized(()->startBulkDownloadsGated(items)))return;
     List<Models.Item> accepted=new ArrayList<>();List<DownloadEntry> entries=new ArrayList<>();int failed=0;

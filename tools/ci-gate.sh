@@ -19,6 +19,19 @@
 
 set -euo pipefail
 
+# [DFW-91] 把**进程/线程软上限抬到硬上限**。
+#
+# 为什么必须由脚本自己做：Robolectric 每个测试类都要起 Activity、开线程池，
+# 749 条用例跑下来要几千个线程。本机 `ulimit -u` 软上限只有 2666，而系统里
+# 浏览器 / 输入法 / 微信等常驻进程已经占掉 2600 左右 —— 于是测试大批量报
+# `OutOfMemoryError: unable to create native thread`，一次能红 184 条，
+# **看起来像代码炸了，其实一行代码的问题都没有**。
+#
+# 这个坑历史上反复出现，以前靠"记得先 pkill GradleDaemon"绕过 —— 靠自觉就会忘。
+# 现在脚本自己把软上限顶到硬上限（本机 4000），多出一千多个线程余量。
+# 失败不致命（某些环境不允许抬高），所以吞掉错误。
+ulimit -u "$(ulimit -Hu)" 2>/dev/null || true
+
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_ROOT"
 
