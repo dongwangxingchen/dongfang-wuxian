@@ -216,7 +216,7 @@ async function uploadApk(file, filename){
 }
 
 /* ---------- 骨架 ---------- */
-const TABS = ["总控","版本","公告","更新记录"];
+const TABS = ["总控","AI 渠道","版本","公告","更新记录"];
 function renderShell(){
   $("#app").innerHTML = `
   <h1>东方无限 · 控制台</h1>
@@ -239,6 +239,7 @@ function renderShell(){
 function renderPane(){
   const p = $("#pane");
   if (tab === "总控") return renderControl(p);
+  if (tab === "AI 渠道") return renderAiChannel(p);
   if (tab === "版本") return renderRelease(p);
   if (tab === "公告") return renderNotice(p);
   if (tab === "更新记录") return renderChangelog(p);
@@ -265,9 +266,50 @@ function renderControl(p){
       <input id="mu" type="text" placeholder="例如：永久 / 10 月 1 日 20:00" value="${esc(c.maintenanceUntil)}">
     </div>
     <div class="note warn">服务器连不上时，软件会当作“正常”处理，不会把用户锁在外面。</div>
-    <div style="height:22px"></div>
+    <div style="height:14px"></div>
+    <button class="btn-main" id="save">保存</button>
+  </div>`;
+  const tg = $("#mtg");
+  tg.onclick = () => {
+    const nowOn = !tg.classList.contains("on");
+    tg.classList.toggle("on", nowOn);
+    $("#mfields").classList.toggle("hide", !nowOn);
+  };
+  $("#save").onclick = async () => {
+    const b = $("#save"); b.disabled = true; b.innerHTML = '<span class="spin"></span> 保存中…';
+    try {
+      const on2 = $("#mtg").classList.contains("on");
+      // 只提交维护相关字段（部分更新），不碰 AI 渠道那一页的设置。
+      const body = {
+        maintenanceOn: on2, blocked: false,
+        maintenanceTitle: $("#mt").value.trim(),
+        maintenanceBody: $("#mb").value.trim(),
+        maintenanceUntil: $("#mu").value.trim()
+      };
+      await upsert("control", cache.control && cache.control.id, body);
+      toast(on2 ? "已开启维护，用户将看到你的公告" : "已保存", "ok");
+      await refresh();
+    } catch(e){ toast(e.message, "err"); }
+    b.disabled = false; b.textContent = "保存";
+  };
+}
+
+/* ---------- AI 渠道（远程控制） ---------- */
+/**
+ * 用户 2026-10-01：
+ * > "我希望你在我的控制台里面再加一个板块……可以改 URL、Key、最大输出、模型名字等等等等的。
+ * >  但是我是远程控制的，而不是在软件内控制的。"
+ * > "加一个新的按钮，专门让我在那个里面切换我的那个内置模型。"
+ * > "我怎么没找到？你放错地方了吗？这个控制台就是我整个的后台，所有东西都放在这里我控制的。"
+ *
+ * 所以它必须是**一个独立标签页**：原来塞在「总控」的维护区下面，要往下滚才看得到，用户直接说"我没看到"。
+ */
+function renderAiChannel(p){
+  const c = cache.control || {};
+  p.innerHTML = `
+  <div class="card">
     <h2>内置 AI 渠道（远程控制）</h2>
-    <p class="hint">APP 里那条「内置渠道」用的就是这些值，<b>改完用户不用更新软件</b>。<b>留空 = 用安装包里自带的值</b>，不确定就别填。</p>
+    <p class="hint">软件里那条「内置渠道」用的就是这些值，<b>改完用户不用更新软件</b>。<b>留空 = 用安装包里自带的值</b>，不确定就别填。</p>
     <p class="hint">上游中转站的地址和真实 Key <b>不在 App 里、也不在这一页</b>——它们只在服务器上（<code>/etc/nginx/dfwx-ai-secret.conf</code>，600）。这一页填的是<b>我们自己服务器</b>的地址和应用令牌。</p>
     <div class="switch">
       <div><div class="t">停用内置渠道</div><div class="d">打开后，所有用户都选不了这条渠道</div></div>
@@ -282,9 +324,9 @@ function renderControl(p){
     <div class="mgrid hide" id="aimlist"></div>
     <label for="aim">模型名（真正发给上游的 Model ID）</label>
     <input id="aim" type="text" placeholder="留空 = deepseek-v4.1-flash" value="${esc(c.ai_model || "")}">
-    <label for="aid">显示名（用户在 App 里看到的名字；留空 = 跟模型名一样）</label>
+    <label for="aid">显示名（用户在软件里看到的名字；留空 = 跟模型名一样）</label>
     <input id="aid" type="text" placeholder="留空 = 跟模型名一样" value="${esc(c.ai_display_name || "")}">
-    <label for="aib">服务器地址（App 实际请求的地址）</label>
+    <label for="aib">服务器地址（软件实际请求的地址）</label>
     <input id="aib" type="text" placeholder="留空 = 用安装包自带值" value="${esc(c.ai_base_url || "")}">
     <label for="ait">应用令牌（换令牌后同步改这里，用户不用更新软件）</label>
     <input id="ait" type="text" placeholder="留空 = 用安装包自带值" value="${esc(c.ai_token || "")}">
@@ -295,12 +337,7 @@ function renderControl(p){
     <div style="height:14px"></div>
     <button class="btn-main" id="save">保存</button>
   </div>`;
-  const tg = $("#mtg");
-  tg.onclick = () => {
-    const nowOn = !tg.classList.contains("on");
-    tg.classList.toggle("on", nowOn);
-    $("#mfields").classList.toggle("hide", !nowOn);
-  };
+
   const aiTg = $("#aitg");
   aiTg.onclick = () => aiTg.classList.toggle("on");
   // 「切换模型」：模型清单来自服务器 /ai/v1/models（本地静态返回，不打上游）。
@@ -329,13 +366,8 @@ function renderControl(p){
   $("#save").onclick = async () => {
     const b = $("#save"); b.disabled = true; b.innerHTML = '<span class="spin"></span> 保存中…';
     try {
-      const on2 = $("#mtg").classList.contains("on");
+      // 只提交 ai_* 字段：这是**部分更新**，不会碰维护模式的开关。
       const body = {
-        maintenanceOn: on2, blocked: false,
-        maintenanceTitle: $("#mt").value.trim(),
-        maintenanceBody: $("#mb").value.trim(),
-        maintenanceUntil: $("#mu").value.trim(),
-        // 内置渠道：留空即"用安装包自带值"，App 侧 fail-open（见 BuiltinAiChannel.applyRemote）
         ai_base_url: $("#aib").value.trim(),
         ai_token: $("#ait").value.trim(),
         ai_model: $("#aim").value.trim(),
@@ -345,7 +377,7 @@ function renderControl(p){
         ai_disabled: $("#aitg").classList.contains("on")
       };
       await upsert("control", cache.control && cache.control.id, body);
-      toast(on2 ? "已开启维护，用户将看到你的公告" : "已保存", "ok");
+      toast("已保存，用户下次打开软件生效", "ok");
       await refresh();
     } catch(e){ toast(e.message, "err"); }
     b.disabled = false; b.textContent = "保存";
