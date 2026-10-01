@@ -73,7 +73,7 @@ public final class MainActivity extends androidx.activity.ComponentActivity impl
   java.util.List<String> pendingAiPermissions; int pendingAiIndex; Runnable pendingAiProceed;
     final ExecutorService io=Executors.newFixedThreadPool(Math.max(1,LanzouCore.adaptiveNetworkWorkers(Integer.MAX_VALUE))),imageIo=Executors.newFixedThreadPool(Math.max(1,LanzouCore.adaptiveSourceWorkers(0,Integer.MAX_VALUE))),searchIndexIo=Executors.newSingleThreadExecutor(r->{Thread thread=new Thread(r,"search-index-cache");thread.setDaemon(true);return thread;}); final DownloadHistoryStore downloadHistory=new DownloadHistoryStore(this::serializeDownloadHistory,json->{getSharedPreferences("download_history",MODE_PRIVATE).edit().putString("items",json).commit();}); final Handler ui=new Handler(Looper.getMainLooper()); LanzouCore core; DirectLinkResolver directResolver; AdbShellManager adbShell;
   ScrollView homeScroll; LinearLayout homeColumn;
-  FrameLayout host,pageHost,searchScrollFrame,folderPullFrame; ViewGroup homeStage; ScrollView toastScroll,pageScroll; FolderPullScrollView folderPullScroll; HorizontalScrollView homeRecommendationsScroll; PopupWindow breadcrumbChooser; LinearLayout root,content,toastLayer,downloadList,selectionBar,sourceSelectionBar,downloadSelectionBar,folderPullIndicator,pageHeaderRow,primaryShell,homeBrand,homeHistory,homeRecommendations,homeLibsBand,sourceCategoryStrip,downloadFilterStrip,downloadExtensionStrip,autoInstallDownloadsRow; EditText search,sourceSearch,sourceFilter; ImageButton searchBack,selectionCopyDescription,selectionCategorize,selectionRenameFolder,sourceSelectionRename,downloadGlobalControlButton; ProgressBar progress,folderMoreSpinner,indexProgressBar; Button selectionAllButton,sourceSelectionAllButton,downloadSelectionAllButton,searchPauseButton,indexControlButton; TextView status,statusRight,selectionSummary,sourceSelectionSummary,downloadSelectionSummary,sourceHeading,homeRecommendation,downloadPathText,settingsDownloadPathText,folderPullLabel,adbPermissionState,indexProgressText,indexCurrentText,indexUpdatedText; LumaSwitch adbSilentInstallSwitch; GridLayout itemsGrid,liveGrid,sourceGrid,historyGrid; SearchDragBar searchDragBar; SearchCategoryPicker homeCategoryPicker; View pageFrame,homeSearchBox,homeSearchCategory,folderEmptyState;
+  FrameLayout host,pageHost,searchScrollFrame,folderPullFrame; ViewGroup homeStage; ScrollView toastScroll,pageScroll; FolderPullScrollView folderPullScroll; HorizontalScrollView homeRecommendationsScroll; PopupWindow breadcrumbChooser; LinearLayout root,content,toastLayer,downloadList,selectionBar,sourceSelectionBar,downloadSelectionBar,folderPullIndicator,pageHeaderRow,primaryShell,homeBrand,homeHistory,homeRecommendations,homeLibsBand,sourceCategoryStrip,downloadFilterStrip,downloadExtensionStrip,autoInstallDownloadsRow; EditText search,sourceSearch,sourceFilter; ImageButton searchBack,selectionCopyDescription,selectionCategorize,selectionRenameFolder,sourceSelectionRename,downloadGlobalControlButton; ProgressBar progress,indexProgressBar; DfwxLoadingRing folderMoreSpinner; Button selectionAllButton,sourceSelectionAllButton,downloadSelectionAllButton,searchPauseButton,indexControlButton; TextView status,statusRight,selectionSummary,sourceSelectionSummary,downloadSelectionSummary,sourceHeading,homeRecommendation,downloadPathText,settingsDownloadPathText,folderPullLabel,adbPermissionState,indexProgressText,indexCurrentText,indexUpdatedText; LumaSwitch adbSilentInstallSwitch; GridLayout itemsGrid,liveGrid,sourceGrid,historyGrid; SearchDragBar searchDragBar; SearchCategoryPicker homeCategoryPicker; View pageFrame,homeSearchBox,homeSearchCategory,folderEmptyState;
   List<Models.Item> current=new ArrayList<>(),folderItems=new ArrayList<>(),homeItems=new ArrayList<>(); List<FolderSearchEntry> folderSearchIndex=new ArrayList<>(),folderSearchCandidates=new ArrayList<>(); final Set<String> liveUrls=new HashSet<>(),currentSourceSearchUrls=new LinkedHashSet<>(),selectedUrls=new LinkedHashSet<>(),selectedSourceUrls=new LinkedHashSet<>(),testingSourceUrls=new HashSet<>(),autoRetriedDirs=new HashSet<>(); final Map<String,CheckBox> selectionChecks=new HashMap<>(),sourceSelectionChecks=new HashMap<>(); final Map<String,View> liveRows=new HashMap<>(); final Map<String,LinkedHashSet<String>> sourceCategories=new LinkedHashMap<>(); final Map<String,String> sourceSearchCorpora=new HashMap<>(); final List<Models.Source> visibleSources=new ArrayList<>(); final boolean[] sourceSelectionKinds={true,true,true,true}; List<Models.Source> sourcePageSources; final Set<DownloadEntry> selectedDownloads=new LinkedHashSet<>(); final Map<DownloadEntry,CheckBox> downloadChecks=new IdentityHashMap<>(); final List<FolderPageState> folderTrail=new ArrayList<>(); final Object sourceSearchLock=new Object(),searchUiLock=new Object(),directoryIndexPauseLock=new Object(); final ArrayDeque<Models.Item> pendingSearchAdds=new ArrayDeque<>(); final LinkedHashMap<String,Models.Item> pendingSearchUpdates=new LinkedHashMap<>(); FolderPageState activeFolderState; Models.Folder activeFolderProfile; Models.Source activeSource; Runnable systemBackAction,sourceSearchRunnable,folderLoadRunnable,folderPullCountdownRunnable; String currentSourceQuery="",folderSearchPreviousQuery="",downloadQuery="",downloadStateFilter="全部",downloadExtensionFilter="全部",activeSourceCategory="全部",folderPullRequestUrl=""; int folderSearchIndexedSize=-1,liveColumns=2,navigationSession,sourceSearchSession,sourceSearchPages,sourceRenderSession,sourceDataRevision,downloadFilterGeneration,sourceFilterGeneration,visible=50,pageDirection=1,folderNextPage=2,lastLayoutWidth,lastHostWidth,lastHostHeight,primaryDestination=-1,pageKind,folderPullRequestSession=-1,folderPullRequestPage,folderAutoExpandInitialRemaining,folderAutoExpandNextRemaining,pendingSearchSession=-1,pendingSearchEpoch=-1,searchFolderCount,searchWindowTarget,searchWindowDirtyFrom; volatile int searchGeneration,searchRenderEpoch; volatile GridLayout searchRenderGrid; GridLayout pendingSearchGrid; long folderNextReadyAt,folderEndNoticeUntil,searchUiTokenAt; double searchUiTokens; boolean profilePresent,folderProfilePending,downloadsPage,selectionMode,sourceSelectionMode,downloadSelectionMode,folderRootSources,folderHasMore,folderLoadingMore,folderRefreshing,primaryNavigationSwitch,homeSearchFocused,homeSearchRequested,homeSearchHistoryOnly,homePrefetchStarted,restoringFolderState,sourceSearchRunning,sourceSearchPaused,searchUiPosted,pendingSearchRefresh,searchWindowPosted,sessionBatchDownloadSingleItem,sessionOpenWebExternal,directoryIndexUserPaused,directoryIndexSearchPaused,directoryIndexResumePending;
   /**
    * DFW-40：图标加载的**失败记忆**（负缓存）。
@@ -221,7 +221,9 @@ loadSearchSettings();applyUserAgentSettings();detectWeakDevice();installBackAnim
   }
   static boolean enqueueWebDownload(String url,String name){MainActivity activity=ACTIVE_OWNER!=null?ACTIVE_OWNER:ACTIVE_INSTANCE.get();if(activity==null||activity.isFinishing())return false;activity.runOnUiThread(()->activity.startWebDirectDownload(url,name));return true;}
   static boolean showWebNotice(String message,boolean longLived){MainActivity activity=ACTIVE_OWNER!=null?ACTIVE_OWNER:ACTIVE_INSTANCE.get();if(activity==null||activity.isFinishing())return false;activity.showNotice(message,longLived);return true;}
-  /** 给 SupportActivity 的静态回执（同 showWebNotice 通道；SupportActivity 无法直接拿到 activity 实例） */
+  /** 给 SupportActivity 的静态回执（同 showWebNotice 通道；SupportActivity 无法直接拿到 activity 实例）。
+   *  [DFW-76] 主路径改成站内页后，只剩**遗留**的 SupportActivity.unlockNow() 还在用它；
+   *  站内页的解锁直接走自己的 showNotice(...)，不再绕这一层。 */
   static boolean showSupportNotice(Activity host,String message){
     MainActivity activity=ACTIVE_OWNER!=null?ACTIVE_OWNER:ACTIVE_INSTANCE.get();
     if(activity!=null&&!activity.isFinishing()){activity.showNotice(message,false);return true;}
@@ -236,7 +238,7 @@ loadSearchSettings();applyUserAgentSettings();detectWeakDevice();installBackAnim
     supportNaggedThisSession=true;Support.touchNag(this);
     showSupportPrompt(action);
   }
-  /** 支持弹窗（轻量版付费页：开发者信一句话 + 权益一行 + 双按钮），独立完整版在 SupportActivity */
+  /** 支持弹窗（轻量版付费页：开发者信一句话 + 权益一行 + 双按钮），完整版是站内页 showSupportPage() */
   void showSupportPrompt(Runnable action){
     LinearLayout panel=new LinearLayout(this);panel.setOrientation(LinearLayout.VERTICAL);panel.setPadding(dp(22),dp(16),dp(22),dp(6));
     TextView heading=text("诚信付费 · 自愿",20,TEXT);heading.setTypeface(AppFonts.bold(this));panel.addView(heading,new LinearLayout.LayoutParams(-1,dp(40)));
@@ -244,9 +246,23 @@ loadSearchSettings();applyUserAgentSettings();detectWeakDevice();installBackAnim
     TextView openPage=text("打开诚信付费页（微信收款码）",14,PRIMARY);openPage.setClickable(true);openPage.setFocusable(true);openPage.setTypeface(AppFonts.bold(this));openPage.setPaintFlags(openPage.getPaintFlags()|Paint.UNDERLINE_TEXT_FLAG);openPage.setPadding(0,dp(2),0,dp(6));openPage.setOnClickListener(v->openSupportActivity());panel.addView(openPage,new LinearLayout.LayoutParams(-1,dp(40)));
     AlertDialog prompt=new AlertDialog.Builder(this).setView(panel).setNegativeButton("继续下载（不付费）",(dialog,which)->action.run()).setPositiveButton("打开诚信付费页",(dialog,which)->{openSupportActivity();action.run();}).create();showRounded(prompt);
   }
-  /** 打开独立支持窗口（单独 Activity，非弹窗——用户明确要求单独窗口） */
-  void openSupportActivity(){startActivity(new Intent(this,SupportActivity.class));}
-  /* v1.5.1：按钮永远打开赞助码页（SupportActivity），解锁确认统一由页内按钮触发爱心感谢页——删除原已付费简陋弹窗分流 */
+  /**
+   * [DFW-76] 打开诚信付费页 —— 现在是**站内页**（`showSupportPage()`），不再是独立 Activity。
+   *
+   * 用户 2026-10-01 第二次投诉这一页的动画：
+   * > "点击诚信付费按钮后的动画效果和关闭那个页面的动画效果太磨叽且不自然不流畅，重置，
+   * >  用和打开关于东方无限页面一样的动画效果。"
+   *
+   * 病根在**结构**：站内推入会把下面那页缩到 0.94 并压暗到 55%，因为那是同一个窗口里的另一块
+   * View，底下是应用自己的黑底；独立 Activity 上做同样的事，透出来的是**桌面壁纸**，所以之前
+   * 只能不做 —— 观感必然"不一样"。改成站内页后，进/出都走 `animatePage`（推入 +1 / 弹出 -1），
+   * 与关于东方无限、崩溃日志同一条配方。
+   *
+   * 方法名保留：设置页顶部按钮与下载拦截弹窗两处调用点都不必改。
+   */
+  void openSupportActivity(){showSupportPage();}
+  /* v1.5.1：按钮永远打开赞助码页，解锁确认统一由页内按钮触发爱心感谢页——删除原已付费简陋弹窗分流。
+     [DFW-76] 解锁后的感谢页现在是**同一站内页里换内容**（renderThankYou），不再跳第二个窗口。 */
 
   void handleExternalAction(Intent intent){if(intent==null)return;String action=intent.getAction();
     if(ACTION_OPEN_DOWNLOADS.equals(action)){pageDirection=0;showDownloads();return;}
@@ -537,7 +553,16 @@ removeCallbacks(hideRun);hideRun=()->{if(!dragging)animate().alpha(0f).setDurati
     void setRefreshPullDistance(float value){pullDistance=value;setTranslationY(value);updateFolderRefreshPull(value);}
     void animatePullTo(float value,boolean animated){animatePullOffsetTo(-value,animated);}
     void animateRefreshTo(float value,boolean animated){animatePullOffsetTo(value,animated);}
-    void animatePullOffsetTo(float value,boolean animated){animate().cancel();pullDistance=Math.abs(value);if(!animated||!motionEnabled()){setTranslationY(value);return;}animate().translationY(value).setDuration(180).setInterpolator(new android.view.animation.DecelerateInterpolator()).start();}
+    /**
+   * [DFW-54] 松手后的回弹/收起。
+   *
+   * 旧版用 180ms + `DecelerateInterpolator` —— 那是 M2 遗留，全站只有这里还在用；
+   * 站内其它动效一律 `PathInterpolator(0.2,0,0,1)`（= M3 emphasized 的减速段）。
+   * 时长取 200ms：这是 androidx `SwipeRefreshLayout` 的官方松手时序
+   * （`ANIMATE_TO_START_DURATION` 与 `ANIMATE_TO_TRIGGER_DURATION` 都是 200ms），
+   * 比 180ms 略长但曲线更"稳"，不会显得急停。
+   */
+void animatePullOffsetTo(float value,boolean animated){animate().cancel();pullDistance=Math.abs(value);if(!animated||!motionEnabled()){setTranslationY(value);return;}animate().translationY(value).setDuration(200).setInterpolator(new android.view.animation.PathInterpolator(0.2f,0f,0f,1f)).start();}
     void releaseFolderPull(boolean commit){boolean refresh=refreshPulling,armed=commit&&pullDistance>=dp(FOLDER_PULL_THRESHOLD_DP)&&(refresh?folderRefreshAvailable():folderPullAvailable());pulling=refreshPulling=false;bottomDrag=topDrag=0f;ViewParent parent=getParent();if(parent!=null)parent.requestDisallowInterceptTouchEvent(false);if(armed){if(refresh){if(folderPullLabel!=null)folderPullLabel.announceForAccessibility("开始刷新目录");refreshCurrentFolder();}else{if(folderPullLabel!=null)folderPullLabel.announceForAccessibility("开始加载下一页");expandMore();}}else collapseFolderPull(true);}
     @Override public void onInitializeAccessibilityNodeInfo(android.view.accessibility.AccessibilityNodeInfo info){super.onInitializeAccessibilityNodeInfo(info);if(folderRefreshAvailable()&&!folderRefreshing&&!canScrollVertically(-1))info.addAction(new android.view.accessibility.AccessibilityNodeInfo.AccessibilityAction(android.view.accessibility.AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD,"刷新目录"));if(folderPullAvailable()&&!folderLoadingMore&&!canScrollVertically(1))info.addAction(new android.view.accessibility.AccessibilityNodeInfo.AccessibilityAction(android.view.accessibility.AccessibilityNodeInfo.ACTION_SCROLL_FORWARD,"加载下一页"));}
     @Override public boolean performAccessibilityAction(int action,Bundle arguments){if(action==android.view.accessibility.AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD&&!canScrollVertically(-1)&&folderRefreshAvailable()&&!folderRefreshing){holdFolderRefresh();if(folderPullLabel!=null)folderPullLabel.announceForAccessibility("开始刷新目录");refreshCurrentFolder();return true;}if(action==android.view.accessibility.AccessibilityNodeInfo.ACTION_SCROLL_FORWARD&&!canScrollVertically(1)&&folderPullAvailable()&&!folderLoadingMore){holdFolderPull();if(folderPullLabel!=null)folderPullLabel.announceForAccessibility("开始加载下一页");expandMore();return true;}return super.performAccessibilityAction(action,arguments);}
@@ -998,7 +1023,7 @@ android.graphics.Insets none=android.graphics.Insets.NONE;android.view.WindowIns
   void openRecommendedHome(Models.Source source){pageDirection=1;resetFolderTrail(source);folderRootSources=false;showFolderPage(activeFolderState.source,true);}
   void restorePageForTheme(){if(navBall!=null)navBall.refreshColors();int kind=pageKind;String sourceQuery=sourceFilter==null?"":sourceFilter.getText().toString(),historyQuery=downloadQuery;Models.Source folder=activeSource;if(kind==0)showHomeLanding();else if(kind==1){showSources();if(!sourceQuery.isEmpty())ui.post(()->{if(sourceFilter!=null)sourceFilter.setText(sourceQuery);});}else if(kind==2){showDownloads();if(!historyQuery.isEmpty())ui.post(()->{EditText input=sourceFilter;if(input!=null)input.setText(historyQuery);});}else if(kind==3&&folder!=null){captureActiveFolderState();FolderPageState state=currentFolderState();if(state!=null&&state.folder!=null)restoreFolderPageState(state);else reopenUnrenderedFolderForTheme(folder);}else if(kind==4)showSettings();else if(kind==6)showTools();}
   void reopenUnrenderedFolderForTheme(Models.Source source){if(currentFolderState()==null)resetFolderTrail(source);showFolderPage(source,false);}
-  void buildFolderScaffold(Models.Source source){base();pageKind=3;LinearLayout header=new LinearLayout(this);pageHeaderRow=header;header.setGravity(Gravity.CENTER_VERTICAL);ImageButton back=iconButton(R.drawable.ic_back,"返回");back.setOnClickListener(systemBackClick);header.addView(back,new LinearLayout.LayoutParams(dp(48),dp(48)));header.addView(folderSourceSearchBox(),new LinearLayout.LayoutParams(0,dp(46),1));root.addView(header,new LinearLayout.LayoutParams(-1,dp(52)));root.addView(folderPathView(source),new LinearLayout.LayoutParams(-1,dp(44)));progress=new ProgressBar(this,null,android.R.attr.progressBarStyleHorizontal);progress.setMax(100);progress.setVisibility(View.GONE);root.addView(progress,new LinearLayout.LayoutParams(-1,dp(3)));LinearLayout statusRow=new LinearLayout(this);statusRow.setGravity(Gravity.CENTER_VERTICAL);status=text("",12,MUTED);statusRight=text("",11,PRIMARY);statusRight.setGravity(Gravity.END|Gravity.CENTER_VERTICAL);searchPauseButton=toolbarTextButton("暂停");searchPauseButton.setVisibility(View.GONE);searchPauseButton.setContentDescription("暂停当前源搜索");searchPauseButton.setOnClickListener(v->toggleCurrentSourceSearchPaused(sourceSearchSession));statusRow.addView(status,new LinearLayout.LayoutParams(0,dp(30),1));statusRow.addView(statusRight,new LinearLayout.LayoutParams(-2,dp(30)));statusRow.addView(searchPauseButton,new LinearLayout.LayoutParams(dp(52),dp(30)));root.addView(statusRow,new LinearLayout.LayoutParams(-1,dp(30)));folderPullScroll=new FolderPullScrollView(this);pageScroll=folderPullScroll;content=new LinearLayout(this);content.setOrientation(LinearLayout.VERTICAL);pageScroll.addView(content);folderPullFrame=draggableFolderList(folderPullScroll,content,"拖动目录列表");root.addView(folderPullFrame,new LinearLayout.LayoutParams(-1,0,1));}
+  void buildFolderScaffold(Models.Source source){base();pageKind=3;LinearLayout header=new LinearLayout(this);pageHeaderRow=header;header.setGravity(Gravity.CENTER_VERTICAL);ImageButton back=iconButton(R.drawable.ic_back,"返回");back.setOnClickListener(systemBackClick);header.addView(back,new LinearLayout.LayoutParams(dp(48),dp(48)));header.addView(folderSourceSearchBox(),new LinearLayout.LayoutParams(0,dp(46),1));root.addView(header,new LinearLayout.LayoutParams(-1,dp(52)));root.addView(folderPathView(source),new LinearLayout.LayoutParams(-1,dp(44)));progress=new ProgressBar(this,null,android.R.attr.progressBarStyleHorizontal);progress.setMax(100);progress.setVisibility(View.GONE);root.addView(progress,new LinearLayout.LayoutParams(-1,dp(3)));LinearLayout statusRow=new LinearLayout(this);statusRow.setGravity(Gravity.CENTER_VERTICAL);status=text("",12,MUTED);statusRight=text("",11,MUTED);statusRight.setGravity(Gravity.END|Gravity.CENTER_VERTICAL);searchPauseButton=toolbarTextButton("暂停");searchPauseButton.setVisibility(View.GONE);searchPauseButton.setContentDescription("暂停当前源搜索");searchPauseButton.setOnClickListener(v->toggleCurrentSourceSearchPaused(sourceSearchSession));statusRow.addView(status,new LinearLayout.LayoutParams(0,dp(30),1));statusRow.addView(statusRight,new LinearLayout.LayoutParams(-2,dp(30)));statusRow.addView(searchPauseButton,new LinearLayout.LayoutParams(dp(52),dp(30)));root.addView(statusRow,new LinearLayout.LayoutParams(-1,dp(30)));folderPullScroll=new FolderPullScrollView(this);pageScroll=folderPullScroll;content=new LinearLayout(this);content.setOrientation(LinearLayout.VERTICAL);pageScroll.addView(content);folderPullFrame=draggableFolderList(folderPullScroll,content,"拖动目录列表");root.addView(folderPullFrame,new LinearLayout.LayoutParams(-1,0,1));}
   View folderPathView(Models.Source source){HorizontalScrollView scroll=new HorizontalScrollView(this);scroll.setHorizontalScrollBarEnabled(false);scroll.setFillViewport(true);scroll.setContentDescription("当前路径 "+folderPath(source));LinearLayout path=new LinearLayout(this);path.setGravity(Gravity.CENTER_VERTICAL);path.setPadding(dp(2),0,dp(8),0);Models.Source rootSource=folderTrail.isEmpty()?source:folderTrail.get(0).source;List<String> origin=sourceOriginPath(rootSource);boolean hasOrigin=!origin.isEmpty(),rootCurrent=!hasOrigin&&folderTrail.size()<=1;String rootTitle=rootSource==null||rootSource.title.isEmpty()?"根目录":rootSource.title;TextView rootPath=text("路径",11,rootCurrent?PRIMARY:MUTED);rootPath.setGravity(Gravity.CENTER);rootPath.setMinWidth(dp(44));rootPath.setSelected(rootCurrent);if(rootCurrent)rootPath.setTypeface(AppFonts.bold(this));rootPath.setContentDescription(rootCurrent?"当前位于根目录 "+rootTitle:"路径起点");rootPath.setClickable(hasOrigin||!rootCurrent);rootPath.setFocusable(hasOrigin||!rootCurrent);if(hasOrigin)rootPath.setOnClickListener(v->navigateToOriginSourceList());else if(!rootCurrent)rootPath.setOnClickListener(v->navigateToBreadcrumb(0));rootPath.setLongClickable(!folderTrail.isEmpty());if(!folderTrail.isEmpty())rootPath.setOnLongClickListener(v->{showBreadcrumbChildren(0,v);return true;});path.addView(rootPath,new LinearLayout.LayoutParams(-2,dp(44)));if(hasOrigin){for(int index=0;index<origin.size()-1;index++)addStaticPathPart(path,origin.get(index));addPathPart(path,origin.get(origin.size()-1),folderTrail.size()==1,0);for(int index=1;index<folderTrail.size();index++){FolderPageState state=folderTrail.get(index);addPathPart(path,state.source.title,index==folderTrail.size()-1,index);}}else{for(int index=0;index<folderTrail.size();index++){FolderPageState state=folderTrail.get(index);addPathPart(path,state.source.title,index==folderTrail.size()-1,index);}if(folderTrail.isEmpty()&&source!=null)addPathPart(path,source.title,true,0);}scroll.addView(path,new HorizontalScrollView.LayoutParams(-2,-1));scroll.post(()->scroll.fullScroll(View.FOCUS_RIGHT));return scroll;}
   LinearLayout folderOriginalLink(Models.Source source){boolean composite=compositeSource(source)&&!transientLinkSource(source);String url=source==null?"":preferredLanzouUrl(source.url),password=source==null?"":source.password,label=composite?"自建合集 · "+source.members.size()+"项":"原链接  "+url;LinearLayout row=new LinearLayout(this);row.setGravity(Gravity.CENTER_VERTICAL);TextView link=text(label,10,composite?MUTED:PRIMARY);link.setGravity(Gravity.START|Gravity.CENTER_VERTICAL);link.setSingleLine(true);link.setEllipsize(android.text.TextUtils.TruncateAt.MIDDLE);link.setTextIsSelectable(true);link.setClickable(!composite);link.setFocusable(!composite);link.setContentDescription(composite?label:"打开当前原链接"+(password.isEmpty()?"":"，先复制密码"));if(!composite)link.setOnClickListener(v->openRecognizedLink(url,password));row.addView(link,new LinearLayout.LayoutParams(0,-1,1));if(!composite&&!password.isEmpty()){TextView secret=text("密码："+password,10,MUTED);secret.setPadding(dp(8),0,dp(6),0);secret.setTextIsSelectable(true);secret.setContentDescription("当前源密码");row.addView(secret,new LinearLayout.LayoutParams(-2,-1));}return row;}
   View folderSourceSearchBox(){FrameLayout sourceBox=new FrameLayout(this);sourceBox.setBackground(shape(SURFACE,22));sourceSearch=new EditText(this);sourceSearch.setSingleLine();sourceSearch.setTextColor(TEXT);sourceSearch.setHintTextColor(MUTED);sourceSearch.setHint("搜索当前源");sourceSearch.setContentDescription("搜索当前源");sourceSearch.setTextSize(13);sourceSearch.setBackgroundColor(Color.TRANSPARENT);sourceSearch.setPadding(dp(16),0,dp(48),0);if(!currentSourceQuery.isEmpty()){sourceSearch.setText(currentSourceQuery);sourceSearch.setSelection(currentSourceQuery.length());}sourceSearch.addTextChangedListener(new TextWatcher(){public void beforeTextChanged(CharSequence s,int start,int count,int after){}public void onTextChanged(CharSequence s,int start,int before,int count){queueCurrentSourceSearch(s.toString().trim());}public void afterTextChanged(Editable e){}});sourceBox.addView(sourceSearch,new FrameLayout.LayoutParams(-1,-1));ImageButton sourceFind=iconButton(R.drawable.ic_search,"搜索当前源");sourceFind.setOnClickListener(v->{sourceSearch.requestFocus();queueCurrentSourceSearch(sourceSearch.getText().toString().trim());});FrameLayout.LayoutParams sfp=new FrameLayout.LayoutParams(dp(48),dp(46),Gravity.END|Gravity.CENTER_VERTICAL);sourceBox.addView(sourceFind,sfp);return sourceBox;}
@@ -2059,10 +2084,44 @@ android.graphics.Insets none=android.graphics.Insets.NONE;android.view.WindowIns
   @Override public void shareText(String value,String title){Intent send=new Intent(Intent.ACTION_SEND);send.setType("text/plain");send.putExtra(Intent.EXTRA_TEXT,value);try{startActivity(Intent.createChooser(send,title));}catch(Exception error){showNotice("没有可用的分享应用",true);}}
   void shareCurrentSource(){if(activeSource==null)return;shareSources(Collections.singletonList(activeSource));}
   void loading(String s){runOnUiThread(()->{progress.setVisibility(View.VISIBLE);progress.setIndeterminate(true);status.setText(s);if(statusRight!=null)statusRight.setText("");});}
-  void openFolder(Models.Source source,boolean refresh){String rememberedAccess=directResolver.cachedPassword(source.url);if((source.password==null||source.password.isEmpty())&&!rememberedAccess.isEmpty())source.password=rememberedAccess;final int session=navigationSession;final String expectedId=sourceKey(source);final java.util.concurrent.atomic.AtomicBoolean liveResolved=new java.util.concurrent.atomic.AtomicBoolean(false);final java.util.concurrent.atomic.AtomicBoolean terminal=new java.util.concurrent.atomic.AtomicBoolean(false);final java.util.concurrent.atomic.AtomicBoolean rendered=new java.util.concurrent.atomic.AtomicBoolean(false);if(compositeSource(source)){renderFolder(core.compositeSnapshot(source));hydrateVisibleCompositeMembers(session,expectedId,source);return;}renderFolder(placeholderFolder(source,"正在解析目录","正在连接当前基础链接，完成前先显示占位目录"));loading("正在读取 "+source.title);ui.postDelayed(()->{if(folderRequestCurrent(session,expectedId)&&!terminal.get()&&!liveResolved.get()){folderProfilePending=true;renderFolder(placeholderFolder(source,"目录仍在解析","正在等待当前基础链接返回目录数据，请稍候"));loading("正在等待目录解析");showNotice("目录仍在解析，已显示占位页面",false);}},22000L);io.execute(()->{try{boolean hadCache=core.hasFolderCache(source,1);if(!folderRequestCurrent(session,expectedId))return;Models.Folder first=core.browseSource(source,false);if(directoryErrorFolder(first))throw new IOException("403 Forbidden");rememberAcceptedSourcePassword(source);if(!hadCache)liveResolved.set(true);runOnUiThread(()->{if(folderRequestCurrent(session,expectedId)&&(!liveResolved.get()||!hadCache)){folderProfilePending=false;renderFolder(first);rendered.set(true);if(hadCache)loading("正在刷新目录");}});if(hadCache){Models.Folder updated=core.browseSource(source,true);if(directoryErrorFolder(updated))throw new IOException("403 Forbidden");boolean changed=!core.sameFolder(first,updated);liveResolved.set(true);runOnUiThread(()->{if(folderRequestCurrent(session,expectedId)){folderProfilePending=false;boolean appended=folderItems.size()>updated.items.size()||current.size()>updated.items.size();if((changed||activeFolderProfile==null)&&!appended)renderFolder(updated);else if(progress!=null)progress.setVisibility(View.GONE);}});}terminal.set(true);}catch(LanzouCore.DirectPasswordException error){terminal.set(true);String rejectedPassword=source.password==null?"":source.password;boolean rejected=!rejectedPassword.isEmpty();directResolver.forgetPassword(source.url);forgetRejectedSourcePassword(source.url,rejectedPassword);source.password="";runOnUiThread(()->{if(folderRequestCurrent(session,expectedId)){folderProfilePending=false;if(progress!=null)progress.setVisibility(View.GONE);showLanzouAccessPrompt(source.url,source.title,rejected,accessValue->{source.password=accessValue;openFolder(source,refresh);},null);}});}catch(Exception error){terminal.set(true);runOnUiThread(()->{if(folderRequestCurrent(session,expectedId)){folderProfilePending=true;if(progress!=null)progress.setVisibility(View.GONE);String message=friendlyError(error);recordDirectoryFailure(source.url,message);if(!autoRetriedDirs.contains(expectedId)){autoRetriedDirs.add(expectedId);showNotice("目录解析中断，正在自动重试…",false);ui.postDelayed(()->{if(folderRequestCurrent(session,expectedId))openFolder(source,true);},900);return;}autoRetriedDirs.remove(expectedId);renderFolder(placeholderFolder(source,"目录解析失败",directoryParseFailureReason(message)));showNotice("目录解析失败："+message+"，回到顶部下拉可重试",true);}});}});io.execute(()->{try{Models.Folder indexed=core.indexedFolderSnapshot(source,indexRetentionMillis());if(!indexed.items.isEmpty())runOnUiThread(()->{if(folderRequestCurrent(session,expectedId)&&!rendered.get()&&!liveResolved.get()&&!terminal.get()){folderProfilePending=false;renderFolder(indexed);rendered.set(true);loading("正在刷新目录");}});}catch(Exception ignored){android.util.Log.w("MainActivity", "MainActivity Exception: "+ignored.getMessage(), ignored);}});}
+  void openFolder(Models.Source source,boolean refresh){String rememberedAccess=directResolver.cachedPassword(source.url);if((source.password==null||source.password.isEmpty())&&!rememberedAccess.isEmpty())source.password=rememberedAccess;final int session=navigationSession;final String expectedId=sourceKey(source);final java.util.concurrent.atomic.AtomicBoolean liveResolved=new java.util.concurrent.atomic.AtomicBoolean(false);final java.util.concurrent.atomic.AtomicBoolean terminal=new java.util.concurrent.atomic.AtomicBoolean(false);final java.util.concurrent.atomic.AtomicBoolean rendered=new java.util.concurrent.atomic.AtomicBoolean(false);if(compositeSource(source)){renderFolder(core.compositeSnapshot(source));hydrateVisibleCompositeMembers(session,expectedId,source);return;}renderFolder(placeholderFolder(source,"正在解析目录","正在连接当前基础链接，完成前先显示占位目录"));loading("正在读取 "+source.title);ui.postDelayed(()->{if(folderRequestCurrent(session,expectedId)&&!terminal.get()&&!liveResolved.get()){folderProfilePending=true;renderFolder(placeholderFolder(source,"目录仍在解析","正在等待当前基础链接返回目录数据，请稍候"));loading("正在等待目录解析");showNotice("目录仍在解析，已显示占位页面",false);}},22000L);io.execute(()->{try{boolean hadCache=core.hasFolderCache(source,1);if(!folderRequestCurrent(session,expectedId))return;Models.Folder first=core.browseSource(source,false);if(directoryErrorFolder(first))throw new IOException("403 Forbidden");rememberAcceptedSourcePassword(source);if(!hadCache)liveResolved.set(true);runOnUiThread(()->{if(folderRequestCurrent(session,expectedId)&&(!liveResolved.get()||!hadCache)){folderProfilePending=false;renderFolder(first);rendered.set(true);
+            /* [DFW-38] stale-while-revalidate：有缓存时这一步只是"先给你能看的内容"，
+               后台马上还会再刷一次。旧代码在这里 `loading("正在刷新目录")` ——
+               于是用户看到的是"内容已经好了，但进度条还在转、还写着正在刷新"，
+               弱网/限频下能一直转到 18 秒超时，这就是"慢"的主要观感来源。
+               现在直接收起进度条，后台静默替换。 */
+            if(hadCache&&progress!=null)progress.setVisibility(View.GONE);}});if(hadCache){Models.Folder updated=core.browseSource(source,true);if(directoryErrorFolder(updated))throw new IOException("403 Forbidden");boolean changed=!core.sameFolder(first,updated);liveResolved.set(true);runOnUiThread(()->{if(folderRequestCurrent(session,expectedId)){folderProfilePending=false;boolean appended=folderItems.size()>updated.items.size()||current.size()>updated.items.size();if((changed||activeFolderProfile==null)&&!appended)renderFolder(updated);else if(progress!=null)progress.setVisibility(View.GONE);}});}terminal.set(true);}catch(LanzouCore.DirectPasswordException error){terminal.set(true);String rejectedPassword=source.password==null?"":source.password;boolean rejected=!rejectedPassword.isEmpty();directResolver.forgetPassword(source.url);forgetRejectedSourcePassword(source.url,rejectedPassword);source.password="";runOnUiThread(()->{if(folderRequestCurrent(session,expectedId)){folderProfilePending=false;if(progress!=null)progress.setVisibility(View.GONE);showLanzouAccessPrompt(source.url,source.title,rejected,accessValue->{source.password=accessValue;openFolder(source,refresh);},null);}});}catch(Exception error){terminal.set(true);runOnUiThread(()->{if(folderRequestCurrent(session,expectedId)){folderProfilePending=true;if(progress!=null)progress.setVisibility(View.GONE);
+            /* [DFW-38] 诊断链修复：`friendlyError()` 是给用户看的**兜底话术**，
+               它会把 "403 Forbidden" 这类原始信息洗成"操作失败，请稍后重试"，
+               而 `directoryParseFailureReason()` 恰好靠 "403"/"限流" 这些**原始关键词**来给专门解释 ——
+               于是"403 风控""触发限流"这些真正有用的解释**永远到不了用户眼前**。
+               现在两者分开：给用户看的话术用 friendlyError，给判定用的原始消息用 error.getMessage()。 */
+            String raw=error.getMessage()==null?"":error.getMessage();
+            String message=friendlyError(error);
+            recordDirectoryFailure(source.url,raw);
+            if(!autoRetriedDirs.contains(expectedId)){autoRetriedDirs.add(expectedId);showNotice("目录解析中断，正在自动重试…",false);ui.postDelayed(()->{if(folderRequestCurrent(session,expectedId))openFolder(source,true);},900);return;}
+            autoRetriedDirs.remove(expectedId);
+            /* [DFW-38] stale-if-error：屏幕上已经有一份能看的目录时，刷新失败**不许**把它
+               换成"目录解析失败"占位页 —— 那等于把"内容旧了"升级成"内容没了"。
+               RFC 5861 的 stale-if-error 就是这个语义：出错时继续用旧数据，只提示不覆盖。 */
+            if(rendered.get()){showNotice("目录刷新失败，继续显示上次内容："+message,false);return;}
+            renderFolder(placeholderFolder(source,"目录解析失败",directoryParseFailureReason(raw)));
+            showNotice("目录解析失败："+message+"，回到顶部下拉可重试",true);}});}});io.execute(()->{try{Models.Folder indexed=core.indexedFolderSnapshot(source,indexRetentionMillis());if(!indexed.items.isEmpty())runOnUiThread(()->{if(folderRequestCurrent(session,expectedId)&&!rendered.get()&&!liveResolved.get()&&!terminal.get()){folderProfilePending=false;renderFolder(indexed);rendered.set(true);if(progress!=null)progress.setVisibility(View.GONE);}});}catch(Exception ignored){android.util.Log.w("MainActivity", "MainActivity Exception: "+ignored.getMessage(), ignored);}});}
   void hydrateVisibleCompositeMembers(int session,String expectedId,Models.Source source){if(!compositeSource(source))return;int rendered=Math.min(Math.max(0,visible),folderItems.size());if(rendered<=0)return;io.execute(()->{try{core.hydrateCompositeSource(source,false,rendered,new Models.Progress(){@Override public boolean isCancelled(){return !folderRequestCurrent(session,expectedId);}@Override public void onProgress(int done,int total,int found,String current){}@Override public void onItemUpdated(Models.Item item){runOnUiThread(()->acceptCompositeFolderUpdate(session,expectedId,item));}});}catch(InterruptedException interrupted){Thread.currentThread().interrupt();}});}
   boolean folderRequestCurrent(int session,String id){return activeSource!=null&&(id.equals(sourceKey(activeSource))||id.equals(activeSource.url)||id.equals(preferredLanzouUrl(activeSource.url)));}
-  boolean directoryErrorFolder(Models.Folder folder){if(folder==null)return false;StringBuilder text=new StringBuilder();text.append(folder.title).append((char)10).append(folder.publisher).append((char)10).append(folder.description);for(Models.Item item:folder.items)text.append((char)10).append(item.title).append((char)10).append(item.description).append((char)10).append(item.error);String value=text.toString().toLowerCase(Locale.ROOT);return value.contains("403")||value.contains("forbidden")||value.contains("access denied")||value.contains("429")||value.contains("too many requests")||value.contains("502")||value.contains("503")||value.contains("504")||value.contains("bad gateway")||value.contains("service unavailable")||value.contains("nginx")||value.contains("cloudflare")||value.contains("waf");}
+  /**
+   * [DFW-38] 判断"解析出来的东西其实是一个错误壳页，而不是真目录"。
+   *
+   * 旧实现把**每个条目的标题/描述**也拼进去做子串匹配。软件库是软件合集，
+   * `nginx-1.24.zip` 这种条目名很常见 —— 一个正常目录只要有一个文件名带 `nginx`，
+   * 整页就会被判成"目录解析失败"。这是典型的"低概率、高破坏"误杀。
+   *
+   * 现在两条约束：
+   * ① **条目非空就直接放过** —— 拿到真内容了，就不是错误页；
+   * ② 只扫文件夹自身的标题/发布者/描述，并且不再匹配裸的 `nginx`
+   *    （真 403 页面的标题里一定有 "403"/"Forbidden"，用不着靠 web 服务器名猜）。
+   */
+  boolean directoryErrorFolder(Models.Folder folder){if(folder==null)return false;if(folder.items!=null&&!folder.items.isEmpty())return false;String value=(folder.title+"\n"+folder.publisher+"\n"+folder.description).toLowerCase(Locale.ROOT);return value.contains("403")||value.contains("forbidden")||value.contains("access denied")||value.contains("429")||value.contains("too many requests")||value.contains("502")||value.contains("503")||value.contains("504")||value.contains("bad gateway")||value.contains("service unavailable")||value.contains("cloudflare")||value.contains("waf");}
   String directoryParseFailureReason(String message){String raw=message==null?"":message.trim(),value=raw.toLowerCase(Locale.ROOT);if(value.contains("403")||value.contains("forbidden")||value.contains("access denied"))return "当前基础链接返回了禁止访问页面（403/Forbidden），通常是该域名临时风控或访问策略变化。";if(value.contains("502")||value.contains("503")||value.contains("504")||value.contains("bad gateway")||value.contains("service unavailable"))return "当前基础链接的上游服务暂不可用（502/503/504），继续使用该域名可能只能得到错误页。";if(value.contains("429")||value.contains("rate")||value.contains("频繁")||value.contains("限流"))return "当前基础链接触发了访问频率限制，短时间内继续请求可能仍会失败。";if(value.contains("timeout")||value.contains("timed out")||value.contains("超时"))return "当前基础链接在限定时间内没有返回可用目录数据，可能是网络延迟、域名不可达或服务阻塞。";if(value.contains("ssl")||value.contains("certificate")||value.contains("reset")||value.contains("refused")||value.contains("unreachable"))return "当前基础链接出现连接或 TLS 异常，当前网络环境可能无法稳定访问该域名。";return "当前基础链接没有返回可用的目录数据，可能是域名策略、临时风控、网络异常或分享状态变化。";}
   void recordDirectoryFailure(String url,String message){try{android.content.SharedPreferences prefs=getSharedPreferences("dfwx_diagnostics",MODE_PRIVATE);org.json.JSONArray items=new org.json.JSONArray(prefs.getString("failures","[]"));items.put(new org.json.JSONObject().put("at",System.currentTimeMillis()).put("url",url==null?"":url).put("error",message==null?"":message));while(items.length()>8)items.remove(0);prefs.edit().putString("failures",items.toString()).apply();}catch(Exception ignored){android.util.Log.w("MainActivity", "MainActivity Exception: "+ignored.getMessage(), ignored);}}
   // T4 关于页大改（用户指令：全部改独立页面不弹窗）：参考致谢 9 项原文全数迁入，关于页与独立参考页共用
@@ -2150,19 +2209,31 @@ android.graphics.Insets none=android.graphics.Insets.NONE;android.view.WindowIns
   void maybeAutoExpand(){if(!sessionAutoExpand||folderLoadingMore||!folderPullAvailable()||folderPullScroll==null||content==null)return;boolean initial=sessionAutoExpandInitialPages==0||folderAutoExpandInitialRemaining>0;if(initial){if(sessionAutoExpandInitialPages>0)folderAutoExpandInitialRemaining--;expandMore();return;}boolean chained=sessionAutoExpandNextPages==0||folderAutoExpandNextRemaining>0;if(chained){if(sessionAutoExpandNextPages>0)folderAutoExpandNextRemaining--;expandMore();return;}int remaining=content.getHeight()-folderPullScroll.getScrollY()-folderPullScroll.getHeight();if(remaining<=dp(180)){folderAutoExpandNextRemaining=sessionAutoExpandNextPages; if(sessionAutoExpandNextPages>0)folderAutoExpandNextRemaining--;expandMore();}}
   void showFolderEndNoticeOnce(){long now=System.currentTimeMillis();if(now<folderEndNoticeUntil)return;folderEndNoticeUntil=now+2500L;showNotice("已全部加载",false);}
   void updateFolderPullAvailability(){if(pageScroll==null||pageKind!=3)return;boolean more=folderPullAvailable(),refresh=folderRefreshAvailable();pageScroll.setContentDescription(folderRefreshing?"目录列表，正在刷新目录":folderLoadingMore?"目录列表，正在加载下一页":refresh&&more?"目录列表，顶部下拉刷新，底部上拉加载下一页":refresh?"目录列表，顶部下拉刷新":more?"目录列表，到底后继续上拉并松手加载下一页":"目录列表，已全部加载");if(folderPullIndicator!=null&&!folderLoadingMore&&!folderRefreshing&&!more&&folderPullScroll!=null&&folderPullScroll.getTranslationY()!=0f)collapseFolderPull(true);pageScroll.sendAccessibilityEvent(android.view.accessibility.AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED);}
-  void updateFolderPull(float distance){if(folderPullIndicator==null||folderMoreSpinner==null||folderPullLabel==null)return;positionFolderPullIndicator(Gravity.BOTTOM);folderPullIndicator.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_AUTO);folderMoreSpinner.setVisibility(View.VISIBLE);folderMoreSpinner.setIndeterminate(false);folderMoreSpinner.setMax(100);folderMoreSpinner.setProgress(Math.min(100,Math.round(distance*100/Math.max(1,dp(FOLDER_PULL_THRESHOLD_DP)))));boolean armed=distance>=dp(FOLDER_PULL_THRESHOLD_DP);folderPullLabel.setText(armed?"松手加载下一页":"继续上拉加载下一页");folderPullLabel.setTextColor(armed?PRIMARY:MUTED);}
-  void updateFolderRefreshPull(float distance){if(folderPullIndicator==null||folderMoreSpinner==null||folderPullLabel==null)return;positionFolderPullIndicator(Gravity.TOP);folderPullIndicator.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_AUTO);folderMoreSpinner.setVisibility(View.VISIBLE);folderMoreSpinner.setIndeterminate(false);folderMoreSpinner.setMax(100);folderMoreSpinner.setProgress(Math.min(100,Math.round(distance*100/Math.max(1,dp(FOLDER_PULL_THRESHOLD_DP)))));boolean armed=distance>=dp(FOLDER_PULL_THRESHOLD_DP);folderPullLabel.setText(armed?"松手刷新目录":"继续下拉刷新目录");folderPullLabel.setTextColor(armed?PRIMARY:MUTED);}
-  void positionFolderPullIndicator(int gravity){if(folderPullIndicator==null)return;ViewGroup.LayoutParams raw=folderPullIndicator.getLayoutParams();if(raw instanceof FrameLayout.LayoutParams){FrameLayout.LayoutParams params=(FrameLayout.LayoutParams)raw;if(params.gravity!=gravity){params.gravity=gravity;folderPullIndicator.setLayoutParams(params);}}}
-  void resetFolderPullIndicator(){positionFolderPullIndicator(Gravity.BOTTOM);if(folderMoreSpinner!=null){folderMoreSpinner.setIndeterminate(false);folderMoreSpinner.setMax(100);folderMoreSpinner.setProgress(0);folderMoreSpinner.setVisibility(View.VISIBLE);}if(folderPullLabel!=null){folderPullLabel.setText("上拉并松手加载下一页");folderPullLabel.setTextColor(MUTED);}if(folderPullIndicator!=null)folderPullIndicator.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS);}
+  void updateFolderPull(float distance){if(folderPullIndicator==null||folderMoreSpinner==null||folderPullLabel==null)return;positionFolderPullIndicator(Gravity.BOTTOM);folderPullIndicator.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_AUTO);folderMoreSpinner.setVisibility(View.VISIBLE);folderMoreSpinner.setRingSpinning(false);folderMoreSpinner.setRingProgress(distance/Math.max(1,dp(FOLDER_PULL_THRESHOLD_DP)));boolean armed=distance>=dp(FOLDER_PULL_THRESHOLD_DP);folderPullLabel.setText(armed?"松手加载下一页":"继续上拉加载下一页");folderPullLabel.setTextColor(armed?PRIMARY:MUTED);}
+  void updateFolderRefreshPull(float distance){if(folderPullIndicator==null||folderMoreSpinner==null||folderPullLabel==null)return;positionFolderPullIndicator(Gravity.TOP);folderPullIndicator.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_AUTO);folderMoreSpinner.setVisibility(View.VISIBLE);folderMoreSpinner.setRingSpinning(false);folderMoreSpinner.setRingProgress(distance/Math.max(1,dp(FOLDER_PULL_THRESHOLD_DP)));boolean armed=distance>=dp(FOLDER_PULL_THRESHOLD_DP);folderPullLabel.setText(armed?"松手刷新目录":"继续下拉刷新目录");folderPullLabel.setTextColor(armed?PRIMARY:MUTED);}
+  void positionFolderPullIndicator(int gravity){if(folderPullIndicator==null)return;ViewGroup.LayoutParams raw=folderPullIndicator.getLayoutParams();if(raw instanceof FrameLayout.LayoutParams){FrameLayout.LayoutParams params=(FrameLayout.LayoutParams)raw;int target=gravity|Gravity.CENTER_HORIZONTAL;if(params.gravity!=target){params.gravity=target;folderPullIndicator.setLayoutParams(params);}}}
+  void resetFolderPullIndicator(){positionFolderPullIndicator(Gravity.BOTTOM);if(folderMoreSpinner!=null){folderMoreSpinner.setRingSpinning(false);folderMoreSpinner.setRingProgress(0f);folderMoreSpinner.setVisibility(View.VISIBLE);}if(folderPullLabel!=null){folderPullLabel.setText("上拉并松手加载下一页");folderPullLabel.setTextColor(MUTED);}if(folderPullIndicator!=null)folderPullIndicator.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS);}
   void holdFolderPull(){positionFolderPullIndicator(Gravity.BOTTOM);if(folderPullIndicator!=null)folderPullIndicator.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_AUTO);if(folderPullScroll!=null)folderPullScroll.animatePullTo(dp(FOLDER_PULL_SETTLE_DP),motionEnabled());}
   void holdFolderRefresh(){positionFolderPullIndicator(Gravity.TOP);if(folderPullIndicator!=null)folderPullIndicator.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_AUTO);if(folderPullScroll!=null)folderPullScroll.animateRefreshTo(dp(FOLDER_PULL_SETTLE_DP),motionEnabled());}
-  void startMoreWaiting(){holdFolderPull();if(folderMoreSpinner!=null){folderMoreSpinner.setVisibility(View.VISIBLE);if(motionEnabled())folderMoreSpinner.setIndeterminate(true);else{folderMoreSpinner.setIndeterminate(false);folderMoreSpinner.setMax(100);folderMoreSpinner.setProgress(100);}}updateMoreWaiting();updateFolderPullAvailability();}
-  void updateMoreWaiting(){if(!pendingFolderPullCurrent()||folderPullLabel==null)return;long remaining=Math.max(0,folderNextReadyAt-System.currentTimeMillis());if(remaining<=0){folderPullLabel.setText("正在加载下一页");folderPullLabel.setTextColor(PRIMARY);return;}long seconds=Math.max(1,(remaining+999)/1000);String label="剩余 "+seconds+" 秒后加载下一页";if(!label.contentEquals(folderPullLabel.getText()))folderPullLabel.setText(label);folderPullLabel.setTextColor(MUTED);if(folderPullCountdownRunnable!=null)ui.removeCallbacks(folderPullCountdownRunnable);folderPullCountdownRunnable=this::updateMoreWaiting;ui.postDelayed(folderPullCountdownRunnable,Math.min(1000,remaining));}
+  void startMoreWaiting(){holdFolderPull();if(folderMoreSpinner!=null){folderMoreSpinner.setVisibility(View.VISIBLE);folderMoreSpinner.setRingSpinning(motionEnabled());if(!motionEnabled())folderMoreSpinner.setRingProgress(1f);}updateMoreWaiting();updateFolderPullAvailability();}
+  /**
+   * [DFW-54] 加载下一页时的提示文案。
+   *
+   * 旧版这里是「剩余 N 秒后加载下一页」的**每秒倒计时**，两个问题：
+   * ① 它暴露的是**服务端限速**（`LanzouCore.NEXT_PAGE_FLOOR_MS=3000`，翻页硬地板 3 秒），
+   *    用户既不能加速也不能重试 —— 把无法行动的等待做成倒计时，只是把实现细节漏给用户，
+   *    而且 3 秒会"被读成 3 秒"（本来不该被感知的时间被强调了出来）；
+   * ② 它和旁边**正在转的加载环**自相矛盾：既然在转，为什么还要等？
+   *    而且每秒在「剩余 N 秒…」↔「正在加载下一页」之间来回切，文字宽度变化还会让
+   *    居中的环左右横跳。
+   * 现在只说一句"正在加载下一页"，不再给无法行动的倒计时。
+   */
+  void updateMoreWaiting(){if(!pendingFolderPullCurrent()||folderPullLabel==null)return;if(!"正在加载下一页".contentEquals(folderPullLabel.getText()))folderPullLabel.setText("正在加载下一页");folderPullLabel.setTextColor(MUTED);}
   void collapseFolderPull(boolean animated){boolean useMotion=animated&&motionEnabled();if(folderPullScroll!=null)folderPullScroll.animatePullTo(0f,useMotion);resetFolderPullIndicator();}
   void clearFolderPullCallbacks(){if(folderLoadRunnable!=null)ui.removeCallbacks(folderLoadRunnable);if(folderPullCountdownRunnable!=null)ui.removeCallbacks(folderPullCountdownRunnable);folderLoadRunnable=null;folderPullCountdownRunnable=null;}
   void clearFolderPullRequest(){folderPullRequestSession=-1;folderPullRequestPage=0;folderPullRequestUrl="";}
   void cancelFolderPullWork(){clearFolderPullCallbacks();folderLoadingMore=false;folderRefreshing=false;clearFolderPullRequest();if(folderPullScroll!=null){folderPullScroll.animate().cancel();folderPullScroll.pullDistance=0f;folderPullScroll.pulling=false;folderPullScroll.refreshPulling=false;folderPullScroll.setTranslationY(0f);}resetFolderPullIndicator();}
-  void startFolderRefreshUi(){holdFolderRefresh();if(folderMoreSpinner!=null){folderMoreSpinner.setVisibility(View.VISIBLE);folderMoreSpinner.setIndeterminate(true);}if(folderPullLabel!=null){folderPullLabel.setText("正在刷新目录");folderPullLabel.setTextColor(PRIMARY);}updateFolderPullAvailability();if(pageScroll!=null)pageScroll.announceForAccessibility("正在刷新目录");}
+  void startFolderRefreshUi(){holdFolderRefresh();if(folderMoreSpinner!=null){folderMoreSpinner.setVisibility(View.VISIBLE);folderMoreSpinner.setRingSpinning(true);}if(folderPullLabel!=null){folderPullLabel.setText("正在刷新目录");folderPullLabel.setTextColor(PRIMARY);}updateFolderPullAvailability();if(pageScroll!=null)pageScroll.announceForAccessibility("正在刷新目录");}
   void finishFolderRefreshUi(){folderRefreshing=false;collapseFolderPull(true);updateFolderPullAvailability();}
   void refreshCurrentFolder(){if(!folderRefreshAvailable()){collapseFolderPull(true);return;}Models.Source source=activeSource;String rememberedAccess=directResolver.cachedPassword(source.url);if((source.password==null||source.password.isEmpty())&&!rememberedAccess.isEmpty())source.password=rememberedAccess;final int session=navigationSession;final String expectedId=sourceKey(source);folderRefreshing=true;startFolderRefreshUi();if(compositeSource(source)){renderFolder(core.compositeSnapshot(source));hydrateVisibleCompositeMembers(session,expectedId,source);if(pageScroll!=null)pageScroll.announceForAccessibility("目录已刷新");return;}io.execute(()->{try{Models.Folder updated=core.browseSource(source,true);rememberAcceptedSourcePassword(source);runOnUiThread(()->{if(folderRequestCurrent(session,expectedId)){folderRefreshing=false;renderFolder(updated);if(pageScroll!=null)pageScroll.announceForAccessibility("目录已刷新");}});}catch(LanzouCore.DirectPasswordException error){String rejectedPassword=source.password==null?"":source.password;boolean rejected=!rejectedPassword.isEmpty();directResolver.forgetPassword(source.url);forgetRejectedSourcePassword(source.url,rejectedPassword);source.password="";runOnUiThread(()->{if(folderRequestCurrent(session,expectedId)){finishFolderRefreshUi();showLanzouAccessPrompt(source.url,source.title,rejected,accessValue->{source.password=accessValue;refreshCurrentFolder();},null);}});}catch(Exception error){runOnUiThread(()->{if(folderRequestCurrent(session,expectedId)){finishFolderRefreshUi();showFolderParseFailure(source,"刷新目录失败",error);}});}});}
   void finishFolderPull(){clearFolderPullCallbacks();clearFolderPullRequest();collapseFolderPull(true);updateFolderPullAvailability();}
@@ -2171,7 +2242,16 @@ android.graphics.Insets none=android.graphics.Insets.NONE;android.view.WindowIns
   void loadNextFolderPage(){if(!pendingFolderPullCurrent())return;Models.Source source=activeSource;String rememberedAccess=directResolver.cachedPassword(source.url);if((source.password==null||source.password.isEmpty())&&!rememberedAccess.isEmpty())source.password=rememberedAccess;int session=folderPullRequestSession,page=folderPullRequestPage;String expectedUrl=folderPullRequestUrl;if(folderPullCountdownRunnable!=null)ui.removeCallbacks(folderPullCountdownRunnable);folderPullCountdownRunnable=null;if(folderPullLabel!=null){folderPullLabel.setText("正在加载下一页");folderPullLabel.setTextColor(PRIMARY);}if(pageScroll!=null)pageScroll.announceForAccessibility("正在加载下一页");io.execute(()->{try{Models.Folder next=core.browsePage(source.url,source.password,true,page);rememberAcceptedSourcePassword(source);runOnUiThread(()->{if(folderRequestCurrent(session,expectedUrl)&&folderLoadingMore&&page==folderPullRequestPage)appendFolderPage(next);});}catch(LanzouCore.DirectPasswordException error){String rejectedPassword=source.password==null?"":source.password;boolean rejected=!rejectedPassword.isEmpty();directResolver.forgetPassword(source.url);forgetRejectedSourcePassword(source.url,rejectedPassword);source.password="";runOnUiThread(()->{if(folderRequestCurrent(session,expectedUrl)&&folderLoadingMore&&page==folderPullRequestPage){folderLoadingMore=false;finishFolderPull();showLanzouAccessPrompt(source.url,source.title,rejected,accessValue->{source.password=accessValue;expandMore();},null);}});}catch(Exception error){runOnUiThread(()->{if(folderRequestCurrent(session,expectedUrl)&&folderLoadingMore&&page==folderPullRequestPage){folderLoadingMore=false;finishFolderPull();showFolderParseFailure(source,"加载下一页失败",error);}});}});}
   void appendFolderPage(Models.Folder next){folderLoadingMore=false;LinkedHashSet<String> seen=new LinkedHashSet<>();for(Models.Item item:folderItems)seen.add(item.url);List<Models.Item> added=new ArrayList<>();for(Models.Item item:next.items)if(seen.add(item.url)){folderItems.add(item);added.add(item);}invalidateFolderSearchIndex();if(activeSource!=null&&activeSource.url.equals(home.url))homeItems=new ArrayList<>(folderItems);folderNextPage=Math.max(folderNextPage+1,next.page+1);folderHasMore=next.hasMore;folderNextReadyAt=Math.max(System.currentTimeMillis(),next.nextPageReadyAt);if(currentSourceQuery.isEmpty()){int start=current.size();current.addAll(added);if(!added.isEmpty()&&folderEmptyState!=null&&folderEmptyState.getParent()==content)content.removeView(folderEmptyState);if(!added.isEmpty())folderEmptyState=null;int end=listAppendEnd(start,current.size());appendFolderRowsAsync(start,end,()->finishFolderPageAppend(added));}else{applyLocalSourceSearch(currentSourceQuery);finishFolderPageAppend(added);}}
   void finishFolderPageAppend(List<Models.Item> added){finishFolderPull();captureActiveFolderState();if(pageScroll!=null)pageScroll.announceForAccessibility(added.isEmpty()?"没有新的项目":"已加载 "+added.size()+" 个项目");if(sessionAutoExpand&&!added.isEmpty()&&folderPullScroll!=null)folderPullScroll.post(this::maybeAutoExpand);}
-  void updateItemCount(int shown){if(status!=null)status.setText("已显示 "+shown+" 个项目");if(statusRight!=null)statusRight.setText(shown<current.size()||folderHasMore&&currentSourceQuery.isEmpty()?"上拉加载":"已全部加载");}
+  /**
+   * [DFW-54] 目录页状态行。
+   *
+   * 左：「已显示 N 个项目」—— `current.size()` 是**已加载总数**不是目录总数，所以不能编"共 M 个"。
+   * 右：原来是「上拉加载」四个字，用 `PRIMARY`（紫色）—— 紫色在本项目 = 可操作/强调，
+   *     但这是个点不动的纯 TextView，用强调色是误导。
+   * 现在：本地还有没显示出来的条目时直接报**余量**（`还有 N 个`，纯本地计算、零成本、不撒谎），
+   *       否则报"上拉加载"；到底了报"已全部加载"。颜色一律 `MUTED`。
+   */
+  void updateItemCount(int shown){if(status!=null)status.setText("已显示 "+shown+" 个项目");if(statusRight!=null){int localLeft=Math.max(0,current.size()-shown);boolean more=folderHasMore&&currentSourceQuery.isEmpty();statusRight.setText(localLeft>0?"还有 "+localLeft+" 个":(more?"上拉加载":"已全部加载"));statusRight.setTextColor(MUTED);}}
   void renderSearchResults(){if(homeHistory==null)return;int session=searchGeneration;homeHistory.removeAllViews();progress=new ProgressBar(this,null,android.R.attr.progressBarStyleHorizontal);progress.setMax(100);homeHistory.addView(progress,new LinearLayout.LayoutParams(-1,dp(3)));LinearLayout statusRow=new LinearLayout(this);statusRow.setGravity(Gravity.CENTER_VERTICAL);status=text("",12,MUTED);statusRight=text("",11,PRIMARY);statusRight.setGravity(Gravity.END|Gravity.CENTER_VERTICAL);searchPauseButton=toolbarTextButton("暂停");searchPauseButton.setContentDescription("暂停全源搜索");searchPauseButton.setOnClickListener(v->toggleSearchPaused(session));statusRow.addView(status,new LinearLayout.LayoutParams(0,dp(30),1));statusRow.addView(statusRight,new LinearLayout.LayoutParams(-2,dp(30)));statusRow.addView(searchPauseButton,new LinearLayout.LayoutParams(dp(52),dp(30)));homeHistory.addView(statusRow,new LinearLayout.LayoutParams(-1,dp(30)));pageScroll=new ScrollView(this){
       // v1.19.4 修复：搜索结果嵌在可滚动 homeScroll 内，外层普通 ScrollView 在 onInterceptTouchEvent 超过
       // touchSlop 后会无条件抢走竖向手势（实测仪表日志 homeScroll intercept=true），而搜索模式下外层已
@@ -3383,6 +3463,274 @@ content=new LinearLayout(this);content.setOrientation(LinearLayout.VERTICAL);pag
     body.addView(privacyCard,aboutCardLp());
     TextView verText=text(PRODUCT_NAME+"  "+BuildConfig.VERSION_NAME,12,MUTED);verText.setGravity(Gravity.CENTER);LinearLayout.LayoutParams verLp=new LinearLayout.LayoutParams(-1,-2);verLp.setMargins(0,dp(18),0,dp(6));body.addView(verText,verLp);
     ScrollView scroll=new ScrollView(this);scroll.setFillViewport(true);scroll.addView(body,new ScrollView.LayoutParams(-1,-2));root.addView(scroll,new LinearLayout.LayoutParams(-1,0,1));}
+  /**
+   * [DFW-76] **诚信付费：站内页**。
+   *
+   * 用户 2026-10-01 原话（第二次投诉这一页的动画）：
+   * > "点击诚信付费按钮后的动画效果和关闭那个页面的动画效果太磨叽且不自然不流畅，重置，
+   * >  用和打开关于东方无限页面一样的动画效果。"
+   *
+   * 脚手架**完全照 `showAboutPage()`**：`primaryBase(3)` 把设置当底座 + 自己的 `pageKind` +
+   * `systemBackAction=this::showSettings` + `aboutBackBar("诚信付费")`。于是返回箭头、系统返回、
+   * 进/出转场（`animatePage` 推入 +1 / 弹出 -1）全都自动与关于页一致 —— 这正是"和关于东方无限
+   * 一样"唯一可能的实现方式。
+   *
+   * pageKind 取 **11**（不是 10）：grep 确认 0..10 已被占用，10 是公告页（`showNoticeCenter`）。
+   *
+   * 红线不变：不付费也能完整使用；本页任何位置都有「暂时不支持，继续使用」退出路径。
+   * 文案、图标、收款码资源、金额、免责说明逐字搬自 `SupportActivity`，一个字都没改。
+   */
+  static final int PAGE_KIND_SUPPORT=11;
+  /** 站内付费页的内容容器：未解锁的支持页与已解锁的感谢页在**同一页里换内容**，不再跳窗口。 */
+  LinearLayout supportBody;
+  boolean supportThankYouMode;
+  /** [BRAND-001] 解锁进行中：防连点导致整页重建途中被再次触发。 */
+  boolean supportUnlocking;
+  /** [BRAND-001] 解锁流程真正被执行的次数（供测试证明"连点只进一次"）。 */
+  int supportUnlockInvocations;
+  /** 解锁心形的确认微弹时长（ms）：沿用站内那条 220ms 配方，上限由规范 §2.1「动效 VPA ≤300ms」钉死。 */
+  static final long SUPPORT_UNLOCK_MS=220;
+  /**
+   * 回弹曲线：站内 `NavBall.PRESS_UP` 那条「弱过冲回弹 (0.2,0.9,0.3,1.05)」（规范 §2 允许 spatial 受控 overshoot）。
+   *
+   * **必须懒建、不能写成 static final**：`PathInterpolator` 的构造会碰 `android.graphics.Path`，
+   * 在 Robolectric 沙箱里类初始化阶段构造它会撞上 `ConfigurationRegistry.instance == null`
+   * （表现为整个测试类 `ExceptionInInitializerError`，而且**取决于测试类执行顺序**——典型的偶发假红）。
+   */
+  PathInterpolator supportPressUp;
+  PathInterpolator supportPressUp(){
+    if(supportPressUp==null)supportPressUp=new PathInterpolator(0.2f,0.9f,0.3f,1.05f);
+    return supportPressUp;
+  }
+
+  void showSupportPage(){
+    primaryBase(3);
+    pageKind=PAGE_KIND_SUPPORT;
+    activeSource=null;
+    clearFolderTrail();
+    systemBackAction=this::showSettings;
+    LinearLayout body=aboutBackBar("诚信付费");
+    supportBody=body;
+    supportUnlocking=false;
+    supportUnlockInvocations=0;
+    // v1.5.1 用户定调：无论是否已解锁，进来永远先看到赞助码页；点下方解锁按钮才切到爱心感谢页
+    renderSupportPage();
+    ScrollView scroll=new ScrollView(this);
+    scroll.setFillViewport(true);
+    scroll.addView(body,new ScrollView.LayoutParams(-1,-2));
+    root.addView(scroll,new LinearLayout.LayoutParams(-1,0,1));
+  }
+
+  /** 未解锁：支持页（内容逐字搬自 `SupportActivity.renderSupportPage`，卡片换成站内 `aboutCard`）。 */
+  void renderSupportPage(){
+    supportThankYouMode=false;
+    supportBody.removeAllViews();
+    // 大标题（用户 2026-10-01 口述：标题下那行「诚信付费 ￥5 · 一次付清 · 承诺永久更新」删掉，
+    // ￥5 只留在中段价格区可见 —— 价格区本身保留不动）
+    TextView title=text("支持 "+PRODUCT_NAME,24,TEXT);
+    title.setTypeface(AppFonts.bold(this));
+    title.setIncludeFontPadding(false);
+    LinearLayout.LayoutParams titleLp=new LinearLayout.LayoutParams(-2,dp(40));
+    titleLp.setMargins(0,dp(6),0,0);
+    supportBody.addView(title,titleLp);
+    // 开发者信（诚意区，第一人称，v1.5.0 用户定调：委婉、少小字）——成本与坚持 + 学生分层委婉化 + 感谢
+    LinearLayout letterCard=aboutCard();
+    TextView letter=new TextView(this);
+    letter.setText("这个应用没有广告，也不强制付费。\n维护和更新都需要成本，我想高质量地一直做下去。\n还在读书、暂时没有收入的朋友，点击下方按钮直接使用即可；\n如果力所能及，这 5 元会成为我继续更新的动力和底气。\n谢谢你的支持。");
+    letter.setTextColor(TEXT);
+    letter.setTextSize(14);
+    letter.setLineSpacing(dp(4),1f);
+    letter.setTypeface(AppFonts.normal(this));
+    letterCard.addView(letter,new LinearLayout.LayoutParams(-1,-2));
+    letterCard.setContentDescription("开发者的话：这个应用没有广告，也不强制付费；还在读书的朋友可以直接使用。");
+    supportBody.addView(letterCard,aboutCardLp());
+    // 权益行（用户 2026-10-01 口述：原来 3 条 emoji 短语全部删掉，只留这一条长句；原话照抄，仅补句末句号）
+    LinearLayout perks=aboutCard();
+    // [BRAND-001] 内边距与开发者信同基准（原来 14/6，与信的 16/14 不在一个节奏上）
+    perks.setPadding(dp(16),dp(8),dp(16),dp(8));
+    perks.addView(benefitRow(R.drawable.ic_trophy,"每周自费续 1 万次 DeepSeek v4.1，自动刷新，专供诚信付费的朋友，请诚信付费。"),new LinearLayout.LayoutParams(-1,-2));
+    supportBody.addView(perks,aboutCardLp());
+    // [BRAND-001] 价格区从"裸行"升级成一张卡：上面是开发者信、中间是权益、这里是价格，
+    // 三块同一节奏才像一页设计过的产品页；￥5 仍然在**中段**一眼可见（用户 2026-10-01 的要求）。
+    LinearLayout priceCard=aboutCard();
+    LinearLayout price=new LinearLayout(this);
+    price.setGravity(Gravity.CENTER_VERTICAL);
+    TextView amount=text("￥5",30,PRIMARY);
+    amount.setTypeface(AppFonts.bold(this));
+    price.addView(amount,new LinearLayout.LayoutParams(-2,-2));
+    LinearLayout priceCol=new LinearLayout(this);
+    priceCol.setOrientation(LinearLayout.VERTICAL);
+    TextView priceNote1=text("诚信付费 · 一次付清",14,TEXT);
+    priceNote1.setTypeface(AppFonts.bold(this));
+    TextView priceNote2=text("承诺永久更新 · 绝不停更",11,MUTED);
+    priceCol.addView(priceNote1,new LinearLayout.LayoutParams(-2,-2));
+    LinearLayout.LayoutParams note2Lp=new LinearLayout.LayoutParams(-2,-2);
+    note2Lp.topMargin=dp(2);
+    priceCol.addView(priceNote2,note2Lp);
+    LinearLayout.LayoutParams priceColLp=new LinearLayout.LayoutParams(-2,-2);
+    priceColLp.leftMargin=dp(12);
+    price.addView(priceCol,priceColLp);
+    priceCard.addView(price,new LinearLayout.LayoutParams(-1,-2));
+    supportBody.addView(priceCard,aboutCardLp());
+    // 收款区：微信单卡全宽（用户仅收款微信；码图撑满卡宽，消除两侧留白）
+    supportBody.addView(codeCard("微信收款码",R.drawable.pay_wechat,"微信扫码 · 付 5 元"),aboutCardLp());
+    // 主 CTA：第一人称动词句，零验证解锁（v1.5.1 删「复制金额」小按钮——重复无用，减小字）
+    Button confirm=new Button(this);
+    confirm.setText("诚信付费，解锁全部权限");
+    confirm.setAllCaps(false);
+    confirm.setTextSize(15);
+    confirm.setTypeface(AppFonts.bold(this));
+    confirm.setTextColor(BG);
+    // 真胶囊：`solidShape` 的半径量化会把 24 压成 26（做出来是圆角方块而不是胶囊），
+    // 所以直接走 PremiumSurface.pill（半径 = 高度一半）。高度也统一到 56dp。
+    confirm.setBackground(filterRipple(PremiumSurface.pill(PRIMARY,dp(56),0,0,PremiumSurface.HIGHLIGHT)));
+    confirm.setContentDescription("诚信付费，解锁全部下载权限；不付费也可以完整使用其它功能");
+    // [BRAND-001] 防连点：解锁会整页重建，连点两次会在重建途中再触发一次，表现为按钮闪一下/白屏一帧。
+    // 解锁是本地幂等写，但重建不是幂等的。
+    confirm.setOnClickListener(v->{
+      if(supportUnlocking)return;
+      supportUnlocking=true;
+      confirm.setEnabled(false);
+      confirm.setAlpha(0.6f);
+      unlockNow();
+    });
+    LinearLayout.LayoutParams ctaParams=new LinearLayout.LayoutParams(-1,dp(56));
+    ctaParams.setMargins(0,dp(6),0,0);
+    supportBody.addView(confirm,ctaParams);
+    // [DFW-43] 主 CTA 也要"按下去有反应"（规范 §3：主反馈 = scale + 提亮，ripple 只是辅助）
+    applePressScale(confirm);
+    // 辅助链接：暂时不支持（降级路径永远存在）
+    TextView skip=text("暂时不支持，继续使用",13,PRIMARY);
+    skip.setGravity(Gravity.CENTER);
+    skip.setClickable(true);
+    skip.setFocusable(true);
+    // [BRAND-001] 降级路径原来是一个**没有任何按压反馈**的裸 TextView：点下去毫无回应，
+    // 而这恰恰是"不付费也能走"的唯一出口，最不该让人怀疑自己点没点到。
+    skip.setBackground(filterRipple(new ColorDrawable(Color.TRANSPARENT)));
+    skip.setContentDescription("暂时不支持，继续使用（不付费也能完整使用其它功能）");
+    // [DFW-76] 退出方向必须与返回箭头一致（弹出 -1），否则这条降级出口的转场方向会反。
+    skip.setOnClickListener(v->{pageDirection=-1;showSettings();});
+    // [DFW-43] 降级出口是最不该让人怀疑"点没点到"的控件，同样补上按压形变（红线：这条出口必须能走）
+    applePressScale(skip);
+    LinearLayout.LayoutParams skipLp=new LinearLayout.LayoutParams(-1,dp(44));
+    skipLp.topMargin=dp(6);
+    supportBody.addView(skip,skipLp);
+    // 底部小字：诚实说明本地标记
+    TextView footnote=text("解锁记录保存在本机 · 不付费也可以完整使用",11,MUTED);
+    footnote.setGravity(Gravity.CENTER);
+    footnote.setPadding(0,dp(8),0,0);
+    supportBody.addView(footnote,new LinearLayout.LayoutParams(-1,-2));
+  }
+
+  /** 已解锁：感谢页（状态页，同一站内页里换内容；返回箭头由页头常驻，不必重建）。 */
+  void renderThankYou(){
+    supportThankYouMode=true;
+    supportBody.removeAllViews();
+    LinearLayout page=new LinearLayout(this);
+    page.setOrientation(LinearLayout.VERTICAL);
+    page.setGravity(Gravity.CENTER);
+    TextView heart=text("❤",56,PRIMARY);
+    heart.setGravity(Gravity.CENTER);
+    page.addView(heart,new LinearLayout.LayoutParams(-1,dp(96)));
+    TextView title=text("已解锁 · 谢谢你",24,TEXT);
+    title.setTypeface(AppFonts.bold(this));
+    title.setGravity(Gravity.CENTER);
+    title.setPadding(0,dp(12),0,0);
+    page.addView(title,new LinearLayout.LayoutParams(-1,dp(44)));
+    // 诚信徽章（研究 M3：支持后即时反馈=动效+徽章；静态徽章，无循环动画，不画蛇添足）
+    TextView badge=text("诚信支持者",12,PRIMARY);
+    badge.setTypeface(AppFonts.bold(this));
+    GradientDrawable badgeBg=solidShape(ThemeEngine.tint(PRIMARY,28),20);
+    badge.setBackground(badgeBg);
+    badge.setPadding(dp(14),dp(5),dp(14),dp(5));
+    LinearLayout badgeWrap=new LinearLayout(this);
+    badgeWrap.setGravity(Gravity.CENTER);
+    badgeWrap.addView(badge,new LinearLayout.LayoutParams(-2,dp(28)));
+    LinearLayout.LayoutParams badgeLp=new LinearLayout.LayoutParams(-1,-2);
+    badgeLp.topMargin=dp(10);
+    page.addView(badgeWrap,badgeLp);
+    long paidAt=Support.paidAt(this);
+    String date=paidAt>0?android.text.format.DateFormat.getDateFormat(this).format(new java.util.Date(paidAt)):"";
+    TextView detail=text(date.isEmpty()?"全部下载权限已开放":"解锁于 "+date+" · 全部下载权限已开放",13,MUTED);
+    detail.setGravity(Gravity.CENTER);
+    detail.setPadding(0,dp(10),0,0);
+    page.addView(detail,new LinearLayout.LayoutParams(-1,dp(30)));
+    TextView footnote=text("本软件承诺永久更新 · 绝不停更\n这份支持会变成继续更新的底气",11,MUTED);
+    footnote.setGravity(Gravity.CENTER);
+    footnote.setPadding(0,dp(12),0,0);
+    page.addView(footnote,new LinearLayout.LayoutParams(-1,-2));
+    LinearLayout.LayoutParams pageLp=new LinearLayout.LayoutParams(-1,-2);
+    pageLp.topMargin=dp(18);
+    supportBody.addView(page,pageLp);
+    playUnlockAnimation(heart);
+  }
+
+  /** 权益行：图标 + 一句说明（用户 2026-10-01 口述要求）。图标走 Phosphor 矢量（ic_trophy），与文字同色；
+   *  行高由原来的固定 38dp 改 WRAP_CONTENT + 上下内距 —— 换成一条长句后会折行，定高会把第二行裁掉。 */
+  LinearLayout benefitRow(int iconRes,String phrase){
+    LinearLayout row=new LinearLayout(this);
+    row.setGravity(Gravity.CENTER_VERTICAL);
+    row.setPadding(0,dp(9),0,dp(9));
+    ImageView icon=new ImageView(this);
+    icon.setImageResource(iconRes);
+    icon.setColorFilter(PRIMARY);
+    icon.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+    row.addView(icon,new LinearLayout.LayoutParams(dp(20),dp(20)));
+    TextView label=text(phrase,13,TEXT);
+    label.setLineSpacing(dp(3),1f);
+    label.setPadding(dp(10),0,0,0);
+    row.addView(label,new LinearLayout.LayoutParams(0,-2,1));
+    return row;
+  }
+
+  /** 收款码卡片：白底浮起（深色页面上收款码必须白底才可扫）；码图 adjustViewBounds 撑满卡宽、
+   *  高度按原图比例自适应（v1.4.2 消除 FIT_CENTER 定高造成的两侧大留白），卡片 padding 归零 +
+   *  clipToOutline 让码图边缘贴合卡片圆角 */
+  LinearLayout codeCard(String label,int drawableRes,String hint){
+    LinearLayout card=new LinearLayout(this);
+    card.setOrientation(LinearLayout.VERTICAL);
+    // [DFW-43] 圆角从 16 收敛到 **Card token 20dp**（规范 §4：信息卡片 radius 20dp 唯一值）——
+    // 本页原来同一页有 20（开发者信/权益/价格卡）与 16（收款码卡）两种卡片圆角，不自洽。
+    GradientDrawable bg=solidShape(Color.WHITE,20);
+    bg.setStroke(dp(1),BORDER);
+    card.setBackground(bg);
+    card.setElevation(dp(2));
+    card.setClipToOutline(true);
+    ImageView code=new ImageView(this);
+    code.setImageResource(drawableRes);
+    code.setScaleType(ImageView.ScaleType.FIT_CENTER);
+    code.setAdjustViewBounds(true);
+    code.setContentDescription(label+"，扫码支付 ￥5 元");
+    card.addView(code,new LinearLayout.LayoutParams(-1,-2));
+    TextView name=text(label,12,Color.DKGRAY);
+    name.setGravity(Gravity.CENTER);
+    name.setPadding(dp(6),dp(10),dp(6),dp(12));
+    card.addView(name,new LinearLayout.LayoutParams(-1,-2));
+    return card;
+  }
+
+  /** 零验证解锁：唯一按钮，付费者与暂无收入者同一入口（文案已委婉分层，不再设独立免费链接） */
+  void unlockNow(){
+    supportUnlockInvocations++;
+    Support.unlock(this);
+    renderThankYou();
+    showNotice("已解锁全部下载权限 · 谢谢你",false);
+  }
+
+  /** 解锁反馈：克制的单次缩放+淡入（无循环；motionEnabled 门控在系统动画关闭时跳过）。
+   *
+   *  **360ms → 220ms**：360ms 破了规范 §2.1「页面转场/动效 VPA ≤300ms」铁律（历史事故复盘定的红线）。
+   *  取 220ms 的理由：这是站内**唯一被真机长期验证过**的"缩放回弹"时长——`NavBall.PRESS_UP` 与
+   *  v1.5.0 按压缩放的注释都是同一条「松手 220ms 弱过冲回弹 (0.2,0.9,0.3,1.05)」。本页心形出现
+   *  本来就是一次"确认微弹"（规范 §7.5），用同一条曲线、同一条时长，观感与站内一致。 */
+  void playUnlockAnimation(View target){
+    if(!motionEnabled())return;
+    target.setScaleX(0.6f);
+    target.setScaleY(0.6f);
+    target.setAlpha(0f);
+    target.animate().scaleX(1f).scaleY(1f).alpha(1f).setDuration(SUPPORT_UNLOCK_MS).setInterpolator(supportPressUp()).start();
+  }
+
   void restoreSettingsDefaults(){AlertDialog prompt=new AlertDialog.Builder(this).setTitle("恢复默认设置？").setMessage("将恢复搜索线程数、让位时间、自动翻页、蓝奏云链接打开方式、识别、解析与下载并发、静默安装与下载后自动安装开关、安装线程数及下载路径。源列表和下载记录不会删除。").setNegativeButton("取消",null).setPositiveButton("恢复",(dialog,which)->performSettingsDefaults()).create();showRounded(prompt);}
   void performSettingsDefaults(){sessionSearchConcurrency=0;sessionSearchBatchSeconds=15;sessionSearchMaxPages=0;sessionSearchViewRate=0;sessionSearchRecursiveFolders=false;sessionSearchFuzzyMask=0;sessionSearchFuzzyMatching=false;sessionFileListModeMask=Models.SearchOptions.MASK_API|Models.SearchOptions.MASK_DIRECTORY;sessionSearchModeMask=Models.SearchOptions.MASK_DIRECTORY;sessionSearchMode=Models.SearchOptions.MODE_DIRECTORY;perfTier=1;perfLowMotion=false;sessionBackgroundIndex=true;sessionIndexEnabled=false;sessionIndexThreads=0;sessionIndexRetentionHours=24;sessionListInitialCount=50;sessionListAppendCount=50;sessionSourceListDisplayCount=SOURCE_LIST_MIN_DISPLAY;core.setDirectoryCachingEnabled(true);sessionAutoExpand=true;sessionAutoExpandInitialPages=1;sessionAutoExpandNextPages=1;directLanzouListOpen=false;showSourceLinks=false;sessionOpenWebExternal=false;sessionBatchDownloadSingleItem=true;sessionLanzouBaseOrigin="https://oreojiang.lanzout.com";sessionLanzouTimeoutFailover=true;sessionUaPreset=LanzouCore.UA_PRESET_MOBILE_CHROME;sessionUaScopeMask=LanzouCore.UA_SCOPE_ALL;sessionUaFileListPreset=sessionUaPreset;sessionUaDirectorySearchPreset=sessionUaPreset;sessionUaApiSearchPreset=sessionUaPreset;sessionUaDirectPreset=sessionUaPreset;sessionCustomUserAgent="";applyUserAgentSettings();sessionSearchCategory="全部";persistSearchSettings();setSourceProbeParallelism(DEFAULT_SOURCE_PROBE_PARALLELISM);setDirectResolveParallelism(0);setDownloadTransferParallelism(DEFAULT_TRANSFER_PARALLELISM);setSilentInstallPreference(false);setAutomaticInstallDownloadsPreference(false);setInstallParallelism(DEFAULT_INSTALL_PARALLELISM);getSharedPreferences("download_destination",MODE_PRIVATE).edit().remove("tree").remove("path").apply();showNotice("已恢复默认设置",false);pageDirection=0;showSettings();}
   void confirmRestoreOfficialSources(){AlertDialog prompt=new AlertDialog.Builder(this).setTitle("确认恢复官方源？").setMessage("只恢复发行包内置官方源；用户添加的源和合集成员会保留。").setNegativeButton("取消",null).setPositiveButton("恢复",(dialog,which)->restoreOfficialSources()).create();showRounded(prompt);}
@@ -3517,7 +3865,13 @@ content=new LinearLayout(this);content.setOrientation(LinearLayout.VERTICAL);pag
     if(known.isEmpty())io.execute(()->{try{String value=core.fileDescription(original).trim();runOnUiThread(()->{if(prompt.isShowing())setSelectableLinks(description,value.isEmpty()?kindLine:"简介："+value);});}catch(Exception ignored){runOnUiThread(()->{if(prompt.isShowing())setSelectableLinks(description,kindLine);});}});
   }
   void openSearchResultSource(Models.Item item,AlertDialog prompt,TextView link){String id=item.sourceId.trim();if(id.isEmpty()){showNotice("该结果没有可打开的来源",false);return;}link.setEnabled(false);io.execute(()->{try{Models.Source source=core.sourceById(id);runOnUiThread(()->{if(source==null){if(prompt.isShowing())link.setEnabled(true);showNotice("来源已不存在",true);return;}prompt.dismiss();openSearchSourcePage(source);});}catch(Exception error){runOnUiThread(()->{if(prompt.isShowing())link.setEnabled(true);showNotice("无法打开来源："+friendlyError(error),true);});}});}
-  FrameLayout draggableFolderList(FolderPullScrollView scroll,View body,String description){FrameLayout frame=new FrameLayout(this);frame.setBackgroundColor(SURFACE);folderPullIndicator=new LinearLayout(this);folderPullIndicator.setGravity(Gravity.CENTER);folderPullIndicator.setPadding(dp(12),0,dp(24),0);folderPullIndicator.setBackgroundColor(SURFACE);folderMoreSpinner=new ProgressBar(this,null,android.R.attr.progressBarStyleSmall);folderMoreSpinner.setIndeterminate(false);folderMoreSpinner.setMax(100);folderMoreSpinner.setProgress(0);folderPullIndicator.addView(folderMoreSpinner,new LinearLayout.LayoutParams(dp(24),dp(24)));folderPullLabel=text("上拉并松手加载下一页",12,MUTED);folderPullLabel.setGravity(Gravity.CENTER_VERTICAL);folderPullLabel.setPadding(dp(10),0,0,0);folderPullLabel.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);folderPullIndicator.addView(folderPullLabel,new LinearLayout.LayoutParams(-2,dp(48)));FrameLayout.LayoutParams indicator=new FrameLayout.LayoutParams(-1,dp(64),Gravity.BOTTOM);frame.addView(folderPullIndicator,indicator);frame.addView(scroll,new FrameLayout.LayoutParams(-1,-1));SearchDragBar bar=new SearchDragBar(scroll,body,description);FrameLayout.LayoutParams drag=new FrameLayout.LayoutParams(dp(24),-1,Gravity.END);frame.addView(bar,drag);searchDragBar=bar;Runnable update=()->{boolean scrollable=body.getHeight()>Math.round(scroll.getHeight()*1.15f)+dp(2);bar.setVisibility(scrollable?View.VISIBLE:View.GONE);if(scrollable)bar.bumpActivity();bar.invalidate();};// v1.6.1（R-B3）：内容不足 1.15 屏强制隐藏，防边缘闪烁
+  FrameLayout draggableFolderList(FolderPullScrollView scroll,View body,String description){FrameLayout frame=new FrameLayout(this);frame.setBackgroundColor(SURFACE);/* [DFW-54] 指示器：从"全宽 64dp 的 SURFACE 通栏 + 系统 ProgressBar"改成
+       居中的 48dp 胶囊 + 自绘加载环。两个观感问题的根因：
+       ① 通栏是 SURFACE、列表是 BG，露出时必然出现一条颜色不同的横带（"断层"）；
+       ② 系统 ProgressBar 的颜色/粗细/节奏都不受我们控制，而且 determinate↔indeterminate
+          切换会重建 drawable，松手瞬间形态突变。
+       胶囊 + 自绘环后，指示器和 NoticeBanner / 下载卡是同一套"浮起的圆角面"语言。 */
+folderPullIndicator=new LinearLayout(this);folderPullIndicator.setGravity(Gravity.CENTER);folderPullIndicator.setPadding(dp(16),0,dp(20),0);GradientDrawable folderPullBg=new GradientDrawable();folderPullBg.setColor(SURFACE2);folderPullBg.setCornerRadius(dp(24));folderPullBg.setStroke(dp(1),BORDER);folderPullIndicator.setBackground(folderPullBg);folderPullIndicator.setElevation(dp(6));folderMoreSpinner=new DfwxLoadingRing(this,PRIMARY,2f,motionEnabled());folderMoreSpinner.setRingProgress(0f);folderPullIndicator.addView(folderMoreSpinner,new LinearLayout.LayoutParams(dp(20),dp(20)));folderPullLabel=text("上拉并松手加载下一页",12,MUTED);folderPullLabel.setGravity(Gravity.CENTER_VERTICAL);folderPullLabel.setPadding(dp(10),0,0,0);folderPullLabel.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);folderPullIndicator.addView(folderPullLabel,new LinearLayout.LayoutParams(-2,dp(48)));FrameLayout.LayoutParams indicator=new FrameLayout.LayoutParams(-2,dp(48),Gravity.BOTTOM|Gravity.CENTER_HORIZONTAL);indicator.bottomMargin=dp(14);frame.addView(folderPullIndicator,indicator);frame.addView(scroll,new FrameLayout.LayoutParams(-1,-1));SearchDragBar bar=new SearchDragBar(scroll,body,description);FrameLayout.LayoutParams drag=new FrameLayout.LayoutParams(dp(24),-1,Gravity.END);frame.addView(bar,drag);searchDragBar=bar;Runnable update=()->{boolean scrollable=body.getHeight()>Math.round(scroll.getHeight()*1.15f)+dp(2);bar.setVisibility(scrollable?View.VISIBLE:View.GONE);if(scrollable)bar.bumpActivity();bar.invalidate();};// v1.6.1（R-B3）：内容不足 1.15 屏强制隐藏，防边缘闪烁
 scroll.setOnScrollChangeListener((v,x,y,oldX,oldY)->bar.bumpActivity());body.addOnLayoutChangeListener((v,l,t,r,b,ol,ot,or_,ob)->update.run());frame.addOnLayoutChangeListener((v,l,t,r,b,ol,ot,or_,ob)->update.run());resetFolderPullIndicator();return frame;}
   FrameLayout draggableList(ScrollView scroll,View body,String description){FrameLayout frame=new FrameLayout(this);frame.addView(scroll,new FrameLayout.LayoutParams(-1,-1));SearchDragBar bar=new SearchDragBar(scroll,body,description);FrameLayout.LayoutParams drag=new FrameLayout.LayoutParams(dp(24),-1,Gravity.END);frame.addView(bar,drag);searchDragBar=bar;Runnable update=()->{boolean scrollable=body.getHeight()>Math.round(scroll.getHeight()*1.15f)+dp(2);bar.setVisibility(scrollable?View.VISIBLE:View.GONE);if(scrollable)bar.bumpActivity();bar.invalidate();};// v1.6.1（R-B3）：内容不足 1.15 屏强制隐藏，防边缘闪烁
 scroll.setOnScrollChangeListener((v,x,y,oldX,oldY)->{bar.bumpActivity();maybeLoadMoreSources();if(y+scroll.getHeight()+dp(240)>=body.getHeight())maybeAppendSearchWindow();});body.addOnLayoutChangeListener((v,l,t,r,b,ol,ot,or_,ob)->update.run());frame.addOnLayoutChangeListener((v,l,t,r,b,ol,ot,or_,ob)->update.run());return frame;}

@@ -22,7 +22,19 @@ import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowCompat;
 import androidx.core.view.WindowInsetsCompat;
 
-/** 支持开发 · 独立付费窗口（用户要求"单独的一个窗口"；设计定稿见 07-研究报告/自愿付费与全App优化-深度研究汇总.md A3）。
+/** [DFW-76] **本类已不是诚信付费页的主路径**（2026-10-01 起）。
+ *  用户第二次投诉这一页的动画后，主路径改成了站内页 `MainActivity.showSupportPage()`——
+ *  独立 Activity 的窗口转场永远做不成"和关于东方无限一样"（站内那套压暗的是同窗口里的另一块 View，
+ *  这里把调用方窗口调成半透明，透出来的是桌面壁纸）。
+ *
+ *  **为什么还留着**：应用内已经**没有任何** `startActivity` 指向本类（`MainActivity.openSupportActivity()`
+ *  现在直接 `showSupportPage()`），manifest 里本条目 `exported="false"` 也挡掉了外部 Intent；
+ *  真正还在用它的只有 5 个 JVM 用例（`SupportPageCopyJvmTest` / `SponsorPageJvmTest` /
+ *  `SupportPageFeedbackJvmTest` / `SupportPageHeaderJvmTest` / `SupportPageTransitionJvmTest`），
+ *  它们直接 `buildActivity(SupportActivity.class)` 驱动本类。删除本类必须先改那 5 个用例，
+ *  所以本轮**只降级、不删除**。
+ *
+ *  支持开发 · 独立付费窗口（用户要求"单独的一个窗口"；设计定稿见 07-研究报告/自愿付费与全App优化-深度研究汇总.md A3）。
  *  结构：开发者信 → 权益 1 条（用户 2026-10-01 口述：原 3 条 emoji 短语精简为 1 条长句）→ 收款码微信单卡全宽
  *  （真实码 v1.3.3 嵌入；v1.4.1 起确认不收款支付宝）→「我已完成支付」零验证解锁 → 感谢页（解锁后本页变成状态页）。
  *  独立 Activity 自己处理窗口 insets（见 installSystemBarInsets）：页头返回箭头与底部小字都不被系统栏压住。
