@@ -274,6 +274,36 @@ class NavPeerJvmTest {
         assertTrue("子页必须有跟手预览（预测式返回）", a.predictiveBackPreviewAllowed())
     }
 
+    // ── AI 页根态返回键（DFW-26 审计查出的必现 bug） ──────────────────────
+
+    /**
+     * 旧实现在 `performSystemBack()` 里对 AI 页写了一句
+     * "若 `getOnBackPressedDispatcher().hasEnabledCallbacks()` 就转交给 Compose"。
+     * 那个 API 的语义是「**任意** enabled handler」，而我们自己的 backCallback 在 DFW-73 之后恒启用，
+     * 于是它恒为 true → 变成**自我派发**：转交给自己 → 被开头的 260ms 节流挡回 → **返回键毫无反应**。
+     * 正确的判据不用写：dispatcher 后注册优先，Compose 的 BackHandler 要消费根本轮不到我们。
+     */
+    @Test
+    fun aiPageRoot_countsAsATopLevelRoot() {
+        val a = activity()
+        a.pageKind = 5
+        assertTrue(
+            "AI 页根态必须是顶级根，否则返回键会像审计报告说的那样彻底失效（横幅不弹、也不换页）",
+            a.atTopLevelRoot(),
+        )
+    }
+
+    @Test
+    fun aiPageRoot_backActuallyDoesSomething() {
+        val a = activity()
+        a.pageKind = 5
+        pressBack(a)
+        assertNotNull("AI 页根态按返回必须弹「再返回一次退出软件」，不许毫无反应", a.exitConfirmBanner)
+        assertFalse("第一次返回不许退出", a.isFinishing)
+        pressBack(a)
+        assertTrue("窗口内第二次返回才退出", a.isFinishing)
+    }
+
     @Test
     fun predictivePreview_isSuppressedOnAiPage() {
         val a = activity()

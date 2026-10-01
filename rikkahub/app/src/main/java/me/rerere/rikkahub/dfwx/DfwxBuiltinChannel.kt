@@ -9,6 +9,7 @@ import kotlinx.coroutines.launch
 import me.rerere.ai.provider.Model
 import me.rerere.ai.provider.ModelAbility
 import me.rerere.ai.provider.ProviderSetting
+import me.rerere.rikkahub.data.datastore.Settings
 import me.rerere.rikkahub.data.datastore.SettingsStore
 import me.rerere.rikkahub.data.datastore.findProvider
 import kotlin.uuid.Uuid
@@ -113,9 +114,63 @@ object DfwxBuiltinChannel {
     }
 
     /**
+     * 纯函数：算出"同步之后"的 settings。不改任何外部状态，方便单测把幂等性钉死。
+     *
+     * ## 为什么模型 id 必须沿用旧的（这条踩过真坑，必现）
+     * `Model.id` 的默认值是 `Uuid.random()` —— **每次构造都是新 id**，不是由 modelId 派生的稳定值；
+     * 而 RikkaHub 的 `findModelById()` 是按 `model.id` **精确匹配**的。
+     * 旧实现每轮同步都 `Model(...)` 新建一个对象，于是：
+     *  - 用户上次选中的 `chatModelId` 指向上一轮的随机 id → 重启后查不到 → AI 页弹「请先选择模型」，
+     *    **每次重启都要重选一次**（内置渠道是 DFW-73 的主功能，这是必现的）；
+     *  - `next == settings` 永远为假 → 每次启动都白写一遍 DataStore。
+     * 所以这里必须把已存在模型的 id 抄回来。
+     */
+    fun buildSyncedSettings(settings: Settings, cfg: Config = current()): Settings {
+        val index = settings.providers.indexOfFirst { isBuiltin(it) }
+        val existing = if (index >= 0) settings.providers[index] else null
+        val model = Model(
+            modelId = cfg.modelId,
+            displayName = cfg.modelId,
+            id = existing?.models?.firstOrNull()?.id ?: Uuid.random(),
+            abilities = listOf(ModelAbility.TOOL, ModelAbility.REASONING),
+        )
+        val provider = ProviderSetting.OpenAI(
+            id = existing?.id ?: Uuid.random(),
+            name = PROVIDER_NAME,
+            apiKey = cfg.token,
+            baseUrl = cfg.baseUrl,
+            models = listOf(model),
+        )
+        val providers = if (index >= 0) {
+            settings.providers.toMutableList().also { it[index] = provider }
+        } else {
+            settings.providers + provider
+        }
+        // 全新安装：直接把内置渠道设成默认模型，装完就能聊天（用户要的"内置"就是这个意思）。
+        // 已有自己渠道的用户：**不动他的模型选择**。
+        val freshInstall = settings.providers.isEmpty()
+        val nextChatModelId = if (freshInstall) model.id else settings.chatModelId
+        // 最大输出挂在助手上（RikkaHub 的 maxTokens 是助手字段，模型没有这个字段）。
+        // 注意 `Assistant.chatModelId` 默认是 **null**（= 跟随全局 chatModelId），
+        // 所以判据必须同时覆盖"显式指向内置模型"和"跟随全局、而全局正是内置模型"两种情况 ——
+        // 只判前者的话，后台配的 8192 会**静默失效**。
+        val assistants = settings.assistants.map { assistant ->
+            val usesBuiltin = assistant.chatModelId == model.id ||
+                (assistant.chatModelId == null && nextChatModelId == model.id)
+            if (usesBuiltin) assistant.copy(maxTokens = cfg.maxTokens) else assistant
+        }
+        return settings.copy(
+            providers = providers,
+            chatModelId = nextChatModelId,
+            fastModelId = if (freshInstall) model.id else settings.fastModelId,
+            assistants = assistants,
+        )
+    }
+
+    /**
      * 播种 / 重新同步内置渠道。**每次启动都跑**（不是只跑一次）：
      * 后台改了地址、令牌、模型名或最大输出之后，用户下次打开软件就生效，不必发版。
-     * 只有在真的有字段变化时才写 settings，避免每次启动都写一遍 DataStore。
+     * 只有在真的有字段变化时才写 settings —— 靠 [buildSyncedSettings] 的幂等性保证。
      */
     fun syncIfNeeded(scope: CoroutineScope, store: SettingsStore) {
         lastScope = scope
@@ -128,41 +183,10 @@ object DfwxBuiltinChannel {
         scope.launch(Dispatchers.IO) {
             runCatching {
                 val settings = store.settingsFlowRaw.first()
-                val freshInstall = settings.providers.isEmpty()
-                val model = Model(
-                    modelId = cfg.modelId,
-                    displayName = cfg.modelId,
-                    abilities = listOf(ModelAbility.TOOL, ModelAbility.REASONING),
-                )
-                val index = settings.providers.indexOfFirst { isBuiltin(it) }
-                val provider = ProviderSetting.OpenAI(
-                    id = if (index >= 0) settings.providers[index].id else Uuid.random(),
-                    name = PROVIDER_NAME,
-                    apiKey = cfg.token,
-                    baseUrl = cfg.baseUrl,
-                    models = listOf(model),
-                )
-                val providers = if (index >= 0) {
-                    settings.providers.toMutableList().also { it[index] = provider }
-                } else {
-                    settings.providers + provider
-                }
-                // 最大输出挂在助手上（RikkaHub 的 maxTokens 是助手字段，模型没有这个字段）。
-                // 只动"正在用内置渠道"的助手，绝不碰用户自己配置的助手。
-                val assistants = settings.assistants.map { assistant ->
-                    if (assistant.chatModelId == model.id) assistant.copy(maxTokens = cfg.maxTokens) else assistant
-                }
-                val next = settings.copy(
-                    providers = providers,
-                    // 全新安装：直接把内置渠道设成默认模型，装完就能聊天（用户要的"内置"就是这个意思）。
-                    // 已有自己渠道的用户：**不动他的模型选择**。
-                    chatModelId = if (freshInstall) model.id else settings.chatModelId,
-                    fastModelId = if (freshInstall) model.id else settings.fastModelId,
-                    assistants = assistants,
-                )
+                val next = buildSyncedSettings(settings, cfg)
                 if (next == settings) return@launch
                 store.update(next)
-                Log.i(TAG, "builtin channel synced (fresh=$freshInstall, existed=${index >= 0})")
+                Log.i(TAG, "builtin channel synced")
             }.onFailure {
                 Log.e(TAG, "builtin channel sync failed", it)
             }

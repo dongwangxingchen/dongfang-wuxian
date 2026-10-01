@@ -394,7 +394,9 @@ loadSearchSettings();applyUserAgentSettings();detectWeakDevice();installBackAnim
    * 维护页 / 更新面板 / AI 页 / 多选态本来就都要消费，一并被这条覆盖。
    */
   boolean canHandleBack(){return true;}
-  void performSystemBack(){if(maintenanceBlocking)return;if(offerSheet!=null&&offerSheet.isShowing()){offerSheet.handleBack();return;}if(SystemClock.uptimeMillis()-lastSystemBackAt<260)return;lastSystemBackAt=SystemClock.uptimeMillis();/* v1.10.0 内嵌 AI 页返回桥：有启用的 Compose 回调（抽屉/子路由）则交其消费 */if(pageKind==5&&getOnBackPressedDispatcher().hasEnabledCallbacks()){getOnBackPressedDispatcher().onBackPressed();return;}if(sourceSelectionMode){exitSourceSelection();return;}if(downloadSelectionMode){exitDownloadSelection();return;}if(selectionMode){exitSelection();return;}if(pageKind==6&&!toolBackStack.isEmpty()){pageDirection=-1;popToolBack();return;}if(systemBackAction!=null){Runnable action=systemBackAction;systemBackAction=null;pageDirection=-1;action.run();return;}if(primaryDestination==1){/* [DFW-73] 软件库列表是软件库的下一层：返回回软件库，不是顶级页 */navigateHome();return;}/* [DFW-73] 走到这里 = 顶级页且没有上一层：**再返回一次退出软件**，不再一律回软件库（用户 2026-10-01 口述） */confirmExitToSoftware();}
+  void performSystemBack(){if(maintenanceBlocking)return;if(offerSheet!=null&&offerSheet.isShowing()){offerSheet.handleBack();return;}if(SystemClock.uptimeMillis()-lastSystemBackAt<260)return;lastSystemBackAt=SystemClock.uptimeMillis();/* [DFW-73 修正] 原来这里有一句"AI 页若 Compose 还有回调就转交给它"—— 那个判据（hasEnabledCallbacks）在我们自己的
+   回调恒启用之后恒为 true，于是变成**自我派发**：转交给自己 → 被开头的 260ms 节流挡回 → 净效果"返回键毫无反应"。
+   现在直接删掉：Compose 的 BackHandler 后注册、优先级更高，它要消费根本轮不到我们；能走到这里就说明它已经放弃。 */if(sourceSelectionMode){exitSourceSelection();return;}if(downloadSelectionMode){exitDownloadSelection();return;}if(selectionMode){exitSelection();return;}if(pageKind==6&&!toolBackStack.isEmpty()){pageDirection=-1;popToolBack();return;}if(systemBackAction!=null){Runnable action=systemBackAction;systemBackAction=null;pageDirection=-1;action.run();return;}if(primaryDestination==1){/* [DFW-73] 软件库列表是软件库的下一层：返回回软件库，不是顶级页 */navigateHome();return;}/* [DFW-73] 走到这里 = 顶级页且没有上一层：**再返回一次退出软件**，不再一律回软件库（用户 2026-10-01 口述） */confirmExitToSoftware();}
   /* v1.22.1 预返回：onBackPressed() 覆写已删除——覆写它会退回旧的按键式返回路径，系统预返回动画不会播。
      返回统一走 androidx OnBackPressedDispatcher（backCallback，见 installBackAnimationCallback）。 */
 
@@ -406,6 +408,15 @@ loadSearchSettings();applyUserAgentSettings();detectWeakDevice();installBackAnim
    *
    * 注意：公告页虽然也是顶级页，但它记着"从哪来"（`systemBackAction=noticeReturnAction()`），
    * 所以不算顶级根 —— 从公告返回仍然回到进来之前那一页。
+   *
+   * [DFW-73 修正] **AI 页不再单独判定**。旧实现问的是
+   * `getOnBackPressedDispatcher().hasEnabledCallbacks()`，而那个 API 的语义是"任意 enabled handler"——
+   * 我们自己的 backCallback 现在恒启用（见 {@link #canHandleBack()}），于是它恒为 true，
+   * AI 页被永远判成"不是顶级根"：横幅不弹、也不换页，**返回键彻底失效**。
+   *
+   * 其实正确的判据根本不用写：`OnBackPressedDispatcher` 按**后注册优先**派发，Compose 的 BackHandler
+   * 是在组合期注册的（晚于 onCreate 里注册的我们），所以只要 Compose 有启用的 handler，
+   * 事件根本到不了这里；能走到 `performSystemBack()`，就说明 Compose 侧已经放弃消费。
    */
   boolean atTopLevelRoot(){
     if(maintenanceBlocking)return false;
@@ -417,8 +428,6 @@ loadSearchSettings();applyUserAgentSettings();detectWeakDevice();installBackAnim
     // 不是顶级根：返回要回软件库，而不是提示退出。以前靠 performSystemBack 结尾那条
     // `if(primaryDestination>0) navigateHome()` 兜住，那条被 DFW-73 删掉后必须在这里显式认领。
     if(primaryDestination==1)return false;
-    // AI 内嵌页：Compose 侧还有可消费项（抽屉/子路由）时不是顶级页
-    if(pageKind==5&&getOnBackPressedDispatcher().hasEnabledCallbacks())return false;
     return true;
   }
 
