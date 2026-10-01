@@ -332,7 +332,36 @@ final class LanzouCore {
     String pwd=password==null?"":password.trim();if(pwd.length()>64||containsControl(pwd))throw new DirectPasswordException("密码格式无效");long deadline=System.nanoTime()+TimeUnit.MILLISECONDS.toNanos(DIRECT_RESOLVE_TIMEOUT_MS);SourceProfile profile=sourceProfile(shareUrl);List<RouteCandidate> routes=routeCandidates(shareUrl,UA_SCOPE_DIRECT,profile);RouteCandidate learned=learnedRoute(shareUrl,UA_SCOPE_DIRECT,profile);Set<String> attempted=ConcurrentHashMap.newKeySet();Exception last=null;
     if(learned!=null)try{DirectLink direct=resolveDirectRoute(shareUrl,pwd,learned,routeAttemptDeadline(deadline),attempted);profile.observeRoute(UA_SCOPE_DIRECT,learned.origin,learned.ua);return direct;}catch(Exception error){last=error;observeRouteFailure(error);DirectRetryException retry=directRetry(error);if(error instanceof DirectPasswordException||retry==null&&terminalDirectFailure(error))throw error;}
     List<RouteCandidate> fallback=routesAfter(routes,learned);if(!fallback.isEmpty())try{RouteOutcome<DirectLink> outcome=raceRoutes(fallback,route->resolveDirectRoute(shareUrl,pwd,route,routeAttemptDeadline(deadline),attempted),value->true,error->error instanceof DirectPasswordException||directRetry(error)==null&&terminalDirectFailure(error));profile.observeRoute(UA_SCOPE_DIRECT,outcome.route.origin,outcome.route.ua);return outcome.value;}catch(Exception error){last=error;}
-    throw last==null?new IOException("直链解析失败"):last;
+    // [DFW-88 2026-10-01] TLS / 证书类失败**必须换线重试**，且不受「基础链接超时自动切换」这个用户开关限制。
+    //
+    // 为什么单独开这一条路：`routeOrigins()` 在开关关闭时**只会返回「原始线路 + 首选线路」**，
+    // 候选极少。而证书过期/证书链不完整是**某一条线路自己的毛病** —— 换一条就好，
+    // 却被那个开关挡在外面。用户看到的现象正是「**无论哪个链接都是**失败」，
+    // 且报错只有一句 `Trust anchor for certification path not found`，完全指不出是哪条线路。
+    // 实测（2026-10-01）：域名池里 `wwc.lanzoux.com` 证书已过期，`curl -sv` 与 python ssl 双双确认。
+    if(isTlsFailure(last)){
+      List<RouteCandidate> all=new ArrayList<>();
+      for(String origin:LANZOU_BASE_ORIGINS)try{
+        String normalized=validatedRouteOrigin(origin);
+        if(normalized.isEmpty())continue;
+        RouteCandidate candidate=new RouteCandidate(routeTarget(normalized,shareUrl),normalized,UA_ANDROID,UA_SCOPE_DIRECT);
+        boolean seen=false;
+        for(RouteCandidate existing:all)if(existing.key().equals(candidate.key())){seen=true;break;}
+        if(!seen)all.add(candidate);
+      }catch(Exception ignored){android.util.Log.w("LanzouCore","LanzouCore Exception: "+ignored.getMessage(),ignored);}
+      if(!all.isEmpty())try{
+        RouteOutcome<DirectLink> outcome=raceRoutes(all,route->resolveDirectRoute(shareUrl,pwd,route,routeAttemptDeadline(deadline),attempted),value->true,error->error instanceof DirectPasswordException);
+        profile.observeRoute(UA_SCOPE_DIRECT,outcome.route.origin,outcome.route.ua);
+        return outcome.value;
+      }catch(Exception error){last=error;}
+    }
+    if(last==null)throw new IOException("直链解析失败");
+    if(isTlsFailure(last)){
+      List<String> tried=new ArrayList<>();
+      for(RouteCandidate route:routes)if(!tried.contains(route.origin))tried.add(route.origin);
+      throw new IOException("证书校验失败，已尝试全部 "+tried.size()+" 条线路："+String.join("、",tried),last);
+    }
+    throw last;
   }
 
   private DirectLink resolveDirectRoute(String logicalShareUrl,String password,RouteCandidate route,long deadline,Set<String> attempted)throws Exception{
@@ -345,6 +374,29 @@ final class LanzouCore {
   private static int directRemainingMillis(long deadline)throws SocketTimeoutException{long nanos=deadline-System.nanoTime();if(nanos<=0)throw new SocketTimeoutException("直链解析超时");return(int)Math.min(Integer.MAX_VALUE,Math.max(1L,TimeUnit.NANOSECONDS.toMillis(nanos)));}
   private static DirectRetryException directRetry(Throwable error){for(Throwable value=error;value!=null;value=value.getCause())if(value instanceof DirectRetryException)return(DirectRetryException)value;return null;}
   private static boolean terminalDirectFailure(Throwable error){String value=error.getMessage();return value!=null&&DIRECT_PROFILE_TERMINAL_INFO.matcher(value).find();}
+
+  /**
+   * [DFW-88] 这个异常是不是 **TLS / 证书** 类故障。
+   *
+   * 判据走**整条 cause 链**：只看最外层会漏（`HttpURLConnection` 会把 SSL 异常包好几层），
+   * 而只看消息文本又会漏掉没有 message 的 `CertificateException`。所以两者都查。
+   *
+   * 典型文本（安卓）：`Trust anchor for certification path not found` ——
+   * 它其实**既可能是证书链不完整，也可能是证书过期**，光看这句话分辨不出来，
+   * 所以这里不猜原因，只负责"这是 TLS 问题，该换线了"。
+   */
+  private static boolean isTlsFailure(Throwable error){
+    for(Throwable current=error;current!=null;current=current.getCause()){
+      if(current instanceof javax.net.ssl.SSLException)return true;
+      if(current instanceof java.security.cert.CertificateException)return true;
+      String value=current.getMessage();
+      if(value!=null){
+        String lower=value.toLowerCase(Locale.ROOT);
+        if(lower.contains("trust anchor")||lower.contains("certificate")||lower.contains("certpath")||lower.contains("ssl"))return true;
+      }
+    }
+    return false;
+  }
   private static void requireDirectResponse(int status,String body,String retryAfter)throws DirectRetryException{if(status==429||status==503||status==403&&DIRECT_RATE_LIMIT_INFO.matcher(body).find())throw new DirectRetryException("蓝奏请求频率受限",retryAfterMillis(retryAfter,30000),true);}
   private static long retryAfterMillis(String value,long fallback){if(value==null||value.trim().isEmpty())return fallback;try{return Math.max(1000,Long.parseLong(value.trim())*1000L);}catch(NumberFormatException ignored){return fallback;}}
   private static void requireDirectRateLimit(JSONObject data)throws DirectRetryException{if(data.optInt("zt")==1)return;String info=data.optString("inf","").trim();if(DIRECT_RATE_LIMIT_INFO.matcher(info).find())throw new DirectRetryException(info.isEmpty()?"蓝奏请求频率受限":info,30000,true);}
