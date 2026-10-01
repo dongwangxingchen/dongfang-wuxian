@@ -65,6 +65,8 @@
         <domain includeSubdomains="true">lanzouo.com</domain>
         <domain includeSubdomains="true">lanzouz.com</domain>
         <domain includeSubdomains="true">lanzou.com</domain>
+        <!-- [DFW-103] 蓝奏 2026 年把下载 API 迁到了 api.ilanzou.com；不同步放行会让下载链路断掉 -->
+        <domain includeSubdomains="true">ilanzou.com</domain>
         <domain includeSubdomains="true">lanzov.com</domain>
     </domain-config>
 
