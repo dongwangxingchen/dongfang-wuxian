@@ -6,7 +6,13 @@
 > **不接受口头结论**。凡与 lead 初步结论不符者，在第 2 节明确写出。
 > **未做**：没跑 gradle（另有 agent 在用机器）、没 commit、没 push、没碰任何代码与 `rikkahub/**`、
 > 没改 `docs/handover/README.md`。
-> **仓库状态**：分支 `test`，HEAD `185e747`。改动前工作树已有 2 项与本任务无关的既存改动
+> **⚠️ 复核期间 HEAD 移动过（两次），版本号也动过**：本报告开始时 HEAD = `185e747`（v1.0.3）；
+> 复核进行中，**另一个窗口**先后提交了 `5d9dd40 DFW-86 动效曲线统一` 与
+> `edead6a DFW-42 首次启动引导`，并把版本号推到 **v1.0.4**（`app/build.gradle.kts:51-52`）。
+> `edead6a` 的 `git add` 范围**顺带把我改的 4 个文档与本报告一起提交了**（见第 4 节末尾的提醒）。
+> **这些代码改动与本报告无关、不是本报告做的**；凡受影响的数字，本报告都同时标注了版本。
+> 复核结束时的 HEAD = `edead6a`，`current-state.md` 已由对方同步为 `1.0.4`。
+> 改动前工作树已有 2 项与本任务无关的既存改动
 > （` M .zcode/skills/codebase-memory-cli/SKILL.md`、`?? docs/handover/`），本报告未触碰它们。
 
 ---
@@ -18,10 +24,10 @@
 | R-09 | 赞助/关于/致谢"整体重做未开始" | **过期**：两卡均已实施完毕，7 个守卫类 65 例 | 采纳 |
 | R-12 | `sqlite-android:-SNAPSHOT` 风险仍在 | **过期**：已钉到不可变 commit | 采纳（措辞需收窄，见 1.2） |
 | R-13 | CI 尚未完成分层门禁 | **过期**：`docs`/`unit`/`apk` 三层已建成 | 采纳 |
-| R-10 | `MainActivity.java` 现约 2000 行 | **过期**：实测 **4242** 行，涨了一倍多 | 采纳 |
+| R-10 | `MainActivity.java` 现约 2000 行 | **过期**：`185e747` 实测 **4242** 行，当晚 `5d9dd40` **4267** 行 | 采纳 |
 | R-15 | 真机待验 | **过期**：用户 **2026-09-29** 已真机验收通过 | ❌ **lead 说错** |
 | R-16 | 根因未定（lead 让写"真机现象未确认"） | **过期**：契约测试是 **5 例不是 3 例**；真机 **2026-10-01 已确认"没有错位了"** | ❌ **lead 说错两处** |
-| R-11 | 帧级证据未完成 | **成立**，DFW-86 已建卡；但 DFW-23 当天曾验收关闭，需说明"重新打开" | 采纳（补充了 DFW-23 这段） |
+| R-11 | 帧级证据未完成 | **复核中状态变了**：DFW-86 当天已建卡并**当晚取证+修复入库**（`5d9dd40`），卡 `in_review`；但取证是**静态**的，真机帧级证据仍未完成 | 采纳（补充了 DFW-23→DFW-86→修复这条完整时间线） |
 | R-01/R-08/R-17/R-19/R-20/R-21 | 真机待验 | **成立**，已补"截至 2026-10-01"时间戳 | 采纳 |
 | R-19 行号 | `ModelList.kt:846` | **失效**：实际 `:876` | 额外发现 |
 | R-20 放行清单 | "蓝奏 8 个域名池 + 回环/.local" | **不完整**：还放行了自有后台 `39.106.33.135`；用例数是 **8 不是 6** | 额外发现 |
@@ -137,21 +143,31 @@ apk 层只做 unsigned 构建并把产物改名 `dongfang-wuxian-UNSIGNED-DO-NOT
 **文档原话**（`risk-register.md:17`）：
 > `MainActivity.java` 现约 2000 行
 
-**实际事实**：**4242 行**，比写下该数字时涨了一倍多。
+**实际事实**：**4242 行**（复核开始时），比写下该数字时涨了一倍多；复核结束时已是 **4267 行**。
 
 **证据**：
 ```console
 $ wc -l app/src/main/java/cc/nkbr/lanzouplus/MainActivity.java
-    4242 app/src/main/java/cc/nkbr/lanzouplus/MainActivity.java
+    4242 app/src/main/java/cc/nkbr/lanzouplus/MainActivity.java      # 复核开始时（HEAD 185e747）
 
 $ for c in 6eb27b7 86fc478 8379e92 185e747; do git show $c:.../MainActivity.java | wc -l; done
 2006 (2026-09-28)  3719 (2026-10-01 11:37)  3404 (2026-10-01 02:50)  4242 (2026-10-01 19:39)
+
+# 复核进行中另一窗口提交了 5d9dd40（DFW-86 动效曲线统一），行数又涨了：
+$ git show 185e747:.../MainActivity.java | wc -l   # 4242
+$ git show 5d9dd40:.../MainActivity.java | wc -l   # 4267
+$ git diff --stat 185e747 5d9dd40
+ .../MainActivity.java                    | 59 ++++++++++-----
+ .../MotionCurveUniformityJvmTest.kt      | 88 ++++++++++++++++++++++
+ 2 files changed, 130 insertions(+), 17 deletions(-)
 ```
 `git log -S "现约 2000 行"` 定位到写下该数字的提交是 `b0ddbbd`，当期实测 2006 行 —— **当时是准的，现在是错的**。
-一天之内（`8379e92` → `185e747`）就长了 838 行。
+一天之内（`8379e92` → `185e747`）就长了 838 行，随后 `5d9dd40` 又加 25 行。
 
-**改成了什么**：改为"**2026-10-01 实测 `wc -l` = 4242 行**"，注明"比写下该数字时涨了一倍多（当期 2006 行）"，
-并把风险描述补为"风险等级**上升**，不是持平"。
+**改成了什么**：改为"**2026-10-01 实测：`185e747` = 4242 行，当晚 `5d9dd40` = 4267 行**"，
+注明"比写下该数字时涨了一倍多（当期 2006 行）"，把风险描述补为"风险等级**上升**，不是持平"，
+并记下当晚 DFW-42 首次启动引导**已经在按"只挂一行、实现另起 `FirstRunGuide.java`"的方式做**——
+方向与本项（渐进拆分）一致，属于正面信号。
 
 ---
 
@@ -231,8 +247,27 @@ $ taskctl comment list DFW-23
 即：**14:19 关闭 DFW-23 → 19:49 新建 DFW-86**，中间用户再次抱怨。DFW-86 描述自述"用户连续三轮抱怨动画
 （割裂/预动画/渐隐不丝滑）"，并写明"**禁止在取证完成前改动画代码**"。
 
-**改成了什么**：`R-11` 等级改为 **P1（2026-10-01 重新打开）**，写明 DFW-23 曾验收关闭、同日傍晚重新立卡 DFW-86、
-"DFW-23 的已闭环不再代表本风险消失"，责任任务指向 DFW-86。
+**⚠️ 复核进行中这张卡又变了**：另一窗口当晚提交 `5d9dd40 DFW-86 动效曲线统一`，DFW-86 由 `backlog` → `in_review`：
+```console
+$ git log -1 --format=%B 5d9dd40 | head -20
+DFW-86 动效曲线统一：修掉用户三轮"割裂"反馈的真正根因
+## 取证结论（这次没有逐点打补丁，先做全站清点）
+**① 37 条动画语句里，22 条设了时长却没设曲线。**
+ViewPropertyAnimator 在不设曲线时用的是安卓默认的 AccelerateDecelerateInterpolator
+……与"快速起步、长尾减速"的 M3 emphasized 手感正好相反。……全站同时存在两个缓动族
+**② 顺带查了物理弹簧：SpringAnimation 15 处、DynamicAnimation 8 处。**……已登记，未擅自改。
+
+$ taskctl issue get DFW-86
+status: in_review | v2 | updated 2026-10-01T11:54:29Z
+```
+提交里**作者自己"诚实登记"**了两条残留，对台账很关键：
+① "这是**静态取证**，不是真机帧级取证……**没有测过修复后的真机手感** —— 曲线统一是必要条件，不是充分条件"；
+② 下一个怀疑对象是**时长档位**（15 档，"明显是随手写的，不是设计出来的"）。
+
+**改成了什么**：`R-11` 等级改为 **P1（2026-10-01 重新打开后已取证并修复）**，写完整时间线
+（DFW-23 验收关闭 → 用户再抱怨 → 建 DFW-86 → `5d9dd40` 取证+修复入库），
+明确"**帧级证据仍未完成**（本轮是静态取证）"、下一证据改为"真机手感验收 + 时长档位是否收编"，
+并保留"DFW-23 的已闭环不再代表本风险消失"这句提醒。
 
 ---
 
@@ -474,7 +509,7 @@ R-11（DFW-86 ✅）、DFW-19（五条链路 ✅ 全部实探成立）。
 |---|---|---|
 | **DFW-82** | 功能**已实现并入库**（提交 `afb895b`），卡却仍停 `backlog`、0 条评论 | `git log --oneline` 含 `afb895b DFW-81/82 … 修好更新功能（versionCode 死结）`；`taskctl issue get DFW-82` → `backlog` |
 | **DFW-23** | 已 `done`，但同题的 DFW-86 于同日重新立卡 —— 建议在 DFW-23 补一条评论指向 DFW-86，避免"看到 done 以为动画已结案" | DFW-23 评论 2026-10-01T06:19；DFW-86 createdAt 2026-10-01T11:49 |
-| **DFW-86** | 与 R-11 同题，建议把 R-11 的"责任任务"栏指向它（本轮已改台账，卡侧无需动） | `taskctl issue get DFW-86` |
+| **DFW-86** | 复核中被另一窗口推到 `in_review`（`5d9dd40`，静态取证+22 条曲线补齐）。建议：**别急着 done** —— 提交自己写着"没有测过修复后的真机手感"、且时长档位（15 档）是下一个怀疑对象 | `git show 5d9dd40`；`taskctl issue get DFW-86` → `in_review` v2 |
 | **DFW-64** | `in_progress`：官方 `v1.0.0` GitHub release 未发；handover 说"等用户拍板" | `docs/handover/README.md` §4 |
 
 ---
@@ -485,19 +520,33 @@ R-11（DFW-86 ✅）、DFW-19（五条链路 ✅ 全部实探成立）。
 
 | 文件 | 改动 |
 |---|---|
-| `docs/plan/risk-register.md` | 表头日期更新；R-09/R-12/R-13 改为已闭环并附证据；R-15/R-16 补真机验收结论；R-10 更正行数；R-11 补 DFW-86 重开说明；R-01/R-08/R-17/R-19/R-20/R-21 补时间戳；R-19 行号 846→876；R-20 补自有后台放行 + 用例数 6→8；R-03 补 DFW-73 影响；R-04 补 12 例构成；R-18 补 `release.sh` 与服务器分发面；"结论规则"加一条"也不能把已验证一直写成待验证" |
+| `docs/plan/risk-register.md` | 表头日期更新 + 标注测量基线（`185e747` / `5d9dd40`）；R-09/R-12/R-13 改为已闭环并附证据；R-15/R-16 补真机验收结论；R-10 更正行数（2000→4242，并注 4267）；R-11 补 DFW-23→DFW-86→`5d9dd40` 的完整时间线与"静态取证≠帧级证据"；R-01/R-08/R-17/R-19/R-20/R-21 补时间戳；R-19 行号 846→876；R-20 补自有后台放行 + 用例数 6→8；R-03 补 DFW-73 影响；R-04 补 12 例构成；R-18 补 `release.sh` 与服务器分发面；"结论规则"加一条"也不能把已验证一直写成待验证" |
 | `docs/plan/current-state.md` | 只改 §2 的一处错误陈述（"清理已被撤销"→带行号的更正段），并保留 lead 的删除线与"已被推翻" |
 | `docs/plan/decisions.md` | #42 入口 `/pb/`→`/admin/`（附证据）；表头更新日期更正 |
 | `docs/tasks/README.md` | 更正 `taskctl issue list` 的错误参数，补 `--if-version` 与 `--description-file` 用法 |
 
-`git diff --stat`：
+`git diff --stat`（**只列本报告改的 4 个文件**；同期的代码改动属另一窗口，见文首说明）：
 ```
  docs/plan/current-state.md | 11 ++++++++++-
  docs/plan/decisions.md     | 11 +++++++++--
- docs/plan/risk-register.md | 39 ++++++++++++++++++++++-----------------
+ docs/plan/risk-register.md | 45 +++++++++++++++++++++++-----------------
  docs/tasks/README.md       | 14 ++++++++++++--
 ```
-（另新建 `docs/audit/20261001-docs-consistency.md` = 本文件，全仓唯一新增文件。）
+（另新建 `docs/audit/20261001-docs-consistency.md` = 本文件。）
+
+> ⚠️ **两件事必须让 lead 知道**：
+>
+> **(1) 我没有 commit，但我的文件被别人的 commit 卷进去了。**
+> `edead6a DFW-42 首次启动引导` 的 `git add` 范围包含了
+> `docs/plan/{current-state,decisions,risk-register}.md`、`docs/tasks/README.md` 与本报告 ——
+> 即**我的文档改动是随那张卡一起入库的**，提交信息里**没有提到文档修正**。
+> 我全程只用了 `write`/`edit` + `taskctl`，`git reflog` 里没有任何我的 commit 记录。
+> 当前仍有**未提交**的增量：`risk-register.md`（R-10/R-11 的 4267 行与 DFW-86 时间线）
+> 与本报告的后半部分 —— 这两处需要 lead 决定怎么收尾。
+>
+> **(2) 不要把我改的文件与同期代码改动混在一起提交。** 复核结束时 `git status` 里还有
+> `M app/build.gradle.kts`（版本已推到 1.0.4）与既存的 `M .zcode/skills/codebase-memory-cli/SKILL.md`、
+> `?? docs/handover/` —— **都不是本报告的产物**。本报告按 lead 要求**没有 commit、没有 push**。
 
 ### 4.2 面板卡（1 张）
 
@@ -532,6 +581,16 @@ $ taskctl issue update DFW-19 --thread-id dfwx \
 9. **没跑 gradle**（遵守 lead 约束，另有 agent 在用机器），所以
    "改动后全量 JVM 测试是否仍全绿"**未验证**；不过本轮只改 4 个 markdown + 1 张面板卡，
    受影响的守卫实际上只有 `DocTimelinessJvmTest`（版本号，已单独自检通过）。
+10. **HEAD 在复核期间移动过两次**（`185e747` → `5d9dd40` → `edead6a`），版本号也从 1.0.3 推到 **1.0.4**。
+    本报告的所有测量都标了版本；**若 lead 之后看到数字对不上，先看是不是又有人提交了**。
+    我没有、也不会去核对另一窗口那些代码改动是否正确 —— 那超出本报告范围。
+    版本一致性我顺手核过：`app/build.gradle.kts:51-52` = `10004 / "1.0.4"`，
+    `current-state.md` 已含 `versionName` 与 `1.0.4` → `DocTimelinessJvmTest` 可过。
+11. **DFW-86 的修复是否真的解决"割裂"** —— 未验证，且提交作者自己也说这是静态取证。
+    台账 R-11 已按"仍未完成帧级证据"记录，没有替它宣布闭环。
+12. **本报告的文档改动已被 `edead6a` 顺带提交**（不是我做的 commit），
+    其中 `risk-register.md` 的 R-10/R-11 最新修订与本报告后半部分**仍在工作树里未提交**。
+    是否补一个只含文档的提交、以及提交信息怎么写，**留给 lead 决定**。
 
 **关于 `BrandingCleanlinessJvmTest` —— 顺手纠正一条流传的说法**：
 `docs/handover/README.md` §3 写"注释与文档里不许出现 `黑曜`、`heiyao`（`BrandingCleanlinessJvmTest` 会红）"，
