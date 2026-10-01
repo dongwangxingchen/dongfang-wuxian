@@ -617,7 +617,12 @@ trigger.addView(value,new LinearLayout.LayoutParams(0,dp(54),1));arrow=new Image
      Interfaces》：VPA 定时动画中断即速度硬切（brick wall），弹簧天然可中断且继承速度；快速点按/长按松手/反复按压全平滑。
      detach 时清缓存防 view 树滞留（WeakHashMap value 持 view 强引用，靠 attach listener 摘除）。 */
   final java.util.WeakHashMap<View,SpringAnimation[]> pressSprings=new java.util.WeakHashMap<>();
-  public void applePressScale(View v){
+  /** [DFW-24] 圆按钮/圆形芯片的按下档（长条行与胶囊仍用 0.96）。 */
+  static final float PRESS_SCALE_ROUND=0.94f;
+  /** [DFW-24] 长条行/胶囊的按下档。 */
+  static final float PRESS_SCALE_PILL=0.96f;
+  public void applePressScale(View v){applePressScale(v,PRESS_SCALE_PILL);}
+  public void applePressScale(View v,float pressedScale){
     if(v==null)return;
     v.setOnTouchListener((view,event)->{
       if(!motionEnabled())return false;
@@ -632,13 +637,16 @@ trigger.addView(value,new LinearLayout.LayoutParams(0,dp(54),1));arrow=new Image
           });
           pressSprings.put(view,springs);
         }
-        for(SpringAnimation spring:springs){spring.getSpring().setStiffness(800f).setDampingRatio(0.70f);spring.animateToFinalPosition(0.96f);}
+        for(SpringAnimation spring:springs){spring.getSpring().setStiffness(800f).setDampingRatio(0.70f);spring.animateToFinalPosition(pressedScale);}
         // v1.21.0 按压提亮（06/02 配方）：白 8% SRC_ATOP 只作用于背景不透明像素，透明底不加灰罩；UP/CANCEL 即清。
         if(bg!=null)bg.setColorFilter(0x14FFFFFF,android.graphics.PorterDuff.Mode.SRC_ATOP);
       }else if(event.getActionMasked()==android.view.MotionEvent.ACTION_UP||event.getActionMasked()==android.view.MotionEvent.ACTION_CANCEL){
         SpringAnimation[] springs=pressSprings.get(view);
         if(springs!=null)for(SpringAnimation spring:springs){spring.getSpring().setStiffness(350f).setDampingRatio(0.75f);spring.animateToFinalPosition(1f);}
         if(bg!=null)bg.clearColorFilter();
+        /* [DFW-24] 规范 §3：按下的确认反馈 = 一次轻触觉。之前全仓只有悬浮球三处有，
+           主 UI 一次都没有 —— 用户点下去只有画面变化，手上没有反馈。 */
+        if(event.getActionMasked()==android.view.MotionEvent.ACTION_UP)view.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY);
       }
       return false;
     });
@@ -646,7 +654,7 @@ trigger.addView(value,new LinearLayout.LayoutParams(0,dp(54),1));arrow=new Image
   void resetButtonChrome(Button b){b.setAllCaps(false);b.setMinWidth(0);b.setMinimumWidth(0);b.setMinHeight(dp(44));b.setMinimumHeight(dp(44));b.setPadding(dp(12),0,dp(12),0);b.setStateListAnimator(null);applePressScale(b);}
   void styleDialogButton(Button b,boolean emphasized){if(b==null)return;resetButtonChrome(b);b.setTextSize(13);b.setTextColor(emphasized?PRIMARY:MUTED);b.setBackground(filterRipple(new ColorDrawable(Color.TRANSPARENT)));b.setGravity(Gravity.CENTER);}
   void animateIn(View view,int order){float scale=1f;try{scale=Settings.Global.getFloat(getContentResolver(),Settings.Global.ANIMATOR_DURATION_SCALE,1f);}catch(Exception ignored){android.util.Log.w("MainActivity", "MainActivity Exception: "+ignored.getMessage(), ignored);}view.animate().cancel();view.setTranslationY(0);if(scale==0f){view.setAlpha(1f);return;}view.setAlpha(0f);view.animate().alpha(1f).setDuration(160).start();}
-  public ImageButton iconButton(int icon,String description){ImageButton b=new ImageButton(this);b.setImageResource(icon);b.setColorFilter(PRIMARY);b.setContentDescription(description);b.setScaleType(ImageView.ScaleType.CENTER_INSIDE);b.setPadding(dp(10),dp(10),dp(10),dp(10));b.setBackground(filterRipple(new ColorDrawable(Color.TRANSPARENT)));b.setMinimumWidth(dp(44));b.setMinimumHeight(dp(44));b.setFocusable(true);applePressScale(b);return b;}
+  public ImageButton iconButton(int icon,String description){ImageButton b=new ImageButton(this);b.setImageResource(icon);b.setColorFilter(PRIMARY);b.setContentDescription(description);b.setScaleType(ImageView.ScaleType.CENTER_INSIDE);b.setPadding(dp(10),dp(10),dp(10),dp(10));b.setBackground(filterRipple(new ColorDrawable(Color.TRANSPARENT)));b.setMinimumWidth(dp(44));b.setMinimumHeight(dp(44));b.setFocusable(true);applePressScale(b,PRESS_SCALE_ROUND);return b;}
   Button button(String label){Button b=new Button(this);b.setText(label);b.setTextColor(PRIMARY);b.setTextSize(13);resetButtonChrome(b);b.setBackground(filterRipple(shape(SURFACE,12)));return b;}
   Button toolbarTextButton(String label){Button b=new Button(this);b.setText(label);b.setTextColor(PRIMARY);b.setTextSize(11);resetButtonChrome(b);b.setPadding(dp(8),0,dp(8),0);b.setBackground(filterRipple(new ColorDrawable(Color.TRANSPARENT)));return b;}
   /* T5-S v7 设置页局部色板（对齐 docs/plan/20260926-long-term-execution/cards/T5-S-mockup-v7.html 的 CSS 变量；legacy 暗色唯一主题下使用，不改 ThemeEngine 真源） */
@@ -2202,7 +2210,9 @@ content=new LinearLayout(this);content.setOrientation(LinearLayout.VERTICAL);pag
   static void sortSearchItems(List<Models.Item> items){items.sort((left,right)->Boolean.compare(right.folder,left.folder));}
   void rebuildSearchGrid(GridLayout grid,List<Models.Item> items){grid.removeAllViews();int columns=itemColumns();grid.setColumnCount(columns);for(int i=0;i<items.size();i++)grid.addView(itemRow(items.get(i)),itemLayout(i,columns));}
   View itemRow(Models.Item x){
-    LinearLayout item=new LinearLayout(this);item.setOrientation(LinearLayout.VERTICAL);item.setPadding(dp(7),dp(6),dp(7),dp(5));item.setBackgroundColor(Color.TRANSPARENT);item.setClickable(true);item.setFocusable(true);
+    /* [DFW-24] 软件库卡片是全 App 最高频的点击面，原来**连 ripple 都没有**（纯透明底），
+       点下去屏幕上没有任何反馈。补 ripple + 与设置行同规格的按压弹簧。 */
+    LinearLayout item=new LinearLayout(this);item.setOrientation(LinearLayout.VERTICAL);item.setPadding(dp(7),dp(6),dp(7),dp(5));item.setBackground(filterRipple(new ColorDrawable(Color.TRANSPARENT)));item.setClickable(true);item.setFocusable(true);applePressScale(item);
     TextView sourceBadge=text("",10,PRIMARY);sourceBadge.setMaxLines(1);sourceBadge.setEllipsize(android.text.TextUtils.TruncateAt.END);sourceBadge.setPadding(dp(9),0,0,0);sourceBadge.setVisibility(View.GONE);
     LinearLayout top=new LinearLayout(this);top.setGravity(Gravity.CENTER_VERTICAL);ImageView icon=new ImageView(this);icon.setScaleType(ImageView.ScaleType.CENTER_CROP);icon.setBackground(solidShape(BG,8));icon.setClipToOutline(true);top.addView(icon,new LinearLayout.LayoutParams(dp(38),dp(38)));
     // DFW-13: title container follows fontScale (dp(48) with 15sp x2 lines clipped at large fonts)
@@ -2252,7 +2262,21 @@ content=new LinearLayout(this);content.setOrientation(LinearLayout.VERTICAL);pag
   int searchableSourceTotal(String category,int mode){return searchableSourceTotal(searchAllowedSourceIds(category,mode));}
   int searchableSourceTotal(String category){return searchableSourceTotal(category,sessionSearchMode);}
   int searchableSourceTotal(){return searchableSourceTotal(sessionSearchCategory);}
-  Models.SearchOptions searchOptions(int total){int requested=sessionSearchConcurrency<=0?0:Math.min(Math.max(1,total),sessionSearchConcurrency);long switchDelay=requested<=0||requested>=Math.max(1,total)?0L:sessionSearchBatchSeconds*1000L;return new Models.SearchOptions(requested,switchDelay,true,sessionSearchMaxPages).withRecursiveFolders(sessionSearchRecursiveFolders).withModeMask(sessionSearchModeMask).withFuzzyMatching(fuzzyDirectoryEnabled());}
+  /**
+   * [DFW-39] 慢源轮换的时间片（纯函数，方便 JVM 用例直接断言）。
+   *
+   * 旧式是 `requested<=0 || requested>=total ? 0 : batchSeconds*1000`。
+   * 其中 `requested<=0` 这一支是**自动模式（默认）** —— 于是默认配置下时间片恒为 0，
+   * 而轮换调度器首行就是 `if(switchDelay<=0)return;`，等于**轮换从来没开过**：
+   * 慢源占着名额跑到底，其余源无限排队，用户看到的就是"停在 3/50"。
+   * 现在自动模式也给时间片；只有"每源一条线程"（requested>=total）时才不需要轮换。
+   */
+  static long sourceSwitchDelayMillis(int requested,int total,int batchSeconds){
+    if(total<=1)return 0L;
+    if(requested>0&&requested>=total)return 0L;
+    return Math.max(1,batchSeconds)*1000L;
+  }
+  Models.SearchOptions searchOptions(int total){int requested=sessionSearchConcurrency<=0?0:Math.min(Math.max(1,total),sessionSearchConcurrency);long switchDelay=sourceSwitchDelayMillis(requested,total,sessionSearchBatchSeconds);return new Models.SearchOptions(requested,switchDelay,true,sessionSearchMaxPages).withRecursiveFolders(sessionSearchRecursiveFolders).withModeMask(sessionSearchModeMask).withFuzzyMatching(fuzzyDirectoryEnabled());}
   String concurrencyText(int value,int total){return value<=0?"搜索线程数：自动（设备自适应 · 共 "+total+" 源）":"搜索线程数："+Math.min(value,Math.max(0,total))+" / "+total;}
   String concurrencyDescription(int value,int total){return concurrencyText(value,total)+"；自动模式按 CPU、内存与运行时网络压力动态开窗，不一次性激活全部源";}
   static int validSearchViewRate(int value){switch(value){case 0:case 50:case 100:case 200:case 500:case 1000:case 2000:return value;default:return 100;}}
@@ -2299,10 +2323,12 @@ content=new LinearLayout(this);content.setOrientation(LinearLayout.VERTICAL);pag
     LinearLayout copy=new LinearLayout(this);copy.setOrientation(LinearLayout.VERTICAL);
     TextView heading=text(title,15,TEXT);heading.setTypeface(AppFonts.bold(this));
     copy.addView(heading,new LinearLayout.LayoutParams(-1,dp(28)));
-    TextView caption=text(summary,11,SET_T3);caption.setSingleLine(true);caption.setEllipsize(android.text.TextUtils.TruncateAt.END);
+    /* [DFW-24] 副标题原来是 SET_T3（白 40% = 禁用档），比同页行内 hint 的 SET_T2（66%）低 26 个点，
+       同一屏里"次级说明"出现两种亮度。统一到 SET_T2。 */
+    TextView caption=text(summary,11,SET_T2);caption.setSingleLine(true);caption.setEllipsize(android.text.TextUtils.TruncateAt.END);
     copy.addView(caption,new LinearLayout.LayoutParams(-1,dp(22)));
     header.addView(copy,new LinearLayout.LayoutParams(0,dp(52),1));
-    ImageView arrow=new ImageView(this);arrow.setImageResource(R.drawable.ic_expand);arrow.setColorFilter(PRIMARY);arrow.setPadding(dp(8),dp(8),dp(8),dp(8));
+    ImageView arrow=new ImageView(this);arrow.setId(R.id.dfwx_section_arrow);arrow.setImageResource(R.drawable.ic_expand);arrow.setColorFilter(PRIMARY);arrow.setPadding(dp(8),dp(8),dp(8),dp(8));
     header.addView(arrow,new LinearLayout.LayoutParams(dp(44),dp(52)));
     section.addView(header,new LinearLayout.LayoutParams(-1,dp(64)));
     LinearLayout content=new LinearLayout(this);content.setOrientation(LinearLayout.VERTICAL);content.setPadding(dp(4),0,dp(4),dp(6));
@@ -2314,23 +2340,49 @@ content=new LinearLayout(this);content.setOrientation(LinearLayout.VERTICAL);pag
     // [DFW-71] 首次进设置用硬编码默认值；之后一律用**用户上次的展开态**，
     // 否则返回设置页时展开过的分区又被收起来，视觉跳变比单纯回顶更大。
     boolean open=settingsExpansion.containsKey(title)?settingsExpansion.get(title):expanded;
-    content.setVisibility(open?View.VISIBLE:View.GONE);arrow.setRotation(open?180f:0f);
-    header.setContentDescription(title+"，"+(open?"已展开":"已收起")+"，点击"+(open?"收起":"展开"));
-    header.setOnClickListener(v->{boolean willOpen=content.getVisibility()!=View.VISIBLE;settingsExpansion.put(title,willOpen);header.setContentDescription(title+"，"+(willOpen?"已展开":"已收起")+"，点击"+(willOpen?"收起":"展开"));animateSection(section,content,arrow,willOpen);});
+    header.setTag(R.id.dfwx_section_title,title);
+    syncSectionChrome(section,open);
+    header.setOnClickListener(v->{boolean willOpen=content.getVisibility()!=View.VISIBLE;settingsExpansion.put(title,willOpen);animateSection(section,content,arrow,willOpen);});
     section.setTag(open);// T5-S §7:记录默认展开态,搜索清空后恢复
     return section;}
+  /**
+   * [DFW-24] 分区的展开态必须**三件一起改**：内容可见性、箭头朝向、读屏描述。
+   *
+   * 旧实现只有"点分区头"这一条路会同时改这三件；而设置页的**内联搜索**会把命中的分区内容
+   * 强制 `setVisibility(VISIBLE)`，箭头却还指着"收起"、读屏还念"已收起" ——
+   * 这是本页唯一的逻辑可见 bug（用户看不到箭头，读屏用户会被直接误导）。
+   */
+  void syncSectionChrome(LinearLayout section,boolean open){
+    if(section==null)return;
+    if(section.getChildCount()>1){
+      View content=section.getChildAt(1);
+      if(content!=null)content.setVisibility(open?View.VISIBLE:View.GONE);
+    }
+    View arrow=section.findViewById(R.id.dfwx_section_arrow);
+    if(arrow!=null)arrow.setRotation(open?180f:0f);
+    if(section.getChildCount()>0){
+      View header=section.getChildAt(0);
+      Object titleTag=header==null?null:header.getTag(R.id.dfwx_section_title);
+      if(header!=null&&titleTag instanceof String){
+        String title=(String)titleTag;
+        header.setContentDescription(title+"，"+(open?"已展开":"已收起")+"，点击"+(open?"收起":"展开"));
+      }
+    }
+  }
+
   public void animateSection(LinearLayout section,LinearLayout content,ImageView arrow,boolean open){// v1.22.4 展开收起重做（用户报"挺奇怪"）：三个怪感根因——①sceneRoot 只包 section 自身，下方兄弟卡片瞬跳露空隙，上移到 body 让全部卡片一起平滑滑动；②展开 Fade 让内容"边缩边透明消失"，去掉后内容 alpha 恒 1 随高度被 20dp 圆角裁剪揭示；③收起 Fade 收短到 120ms 只负责内容淡出。时长 240→300ms M3 emphasized；chevron 旋转从 VPA 改 ROTATION 弹簧 800/.75 与按压同一语言。
-    if(!motionEnabled()){content.setVisibility(open?View.VISIBLE:View.GONE);arrow.setRotation(open?180f:0f);return;}
+    if(!motionEnabled()){syncSectionChrome(section,open);return;}
     android.view.ViewGroup sceneRoot=(android.view.ViewGroup)section.getParent();
     android.transition.TransitionSet set=new android.transition.TransitionSet().addTransition(new android.transition.ChangeBounds()).setDuration(300).setInterpolator(new android.view.animation.PathInterpolator(0.2f,0f,0f,1f));
     if(!open)set.addTransition(new android.transition.Fade(android.transition.Fade.OUT).setDuration(120));
     android.transition.TransitionManager.beginDelayedTransition(sceneRoot,set);content.setVisibility(open?View.VISIBLE:View.GONE);
+    syncSectionChrome(section,open);
     SpringAnimation rotate=(SpringAnimation)arrow.getTag();
     if(rotate==null){rotate=new SpringAnimation(arrow,DynamicAnimation.ROTATION,open?180f:0f);arrow.setTag(rotate);}
     rotate.getSpring().setStiffness(800f).setDampingRatio(0.75f);rotate.animateToFinalPosition(open?180f:0f);}
   void addSettingsSection(LinearLayout body,View section){LinearLayout.LayoutParams params=new LinearLayout.LayoutParams(-1,-2);params.setMargins(0,0,0,dp(10));body.addView(section,params);settingsSearchSections.add(section);}
   View buildSettingsSearch(){FrameLayout box=new FrameLayout(this);box.setBackground(shape(SURFACE,14));box.setDescendantFocusability(ViewGroup.FOCUS_BEFORE_DESCENDANTS);box.setFocusableInTouchMode(true);box.setFocusable(true);EditText input=new EditText(this);input.setSingleLine();input.setTextColor(TEXT);input.setHintTextColor(MUTED);input.setHint("搜索设置项");input.setTextSize(14);input.setBackgroundColor(Color.TRANSPARENT);input.setPadding(dp(14),0,dp(52),0);input.setImeOptions(EditorInfo.IME_ACTION_DONE);box.addView(input,new FrameLayout.LayoutParams(-1,-1));ImageButton clear=iconButton(R.drawable.ic_close,"清除搜索");clear.setVisibility(View.GONE);FrameLayout.LayoutParams fp=new FrameLayout.LayoutParams(dp(44),dp(44),Gravity.END|Gravity.CENTER_VERTICAL);box.addView(clear,fp);settingsSearchInput=input;Runnable run=()->{String q=input.getText().toString().trim();clear.setVisibility(q.isEmpty()?View.GONE:View.VISIBLE);applySettingsFilter(q);};clear.setOnClickListener(v->{input.setText("");input.clearFocus();});input.addTextChangedListener(new TextWatcher(){public void beforeTextChanged(CharSequence s,int start,int count,int after){}public void onTextChanged(CharSequence s,int start,int before,int count){if(searchDebounceRunnable!=null)ui.removeCallbacks(searchDebounceRunnable);searchDebounceRunnable=run;ui.postDelayed(run,150);}public void afterTextChanged(Editable e){}});return box;}
-  void applySettingsFilter(String query){if(settingsSearchSections.isEmpty())return;String q=query.trim();boolean searching=!q.isEmpty();int visibleSections=0;for(View sectionObj:settingsSearchSections){LinearLayout section=(LinearLayout)sectionObj;LinearLayout content=(LinearLayout)section.getChildAt(section.getChildCount()>1?1:0);if(!searching){section.setVisibility(View.VISIBLE);content.setVisibility(Boolean.TRUE.equals(section.getTag())?View.VISIBLE:View.GONE);for(int r=0;r<content.getChildCount();r++)content.getChildAt(r).setVisibility(View.VISIBLE);continue;}int hits=0;for(int r=0;r<content.getChildCount();r++){View row=content.getChildAt(r);StringBuilder sb=new StringBuilder();collectSettingsText(row,sb);boolean hit=sb.length()>0&&sb.toString().contains(q);row.setVisibility(hit?View.VISIBLE:View.GONE);if(hit)hits++;}section.setVisibility(hits>0?View.VISIBLE:View.GONE);if(hits>0){content.setVisibility(View.VISIBLE);visibleSections++;}}if(settingsSearchEmpty!=null)settingsSearchEmpty.setVisibility(searching&&visibleSections==0?View.VISIBLE:View.GONE);}
+  void applySettingsFilter(String query){if(settingsSearchSections.isEmpty())return;String q=query.trim();boolean searching=!q.isEmpty();int visibleSections=0;for(View sectionObj:settingsSearchSections){LinearLayout section=(LinearLayout)sectionObj;LinearLayout content=(LinearLayout)section.getChildAt(section.getChildCount()>1?1:0);if(!searching){section.setVisibility(View.VISIBLE);syncSectionChrome(section,Boolean.TRUE.equals(section.getTag()));for(int r=0;r<content.getChildCount();r++)content.getChildAt(r).setVisibility(View.VISIBLE);continue;}int hits=0;for(int r=0;r<content.getChildCount();r++){View row=content.getChildAt(r);StringBuilder sb=new StringBuilder();collectSettingsText(row,sb);boolean hit=sb.length()>0&&sb.toString().contains(q);row.setVisibility(hit?View.VISIBLE:View.GONE);if(hit)hits++;}section.setVisibility(hits>0?View.VISIBLE:View.GONE);if(hits>0){syncSectionChrome(section,true);visibleSections++;}}if(settingsSearchEmpty!=null)settingsSearchEmpty.setVisibility(searching&&visibleSections==0?View.VISIBLE:View.GONE);}
   void collectSettingsText(View view,StringBuilder sb){if(view instanceof TextView){String t=((TextView)view).getText().toString();if(!t.isEmpty()){if(sb.length()>0)sb.append(' ');sb.append(t);}}else if(view instanceof ViewGroup){ViewGroup group=(ViewGroup)view;for(int i=0;i<group.getChildCount();i++)collectSettingsText(group.getChildAt(i),sb);}else{CharSequence cd=view.getContentDescription();if(cd!=null&&cd.length()>0){if(sb.length()>0)sb.append(' ');sb.append(cd);}}}
   /**
    * [DFW-73] 崩溃日志页。
@@ -3046,7 +3098,8 @@ content=new LinearLayout(this);content.setOrientation(LinearLayout.VERTICAL);pag
   void appendSourceInputLines(LinkedHashSet<String> lines,Models.Source source){source=runtimeLanzouSource(source);if(!compositeSource(source)||transientLinkSource(source)){String line=sourceInputLine(source.url,source.password);if(!line.isEmpty())lines.add(line);return;}if(!source.nodeId.isEmpty()){try{for(Models.Item item:core.portableCompositeFolderItems(source,source.nodeId)){String line=sourceInputLine(firstNonEmpty(item.shareUrl,item.url),item.password);if(!line.isEmpty())lines.add(line);}}catch(Exception ignored){android.util.Log.w("MainActivity", "MainActivity Exception: "+ignored.getMessage(), ignored);}return;}for(Models.SourceMember member:source.members){String line=sourceInputLine(member.url,member.password);if(!line.isEmpty())lines.add(line);}}
   String sourceShareText(Models.Source source){LinkedHashSet<String> lines=new LinkedHashSet<>();appendSourceInputLines(lines,source);return String.join("\n",lines);}
   View sourceRow(Models.Source x){
-    String id=sourceKey(x);boolean composite=compositeSource(x),collection=collectionSource(x);LinearLayout row=new LinearLayout(this);row.setOrientation(LinearLayout.VERTICAL);row.setPadding(dp(8),dp(4),dp(8),dp(4));row.setBackgroundColor(Color.TRANSPARENT);row.setClickable(true);row.setFocusable(true);
+    String id=sourceKey(x);boolean composite=compositeSource(x),collection=collectionSource(x);/* [DFW-24] 源列表行同样是高频点击面，原来也没有任何按压反馈。 */
+    LinearLayout row=new LinearLayout(this);row.setOrientation(LinearLayout.VERTICAL);row.setPadding(dp(8),dp(4),dp(8),dp(4));row.setBackground(filterRipple(new ColorDrawable(Color.TRANSPARENT)));row.setClickable(true);row.setFocusable(true);applePressScale(row);
     LinearLayout titleRow=new LinearLayout(this);titleRow.setGravity(Gravity.CENTER_VERTICAL);ImageView kindIcon=new ImageView(this);kindIcon.setScaleType(ImageView.ScaleType.CENTER_CROP);kindIcon.setImageResource(collection?R.drawable.ic_folder:R.drawable.ic_file);kindIcon.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);if(collection)kindIcon.setColorFilter(PRIMARY);else{String softwareIcon=!x.members.isEmpty()?x.members.get(0).iconUrl:x.avatarUrl;if(!softwareIcon.isEmpty())loadImage(softwareIcon,kindIcon);}titleRow.addView(kindIcon,new LinearLayout.LayoutParams(dp(22),dp(22)));TextView name=text(x.title,13,TEXT);name.setMaxLines(1);name.setEllipsize(android.text.TextUtils.TruncateAt.END);name.setPadding(dp(8),0,0,0);titleRow.addView(name,new LinearLayout.LayoutParams(0,dp(32),1));CheckBox check=new CheckBox(this);check.setClickable(false);check.setFocusable(false);check.setContentDescription("选择 "+x.title);check.setChecked(selectedSourceUrls.contains(id));check.setVisibility(sourceSelectionMode?View.VISIBLE:View.GONE);titleRow.addView(check,new LinearLayout.LayoutParams(dp(32),dp(32)));sourceSelectionChecks.put(id,check);row.addView(titleRow,new LinearLayout.LayoutParams(-1,dp(32)));
     if(showSourceLinks&&!x.url.isEmpty()){String shownUrl=preferredLanzouUrl(x.url);TextView link=text(shownUrl,9,MUTED);link.setMinLines(2);link.setHorizontallyScrolling(false);link.setIncludeFontPadding(false);link.setGravity(Gravity.START|Gravity.CENTER_VERTICAL);link.setPadding(dp(30),dp(2),dp(4),dp(2));row.addView(link,new LinearLayout.LayoutParams(-1,-2));}
     boolean testing=testingSourceUrls.contains(id),single=singleFileSource(x);LinearLayout tags=new LinearLayout(this);tags.setGravity(Gravity.START|Gravity.CENTER_VERTICAL);if(composite)tags.addView(sourceTag("自建合集 · "+x.members.size()+"项"),new LinearLayout.LayoutParams(-2,dp(22)));else if(single)tags.addView(sourceTag("单文件"),new LinearLayout.LayoutParams(-2,dp(22)));if(x.childDirectory){LinearLayout.LayoutParams childParams=new LinearLayout.LayoutParams(-2,dp(22));if(tags.getChildCount()>0)childParams.setMargins(dp(5),0,0,0);tags.addView(sourceTag("子目录"),childParams);}if(testing){LinearLayout.LayoutParams tp=new LinearLayout.LayoutParams(-2,dp(22));if(tags.getChildCount()>0)tp.setMargins(dp(5),0,0,0);tags.addView(sourceTag("测试中…"),tp);}else if(!x.error.isEmpty()){TextView issue=text("错误："+x.error,10,ERROR_TOKEN);issue.setSingleLine(true);issue.setEllipsize(android.text.TextUtils.TruncateAt.END);LinearLayout.LayoutParams ep=new LinearLayout.LayoutParams(0,dp(22),1);if(tags.getChildCount()>0)ep.setMargins(dp(5),0,0,0);tags.addView(issue,ep);}else if(!composite&&!single){LinearLayout.LayoutParams capabilityParams=new LinearLayout.LayoutParams(-2,dp(22));if(tags.getChildCount()>0)capabilityParams.setMargins(dp(5),0,0,0);tags.addView(sourceTag(x.searchable?"可搜索":"仅浏览"),capabilityParams);}if(!composite&&!x.password.isEmpty()){LinearLayout.LayoutParams pp=new LinearLayout.LayoutParams(-2,dp(22));pp.setMargins(dp(5),0,0,0);tags.addView(sourceTag("有密码"),pp);}List<String> memberships=sourceCategoryMemberships(x);HorizontalScrollView categoryScroll=new HorizontalScrollView(this);categoryScroll.setTag(sourceCategoryTagKey(x));categoryScroll.setHorizontalScrollBarEnabled(false);categoryScroll.setFillViewport(false);categoryScroll.setPadding(dp(5),0,0,0);LinearLayout categoryTags=new LinearLayout(this);categoryTags.setGravity(Gravity.START|Gravity.CENTER_VERTICAL);for(String membership:memberships){LinearLayout.LayoutParams cp=new LinearLayout.LayoutParams(-2,dp(22));cp.setMargins(0,0,dp(4),0);categoryTags.addView(sourceTag(membership),cp);}categoryScroll.addView(categoryTags,new HorizontalScrollView.LayoutParams(-2,dp(22)));categoryScroll.setVisibility(memberships.isEmpty()?View.GONE:View.VISIBLE);tags.addView(categoryScroll,new LinearLayout.LayoutParams(0,dp(22),1));row.addView(tags,new LinearLayout.LayoutParams(-1,dp(22)));

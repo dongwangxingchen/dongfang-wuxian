@@ -193,6 +193,8 @@ public class SupportActivity extends Activity {
     back.setBackground(ripple(new ColorDrawable(Color.TRANSPARENT)));
     back.setContentDescription("返回");
     back.setOnClickListener(v->closePage());
+    // [DFW-43] 本页原来全页没有"按下形变"，只有一层灰 ripple；补上与站内同规格的按压缩放。
+    pressScale(back);
     top.addView(back,new LinearLayout.LayoutParams(dp(44),dp(44)));
     return top;
   }
@@ -270,6 +272,8 @@ public class SupportActivity extends Activity {
     });
     LinearLayout.LayoutParams ctaParams=new LinearLayout.LayoutParams(-1,dp(56));ctaParams.setMargins(0,dp(16),0,0);
     page.addView(confirm,ctaParams);
+    // [DFW-43] 主 CTA 也要"按下去有反应"（规范 §3：主反馈 = scale + 提亮，ripple 只是辅助）
+    pressScale(confirm);
     // 辅助链接：暂时不支持（降级路径永远存在）
     TextView skip=text("暂时不支持，继续使用",13,PRIMARY);
     skip.setGravity(Gravity.CENTER);skip.setClickable(true);skip.setFocusable(true);
@@ -278,6 +282,8 @@ public class SupportActivity extends Activity {
     skip.setBackground(ripple(new ColorDrawable(Color.TRANSPARENT)));
     skip.setContentDescription("暂时不支持，继续使用（不付费也能完整使用其它功能）");
     skip.setOnClickListener(v->closePage());
+    // [DFW-43] 降级出口是最不该让人怀疑"点没点到"的控件，同样补上按压形变（红线：这条出口必须能走）
+    pressScale(skip);
     LinearLayout.LayoutParams skipLp=new LinearLayout.LayoutParams(-1,dp(44));
     skipLp.topMargin=dp(6);
     page.addView(skip,skipLp);
@@ -346,7 +352,9 @@ public class SupportActivity extends Activity {
    *  clipToOutline 让码图边缘贴合卡片圆角 */
   LinearLayout codeCard(String label,int drawableRes,String hint){
     LinearLayout card=new LinearLayout(this);card.setOrientation(LinearLayout.VERTICAL);
-    GradientDrawable bg=solidShape(Color.WHITE,16);bg.setStroke(dp(1),BORDER);
+    // [DFW-43] 圆角从 16 收敛到 **Card token 20dp**（规范 §4：信息卡片 radius 20dp 唯一值）——
+    // 本页原来同一页有 20（开发者信/权益/价格卡）与 16（收款码卡）两种卡片圆角，不自洽。
+    GradientDrawable bg=solidShape(Color.WHITE,20);bg.setStroke(dp(1),BORDER);
     card.setBackground(bg);card.setElevation(dp(2));card.setClipToOutline(true);
     ImageView code=new ImageView(this);
     code.setImageResource(drawableRes);
@@ -398,7 +406,7 @@ public class SupportActivity extends Activity {
    *  否则本页按下去会比站内"更没反应"，两页手感不一致。 */
   static final int PRESS_TINT=0x14FFFFFF;
 
-  /** [DFW-77] 可点控件的按压反馈（规范 §3 第一优先级）：**按下即缩、松手回弹**，取代"只有灰 ripple"。
+  /** [DFW-43] 可点控件的按压反馈（规范 §3 第一优先级）：**按下即缩、松手回弹**，取代"只有灰 ripple"。
    *
    *  **为什么不直接复用 MainActivity 那套 applePressScale**（三条硬理由，缺一不可）：
    *  ① 它是 MainActivity 的**实例方法**——弹簧缓存 `pressSprings`、`motionEnabled()` 都是实例状态；
@@ -469,7 +477,7 @@ public class SupportActivity extends Activity {
     return g;
   }
   /** 涟漪：**降级为辅助**（规范 §3：主反馈 = scale 形变 + 表面提亮，**不用灰 ripple 当主反馈**）。
-   *  原来拿 `BORDER`（不透明灰 #262332）当涟漪色，按下去是一块实心灰罩盖住控件；
+   *  原来拿 `BORDER`（不透明灰，当时为 #262332）当涟漪色，按下去是一块实心灰罩盖住控件；
    *  现在换成主色 16% 淡染，与站内 `MainActivity.filterRipple` 的 `ThemeEngine.tint(PRIMARY,42)` 同值同源。 */
   android.graphics.drawable.Drawable ripple(android.graphics.drawable.Drawable content){
     if(Build.VERSION.SDK_INT>=21)return new android.graphics.drawable.RippleDrawable(android.content.res.ColorStateList.valueOf(ThemeEngine.tint(PRIMARY,42)),content,null);

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- [DFW-24] 设置分区的展开箭头 / 标题：搜索过滤时要把"箭头朝向 + 读屏描述"和内容可见性一起同步，
+     需要一个稳定的 id 才能从 section 里找回来（原来只能靠 childAt(2) 这种脆弱下标）。 -->
+<resources>
+    <item name="dfwx_section_arrow" type="id" />
+    <item name="dfwx_section_title" type="id" />
+</resources>
