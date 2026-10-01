@@ -38,7 +38,12 @@ final class LanzouCore {
   private static final int UNKNOWN_INITIAL_PAGE_INTERVAL_MS=640,UNKNOWN_NEXT_PAGE_INTERVAL_MS=420;
   private static final int MAX_PAGE_INTERVAL_MS=4200;
   // 蓝奏服务端按会话全局反突发:同源任意列表 POST 最小间隔;翻页(pg>1)实测需同签名+约3秒间隔
-  private static final int ORIGIN_PAGE_SLOT_MS=1100,NEXT_PAGE_FLOOR_MS=3000;
+  private static final int ORIGIN_PAGE_SLOT_MS=1100,
+      /* [DFW-38] 翻页硬地板。原来是 3000ms，但实测服务端每页只要 0.22–1.33s，
+         3 秒是**客户端自造的 14 倍放大**（用户两张截图「50 项 / 100 项」正是第 1/2 页）。
+         降到与 origin 槽位同值 1100ms：节流仍然存在（同一 origin 全 App 串行 ≥1.1s），
+         但不再额外多压 3 秒。没有直接归零，是为了保住对上游的基本礼貌。 */
+      NEXT_PAGE_FLOOR_MS=1100;
   private static final long NETWORK_WORKER_STACK_BYTES=262144L;
   // Route pressure is a decaying backoff signal, not a permanent counter: one unit is
   // charged per observed WAF/rate-limit failure and one unit is forgiven per
@@ -109,7 +114,10 @@ final class LanzouCore {
   private static final Pattern ICON_DATE=Pattern.compile("(?:^|/)(\\d{4})/(\\d{2})/(\\d{2})(?:/|$)");
   private static final Pattern INVALID_FILE_NAME=Pattern.compile("[\\\\/:*?\"<>|]");
   private static final Pattern LANZOU_TYPO_HOST=Pattern.compile("(?:[a-z0-9-]+\\.)*laozouw\\.com");
-  private static final Pattern LANZOU_HOST=Pattern.compile("(?i)(?:[a-z0-9-]+[.])*(?:lanzou[a-z0-9]?|lanzov)[.]com");
+  /* [DFW-38] 注意 `lanzn.com` 也是一个真实在用的蓝奏域名（内置源清单里 19/85 条在用），
+       旧正则漏了它 → 那些源会丢掉自己的域名、子文件夹被静默丢弃、页面校验也过不去。
+       实测 `yoyodadada.lanzn.com/b07pspid` 本身完全正常（GET 0.24s + POST 0.30s，zt=1，50 条）。 */
+  private static final Pattern LANZOU_HOST=Pattern.compile("(?i)(?:[a-z0-9-]+[.])*(?:lanzou[a-z0-9]?|lanzov|lanzn)[.]com");
     private static final Pattern URL_SCHEME=Pattern.compile("(?i)^[a-z][a-z0-9+.-]*://.*");
   private static final Pattern HOST_PATH=Pattern.compile("(?i)^(?:[a-z0-9-]+[.])+[a-z]{2,63}/.+");
   private static final Pattern SHARE_SEGMENT=Pattern.compile("(?i)[a-z0-9._~-]{3,96}");
