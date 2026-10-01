@@ -68,17 +68,27 @@ class BackCallbackSyncJvmTest {
         shadowOf(Looper.getMainLooper()).idle()
     }
 
-    // ── 基线：首页静息时禁用是**设计**，不是 bug ────────────────────────────
+    // ── 基线：首页静息时**也启用**（DFW-73 改了语义，不是回归） ──────────────
 
+    /**
+     * 这条以前断言的是「禁用」（让系统接管、播"回桌面"预览）。
+     * 2026-10-01 用户明确改了口径：
+     * > "在顶级页面并且没有子页面的情况下，返回就是先提示『再返回一次退出软件』，然后再退出。"
+     *
+     * 所以顶级页也必须**自己**吃掉这次返回——一旦交还系统，Activity 立刻 finish，
+     * 横幅根本没机会出现。作为交换，根页面不再做跟手预览
+     * （`predictiveBackPreviewAllowed()` 在顶级根返回 false），页面不会莫名其妙地缩一下又弹回去。
+     */
     @Test
-    fun restingOnHome_backCallbackIsDisabled_byDesign() {
+    fun restingOnHome_backCallbackIsEnabled_byDesign() {
         val a = activity()
         a.navigateHome()
         shadowOf(Looper.getMainLooper()).idle()
-        assertFalse(
-            "首页静息时禁用回调是刻意的：让系统接管返回、出现「回到桌面」的预测动画（MainActivity 注释里写明）",
+        assertTrue(
+            "顶级页必须自己消费返回，否则「再返回一次退出软件」永远没机会出现",
             a.backCallback.isEnabled,
         )
+        assertNoDrift(a)
     }
 
     // ── 核心：进搜索态必须立刻启用 ─────────────────────────────────────────
@@ -172,7 +182,8 @@ class BackCallbackSyncJvmTest {
         val a = activity()
         a.navigateHome()
         shadowOf(Looper.getMainLooper()).idle()
-        assertFalse("前置：首页静息时回调是禁用的", a.backCallback.isEnabled)
+        // [DFW-73] 首页静息现在也是**启用**（顶级页要自己吃掉返回，先提示"再返回一次退出软件"）。
+        assertTrue("前置：首页静息时回调是启用的（DFW-73 语义）", a.backCallback.isEnabled)
 
         // **刻意不 idle()**：探针实测，一旦让 Looper 空转，别处的延迟任务会顺带把回调打开，
         // 漏同步就被掩盖了（撤掉修复也全绿）。这里只认"这一刻"的同步结果。
@@ -196,7 +207,7 @@ class BackCallbackSyncJvmTest {
         a.exitHomeSearchFocus()
 
         assertNoDrift(a)
-        assertFalse("退回首页静息后必须恢复禁用", a.backCallback.isEnabled)
+        assertTrue("退回首页静息后仍保持启用（DFW-73：顶级页自己消费返回）", a.backCallback.isEnabled)
     }
 
     // ── 退出子态后标志要回到正确状态 ───────────────────────────────────────
@@ -221,7 +232,7 @@ class BackCallbackSyncJvmTest {
         a.exitHomeSearchFocus()
         shadowOf(Looper.getMainLooper()).idle()
         assertNoDrift(a)
-        assertFalse("退回首页静息后应恢复禁用（让系统接管返回）", a.backCallback.isEnabled)
+        assertTrue("退回首页静息后仍保持启用（DFW-73：顶级页自己消费返回）", a.backCallback.isEnabled)
     }
 
     // ── 同类隐患：更新面板 ─────────────────────────────────────────────────
@@ -237,6 +248,9 @@ class BackCallbackSyncJvmTest {
         a.navigateHome()
         shadowOf(Looper.getMainLooper()).idle()
         assertEquals("前置：此刻没有更新面板", null, a.offerSheet)
-        assertFalse("没有面板 + 首页静息 → 不该拦截返回", a.canHandleBack())
+        // [DFW-73] 首页静息现在**也**要拦截返回（顶级页先提示"再返回一次退出软件"），
+        // 所以这里只能钉住"面板不在时判定不依赖面板"，不能再断言 false。
+        val decisionWithoutSheet = a.canHandleBack()
+        assertTrue("首页静息也必须拦截返回（DFW-73 语义）", decisionWithoutSheet)
     }
 }

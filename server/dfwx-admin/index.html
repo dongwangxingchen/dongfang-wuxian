@@ -254,6 +254,22 @@ function renderControl(p){
       <input id="mu" type="text" placeholder="例如：永久 / 10 月 1 日 20:00" value="${esc(c.maintenanceUntil)}">
     </div>
     <div class="note warn">服务器连不上时，软件会当作“正常”处理，不会把用户锁在外面。</div>
+    <div style="height:22px"></div>
+    <h2>内置渠道（AI 中转）</h2>
+    <p class="hint">APP 里那条「内置渠道」用的就是这些值。<b>留空 = 用安装包里自带的值</b>，所以不确定就别填。</p>
+    <p class="hint">上游中转站的地址和真实 Key <b>不在 App 里、也不在这里</b>——它们只在服务器上（<code>/etc/nginx/dfwx-ai-secret.conf</code>）。这一页填的是我们自己服务器的地址和应用令牌。</p>
+    <label for="aib">服务器地址（App 实际请求的地址）</label>
+    <input id="aib" type="text" placeholder="留空 = 用安装包自带值" value="${esc(c.ai_base_url || "")}">
+    <label for="ait">应用令牌（换令牌后同步改这里，用户不用更新软件）</label>
+    <input id="ait" type="text" placeholder="留空 = 用安装包自带值" value="${esc(c.ai_token || "")}">
+    <label for="aim">模型名（给用户看到的名字）</label>
+    <input id="aim" type="text" placeholder="留空 = deepseek-v4.1-flash" value="${esc(c.ai_model || "")}">
+    <label for="aik">最大输出（token 数，留空或 0 = 用安装包自带值 8192）</label>
+    <input id="aik" type="number" min="0" placeholder="8192" value="${c.ai_max_tokens ? c.ai_max_tokens : ""}">
+    <div class="switch">
+      <div><div class="t">停用内置渠道</div><div class="d">打开后，所有用户都选不了这条渠道</div></div>
+      <div class="tg${c.ai_disabled?" on":""}" id="aitg"></div>
+    </div>
     <div style="height:14px"></div>
     <button class="btn-main" id="save">保存</button>
   </div>`;
@@ -263,6 +279,8 @@ function renderControl(p){
     tg.classList.toggle("on", nowOn);
     $("#mfields").classList.toggle("hide", !nowOn);
   };
+  const aiTg = $("#aitg");
+  aiTg.onclick = () => aiTg.classList.toggle("on");
   $("#save").onclick = async () => {
     const b = $("#save"); b.disabled = true; b.innerHTML = '<span class="spin"></span> 保存中…';
     try {
@@ -271,10 +289,16 @@ function renderControl(p){
         maintenanceOn: on2, blocked: false,
         maintenanceTitle: $("#mt").value.trim(),
         maintenanceBody: $("#mb").value.trim(),
-        maintenanceUntil: $("#mu").value.trim()
+        maintenanceUntil: $("#mu").value.trim(),
+        // 内置渠道：留空即"用安装包自带值"，App 侧 fail-open（见 BuiltinAiChannel.applyRemote）
+        ai_base_url: $("#aib").value.trim(),
+        ai_token: $("#ait").value.trim(),
+        ai_model: $("#aim").value.trim(),
+        ai_max_tokens: Math.max(0, parseInt($("#aik").value, 10) || 0),
+        ai_disabled: $("#aitg").classList.contains("on")
       };
       await upsert("control", cache.control && cache.control.id, body);
-      toast(on2 ? "已开启维护，用户将看到你的公告" : "已关闭维护，用户恢复正常使用", "ok");
+      toast(on2 ? "已开启维护，用户将看到你的公告" : "已保存", "ok");
       await refresh();
     } catch(e){ toast(e.message, "err"); }
     b.disabled = false; b.textContent = "保存";

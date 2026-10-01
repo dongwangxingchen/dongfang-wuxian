@@ -62,6 +62,9 @@ public class App extends me.rerere.rikkahub.RikkaHubApp {
         // DFW-29：把真实日志出口注入 CrashLogStore（默认是空实现，便于纯 JVM 单测）。
         CrashLogStore.setLogger((message,error)->android.util.Log.w("CrashLogStore",message,error));
         installCrashLogger();
+        // [DFW-73] 内置渠道配置必须赶在 super.onCreate() 之前注入：RikkaHub 的 Application.onCreate
+        // 会立刻触发渠道同步，晚一步这一轮就同步不到配置（下一次启动才生效）。
+        BuiltinAiChannel.install(this);
         try {
             super.onCreate();
         } catch (Throwable t) {

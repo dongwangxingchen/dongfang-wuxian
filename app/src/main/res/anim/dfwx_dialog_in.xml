@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  [DFW-73] 全站弹窗统一进场动画（用户 2026-10-01："弹窗的动画也要统一"）。
+  只做两件事：94% → 100% 缩放 + 淡入，180ms，与页面转场用同一条 M3 emphasized 曲线。
+  挂在 AppTheme → alertDialogTheme(DfwxDialog) → windowAnimationStyle 上，
+  所以**所有** AlertDialog 自动一致，不需要任何调用点改代码。
+  系统"动画时长缩放=0"时，窗口动画本身就会被系统跳过，无需额外门控。
+-->
+<set xmlns:android="http://schemas.android.com/apk/res/android"
+     android:shareInterpolator="false"
+     android:interpolator="@android:interpolator/fast_out_slow_in">
+    <scale
+        android:fromXScale="0.94"
+        android:toXScale="1.0"
+        android:fromYScale="0.94"
+        android:toYScale="1.0"
+        android:pivotX="50%"
+        android:pivotY="50%"
+        android:duration="180" />
+    <alpha
+        android:fromAlpha="0.0"
+        android:toAlpha="1.0"
+        android:duration="140" />
+</set>

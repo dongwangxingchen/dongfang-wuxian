@@ -135,8 +135,14 @@ final class NavBall {
       view.setOnClickListener(v -> {
         v.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY);
         closeMenu();
-        if (destination == NOTICE_DEST) host.openNoticeCenter();
-        else host.goToDestination(destination);
+        // [DFW-73] 六项平级 = 连"点自己没反应"这一条也要一致：
+        // 另外五项走 goToDestination，第一行就是 `destination==primaryDestination` 直接 return；
+        // 公告以前没有这个守卫，会在公告页上把公告**重建一遍**（还会把"从哪来"弄丢变成回软件库）。
+        if (destination == NOTICE_DEST) {
+          if (!host.isNoticePage()) host.openNoticeCenter();
+        } else {
+          host.goToDestination(destination);
+        }
       });
       pressFeedback(this);
     }
@@ -342,9 +348,11 @@ final class NavBall {
     return false;
   }
 
-  /** 供测试/程序化：直接触发公告项的点击（等同于用户点它）。 */
+  /** 供测试/程序化：直接触发公告项的点击（等同于用户点它）。
+   *  [DFW-73] 必须走**真实点击路径**（`view.performClick()`），不能直接调 `host.openNoticeCenter()`——
+   *  否则"点自己没反应"这条守卫在测试里根本走不到，测试会变成假绿。 */
   void clickNoticeItem() {
-    for (Pill p : pills) if (p.destination == NOTICE_DEST) { host.openNoticeCenter(); return; }
+    for (Pill p : pills) if (p.destination == NOTICE_DEST) { p.view.performClick(); return; }
   }
 
   /** [DFW-70] 刷新「公告」项上的未读红点。有未读才出现，否则彻底隐藏。 */

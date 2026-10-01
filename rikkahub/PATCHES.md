@@ -297,3 +297,35 @@ stickyBelow 缓存 + 动画计数器三者叠加导致输入框崩坏）。
 **验证**：需要真机确认（静态截图看不出来，是逐帧问题）。
 判据：点输入框 → 键盘弹出/收起的**全过程**顶栏不跳、不抖、不残留错位；
 反复快速弹出收起、切换会话、旋转均无错位；输入框跟随不回归。
+
+
+---
+
+## P39（DFW-73）内置渠道回归（服务端中转）+ 未付费引导窗 + 渠道只读
+
+**文件**（4 处，全部是 DFWX 自有新增/最小改行）：
+1. `rikkahub/app/src/main/java/me/rerere/rikkahub/dfwx/DfwxBuiltinChannel.kt` —— **新增自有文件**（播种 / 身份识别 / 付费门）
+2. `rikkahub/app/src/main/java/me/rerere/rikkahub/RikkaHubApp.kt` —— `onCreate` 里 AI-004 清理器之后加一行 `DfwxBuiltinChannel.syncIfNeeded(...)`
+3. `rikkahub/app/src/main/java/me/rerere/rikkahub/ui/components/ai/ModelList.kt` —— `ModelListSheet` 的 `onSelect` 前加付费门 + 一个 `AlertDialog`（import 一行 `androidx.compose.material3.AlertDialog`）
+4. `rikkahub/app/src/main/java/me/rerere/rikkahub/ui/pages/setting/SettingProviderPage.kt` —— `filteredProviders` 过滤掉内置渠道
+
+**背景**：AI-004（P11 反向操作）在 2026-09-28 彻底移除了内置渠道，理由是"Key 在客户端一定会被扒出来"
+（当时确实从公开 APK 里扒出过可用 Key）。2026-10-01 用户改主意要恢复内置渠道，但换了个做法：
+**上游地址与真实 Key 只放在自己的服务器上**（nginx 反向代理，`/etc/nginx/dfwx-ai-secret.conf` 600），
+APK 里只有自己服务器的地址 + 一个应用令牌。用户明确接受"令牌可被扒"这一残余风险：
+> "你不用给他记次数……你只需要做好防止被别人抓包的就行" / "防君子就行了，靠诚信就行，他们自愿付费"
+
+**关键约束（改动时不许违反）**：
+- **不做配额、不做计数**——用户每周在供应商那边自己设额度，App 侧统计没有任何意义，加了只是负资产；
+- **上游地址/真 Key 绝不能出现在本仓库任何文件里**（包括本文件、包括测试）——它们只在服务器上；
+- 应用的 `maxTokens` 是**助手字段**（RikkaHub 的 `Model` 没有这个字段），同步时只改
+  `assistant.chatModelId == 内置模型` 的助手，**不得**碰用户自己配置的助手；
+- 只有**全新安装**（`providers.isEmpty()`）才把内置模型设成默认模型；已有渠道的用户**不动他的模型选择**；
+- 未注入 `paidProvider` 时按**未付费**处理（宁可多弹一次引导，也不让未付费的人白用）。
+
+**同步上游时**：1 是新增文件，直接重放；2/3/4 都是最小改行，`git diff` 一看即知；
+若上游改了 `ModelListSheet` 结构，重新确认付费门仍在"用户点模型"的那一条路径上。
+
+**验证**：`DfwxBuiltinChannelJvmTest`（播种幂等 / 已有渠道不被改模型 / 身份识别 / 付费门）。
+真机验证项：装全新包 → AI 页模型选择器里出现「内置渠道 · deepseek-v4.1-flash」→ 能正常流式对话；
+未付费时点它弹引导窗（「关闭」/「知道了」）；AI 设置 → 渠道列表里看不到内置渠道。

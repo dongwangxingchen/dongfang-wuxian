@@ -8,6 +8,7 @@ import android.graphics.drawable.GradientDrawable;
 import android.view.Gravity;
 import android.view.View;
 import android.widget.FrameLayout;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
@@ -15,6 +16,9 @@ import android.widget.TextView;
  *  付费前不亮光 / 付费后亮光并循环播放简约扫光特效）。
  *  双状态由 Support.unlocked 驱动：未付费 = primary 底 + 「诚信付费 · 自愿」，点击进付费页；
  *  已付费 = primaryHi 亮底 + 白高光描边 + 「已诚信付费 ✓」+ 扫光循环，点击弹感谢弹窗（回调方区分）。
+ *  标题左边一律带一枚奖杯图标（ic_trophy，与标题同色，装饰性不单独播报）——
+ *  用户 2026-10-01 口述：两种状态都加、保持一致；未付费态的副标小字
+ *  「￥5 · 学生免费 · 不付费也可完整使用」整行删除（只有已付费才显示「感谢支持 · 全部权限已开放」）。
  *  扫光 = 白色斜向渐变窄条 translationX 扫过（facebook/shimmer 遮罩扫光的纯 View 版），
  *  RESTART + LinearInterpolator，2600ms 一轮，峰值白光约 31%（简约不晃眼）；t=0 时 alpha=0，
  *  快照/首帧无残影；动画关（motionEnabled=false）不启动，onDetachedFromWindow 取消，省电。 */
@@ -56,20 +60,36 @@ public class IntegrityPayButton extends FrameLayout {
     box.setOrientation(LinearLayout.VERTICAL);
     box.setGravity(Gravity.CENTER);
     addView(box, new FrameLayout.LayoutParams(-2, -2, Gravity.CENTER));
+    // 标题行：奖杯图标 + 大字（用户 2026-10-01 口述：大字左边加一个 20dp 左右的奖杯，与标题同色、垂直居中，两种状态都加）
+    LinearLayout titleRow = new LinearLayout(context);
+    titleRow.setOrientation(LinearLayout.HORIZONTAL);
+    titleRow.setGravity(Gravity.CENTER);
+    box.addView(titleRow, new LinearLayout.LayoutParams(-2, -2));
+    ImageView trophy = new ImageView(context);
+    trophy.setImageResource(R.drawable.ic_trophy);
+    trophy.setColorFilter(onPrimary);
+    trophy.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+    titleRow.addView(trophy, new LinearLayout.LayoutParams(Math.round(density * 20), Math.round(density * 20)));
     TextView title = new TextView(context);
     title.setText(paid ? "已诚信付费 ✓" : "诚信付费 · 自愿");
     title.setTextColor(onPrimary);
     title.setTextSize(16);
     title.setTypeface(AppFonts.bold(getContext()));
-    box.addView(title, new LinearLayout.LayoutParams(-2, -2));
-    TextView sub = new TextView(context);
-    sub.setText(paid ? "感谢支持 · 全部权限已开放" : "￥5 · 学生免费 · 不付费也可完整使用");
-    sub.setTextColor(onPrimarySub);
-    sub.setTextSize(11);
-    sub.setTypeface(AppFonts.normal(getContext()));
-    LinearLayout.LayoutParams subLp = new LinearLayout.LayoutParams(-2, -2);
-    subLp.topMargin = Math.round(density * 3);
-    box.addView(sub, subLp);
+    LinearLayout.LayoutParams titleLp = new LinearLayout.LayoutParams(-2, -2);
+    titleLp.leftMargin = Math.round(density * 6);
+    titleRow.addView(title, titleLp);
+    // 用户 2026-10-01 口述：未付费态那行小字（原「￥5 · 学生免费 · 不付费也可完整使用」）整行删除，直接不加 View；
+    // 已付费态的「感谢支持 · 全部权限已开放」保留。
+    if (paid) {
+      TextView sub = new TextView(context);
+      sub.setText("感谢支持 · 全部权限已开放");
+      sub.setTextColor(onPrimarySub);
+      sub.setTextSize(11);
+      sub.setTypeface(AppFonts.normal(getContext()));
+      LinearLayout.LayoutParams subLp = new LinearLayout.LayoutParams(-2, -2);
+      subLp.topMargin = Math.round(density * 3);
+      box.addView(sub, subLp);
+    }
     if (paid) {
       shine = new View(context);
       GradientDrawable sweep = new GradientDrawable(GradientDrawable.Orientation.TL_BR,

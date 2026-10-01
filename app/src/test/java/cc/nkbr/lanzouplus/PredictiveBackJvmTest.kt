@@ -52,14 +52,24 @@ class PredictiveBackJvmTest {
 
     // ---------- MainActivity：现状确实是通的（顺手加回归，防退化） ----------
 
+    /**
+     * [DFW-73] 这条以前断言"根页面不接管返回，让系统播回桌面预览"。
+     * 2026-10-01 用户改了口径：顶级页要**先提示「再返回一次退出软件」、第二次才退出**，
+     * 所以返回键必须由应用自己吃掉（交还系统 = 立刻 finish，横幅没机会出现）。
+     * 代价是根页面不再有系统预览；应用内跟手预览也一并关掉，避免"缩一下又弹回去"。
+     */
     @Test
-    fun home_isRecognisedAsNotInterceptingBack_soSystemShowsPreview() {
+    fun home_doesInterceptBack_butSuppressesTheInAppPreview() {
         val a = mainActivity()
         a.showHomeLanding()
         shadowOf(Looper.getMainLooper()).idle()
-        assertFalse(
-            "根页面（主页）必须不接管返回，否则系统不会播'回桌面'预览动画",
+        assertTrue(
+            "顶级页必须自己接管返回，否则「再返回一次退出软件」没机会出现",
             a.canHandleBack(),
+        )
+        assertFalse(
+            "顶级根不做跟手预览（页面本来就不会离开）",
+            a.predictiveBackPreviewAllowed(),
         )
     }
 

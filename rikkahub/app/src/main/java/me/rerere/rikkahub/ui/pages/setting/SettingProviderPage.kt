@@ -106,10 +106,14 @@ fun SettingProviderPage(vm: SettingVM = koinViewModel()) {
     }
 
     val filteredProviders = remember(settings.providers, searchQuery) {
+        // [DFW-73] 内置渠道**只读**：不出现在这里，用户就改不到也删不掉它。
+        // 它的地址/令牌/模型/最大输出由后台下发，每次启动由 DfwxBuiltinChannel.syncIfNeeded 覆盖同步。
+        // 用户自己的渠道一律原样保留（只过滤 baseUrl 等于内置渠道的那一条）。
+        val owned = settings.providers.filterNot { me.rerere.rikkahub.dfwx.DfwxBuiltinChannel.isBuiltin(it) }
         if (searchQuery.isBlank()) {
-            settings.providers
+            owned
         } else {
-            settings.providers.filter { provider ->
+            owned.filter { provider ->
                 provider.name.contains(searchQuery, ignoreCase = true)
             }
         }

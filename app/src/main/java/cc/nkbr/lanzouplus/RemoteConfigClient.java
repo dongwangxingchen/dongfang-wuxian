@@ -52,13 +52,29 @@ final class RemoteConfigClient {
     final String maintenanceBody;
     /** 维护时间文本，用户随便填（"永久"、"10月1日 20:00"…）；空则不显示。 */
     final String maintenanceUntil;
+    /** [DFW-73] 内置渠道远程覆盖：后台留空则沿用 APK 内置值（见 app/build.gradle.kts 的 dfwx_ai_*）。 */
+    final String aiBaseUrl;
+    final String aiToken;
+    final String aiModel;
+    final int aiMaxTokens;
+    final boolean aiDisabled;
 
     Control(boolean maintenanceOn, boolean blocked, String title, String body, String until) {
+      this(maintenanceOn, blocked, title, body, until, "", "", "", 0, false);
+    }
+
+    Control(boolean maintenanceOn, boolean blocked, String title, String body, String until,
+            String aiBaseUrl, String aiToken, String aiModel, int aiMaxTokens, boolean aiDisabled) {
       this.maintenanceOn = maintenanceOn;
       this.blocked = blocked;
       this.maintenanceTitle = title == null ? "" : title.trim();
       this.maintenanceBody = body == null ? "" : body.trim();
       this.maintenanceUntil = until == null ? "" : until.trim();
+      this.aiBaseUrl = aiBaseUrl == null ? "" : aiBaseUrl.trim();
+      this.aiToken = aiToken == null ? "" : aiToken.trim();
+      this.aiModel = aiModel == null ? "" : aiModel.trim();
+      this.aiMaxTokens = aiMaxTokens;
+      this.aiDisabled = aiDisabled;
     }
 
     /** 是否需要拦截整个应用。 */
@@ -260,7 +276,13 @@ final class RemoteConfigClient {
         o.optBoolean("blocked", false),
         o.optString("maintenanceTitle", ""),
         o.optString("maintenanceBody", ""),
-        o.optString("maintenanceUntil", ""));
+        o.optString("maintenanceUntil", ""),
+        // [DFW-73] 内置渠道远程覆盖（后台字段缺省 = 空 → 沿用 APK 内置值，fail-open）
+        o.optString("ai_base_url", ""),
+        o.optString("ai_token", ""),
+        o.optString("ai_model", ""),
+        o.optInt("ai_max_tokens", 0),
+        o.optBoolean("ai_disabled", false));
   }
 
   private static Release parseRelease(JSONObject o) {

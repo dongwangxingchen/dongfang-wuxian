@@ -83,6 +83,16 @@ android {
    // v1.9.1：应用名改用独立资源名 dfwx_app_name——rikkahub 库在 values-zh 等 6 个语言里也定义了
    // app_name="RikkaHub"，中文系统资源解析优先 values-zh，会导致桌面名字变成 RikkaHub（真机实测）。
    resValue("string", "dfwx_app_name", "东方无限")
+    // [DFW-73] 内置渠道回归（用户 2026-10-01 拍板，方案 = 服务端中转）：
+    //   这里注入的是**我们自己服务器的地址**和**应用令牌**，不是上游中转站地址、也不是真实 Key；
+    //   上游地址与真 Key 只存在于服务器 /etc/nginx/dfwx-ai-secret.conf（600），抓包抓不到。
+    //   令牌放在客户端就是可被扒的（用户已知情并接受："防君子就行了，靠诚信"）；
+    //   万一被白用，服务器换令牌 + 后台下发 ai_token 即可，不必发版。
+    //   后台可远程覆盖：RemoteConfigClient 的 control 行 ai_base_url / ai_token / ai_model / ai_max_tokens。
+    resValue("string", "dfwx_ai_url", "https://39.106.33.135/ai/v1")
+    resValue("string", "dfwx_ai_token", "<已轮换的令牌>")
+    resValue("string", "dfwx_ai_model", "deepseek-v4.1-flash")
+    resValue("string", "dfwx_ai_max_tokens", "8192")
    // [DFWX AI-004] 原内置渠道 resValue 三件套（dfwx_default_ai_url/_model/_key）已移除：
    // 不再把任何中转站地址、模型或 Key 注入 APK。用户的 AI 渠道全部由用户自行配置。
   }

@@ -21,6 +21,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -277,6 +278,11 @@ fun ModelListSheet(
         }
     }
 
+    // [DFW-73] 未诚信付费时点「内置渠道」→ 先弹引导窗，不让他选上。
+    // 用户 2026-10-01 原话："他没付费，他点内置渠道的时候，你就给他弹个窗……你必须得告诉他那个付费界面在哪。"
+    // 文案与按钮（「关闭」/「知道了」）是用户逐字定的，别自行改动。
+    var paywallVisible by remember { mutableStateOf(false) }
+
     ModalBottomSheet(
         onDismissRequest = {
             state.close()
@@ -295,14 +301,38 @@ fun ModelListSheet(
                 providers = state.filteredProviders,
                 modelType = state.type,
                 onSelect = {
-                    onSelect(it)
-                    dismiss()
+                    if (me.rerere.rikkahub.dfwx.DfwxBuiltinChannel.shouldBlockSelection(it, state.filteredProviders)) {
+                        paywallVisible = true
+                    } else {
+                        onSelect(it)
+                        dismiss()
+                    }
                 },
                 onDismiss = {
                     dismiss()
                 }
             )
         }
+    }
+
+    if (paywallVisible) {
+        AlertDialog(
+            onDismissRequest = { paywallVisible = false },
+            title = { Text("这个渠道需要先诚信付费") },
+            text = {
+                Text(
+                    "内置渠道的开销是我自己掏的，只给诚信付费的朋友用。\n" +
+                        "想用的话，去「设置 → 最上面的『诚信付费』」支持一下就好；\n" +
+                        "不支持也完全不影响其它功能。"
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = { paywallVisible = false }) { Text("知道了") }
+            },
+            dismissButton = {
+                TextButton(onClick = { paywallVisible = false }) { Text("关闭") }
+            },
+        )
     }
 }
 
