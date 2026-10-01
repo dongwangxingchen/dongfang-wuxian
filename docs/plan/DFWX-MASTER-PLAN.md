@@ -29,7 +29,7 @@
 4. `docs/plan/decisions.md`；
 5. `docs/plan/risk-register.md`；
 6. `docs/tasks/README.md`；
-7. 对应 `docs/tasks/DFWX-*.md` 任务卡；
+7. 历史任务卡：`docs/archive/tasks/legacy-cards/DFWX-*.md`（**已归档，只能当背景**；当前队列在 `taskctl` 任务面板）；
 8. `rikkahub/PATCHES.md`（涉及 vendor 时）。
 
 `docs/archive/` 只保存历史材料，不能作为当前实施命令。旧资料与当前代码冲突时，以当前源码、当前测试、`AGENTS.md` 和 `decisions.md` 为准。

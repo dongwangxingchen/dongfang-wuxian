@@ -43,8 +43,24 @@ class VersionSchemeJvmTest {
     /** 归零后的起点必须是 1.0.0 / 10000（用户 2026-09-30 决定）。 */
     @Test
     fun startsFromOneZeroZero() {
-        assertEquals("归零起点应为 1.0.0", "1.0.0", BuildConfig.VERSION_NAME)
-        assertEquals("归零起点版本号应为 10000", 10000, BuildConfig.VERSION_CODE)
+        /*
+         * 2026-09-30 归零：从 1.0.0 / 10000 重新计数（见 docs/plan/current-state.md §1）。
+         *
+         * **这里不能写死当前版本。** 旧版断言的是 `"1.0.0"` / `10000` 两个字面量，
+         * 等于"永远不许升版本" —— 2026-10-01 升到 1.0.2 时本类立刻变红。
+         * 该守的是**不变量**：归零之后只许往上走，且版本号与版本名始终一一对应。
+         */
+        assertTrue(
+            "归零起点是 1.0.0 / 10000，之后只许往上走：当前 ${BuildConfig.VERSION_NAME} / ${BuildConfig.VERSION_CODE}",
+            BuildConfig.VERSION_CODE >= 10000,
+        )
+        assertEquals(
+            "版本号必须与版本名一一对应（否则更新检测会错乱）",
+            codeFromName(BuildConfig.VERSION_NAME),
+            BuildConfig.VERSION_CODE,
+        )
+        val major = BuildConfig.VERSION_NAME.substringBefore('.').toInt()
+        assertTrue("major 至少是 1（换 major 意味着又一次重排，要显式决定）", major >= 1)
     }
 
     /** 规则本身要自洽：递增的版本名必须给出递增的版本号（否则更新检测会错乱）。 */

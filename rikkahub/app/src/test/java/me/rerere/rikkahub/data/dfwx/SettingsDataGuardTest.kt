@@ -18,7 +18,7 @@ import kotlin.uuid.Uuid
 /**
  * [DFWX AI-003] 数据保护层契约测试（纯 JVM，无 Robolectric）。
  *
- * 红线对照（docs/tasks/DFWX-AI-003.md）：
+ * 红线对照（docs/archive/tasks/legacy-cards/DFWX-AI-003.md）：
  *  - 不清空 settings.providers、不删用户 Provider —— 用例 4/5/9/10
  *  - 用户 Provider 序列化完全保留 —— 用例 1/2（往返用 JsonInstant，即 SettingsStore.persistSettings 的同一编码器）
  *  - 悬空模型引用安全修复 —— 用例 6/7

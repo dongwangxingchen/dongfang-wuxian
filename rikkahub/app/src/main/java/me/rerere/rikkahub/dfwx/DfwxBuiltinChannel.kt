@@ -202,12 +202,22 @@ object DfwxBuiltinChannel {
                 (assistant.chatModelId == null && nextChatModelId == model.id)
             if (usesBuiltin) assistant.copy(maxTokens = cfg.maxTokens) else assistant
         }
-        return settings.copy(
+        val synced = settings.copy(
             providers = providers,
             chatModelId = nextChatModelId,
             fastModelId = if (freshInstall) model.id else settings.fastModelId,
             assistants = assistants,
         )
+        /*
+         * [DFW-84] 再把「东方助手」的默认人设补上：名字、头像、软件使用知识。
+         * 判据与上面 maxTokens 完全一致（同一个 usesBuiltin），所以三件事永远作用于同一批助手，
+         * 不会出现"最大输出给了内置助手、头像却给了别的助手"这种错位。
+         * 只在字段为空时写入，用户改过的一律不覆盖 —— 细节见 DfwxAssistantProfile。
+         */
+        return DfwxAssistantProfile.applyDefaults(synced) { assistant ->
+            assistant.chatModelId == model.id ||
+                (assistant.chatModelId == null && nextChatModelId == model.id)
+        }
     }
 
     /**

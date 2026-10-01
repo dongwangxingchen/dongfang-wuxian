@@ -51,7 +51,7 @@
 
 | 任务场景 | 读哪里 |
 |---|---|
-| 刚接手/换窗口 | `docs/handover/`（最新那份 + `20260928-next-window-prompt.md`；**该目录故意不提交**） |
+| 刚接手/换窗口 | **`docs/handover/README.md`** —— 30 秒接手的单一入口（**该目录故意不提交**，是本机现场） |
 | 手势/滚动/搜索 bug | `docs/agents/lessons.md` 六-踩坑 2026-09-21晚 / 09-22 v1.19.5 |
 | AI 对话页改动 | `lessons.md` 六-踩坑 v1.19.5②③；`rikkahub/PATCHES.md` |
 | AI 页键盘/insets/顶栏错位 | `lessons.md` 六-踩坑 2026-09-28 v1.22.8（IME 根治 + **禁自研动画红线**）；任务卡 `DFWX-UI-005` |
@@ -65,9 +65,15 @@
 | 审美选型 | `~/heiyao/黑曜/06-开源参考库/00-总索引.md`；`lessons.md` 八 |
 | 服务器/远程公告/后端 | 技能 `dfwx-server`（连接、接口格式、运维命令、安全现状全在里面） |
 
-## 五、当前唯一交接入口（2026-09-28 晚更新）
+## 五、当前唯一交接入口（2026-10-01 更新）
 
-接手/换窗口时先读 `docs/handover/20260928-handover.md`（快速上手 3 步 + 当前现场 + 红线；**该目录故意不提交、不 push，是本机本地文件**——若不存在，说明换了机器或被人误删，直接用 `git show` 找不回，改按下面第 1-6 条从 `docs/plan/` 读起）。
+接手/换窗口时**先读 `docs/handover/README.md`** —— 它是 30 秒接手的单一入口
+（一句话现状 + 开工三步 + 进度快照 + 铁律红线 + 下一步 + 更深文档的索引）。
+它自己写明了怎么维护：**每次收尾只改三处，每处一两行**。
+
+`docs/handover/` 里 2026-09-28 / 09-29 的那几份是历史现场，只在需要考古时看。
+**该目录故意不提交、不 push，是本机本地文件**——若不存在，说明换了机器或被人误删，
+用 `git show` 找不回，改按下面第 1-6 条从 `docs/plan/` 读起。
 
 后续 AI、WorkBuddy 和人工维护必须先读：
 
@@ -75,8 +81,7 @@
 2. `docs/plan/current-state.md`
 3. `docs/plan/decisions.md`
 4. `docs/plan/risk-register.md`
-5. `docs/tasks/README.md`
-6. 对应的 `docs/tasks/DFWX-*.md`
+5. `docs/tasks/README.md`（**已迁移说明**：任务队列现在在 `taskctl` 任务面板，历史卡在 `docs/archive/tasks/legacy-cards/`）
 
 **当前优先队列（真机反馈驱动，优先于原计划）**：`DFWX-BRAND-003`（赞助闪退，需先拿真机堆栈）→ `DFWX-UI-005`（顶栏错位，禁自研 insets 动画）→ `DFWX-UI-006`（删空态文案），之后回原队列 `DFWX-TEST-001` 起。
 
