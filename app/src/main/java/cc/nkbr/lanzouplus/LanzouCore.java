@@ -1570,7 +1570,36 @@ final class LanzouCore {
   private static boolean isWafChallengePage(String html){String value=html==null?"":html;return value.contains("aliyun_waf")||value.contains("captchaV2")||value.contains("请完成以下操作，验证您是真人")||value.contains("verify that you are a real person");}
   private static String sameOriginEndpoint(DirectLink page,String raw,String expectedPath){if(raw.isEmpty())return"";try{URL base=new URL(page.url),endpoint=new URL(base,raw);if(!base.getProtocol().equalsIgnoreCase(endpoint.getProtocol())||!base.getHost().equalsIgnoreCase(endpoint.getHost())||effectivePort(base)!=effectivePort(endpoint)||!endpoint.getPath().endsWith(expectedPath))return"";return endpoint.toString();}catch(Exception ignored){return"";}}
   private static int effectivePort(URL url){return url.getPort()>=0?url.getPort():url.getDefaultPort();}
-  private static void requireLanzouPage(String value)throws IOException{try{URL url=new URL(value);if(!url.getProtocol().equalsIgnoreCase("https")||!LANZOU_HOST.matcher(url.getHost()).matches())throw new IOException("蓝奏目录跳转到了不受信任的地址");}catch(IOException error){throw error;}catch(Exception ignored){throw new IOException("蓝奏目录返回地址无效");}}
+  /**
+   * 蓝奏页面地址必须可信。
+   *
+   * [DFW-104 2026-10-01] **http 与 https 都要接受** —— 这是"该源已失效或跳转异常"的第二个真根因，
+   * 而且是**我自己在 v1.0.14 造出来的**。
+   *
+   * 因果链：
+   *   ① 用户设备上 https 到蓝奏的某条通道握手失败（SSLHandshakeException）；
+   *   ② v1.0.14 我加了"https 失败就降级 http 重试"；
+   *   ③ 但本方法**只认 https**，降级后的 http 地址当场被它拒掉，
+   *      抛出的正是「蓝奏目录跳转到了不受信任的地址」；
+   *   ④ `friendlyError()` 把它映射成「该源已失效或跳转异常」——
+   *      **用户看到的还是失败，只是错误换了一句**。
+   *
+   * 为什么接受 http 是安全的（与 DFW-10 的既定设计一致）：
+   *   · `network_security_config.xml` **本来就为蓝奏域名放行了明文**
+   *     （用户可粘贴 http 分享链接，这是既有能力）；
+   *   · 下载的安全底线是**下载后的三重校验**：sha256 + 包名 + 签名证书，
+   *     篡改的包在系统层面装不上；
+   *   · 域名仍受 `LANZOU_HOST` 白名单约束，**没有放宽到任意主机**。
+   */
+  private static void requireLanzouPage(String value)throws IOException{
+    try{
+      URL url=new URL(value);
+      String scheme=url.getProtocol()==null?"":url.getProtocol().toLowerCase(Locale.ROOT);
+      boolean https=scheme.equals("https");
+      boolean http=scheme.equals("http");
+      if(!(https||http)||!LANZOU_HOST.matcher(url.getHost()).matches())throw new IOException("蓝奏目录跳转到了不受信任的地址");
+    }catch(IOException error){throw error;}catch(Exception ignored){throw new IOException("蓝奏目录返回地址无效");}
+  }
     private static boolean isDirectoryOffShell(String html){String value=html==null?"":html.toLowerCase(Locale.ROOT).replace('\'', '"');return value.contains("class=\"off\"")&&value.contains("ufolder")&&value.contains("display:none")&&!value.contains("filemoreajax.php")&&!value.contains("foldermoreajax.php");}
   private static boolean isUnavailableShareShell(String html){String value=html==null?"":html.toLowerCase(Locale.ROOT),title=strip(cap(html==null?"":html,"(?is)<title[^>]*>(.*?)</title>")).toLowerCase(Locale.ROOT);return isDirectoryOffShell(html)||value.contains("router.parklogic.com")||title.equals("redirecting...")||title.contains("403 forbidden")||title.equals("403")||title.equals("404")||value.contains("/assets/share/404a.css");}
     private static boolean isCancelledShareText(String html){String text=COLLAPSE_WHITESPACE.matcher(strip(html==null?"":html)).replaceAll("").replace("，","").replace(",","");return text.contains("分享已取消")||text.contains("文件取消分享")||text.contains("文件已取消分享")||text.contains("已被取消分享")||text.contains("文件不存在或已删除")||text.contains("来晚啦")&&text.contains("取消分享");}
