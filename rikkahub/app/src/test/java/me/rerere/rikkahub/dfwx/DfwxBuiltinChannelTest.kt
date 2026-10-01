@@ -2,6 +2,7 @@ package me.rerere.rikkahub.dfwx
 
 import me.rerere.ai.provider.Model
 import me.rerere.ai.provider.ProviderSetting
+import me.rerere.rikkahub.data.datastore.Settings
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -199,5 +200,93 @@ class DfwxBuiltinChannelTest {
     fun config_modelNameIsExactlyTheUpstreamId() {
         // 用户 2026-10-01 明确纠正过："名字你不要显示为 DeepSeek4.1，得叫 deepseek-v4.1-flash"
         assertEquals("deepseek-v4.1-flash", DfwxBuiltinChannel.DEFAULT_MODEL_ID)
+    }
+
+    // ── 同步：幂等 + 模型 id 跨轮稳定（DFW-26 审计查出的必现 bug） ──────────
+
+    /**
+     * 这条守的是一个**必现且用户可见**的 bug（DFW-26 审计查出）：
+     * `Model.id` 默认是 `Uuid.random()`，每构造一次就换一个；而 RikkaHub 的 `findModelById()`
+     * 按 `model.id` 精确匹配。旧实现每轮同步都新建 `Model(...)`，于是用户重启后
+     * `chatModelId` 指向上一轮的随机 id → 查不到 → AI 页弹「请先选择模型」，**每次重启都要重选一次**。
+     */
+    @Test
+    fun sync_isIdempotent_andKeepsTheModelIdStable() {
+        installChannel()
+        val cfg = DfwxBuiltinChannel.current()
+        val fresh = Settings().copy(providers = emptyList())
+        val first = DfwxBuiltinChannel.buildSyncedSettings(fresh, cfg)
+        val second = DfwxBuiltinChannel.buildSyncedSettings(first, cfg)
+
+        val firstModelId = first.providers.single { DfwxBuiltinChannel.isBuiltin(it) }.models.single().id
+        val secondModelId = second.providers.single { DfwxBuiltinChannel.isBuiltin(it) }.models.single().id
+        assertEquals("模型 id 必须跨轮稳定，否则用户每次重启都要重选模型", firstModelId, secondModelId)
+        assertEquals(
+            "第二次同步不该再改任何东西（否则每次启动都白写一遍 DataStore）",
+            first,
+            second,
+        )
+    }
+
+    @Test
+    fun sync_preservesTheUsersSelectedModelAcrossLaunches() {
+        installChannel()
+        val cfg = DfwxBuiltinChannel.current()
+        val first = DfwxBuiltinChannel.buildSyncedSettings(Settings().copy(providers = emptyList()), cfg)
+        // 模拟"用户重启"：拿上一轮的 settings 再同步一次
+        val second = DfwxBuiltinChannel.buildSyncedSettings(first, cfg)
+        val provider = second.providers.single { DfwxBuiltinChannel.isBuiltin(it) }
+        assertTrue(
+            "重启后 chatModelId 必须仍能解析到内置模型（否则 AI 页会弹「请先选择模型」）",
+            provider.models.any { it.id == second.chatModelId },
+        )
+    }
+
+    @Test
+    fun sync_keepsAnExistingBuiltinProviderInsteadOfDuplicatingIt() {
+        installChannel()
+        val cfg = DfwxBuiltinChannel.current()
+        val once = DfwxBuiltinChannel.buildSyncedSettings(Settings().copy(providers = emptyList()), cfg)
+        val twice = DfwxBuiltinChannel.buildSyncedSettings(once, cfg)
+        assertEquals("内置渠道只能有一条，重复同步不许叠出第二条", 1, twice.providers.count { DfwxBuiltinChannel.isBuiltin(it) })
+        assertEquals(
+            "渠道 id 也要沿用旧的",
+            once.providers.single { DfwxBuiltinChannel.isBuiltin(it) }.id,
+            twice.providers.single { DfwxBuiltinChannel.isBuiltin(it) }.id,
+        )
+    }
+
+    @Test
+    fun sync_neverTouchesAUsersOwnProvidersOrModelChoice() {
+        installChannel()
+        val cfg = DfwxBuiltinChannel.current()
+        val (userProvider, userModel) = userProvider()
+        val base = Settings().copy(providers = listOf(userProvider), chatModelId = userModel.id)
+        val after = DfwxBuiltinChannel.buildSyncedSettings(base, cfg)
+        assertEquals("用户自己的渠道必须原样保留", userProvider, after.providers.first())
+        assertEquals("已有自己渠道的用户，模型选择不许被内置渠道顶掉", userModel.id, after.chatModelId)
+    }
+
+    /**
+     * 这条守的是 DFW-26 审计查出的第 3 条：`maxTokens=8192` 曾经**静默失效**。
+     * 原因有二：`Assistant.chatModelId` 默认是 null（跟随全局），且模型 id 每轮都变。
+     */
+    @Test
+    fun sync_appliesMaxTokensToAssistantsThatFollowTheBuiltinModel() {
+        installChannel()
+        val cfg = DfwxBuiltinChannel.current()
+        val after = DfwxBuiltinChannel.buildSyncedSettings(Settings().copy(providers = emptyList()), cfg)
+        val builtinModelId = after.providers.single { DfwxBuiltinChannel.isBuiltin(it) }.models.single().id
+        assertEquals("首装必须把内置模型设成默认模型", builtinModelId, after.chatModelId)
+        assertTrue("至少要有助手跟着内置模型", after.assistants.isNotEmpty())
+        for (assistant in after.assistants) {
+            if (assistant.chatModelId == null || assistant.chatModelId == builtinModelId) {
+                assertEquals(
+                    "跟随内置模型的助手必须拿到后台配的最大输出（8192）",
+                    cfg.maxTokens,
+                    assistant.maxTokens,
+                )
+            }
+        }
     }
 }
