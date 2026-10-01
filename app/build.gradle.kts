@@ -48,8 +48,14 @@ android {
   //
   // 为什么可以归零：用户会卸载旧版重装（无老用户需要兼容升级）。
   // 若将来想改回大数字：只需保证**新的 versionCode 大于所有已发布过的值**。
-  versionCode = 10022
-  versionName = "1.0.22"
+  //
+  // [DFW-91] **只写这一个数字**：versionName 由它自动算出来。
+  // 以前这里要改两行（10022 和 "1.0.22"），改漏一行 `VersionSchemeJvmTest` 立刻变红；
+  // 而改漏 versionCode 的后果最阴——用户永远收不到更新，界面上完全看不出来。
+  // 用户原话："你每次更新都得改一堆地方" → 把"一堆"压成"一个"。
+  val buildCode = 10023
+  versionCode = buildCode
+  versionName = "${buildCode / 10000}.${(buildCode / 100) % 100}.${buildCode % 100}"
  }
  compileOptions { sourceCompatibility = JavaVersion.VERSION_17; targetCompatibility = JavaVersion.VERSION_17 }
  packaging {

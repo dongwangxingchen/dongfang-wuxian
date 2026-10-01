@@ -723,6 +723,23 @@ trigger.addView(value,new LinearLayout.LayoutParams(0,dp(54),1));arrow=new Image
   ImageView settingsLeadingIcon(int icon){ImageView image=new ImageView(this);image.setImageResource(icon);image.setColorFilter(PRIMARY);image.setScaleType(ImageView.ScaleType.CENTER_INSIDE);image.setPadding(dp(2),dp(2),dp(2),dp(2));image.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);return image;}
   TextView settingsRowTitle(String label){TextView title=text(label,15,TEXT,560);title.setGravity(Gravity.CENTER_VERTICAL);title.setPadding(dp(12),0,dp(8),0);title.setMaxLines(2);return title;}
   View settingsAction(int icon,String label,View.OnClickListener click){LinearLayout row=settingsRowShell();row.setClickable(true);row.setFocusable(true);row.setBackground(settingsPress());row.setContentDescription(label);row.setOnClickListener(click);applePressScale(row);ImageView image=settingsLeadingIcon(icon);row.addView(image,settingsIconBox());TextView title=settingsRowTitle(label);row.addView(title,new LinearLayout.LayoutParams(0,-1,1));return row;}
+  /**
+   * [DFW-91] 带**右侧说明文字**的设置行（用于「检查更新」右侧显示当前版本号）。
+   *
+   * 用户原话：「你就找一个地方放版本号吧，在检查更新四个字右侧放着版本号。
+   * 然后关于东方无限底部的和其他地方显示版本号的地方，你都给我删除，优化掉。
+   * 不然的话，你每次更新都得改一堆地方。」
+   */
+  View settingsAction(int icon,String label,String trailing,View.OnClickListener click){
+    View row=settingsAction(icon,label,click);
+    if(trailing==null||trailing.trim().isEmpty())return row;
+    TextView value=text(trailing.trim(),13,MUTED);
+    value.setGravity(Gravity.CENTER_VERTICAL);
+    value.setMaxLines(1);
+    value.setPadding(dp(8),0,dp(6),0);
+    if(row instanceof LinearLayout)((LinearLayout)row).addView(value,new LinearLayout.LayoutParams(-2,-1));
+    return row;
+  }
   TextView recoveryOption(String label,Runnable action){TextView option=text(label,12,TEXT);option.setGravity(Gravity.CENTER);option.setPadding(dp(10),0,dp(10),0);option.setMinWidth(dp(56));option.setClickable(true);option.setFocusable(true);option.setBackground(settingsPress());option.setContentDescription(label);option.setOnClickListener(v->action.run());applePressScale(option);return option;}
   View recoveryGroup(){LinearLayout group=settingsRowShell();ImageView icon=settingsLeadingIcon(R.drawable.ic_refresh);group.addView(icon,settingsIconBox());TextView title=settingsRowTitle("恢复");group.addView(title,new LinearLayout.LayoutParams(0,-1,1));LinearLayout actions=new LinearLayout(this);actions.setGravity(Gravity.END|Gravity.CENTER_VERTICAL);GradientDrawable boundary=solidShape(SET_HIGH,16);boundary.setStroke(dp(1),SET_STROKE);actions.setBackground(boundary);actions.setClipToOutline(true);String[] labels=new String[]{"所有列表","默认设置"};Runnable[] callbacks=new Runnable[]{this::confirmResetAllSources,this::restoreSettingsDefaults};for(int i=0;i<labels.length;i++){if(i>0){View divider=new View(this);divider.setBackgroundColor(DIV);actions.addView(divider,new LinearLayout.LayoutParams(dp(1),dp(28)));}actions.addView(recoveryOption(labels[i],callbacks[i]),new LinearLayout.LayoutParams(-2,dp(56)));}group.addView(actions,new LinearLayout.LayoutParams(-2,dp(56)));group.setContentDescription("恢复：所有列表、默认设置");return group;}
   ScrollView limitedDialogScroll(View body,int maxDp){ScrollView scroll=new ScrollView(this){@Override protected void onMeasure(int widthSpec,int heightSpec){int available=Math.min(dp(maxDp),Math.max(dp(240),getResources().getDisplayMetrics().heightPixels-dp(180)));super.onMeasure(widthSpec,MeasureSpec.makeMeasureSpec(available,MeasureSpec.AT_MOST));}};scroll.setFillViewport(false);scroll.setVerticalScrollBarEnabled(true);scroll.addView(body,new ScrollView.LayoutParams(-1,-2));return scroll;}
@@ -1113,7 +1130,7 @@ FrameLayout.LayoutParams tp=new FrameLayout.LayoutParams(Math.max(dp(1),Math.min
   /** 手动入口：显示当前版本 + 立即检查；不受 24h 节流限制。 */
   void manualCheckForUpdates(){checkForUpdates(true);}
   void checkForUpdates(boolean manual){if(manual)manualUpdateFeedbackRequested.set(true);if(!updateCheckRunning.compareAndSet(false,true)){if(manual)showUpdateNotice("正在检查更新…",false);return;}if(manual)showUpdateNotice("正在检查更新…",false);checkLanzouPlusUpdate(manual);}
-  void finishUpdateCheck(boolean manual,Runnable success,Exception error){runOnUiThread(()->{boolean report=manualUpdateFeedbackRequested.getAndSet(false)||manual;if(ownsStartupUpdateCheck)rememberAutoUpdateCheck(System.currentTimeMillis());ownsStartupUpdateCheck=false;updateCheckRunning.set(false);if(isFinishing()||isDestroyed())return;if(error!=null){if(report)showUpdateNotice("检查更新失败："+friendlyError(error),true);return;}if(success!=null)success.run();else if(report)showUpdateNotice(PRODUCT_NAME+" 已是最新版本（"+BuildConfig.VERSION_NAME+"）",false);});}
+  void finishUpdateCheck(boolean manual,Runnable success,Exception error){runOnUiThread(()->{boolean report=manualUpdateFeedbackRequested.getAndSet(false)||manual;if(ownsStartupUpdateCheck)rememberAutoUpdateCheck(System.currentTimeMillis());ownsStartupUpdateCheck=false;updateCheckRunning.set(false);if(isFinishing()||isDestroyed())return;if(error!=null){if(report)showUpdateNotice("检查更新失败："+friendlyError(error),true);return;}if(success!=null)success.run();else if(report)showUpdateNotice(PRODUCT_NAME+" 已是最新版本",false);});}
   /**
    * [DFWX] DFW-59：更新检查改为**自有服务器优先、GitHub 兜底**。
    *
@@ -1516,12 +1533,21 @@ FrameLayout.LayoutParams tp=new FrameLayout.LayoutParams(Math.max(dp(1),Math.min
     FrameLayout.LayoutParams columnParams=new FrameLayout.LayoutParams(-1,-2,Gravity.CENTER);
     overlay.addView(column,columnParams);
 
-    // 隐藏后门：连点版本号 7 次放行。**界面上不写任何提示**——它是应急逃生口，不是给所有人用的功能。
-    TextView version=text(PRODUCT_NAME+" "+BuildConfig.VERSION_NAME,11,MUTED);
+    /*
+     * [DFW-91] 隐藏后门：连点这行文字 7 次放行。**界面上不写任何提示，点击也不给任何反馈**
+     * （不弹提示、不震动、不变色）—— 它是应急逃生口，一旦有反馈就会被人发现。
+     *
+     * 这里**不再显示版本号**：用户要求"版本号只留一处（检查更新右侧）"。
+     * 但后门本身必须留着：后台开了维护模式时，这是唯一的自助通道。
+     */
+    TextView version=text(PRODUCT_NAME,11,MUTED);
     version.setGravity(Gravity.CENTER);
     version.setPadding(dp(12),dp(10),dp(12),dp(10));
     version.setOnClickListener(v->{
-      if(maintenanceGate().tapVersion())dismissMaintenanceOverlay();
+      if(maintenanceGate().tapVersion()){
+        dismissMaintenanceOverlay();
+        showBackdoorNotice();
+      }
     });
     FrameLayout.LayoutParams versionParams=new FrameLayout.LayoutParams(-2,-2,Gravity.BOTTOM|Gravity.CENTER_HORIZONTAL);
     versionParams.bottomMargin=dp(28);
@@ -1538,6 +1564,24 @@ FrameLayout.LayoutParams tp=new FrameLayout.LayoutParams(Math.max(dp(1),Math.min
       removeFromParent(maintenanceOverlay);
       maintenanceOverlay=null;
     }
+  }
+
+  /**
+   * [DFW-91] 后门被打开后给**用户**看的那段话（用户 2026-10-01 亲自写的文案，一字未改）。
+   *
+   * 为什么用对话框而不是顶部通知条：通知条正文上限 4 行，这段话 80 多字在窄屏上会被截断，
+   * 而**被截掉的正好是最后那句"我无法保障你的安全"** —— 那才是要让人看见的部分。
+   */
+  static final String BACKDOOR_NOTICE="测试后门已开启，这是我刻意留下的备用测试通道，如果你是用户，还请小心使用，"
+      +"因为当我开启了维护模式，那就说明该软件或许出现了什么问题或者是故障与异常，我无法保障你的安全。";
+
+  void showBackdoorNotice(){
+    AlertDialog dialog=new AlertDialog.Builder(this)
+        .setTitle("测试后门已开启")
+        .setMessage(BACKDOOR_NOTICE)
+        .setPositiveButton("知道了",null)
+        .create();
+    showRounded(dialog);
   }
 
   /**
@@ -2789,7 +2833,7 @@ content=new LinearLayout(this);content.setOrientation(LinearLayout.VERTICAL);pag
      它本来就是"关于这个软件"的东西，和崩溃日志/参考致谢/关于放一起才对。 */
   footerContent.addView(settingsAction(R.drawable.ic_history,"更新记录",v->showChangelogCenter()),new LinearLayout.LayoutParams(-1,-2));
   View footerDivider2=new View(this);footerDivider2.setBackgroundColor(SET_STROKE2);LinearLayout.LayoutParams fd2Lp=new LinearLayout.LayoutParams(-1,dp(1));fd2Lp.setMargins(dp(50),0,dp(8),0);footerContent.addView(footerDivider2,fd2Lp);
-  footerContent.addView(settingsAction(R.drawable.ic_refresh,"检查更新 · 当前 "+BuildConfig.VERSION_NAME,v->manualCheckForUpdates()),new LinearLayout.LayoutParams(-1,-2));
+  footerContent.addView(settingsAction(R.drawable.ic_refresh,"检查更新",BuildConfig.VERSION_NAME,v->manualCheckForUpdates()),new LinearLayout.LayoutParams(-1,-2));
   View footerDivider3=new View(this);footerDivider3.setBackgroundColor(SET_STROKE2);LinearLayout.LayoutParams fd3Lp=new LinearLayout.LayoutParams(-1,dp(1));fd3Lp.setMargins(dp(50),0,dp(8),0);footerDivider3.setLayoutParams(fd3Lp);footerContent.addView(footerDivider3);
   footerContent.addView(settingsAction(R.drawable.ic_tool_info,"关于"+PRODUCT_NAME,v->showAboutPage()),new LinearLayout.LayoutParams(-1,-2));
   footer.addView(footerContent,new LinearLayout.LayoutParams(-1,-2));settingsSearchSections.add(footer);body.addView(footer,new LinearLayout.LayoutParams(-1,-2));
@@ -3517,7 +3561,6 @@ content=new LinearLayout(this);content.setOrientation(LinearLayout.VERTICAL);pag
     body.addView(introCard,aboutCardLp());
     LinearLayout privacyCard=aboutCard();privacyCard.addView(aboutHeading("隐私政策"),new LinearLayout.LayoutParams(-1,dp(24)));privacyCard.addView(aboutDivider());privacyCard.addView(buildPrivacyPolicyPanel(),new LinearLayout.LayoutParams(-1,-2));
     body.addView(privacyCard,aboutCardLp());
-    TextView verText=text(PRODUCT_NAME+"  "+BuildConfig.VERSION_NAME,12,MUTED);verText.setGravity(Gravity.CENTER);LinearLayout.LayoutParams verLp=new LinearLayout.LayoutParams(-1,-2);verLp.setMargins(0,dp(18),0,dp(6));body.addView(verText,verLp);
     ScrollView scroll=new ScrollView(this);scroll.setFillViewport(true);scroll.addView(body,new ScrollView.LayoutParams(-1,-2));root.addView(scroll,new LinearLayout.LayoutParams(-1,0,1));}
   /**
    * [DFW-78] **诚信付费：站内页**。

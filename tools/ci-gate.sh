@@ -110,7 +110,7 @@ gate_apk() {
              "ACCESS_ADSERVICES_AD_ID" \
              "ACCESS_ADSERVICES_ATTRIBUTION" \
              "BIND_GET_INSTALL_REFERRER_SERVICE"; do
-    grep -q "$bad" <<<"$perms" && fail "包内又出现广告/归因权限：$bad（DFW-9 已摘除 Firebase）"
+    grep -q "$bad" <<<"$perms" && fail "包内又出现广告/归因权限：${bad}（DFW-9 已摘除 Firebase）"
   done
 
   step "断言清单关键开关（DFW-10 / DFW-16）"
