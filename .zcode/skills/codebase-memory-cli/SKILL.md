@@ -1,17 +1,40 @@
 ---
 name: codebase-memory-cli
-description: 代码图谱 codebase-memory 的命令行用法——stdio MCP 形态握手超时(150s+)禁止再挂载,一律走 cli 模式(2.5-3s/次)。dongfang-wuxian 全仓库图谱 20348 节点。
+description: 代码图谱 codebase-memory 的两种用法——MCP stdio 形态已可在 2.6s 握手挂载（v0.10.0 复测,scout profile 3.4k tokens）;CLI 模式仍适用于脚本与批量查询。dongfang-wuxian 全仓库图谱 20348 节点。
 ---
 
-# codebase-memory CLI 用法（2026-09-25 实测固化）
+# codebase-memory 用法（2026-09-29 复测更新）
 
-## 铁律：不要尝试挂载它的 MCP 形态
+## 结论先行：MCP 形态已可用，2026-09-25 那条"禁止挂载"结论作废
 
-`mcp.servers` 里的 codebase-memory 每次会话都挂不上的原因是**硬性的**：stdio 模式启动要加载
-全部图谱（mem.init budget_mb=4096），实测 JSON-RPC 握手 **150 秒以上**仍未完成，任何客户端
-的连接超时都等不起。看到它"注册了但没挂上"**不是配置坏了，不要再修、不要重装、不要加超时**。
+**历史结论**（2026-09-25 实测）：stdio 模式要加载全部图谱（mem.init budget_mb=4096），
+JSON-RPC 握手 150 秒以上未完成，客户端连接超时，因此当时定为一律走 cli 模式。
 
-## 正确用法：cli 模式（每次 2.5-3 秒，含加载）
+**2026-09-29 在 v0.10.0 上复测，三点全部改善**：
+
+| 测试条件 | 结果 |
+|---|---|
+| 常规环境 initialize | **2.6s** ✅ |
+| 裸环境（`env -i`，模拟 MCP 客户端 spawn） | **2.6s** ✅ |
+| 仓库目录内 initialize | **0.0s**（图谱已预热）✅ |
+
+15 个工具正常列出，`list_projects` 调用 0.0s 返回。**当前仓库 `.mcp.json` 因此已挂载它。**
+
+## MCP 形态的成本控制：`--tool-profile=scout`
+
+默认暴露 15 个工具、schema 24,673 字符（≈6,168 tokens）。加 `--tool-profile=scout` 后：
+
+- 7 个工具、schema 13,403 字符（**≈3,350 tokens，成本腰斩**）
+- 保留全部查询能力：`search_graph` / `trace_path` / `get_code_snippet` /
+  `get_architecture` / `list_projects` / `index_status` / `check_index_coverage`
+- 去掉写图操作（`index_repository` / `delete_project` / `manage_adr` / `ingest_traces` 等）
+
+**这是当前推荐形态**——本环境的 Tool Search 已实测失效（上游 GLM 静默忽略 `tool_reference`），
+工具 schema 会全部常驻上下文，所以必须靠 profile 收窄而不是靠延迟加载。
+
+需要全量工具时改回默认（去掉 `args`）或用 CLI 模式。
+
+## CLI 模式（脚本与批量场景仍适用，每次 2.5-3 秒）
 
 ```bash
 CB=/Users/<用户名>/.local/lib/codebase-memory-mcp/v0.10.0/codebase-memory-mcp
@@ -21,6 +44,7 @@ $CB cli --json <tool> '<json参数>' 2>/dev/null | tail -1
 - stderr 有 mem.init 等日志噪声：`2>/dev/null` 丢掉，`tail -1` 取最后一行 JSON。
 - 输出 JSON 的正文在 `content[0].text` 里（结构化结果在 `structuredContent`）。
 - 每次调用都重新加载（2.5-3s 固定开销），**批量问题攒一次查**，不要一条一条问。
+- 判断依据：脚本里调用、或一次性跑多个查询、或不想让 schema 占上下文时用 CLI。
 
 ## 可用工具（15 个，stdio tools/list 实测）
 
