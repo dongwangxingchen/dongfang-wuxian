@@ -96,7 +96,32 @@ final class DirectLinkResolver implements AutoCloseable {
   private void awaitPassword(Request request,boolean rejectedPrevious){PasswordCallback interactive=null;synchronized(lock){if(request.done||closed)return;request.awaitingPassword=true;request.password="";for(Callback callback:request.callbacks)if(callback instanceof PasswordCallback){interactive=(PasswordCallback)callback;break;}}if(interactive==null){finished(request,null,0,"无法解析下载链接：需要访问密码");return;}try{interactive.passwordRequired(rejectedPrevious);}catch(RuntimeException ignored){android.util.Log.w("DirectLinkResolver.java", "DirectLinkResolver.java RuntimeException: "+ignored.getMessage(), ignored);}}
 
   @Override public void close(){List<Callback> callbacks=new ArrayList<>();synchronized(lock){if(closed)return;closed=true;pending.clear();for(Request request:inflight.values())if(!request.done){request.done=true;request.queued=false;request.awaitingPassword=false;callbacks.addAll(request.callbacks);}inflight.clear();}retries.shutdownNow();executor.shutdownNow();for(Callback callback:callbacks)try{callback.failed("直链解析已取消");}catch(RuntimeException ignored){android.util.Log.w("DirectLinkResolver.java", "DirectLinkResolver.java RuntimeException: "+ignored.getMessage(), ignored);}}
-  private static String failureMessage(Throwable error){Throwable current=error;while(current.getCause()!=null)current=current.getCause();String value=current.getMessage();if(value==null||value.trim().isEmpty())value=current.getClass().getSimpleName();return value.startsWith("无法解析下载链接：")?value:"无法解析下载链接："+value;}
+  /**
+   * [DFW-88 2026-10-01] 失败原因要**说得清是哪一个环节、哪一个异常**。
+   *
+   * 原来只取**根因**的 message 就完事，结果用户看到的是
+   * `无法解析下载链接：Trust anchor for certification path not found`
+   * —— 既不知道是哪个网址，也看不出异常类型（SSL？超时？WAF？），
+   * 排查时只能靠猜，来回好几轮。
+   *
+   * 现在带上**异常链的类名**（去掉包名前缀）与根因消息，形如：
+   *   `无法解析下载链接：[SSLHandshakeException] Trust anchor for certification path not found`
+   * 这样用户截一张图，就能直接定位到是哪一类故障。
+   */
+  private static String failureMessage(Throwable error){
+    StringBuilder chain=new StringBuilder();
+    for(Throwable current=error;current!=null;current=current.getCause()){
+      String name=current.getClass().getSimpleName();
+      if(chain.length()>0)chain.append(" <- ");
+      chain.append(name);
+      if(chain.length()>160)break;
+    }
+    Throwable root=error;while(root.getCause()!=null)root=root.getCause();
+    String value=root.getMessage();
+    if(value==null||value.trim().isEmpty())value=root.getClass().getSimpleName();
+    String text="无法解析下载链接："+(chain.length()>0?"["+chain+"] ":"")+value;
+    return text;
+  }
   private static boolean validPassword(String value){if(value==null||value.isEmpty()||value.length()>64)return false;for(int i=0;i<value.length();i++)if(Character.isISOControl(value.charAt(i)))return false;return true;}
   private static String clean(String value){return value==null?"":value.trim();}
   private static final class Cache { final String url;final long at;Cache(String url,long at){this.url=url;this.at=at;} }

@@ -80,7 +80,13 @@ final class LanzouCore {
   private static final String DIRECTORY_INDEX_PREFS="directory-index-v2";
   private static final String SEARCH_INDEX_FILE="search-index-v1.json";
     private static final int MAX_SEARCH_INDEX_ITEMS=50000,SEARCH_INDEX_FLUSH_ITEMS=250;
-    private static final String[] LANZOU_BASE_ORIGINS={"https://oreojiang.lanzout.com","https://wwc.lanzout.com","https://www.lanzout.com","https://wwc.lanzoux.com","https://www.lanzoux.com","https://wwc.lanzouw.com","https://www.lanzouw.com","https://www.lanzoup.com","https://www.lanzouo.com","https://www.lanzouz.com"};
+    private static final String[] LANZOU_BASE_ORIGINS={/* [DFW-88 2026-10-01] **已剔除 `https://wwc.lanzoux.com`**：该域名证书**已过期**，任何走它的请求都会 TLS 握手失败（`certificate has expired` → 安卓上报成 `Trust anchor for certification path not found`），用户看到的则是「无法解析下载链接」。实测证据（本机复现，两种工具一致）：
+    curl  -sv https://wwc.lanzoux.com/  -> SSL certificate problem: certificate has expired
+    python ssl.create_default_context() -> SSLCertVerificationError: certificate has expired
+它原来排在池子第 4 位，而**这个池子不只用于浏览换线，还被 `lanzouxDirectMirrors()` 用来给直链拼镜像** —— 死域名留在里面，两条路都会踩到，表现就是「无论哪个链接都是」。
+替换成 `https://www.lanzoux.com`（同一个站，证书正常，实测通过）。
+维护提示：域名池里的每一条都要能过 TLS。新增前先 `curl -sv https://<域名>/` 看一眼。 */
+    "https://oreojiang.lanzout.com","https://wwc.lanzout.com","https://www.lanzout.com","https://www.lanzoux.com","https://wwc.lanzouw.com","https://www.lanzouw.com","https://www.lanzoup.com","https://www.lanzouo.com","https://www.lanzouz.com"};
         private static final String CANONICAL_SOURCE_ORIGIN="https://oreojiang.lanzout.com";
   private static volatile String configuredPreferredBaseOrigin="";
   private static volatile long configuredSearchBudgetMillis=DEFAULT_SEARCH_BUDGET_MS;
