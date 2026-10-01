@@ -2,7 +2,12 @@ package cc.nkbr.lanzouplus;
 
 import android.animation.ValueAnimator;
 import android.content.Context;
+import android.graphics.Canvas;
 import android.graphics.Color;
+import android.graphics.LinearGradient;
+import android.graphics.Matrix;
+import android.graphics.Paint;
+import android.graphics.Shader;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.view.Gravity;
@@ -38,8 +43,12 @@ public class IntegrityPayButton extends FrameLayout {
   private final boolean motionEnabled;
   /** 按钮密度：onLayout 里算亮带宽度下限用。 */
   private final float density;
-  /** 扫光层（仅已付费态存在）。包级可见：同包 JVM 用例要断言"高度与按钮同高"。 */
-  View shine;
+  /** 扫光的绘制工具。**没有子 View**：见 dispatchDraw 的说明。 */
+  private final Paint sweepPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+  private final Matrix sweepMatrix = new Matrix();
+  private LinearGradient sweepShader;
+  /** 当前扫光进度 0..1；<0 = 本帧不画（未付费 / 动画关 / 还没上屏）。 */
+  float sweepT = -1f;
   /** 扫光动画器：null = 未启动或已取消。包级可见：同包 JVM 用例要断言"动画关/退场后必须停"。 */
   ValueAnimator shineAnimator;
 
@@ -106,73 +115,84 @@ public class IntegrityPayButton extends FrameLayout {
       subLp.topMargin = Math.round(density * 3);
       box.addView(sub, subLp);
     }
-    if (paid) {
-      shine = new View(context);
-      // 水平三段渐变 + 两侧柔肩：白光是**竖向的柔和亮带**，不再是对角斜带。
-      // 峰值仍是 0x59（35% 白）—— 与旧实现同值，所以不会比现在更刺眼；
-      // 两头透明保证亮带在左右两端没有硬边，肩部 0x1A 让亮带边缘是渐隐而不是刀切。
-      GradientDrawable sweep = new GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT,
-          new int[]{0x00FFFFFF, 0x1AFFFFFF, 0x59FFFFFF, 0x1AFFFFFF, 0x00FFFFFF});
-      shine.setBackground(sweep);
-      shine.setAlpha(0f);
-      // 尺寸由 onMeasure/onLayout 接管：MATCH_PARENT 只是表达"要铺满"的意图，
-      // 真实绘制框在 onLayout 里按按钮实际大小钉死（见那两个 override 的注释）。
-      LayoutParams shineLp = new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT, Gravity.CENTER_VERTICAL);
-      addView(shine, shineLp);
-    }
     setContentDescription(paid ? "已诚信付费，全部权限已开放" : "诚信付费，自愿支持开发");
     setOnClickListener(v -> { if (onClick != null) onClick.run(); });
   }
 
-  /** 高度是 wrap_content 时，MATCH_PARENT 的扫光层**不能**参与按钮高度决策：
-   *  FrameLayout 在非 EXACTLY 规格下会把 MATCH_PARENT 子视图按"父容器给的可用高度"来量，
-   *  结果是把按钮撑到父容器给的最大高度（v1.4.2 快照踩过：整块按钮变成一屏高）。
-   *  做法：高度改用 UNSPECIFIED 规格量一次，让内容（标题行 + 副标）决定按钮高度；
-   *  扫光层的真实绘制框交给 onLayout 钉（它要的是"整块按钮"，含 padding 区）。 */
-  @Override protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
-    int heightMode = MeasureSpec.getMode(heightMeasureSpec);
-    if (shine == null || heightMode == MeasureSpec.EXACTLY) {
-      super.onMeasure(widthMeasureSpec, heightMeasureSpec);
-      return;
-    }
-    super.onMeasure(widthMeasureSpec, MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED));
-    int height = getMeasuredHeight();
-    if (heightMode == MeasureSpec.AT_MOST) height = Math.min(height, MeasureSpec.getSize(heightMeasureSpec));
-    setMeasuredDimension(getMeasuredWidth(), height);
+  // ── 扫光：直接画，不用子 View ────────────────────────────────────────────
+  //
+  // 2026-10-01 第二次真机反馈（用户逐字："它那个流光效果并没有在诚信付费上面做的很好。
+  // 你要适配就给它适配好，你别在这里整的只有 2/3 的地方，而且还有明显的矩形感觉"）。
+  //
+  // 上一版的做法是**加一个子 View 当亮带**再平移它，两个问题都躲不掉：
+  //  ① 子 View 有确定宽度，它的渐变只能铺在这个宽度里 → 亮带在视觉上就是一块**矩形**；
+  //  ② 更致命的是透明度包络 `sin(πt)`：t=0/1 时 alpha=0，而亮带恰好在那两个时刻扫过按钮的
+  //     **左右两端** → 两端永远只被"半亮"扫过；亮度峰值（t=0.5）时亮带只覆盖中间 62%，
+  //     正好就是用户说的"只覆盖 2/3 的地方"。
+  //
+  // 现在改成在 dispatchDraw 里用一个**铺满按钮宽度**的 LinearGradient 直接画：
+  //  - 没有子 View，就没有"亮带矩形"这个概念，只有一段会移动的柔光；
+  //  - 位移把亮带从"完全在左缘外"扫到"完全在右缘外"，全程不做透明度包络 ——
+  //    按钮上每一点都在**峰值亮度**下被扫过一次，两端也不例外；
+  //  - 画在 super.dispatchDraw 之前 = 在底色之上、文字之下，文字不会被洗白。
+
+  /** 亮带宽度：按钮宽的一半（下限 96dp）。够宽才像"一片光扫过"，不至于细成一条线。 */
+  float shineBandWidth(float buttonWidth) {
+    return Math.max(density * 96f, buttonWidth * 0.5f);
   }
 
-  /** 扫光层铺满整块按钮（**含 padding 区**）：FrameLayout 的子视图一定会被父 padding 内缩，
-   *  只靠 LayoutParams 只能覆盖到内容区，上下仍各留一条 padding 高的硬边 —— 那正是用户看到的割裂感。
-   *  所以 super.onLayout 之后把扫光层的绘制框直接钉到 (0,0,亮带宽,按钮高)：
-   *  既绕开 padding 内缩，也补上 onMeasure 里"为了不被撑高而量成 0"的那个高度。
-   *  亮带宽度 = 按钮宽的 62%（下限 132dp）：旧实现固定 110dp，在宽屏上只是"一小块"，
-   *  现在窄屏不显小、宽屏就是"一整片光扫过去"，且随按钮宽度自适应、不用改代码。 */
-  @Override protected void onLayout(boolean changed, int left, int top, int right, int bottom) {
-    super.onLayout(changed, left, top, right, bottom);
-    if (shine == null) return;
-    int width = getWidth(), height = getHeight();
-    if (width <= 0 || height <= 0) return;
-    int band = Math.max(Math.round(density * 132f), Math.round(width * 0.62f));
-    shine.layout(0, 0, band, height);
+  /** 扫光位移（纯函数，方便 JVM 用例推演几何）：t=0 时整条亮带在按钮左缘之外，t=1 时在右缘之外。 */
+  static float shineOffset(float t, float buttonWidth, float bandWidth) {
+    return -bandWidth + t * (buttonWidth + bandWidth);
+  }
+
+  /** 峰值白光：仍是 0x59（35% 白）—— 与最初版本同值，所以不会比现在更刺眼。 */
+  static int shinePeakAlpha() { return 0x59; }
+
+  private void ensureSweepShader(int width) {
+    float band = shineBandWidth(width);
+    if (sweepShader != null && sweepShaderWidth == band) return;
+    sweepShaderWidth = band;
+    // 亮核窄、肩部长：读起来是"一道光扫过"，而不是"一块亮斑平移"。
+    sweepShader = new LinearGradient(0f, 0f, band, 0f,
+        new int[]{0x00FFFFFF, 0x0EFFFFFF, shinePeakAlpha() << 24 | 0x00FFFFFF, 0x0EFFFFFF, 0x00FFFFFF},
+        new float[]{0f, 0.35f, 0.5f, 0.65f, 1f},
+        Shader.TileMode.CLAMP);
+  }
+  private float sweepShaderWidth = -1f;
+
+  @Override protected void onSizeChanged(int w, int h, int oldw, int oldh) {
+    super.onSizeChanged(w, h, oldw, oldh);
+    sweepShader = null;
+    sweepShaderWidth = -1f;
+  }
+
+  @Override protected void dispatchDraw(Canvas canvas) {
+    if (paid && motionEnabled && sweepT >= 0f) {
+      int width = getWidth(), height = getHeight();
+      if (width > 0 && height > 0) {
+        ensureSweepShader(width);
+        if (sweepShader != null) {
+          float band = shineBandWidth(width);
+          sweepMatrix.setTranslate(shineOffset(sweepT, width, band), 0f);
+          sweepShader.setLocalMatrix(sweepMatrix);
+          sweepPaint.setShader(sweepShader);
+          canvas.drawRect(0f, 0f, width, height, sweepPaint);
+        }
+      }
+    }
+    super.dispatchDraw(canvas);
   }
 
   @Override protected void onAttachedToWindow() {
     super.onAttachedToWindow();
-    if (paid && motionEnabled && shine != null) startShine();
+    if (paid && motionEnabled) startShine();
   }
 
   @Override protected void onDetachedFromWindow() {
     if (shineAnimator != null) {shineAnimator.cancel();shineAnimator = null;}
+    sweepT = -1f;
     super.onDetachedFromWindow();
-  }
-
-  /** 扫光位移（纯函数，抽出来是为了让 JVM 用例能直接推演几何）：
-   *  t=0 时亮带**右缘正好贴住按钮左缘**、t=1 时亮带**左缘正好贴住按钮右缘**，
-   *  中间单调平移 —— 于是按钮宽度上每一点都会被扫到、且周期里没有任何"完全无光"的时段。
-   *  旧实现是 -sw + t*(w + 2sw)：亮带亮心在 t≈0.70 就移出按钮右缘（整条移出约 t≈0.79），
-   *  之后约 30% 的周期按钮上基本无光（约 780ms 空转）。 */
-  static float shineOffset(float t, float buttonWidth, float bandWidth) {
-    return -bandWidth + t * (buttonWidth + bandWidth);
   }
 
   private void startShine() {
@@ -183,13 +203,8 @@ public class IntegrityPayButton extends FrameLayout {
     shineAnimator.setRepeatCount(ValueAnimator.INFINITE);
     shineAnimator.setRepeatMode(ValueAnimator.RESTART);
     shineAnimator.addUpdateListener(a -> {
-      View s = shine;
-      if (s == null) return;
-      float w = getWidth(), sw = s.getWidth();
-      if (w <= 0 || sw <= 0) return;
-      float t = (float) a.getAnimatedValue();
-      s.setTranslationX(shineOffset(t, w, sw));
-      s.setAlpha((float) Math.sin(Math.PI * t) * 0.9f);
+      sweepT = (float) a.getAnimatedValue();
+      invalidate();
     });
     shineAnimator.start();
   }
