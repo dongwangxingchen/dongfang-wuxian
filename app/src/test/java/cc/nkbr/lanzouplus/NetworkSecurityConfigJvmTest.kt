@@ -84,7 +84,7 @@ class NetworkSecurityConfigJvmTest {
         val allowed = setOf(
             "lanzout.com", "lanzoux.com", "lanzouw.com", "lanzoup.com",
             "lanzouo.com", "lanzouz.com", "lanzou.com", "lanzov.com",
-            "ilanzou.com",
+            "ilanzou.com", "lanzoui.com",
             "localhost", "127.0.0.1", "::1", "local",
             "39.106.33.135",
         )

@@ -16,6 +16,27 @@ final class LanzouCore {
   static final int UA_PRESET_MOBILE_CHROME=0,UA_PRESET_DESKTOP_CHROME=1,UA_PRESET_DESKTOP_EDGE=2,UA_PRESET_MOBILE_HUAWEI=3,UA_PRESET_MOBILE_FIREFOX=4;
   static final int UA_SCOPE_FILE_LIST=1,UA_SCOPE_DIRECTORY_SEARCH=2,UA_SCOPE_API_SEARCH=4,UA_SCOPE_DIRECT=8,UA_SCOPE_ALL=UA_SCOPE_FILE_LIST|UA_SCOPE_DIRECTORY_SEARCH|UA_SCOPE_API_SEARCH|UA_SCOPE_DIRECT;
   private static final String ANDROID_UA="Mozilla/5.0 (Linux; Android 14; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Mobile Safari/537.36";
+  /**
+   * [DFW-105 2026-10-01] **原样照抄社区成熟项目的 UA**，不是我编的。
+   *
+   * 来源：`huankong233/lanzou_url`（PHP，蓝奏直链解析，社区使用最广的实现之一）
+   * `Vercel/api/index.php` 第 21 行：
+   * ```php
+   * curl_setopt($ch, CURLOPT_USERAGENT,
+   *   'Mozilla/5.0 (iPhone; CPU iPhone OS 6_0 like Mac OS X) AppleWebKit/536.26 '
+   * . '(KHTML, like Gecko) Version/6.0 Mobile/10A5376e Safari/8536.25');
+   * ```
+   *
+   * 为什么值得照抄：我们此前**根本没有 iPhone UA**（全仓 `iPhone` 出现 0 次），
+   * 只有安卓 Chrome / 桌面 Chrome / Edge / 华为 / 火狐。
+   * 而用户真机报的错是「当前 UA 返回蓝奏验证页」——
+   * 说明**我们所有 UA 都被蓝奏的 WAF 判成了机器人**。
+   * 社区用这台"iPhone iOS 6"的老 UA 能稳定拿到页面，很可能是**老 UA 命中更宽松的页面分支**
+   * （老浏览器不支持新版验证脚本，WAF 往往直接放行）。
+   *
+   * 注意：这是**老 UA，不是伪装成别的浏览器骗人** —— 它本来就是社区在用的可用取值。
+   */
+  private static final String IPHONE_LEGACY_UA="Mozilla/5.0 (iPhone; CPU iPhone OS 6_0 like Mac OS X) AppleWebKit/536.26 (KHTML, like Gecko) Version/6.0 Mobile/10A5376e Safari/8536.25";
   private static final String DESKTOP_SEARCH_UA="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36";
   private static final String DESKTOP_EDGE_UA="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36 Edg/126.0.0.0";
   private static final String MOBILE_HUAWEI_UA="Mozilla/5.0 (Linux; Android 12; BRQ-AN00) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Mobile Safari/537.36";
@@ -24,8 +45,8 @@ final class LanzouCore {
   private static final int[] POS={15,35,29,24,33,16,1,38,10,9,19,31,40,27,22,23,25,13,6,11,39,18,20,8,14,21,32,26,2,30,7,4,17,5,3,28,34,37,12,36};
   private static final String MASK="3000176000856006061501533003690027800375";
   private static final long NO_DEADLINE=Long.MAX_VALUE;
-    private static final byte UA_UNKNOWN=-1,UA_MOBILE_CHROME=0,UA_DESKTOP_CHROME=1,UA_DESKTOP_EDGE=2,UA_MOBILE_HUAWEI=3,UA_MOBILE_FIREFOX=4,UA_CUSTOM=5;
-  private static final int UA_SLOT_COUNT=UA_CUSTOM+1;
+    private static final byte UA_UNKNOWN=-1,UA_MOBILE_CHROME=0,UA_DESKTOP_CHROME=1,UA_DESKTOP_EDGE=2,UA_MOBILE_HUAWEI=3,UA_MOBILE_FIREFOX=4,UA_CUSTOM=5,UA_MOBILE_IPHONE=6;
+  private static final int UA_SLOT_COUNT=UA_MOBILE_IPHONE+1;
   private static final byte UA_ANDROID=UA_MOBILE_CHROME,UA_DESKTOP=UA_DESKTOP_CHROME;
   private static final byte TEMPLATE_UNKNOWN=0,TEMPLATE_MINIMAL=1,TEMPLATE_CLASSIC=2;
   // Template/UA defaults are replaced only when a runtime HTML template changes;
@@ -86,7 +107,7 @@ final class LanzouCore {
 它原来排在池子第 4 位，而**这个池子不只用于浏览换线，还被 `lanzouxDirectMirrors()` 用来给直链拼镜像** —— 死域名留在里面，两条路都会踩到，表现就是「无论哪个链接都是」。
 替换成 `https://www.lanzoux.com`（同一个站，证书正常，实测通过）。
 维护提示：域名池里的每一条都要能过 TLS。新增前先 `curl -sv https://<域名>/` 看一眼。 */
-    "https://oreojiang.lanzout.com","https://wwc.lanzout.com","https://www.lanzout.com","https://www.lanzoux.com","https://wwc.lanzouw.com","https://www.lanzouw.com","https://www.lanzoup.com","https://www.lanzouo.com","https://www.lanzouz.com"};
+    "https://oreojiang.lanzout.com","https://wwc.lanzout.com","https://www.lanzout.com","https://www.lanzoux.com","https://wwc.lanzouw.com","https://www.lanzouw.com","https://www.lanzoup.com","https://www.lanzouo.com","https://www.lanzouz.com","https://www.lanzoui.com"};
         private static final String CANONICAL_SOURCE_ORIGIN="https://oreojiang.lanzout.com";
   private static volatile String configuredPreferredBaseOrigin="";
   private static volatile long configuredSearchBudgetMillis=DEFAULT_SEARCH_BUDGET_MS;
@@ -111,7 +132,20 @@ final class LanzouCore {
   static void setBaseOriginPolicy(String preferredOrigin,boolean timeoutFailover){String preferred=validatedRouteOrigin(preferredOrigin);configuredPreferredBaseOrigin=preferred.isEmpty()?LANZOU_BASE_ORIGINS[0]:preferred;configuredBaseOriginTimeoutFailover=timeoutFailover;}
     private static List<String> routeOrigins(String referenceUrl,String learnedOrigin){LinkedHashSet<String> values=new LinkedHashSet<>();try{DirectLink target=parseFolderTarget(referenceUrl);String original=validatedRouteOrigin(target.rootUrl);if(!original.isEmpty())values.add(original);}catch(Exception ignored){android.util.Log.w("LanzouCore", "LanzouCore Exception: "+ignored.getMessage(), ignored);}String learned=validatedRouteOrigin(learnedOrigin);if(!learned.isEmpty()&&configuredBaseOriginTimeoutFailover)values.add(learned);String preferred=validatedRouteOrigin(configuredPreferredBaseOrigin);if(!preferred.isEmpty())values.add(preferred);if(!configuredBaseOriginTimeoutFailover)return new ArrayList<>(values);for(String origin:LANZOU_BASE_ORIGINS){String normalized=validatedRouteOrigin(origin);if(!normalized.isEmpty())values.add(normalized);}return new ArrayList<>(values);}
   private static String routeTarget(String origin,String referenceUrl)throws Exception{DirectLink target=parseFolderTarget(referenceUrl);String routed=baseOriginTarget(origin,target.rootUrl);return target.folderId.isEmpty()?routed:virtualFolderUrl(routed,target.folderId,target.title,target.description);}
-  private static List<RouteCandidate> routeCandidates(String referenceUrl,int scope,SourceProfile profile){LinkedHashMap<String,RouteCandidate> values=new LinkedHashMap<>();String learnedOrigin=profile==null?"":profile.learnedOrigin(scope);byte learnedUa=profile==null?UA_UNKNOWN:profile.learnedUa(scope);List<String> origins=routeOrigins(referenceUrl,learnedOrigin);if(!learnedOrigin.isEmpty()&&learnedUa!=UA_UNKNOWN&&(configuredBaseOriginTimeoutFailover||learnedOrigin.equals(validatedRouteOrigin(configuredPreferredBaseOrigin))))try{RouteCandidate route=new RouteCandidate(routeTarget(learnedOrigin,referenceUrl),learnedOrigin,learnedUa,scope);values.put(route.key(),route);}catch(Exception ignored){android.util.Log.w("LanzouCore", "LanzouCore Exception: "+ignored.getMessage(), ignored);}for(byte ua:learnedFirstUaCandidates(scope,learnedUa))for(String origin:origins)try{RouteCandidate route=new RouteCandidate(routeTarget(origin,referenceUrl),origin,ua,scope);values.putIfAbsent(route.key(),route);}catch(Exception ignored){android.util.Log.w("LanzouCore", "LanzouCore Exception: "+ignored.getMessage(), ignored);}return new ArrayList<>(values.values());}
+  private static List<RouteCandidate> routeCandidates(String referenceUrl,int scope,SourceProfile profile){LinkedHashMap<String,RouteCandidate> values=new LinkedHashMap<>();String learnedOrigin=profile==null?"":profile.learnedOrigin(scope);byte learnedUa=profile==null?UA_UNKNOWN:profile.learnedUa(scope);List<String> origins=routeOrigins(referenceUrl,learnedOrigin);if(!learnedOrigin.isEmpty()&&learnedUa!=UA_UNKNOWN&&(configuredBaseOriginTimeoutFailover||learnedOrigin.equals(validatedRouteOrigin(configuredPreferredBaseOrigin))))try{RouteCandidate route=new RouteCandidate(routeTarget(learnedOrigin,referenceUrl),learnedOrigin,learnedUa,scope);values.put(route.key(),route);}catch(Exception ignored){android.util.Log.w("LanzouCore", "LanzouCore Exception: "+ignored.getMessage(), ignored);}// [DFW-106 2026-10-01] **域名优先、UA 其次** —— 这是社区源码给的关键约束。
+      //
+      // 原来是 `for(ua) for(origin)`：同一种 UA 下，**第二个候选就是另一个域名**。
+      // 而 `hanximeng/LanzouAPI`（323★，PHP，2026-09 仍在更新）源码里明确写着：
+      //   **"蓝奏云的风控 Cookie 与域名关联，强制换域名会导致校验失败"**
+      // —— 它因此**保留分享链接的原始域名**，不换成任何镜像域名。
+      //
+      // 我们此前不仅有域名池，还有 raceRoutes 并行抢跑、TLS 兜底遍历全部线路、
+      // http 降级再遍历一遍 —— **每换一次域名，WAF 的 cookie 就失效一次**。
+      // 用户真机报的「当前 UA 返回蓝奏验证页」，很可能就是这么被我们自己触发的。
+      //
+      // 改成域名在外层：**先把原始域名上的所有 UA 试完，再考虑换域名**。
+      // 这样正常情况下根本不会换域名，与社区做法一致。
+      for(String origin:origins)for(byte ua:learnedFirstUaCandidates(scope,learnedUa))try{RouteCandidate route=new RouteCandidate(routeTarget(origin,referenceUrl),origin,ua,scope);values.putIfAbsent(route.key(),route);}catch(Exception ignored){android.util.Log.w("LanzouCore", "LanzouCore Exception: "+ignored.getMessage(), ignored);}return new ArrayList<>(values.values());}
   private static List<RouteCandidate> routeCandidatesForUa(String referenceUrl,int scope,SourceProfile profile,byte ua){LinkedHashMap<String,RouteCandidate> values=new LinkedHashMap<>();String learnedOrigin=profile==null?"":profile.learnedOrigin(scope);for(String origin:routeOrigins(referenceUrl,learnedOrigin))try{RouteCandidate route=new RouteCandidate(routeTarget(origin,referenceUrl),origin,ua,scope);values.putIfAbsent(route.key(),route);}catch(Exception ignored){android.util.Log.w("LanzouCore", "LanzouCore Exception: "+ignored.getMessage(), ignored);}return new ArrayList<>(values.values());}
   private static RouteCandidate learnedRoute(String referenceUrl,int scope,SourceProfile profile){if(profile==null)return null;String origin=profile.learnedOrigin(scope);byte ua=profile.learnedUa(scope);if(origin.isEmpty()||ua==UA_UNKNOWN||!configuredBaseOriginTimeoutFailover&&!origin.equals(validatedRouteOrigin(configuredPreferredBaseOrigin)))return null;try{return new RouteCandidate(routeTarget(origin,referenceUrl),origin,ua,scope);}catch(Exception ignored){return null;}}
   private static List<RouteCandidate> routesAfter(List<RouteCandidate> routes,RouteCandidate used){if(used==null)return routes;List<RouteCandidate> out=new ArrayList<>(routes.size());for(RouteCandidate route:routes)if(!route.key().equals(used.key()))out.add(route);return out;}
@@ -943,11 +977,11 @@ final class LanzouCore {
   private static int currentUaScope(){Integer scope=UA_SCOPE.get();return scope==null?UA_SCOPE_FILE_LIST:scope;}
   private static byte uaSlotForPreset(int preset){switch(normalizeUserAgentPreset(preset)){case UA_PRESET_DESKTOP_CHROME:return UA_DESKTOP_CHROME;case UA_PRESET_DESKTOP_EDGE:return UA_DESKTOP_EDGE;case UA_PRESET_MOBILE_HUAWEI:return UA_MOBILE_HUAWEI;case UA_PRESET_MOBILE_FIREFOX:return UA_MOBILE_FIREFOX;default:return UA_MOBILE_CHROME;}}
   private static boolean uaIsDesktop(byte ua){if(ua==UA_CUSTOM){String value=configuredCustomUserAgent==null?"":configuredCustomUserAgent.toLowerCase(Locale.ROOT);return !value.contains("android")&&!value.contains("mobile")&&(value.contains("windows")||value.contains("macintosh")||value.contains("x11")||value.contains("linux x86_64"));}return ua==UA_DESKTOP_CHROME||ua==UA_DESKTOP_EDGE;}
-  private static String userAgent(byte ua){switch(ua){case UA_DESKTOP_CHROME:return DESKTOP_SEARCH_UA;case UA_DESKTOP_EDGE:return DESKTOP_EDGE_UA;case UA_MOBILE_HUAWEI:return MOBILE_HUAWEI_UA;case UA_MOBILE_FIREFOX:return MOBILE_FIREFOX_UA;case UA_CUSTOM:return configuredCustomUserAgent==null||configuredCustomUserAgent.isEmpty()?ANDROID_UA:configuredCustomUserAgent;default:return ANDROID_UA;}}
+  private static String userAgent(byte ua){switch(ua){case UA_MOBILE_IPHONE:return IPHONE_LEGACY_UA;case UA_DESKTOP_CHROME:return DESKTOP_SEARCH_UA;case UA_DESKTOP_EDGE:return DESKTOP_EDGE_UA;case UA_MOBILE_HUAWEI:return MOBILE_HUAWEI_UA;case UA_MOBILE_FIREFOX:return MOBILE_FIREFOX_UA;case UA_CUSTOM:return configuredCustomUserAgent==null||configuredCustomUserAgent.isEmpty()?ANDROID_UA:configuredCustomUserAgent;default:return ANDROID_UA;}}
   private static String configuredUserAgent(int scope){String custom=configuredCustomUserAgent;if(custom!=null&&!custom.isEmpty())return custom;return userAgent(uaSlotForPreset(configuredUserAgentPreset(scope)));}
   private static String defaultUserAgent(byte ua){return userAgent(ua);}
   private static String scopedUserAgent(byte ua,int scope){if((configuredUaScopeMask&scope)==0)return defaultUserAgent(ua);String custom=configuredCustomUserAgent;if(custom!=null&&!custom.isEmpty())return custom;byte primary=uaSlotForPreset(configuredUserAgentPreset(scope));if(uaIsDesktop(primary)==uaIsDesktop(ua))return userAgent(primary);return userAgent(uaIsDesktop(ua)?UA_DESKTOP_CHROME:UA_MOBILE_CHROME);}
-  private static byte[] uaCandidates(int scope,byte learned){LinkedHashSet<Byte> values=new LinkedHashSet<>();if(configuredCustomUserAgent!=null&&!configuredCustomUserAgent.isEmpty())values.add(UA_CUSTOM);values.add(uaSlotForPreset(configuredUserAgentPreset(scope)));if(learned!=UA_UNKNOWN)values.add(learned);values.add(UA_MOBILE_CHROME);values.add(UA_MOBILE_HUAWEI);values.add(UA_MOBILE_FIREFOX);values.add(UA_DESKTOP_CHROME);values.add(UA_DESKTOP_EDGE);byte[] out=new byte[values.size()];int i=0;for(Byte value:values)out[i++]=value;return out;}
+  private static byte[] uaCandidates(int scope,byte learned){LinkedHashSet<Byte> values=new LinkedHashSet<>();if(configuredCustomUserAgent!=null&&!configuredCustomUserAgent.isEmpty())values.add(UA_CUSTOM);values.add(uaSlotForPreset(configuredUserAgentPreset(scope)));if(learned!=UA_UNKNOWN)values.add(learned);values.add(UA_MOBILE_IPHONE);values.add(UA_MOBILE_CHROME);values.add(UA_MOBILE_HUAWEI);values.add(UA_MOBILE_FIREFOX);values.add(UA_DESKTOP_CHROME);values.add(UA_DESKTOP_EDGE);byte[] out=new byte[values.size()];int i=0;for(Byte value:values)out[i++]=value;return out;}
   private static byte[] learnedFirstUaCandidates(int scope,byte learned){LinkedHashSet<Byte> values=new LinkedHashSet<>();if(learned!=UA_UNKNOWN)values.add(learned);for(byte ua:uaCandidates(scope,learned))values.add(ua);byte[] out=new byte[values.size()];int i=0;for(Byte value:values)out[i++]=value;return out;}
     private static byte firstUaCandidate(int scope,byte learned){byte[] values=uaCandidates(scope,learned);return values.length==0?UA_MOBILE_CHROME:values[0];}
   private static byte firstCapableUaCandidate(int scope,byte learned,byte seen,byte available){byte[] values=learnedFirstUaCandidates(scope,learned);for(byte ua:values)if(capabilityAllowed(seen,available,ua))return ua;return values.length==0?UA_MOBILE_CHROME:values[0];}
