@@ -102,7 +102,20 @@ public final class MainActivity extends androidx.activity.ComponentActivity impl
   void rememberImageFailure(String url){if(url==null)return;synchronized(imageFailureLock){imageFailures.put(url,System.currentTimeMillis());}}
   final LruCache<String,Bitmap> imageCache=new LruCache<String,Bitmap>(Math.max(1024,Math.min(8192,(int)(Runtime.getRuntime().maxMemory()/1024/24)))){@Override protected int sizeOf(String key,Bitmap value){return Math.max(1,value.getByteCount()/1024);}};
   final Object imageLock=new Object(); final Map<String,List<java.lang.ref.WeakReference<ImageView>>> imageWaiters=new HashMap<>(); final ArrayDeque<ImageDelivery> imageDeliveries=new ArrayDeque<>(); boolean imageDeliveryPosted; private static final java.util.regex.Pattern WEB_URL_CJK=java.util.regex.Pattern.compile("(?i)(?<![A-Z0-9._%+-])(?:(?:https?|ftp)://)?(?:[A-Z0-9-]+\\.)+[A-Z]{2,63}(?::[0-9]{1,5})?(?:/[A-Z0-9._~%!$&'()*+,;=:@/?#-]*)?(?![A-Z0-9._%+-])"),LANZOU_CLOUD_HOST=java.util.regex.Pattern.compile("^(?:[a-z0-9-]+[.])*(?:lanzou[a-z0-9]?|lanzov)[.]com$");
-  static final String ACTION_WEB_DOWNLOAD="w",ACTION_OPEN_DOWNLOADS="h"; static final int DELETE_PERMISSION=-2,DELETE_FAILED=-1,DELETE_MISSING=0,DELETE_OK=1,STORAGE_PERMISSION=62,IMPORT_RULES=64,EXPORT_RULES=65,STARTUP_STORAGE_PERMISSION=66,DIRECT_STORAGE_PERMISSION=67,FOLDER_PULL_THRESHOLD_DP=52,FOLDER_PULL_SETTLE_DP=56,FOLDER_PULL_MAX_DP=72,DEFAULT_TRANSFER_PARALLELISM=0,DEFAULT_INSTALL_PARALLELISM=0,DEFAULT_SOURCE_PROBE_PARALLELISM=0,SOURCE_LIST_MIN_DISPLAY=32,SEARCH_WINDOW=64,SEARCH_RENDER_CHUNK=64,IMAGE_UI_CHUNK=12,SOURCE_SELECT_LIST=0,SOURCE_SELECT_CUSTOM=1,SOURCE_SELECT_CHILD=2,SOURCE_SELECT_SOFTWARE=3,TOOL_PICK_IMAGE=68,TOOL_PICK_IMAGE2=69,TOOL_MIC_PERMISSION=70,AI_PERMISSION=71; static final long DOWNLOAD_PERSIST_INTERVAL_MS=1200L,DOWNLOAD_PERSIST_DEBOUNCE_MS=750L,DOWNLOAD_UI_INTERVAL_MS=100L; static final String DOWNLOAD_WAITING="等待中",DOWNLOAD_RESOLVING="解析中",DOWNLOAD_RUNNING="下载中",DOWNLOAD_PAUSED="已暂停",DOWNLOAD_CANCELLED="已取消",DOWNLOAD_COMPLETED="已完成",DOWNLOAD_FAILED="失败",ENTRY_DOWNLOAD="download",DOWNLOAD_SOURCE_LANZOU=DownloadSourcePolicy.LANZOU,DOWNLOAD_SOURCE_EXTERNAL=DownloadSourcePolicy.EXTERNAL,DOWNLOAD_SOURCE_UPDATE=DownloadSourcePolicy.UPDATE,DOWNLOAD_SOURCE_LEGACY=DownloadSourcePolicy.LEGACY; static final java.util.regex.Pattern SIZE_VALUE=java.util.regex.Pattern.compile("(?i)([0-9]+(?:\\.[0-9]+)?)\\s*([KMGT]?)"); Models.Item pendingPermissionDownload; boolean pendingPermissionAutoInstall; Runnable pendingToolColorImagePick,pendingMicAction; PendingRetry pendingRetryDownload; DownloadEntry pendingInstallEntry; List<Models.Item> pendingPermissionBatch; final List<DownloadEntry> downloadEntries=new CopyOnWriteArrayList<>(); final Set<DownloadEntry> downloadToastEntries=Collections.newSetFromMap(new IdentityHashMap<>()),dirtyDownloadUi=Collections.newSetFromMap(new IdentityHashMap<>()); final Map<DownloadEntry,LinearLayout> taskToasts=new IdentityHashMap<>(),downloadActions=new IdentityHashMap<>(); final Map<DownloadEntry,View> downloadRows=new IdentityHashMap<>(); final Map<DownloadEntry,TextView> toastLabels=new IdentityHashMap<>(),downloadLabels=new IdentityHashMap<>(); final Map<DownloadEntry,ProgressBar> toastBars=new IdentityHashMap<>(),downloadBars=new IdentityHashMap<>(); final Map<String,TextView> batchDownloadLabels=new HashMap<>(); final Map<String,ProgressBar> batchDownloadBars=new HashMap<>(); final Map<String,View> batchDownloadRows=new HashMap<>(); final Map<String,CheckBox> batchDownloadChecks=new HashMap<>();  boolean downloadUiFramePosted,crashFolderEnsured; LinearLayout mergedDownloadToast;TextView mergedDownloadToastLabel;ProgressBar mergedDownloadToastBar;
+  static final String ACTION_WEB_DOWNLOAD="w",ACTION_OPEN_DOWNLOADS="h"; static final int DELETE_PERMISSION=-2,DELETE_FAILED=-1,DELETE_MISSING=0,DELETE_OK=1,STORAGE_PERMISSION=62,IMPORT_RULES=64,EXPORT_RULES=65,STARTUP_STORAGE_PERMISSION=66,DIRECT_STORAGE_PERMISSION=67,FOLDER_PULL_THRESHOLD_DP=52,FOLDER_PULL_SETTLE_DP=56,FOLDER_PULL_MAX_DP=72,DEFAULT_TRANSFER_PARALLELISM=0,DEFAULT_INSTALL_PARALLELISM=0,DEFAULT_SOURCE_PROBE_PARALLELISM=0,SOURCE_LIST_MIN_DISPLAY=32,SEARCH_WINDOW=64,SEARCH_RENDER_CHUNK=64,IMAGE_UI_CHUNK=12,SOURCE_SELECT_LIST=0,SOURCE_SELECT_CUSTOM=1,SOURCE_SELECT_CHILD=2,SOURCE_SELECT_SOFTWARE=3,TOOL_PICK_IMAGE=68,TOOL_PICK_IMAGE2=69,TOOL_MIC_PERMISSION=70,AI_PERMISSION=71; static final long DOWNLOAD_PERSIST_INTERVAL_MS=1200L,DOWNLOAD_PERSIST_DEBOUNCE_MS=750L,DOWNLOAD_UI_INTERVAL_MS=100L; static final String DOWNLOAD_WAITING="等待中",DOWNLOAD_RESOLVING="解析中",DOWNLOAD_RUNNING="下载中",DOWNLOAD_PAUSED="已暂停",DOWNLOAD_CANCELLED="已取消",DOWNLOAD_COMPLETED="已完成",DOWNLOAD_FAILED="失败",ENTRY_DOWNLOAD="download",DOWNLOAD_SOURCE_LANZOU=DownloadSourcePolicy.LANZOU,DOWNLOAD_SOURCE_EXTERNAL=DownloadSourcePolicy.EXTERNAL,DOWNLOAD_SOURCE_UPDATE=DownloadSourcePolicy.UPDATE,DOWNLOAD_SOURCE_LEGACY=DownloadSourcePolicy.LEGACY; static final java.util.regex.Pattern SIZE_VALUE=java.util.regex.Pattern.compile("(?i)([0-9]+(?:\\.[0-9]+)?)\\s*([KMGT]?)"); Models.Item pendingPermissionDownload; boolean pendingPermissionAutoInstall; Runnable pendingToolColorImagePick,pendingMicAction; PendingRetry pendingRetryDownload; DownloadEntry pendingInstallEntry; List<Models.Item> pendingPermissionBatch; final List<DownloadEntry> downloadEntries=new CopyOnWriteArrayList<>(); final Set<DownloadEntry> downloadToastEntries=Collections.newSetFromMap(new IdentityHashMap<>()),dirtyDownloadUi=Collections.newSetFromMap(new IdentityHashMap<>()); final Map<DownloadEntry,LinearLayout> taskToasts=new IdentityHashMap<>(),downloadActions=new IdentityHashMap<>(); final Map<DownloadEntry,View> downloadRows=new IdentityHashMap<>(); final Map<DownloadEntry,TextView> toastLabels=new IdentityHashMap<>(),downloadLabels=new IdentityHashMap<>(); final Map<DownloadEntry,ProgressBar> toastBars=new IdentityHashMap<>(),downloadBars=new IdentityHashMap<>(); final Map<String,TextView> batchDownloadLabels=new HashMap<>(); final Map<String,ProgressBar> batchDownloadBars=new HashMap<>(); final Map<String,View> batchDownloadRows=new HashMap<>(); final Map<String,CheckBox> batchDownloadChecks=new HashMap<>();  boolean downloadUiFramePosted,crashFolderEnsured;
+  /**
+   * [DFW-101 2026-10-01] 解析看门狗：记录每个下载项**进入「解析中」的时刻**。
+   *
+   * 为什么需要：用户从 v1.0.5 报到 v1.0.12，下载**永远停在「解析中」**，
+   * 既没有崩溃、也没有报错、也没有超时提示 —— 界面无限等待，用户完全不知道发生了什么。
+   * 我猜了 5 轮全错，最后连诊断日志都拿不到（文件没写进去 / 那个页面不显示它）。
+   *
+   * 结论：**先让故障可见**。解析超过 {@link #RESOLVE_WATCHDOG_MS} 就判定失败并写明，
+   * 而不是让用户对着一个永远转的「解析中」干等。
+   * 这样既修了"无限等待"这个体验问题，也把真正卡住的位置暴露出来。
+   */
+  static final long RESOLVE_WATCHDOG_MS=25000L;
+  final Map<DownloadEntry,Long> resolveWatchdog=new IdentityHashMap<>(); LinearLayout mergedDownloadToast;TextView mergedDownloadToastLabel;ProgressBar mergedDownloadToastBar;
   static final class BatchToastState{int total;final java.util.concurrent.atomic.AtomicInteger remaining=new java.util.concurrent.atomic.AtomicInteger();}
   static final class BatchResolved{final DownloadEntry entry;final boolean cached;BatchResolved(DownloadEntry entry,boolean cached){this.entry=entry;this.cached=cached;}}
   static final class PendingRetry{final DownloadEntry entry;final int generation;final String state;final boolean preserveToast;PendingRetry(DownloadEntry entry,boolean preserveToast){this.entry=entry;this.generation=entry.controlGeneration;this.state=entry.state;this.preserveToast=preserveToast;}}
@@ -4184,6 +4197,28 @@ if(motionEnabled()){panel.setAlpha(0f);panel.setTranslationY(-dp(8));panel.anima
   BatchToastState createBatchParsingToast(List<Models.Item> items,List<DownloadEntry> entries){BatchToastState state=new BatchToastState();state.total=items.size();state.remaining.set(state.total);downloadToastEntries.addAll(entries);syncDownloadToastPresentation();return state;}
   void finishBatchParsing(BatchToastState batch){if(batch==null)return;batch.remaining.updateAndGet(value->Math.max(0,value-1));runOnUiThread(()->{if(mergedDownloadToast!=null)updateMergedDownloadToast(visibleDownloadToastEntries());});}
   void updateDownloadUi(DownloadEntry entry){
+    // [DFW-101] 解析看门狗 —— 把"无限解析中"变成"有明确原因的失败"
+    if(entry!=null){
+      if(DOWNLOAD_RESOLVING.equals(entry.state)){
+        Long since=resolveWatchdog.get(entry);
+        long now=System.currentTimeMillis();
+        if(since==null){resolveWatchdog.put(entry,now);}
+        else if(now-since>RESOLVE_WATCHDOG_MS){
+          resolveWatchdog.remove(entry);
+          synchronized(entry){
+            if(DOWNLOAD_RESOLVING.equals(entry.state)){
+              entry.state=DOWNLOAD_FAILED;
+              entry.error="解析超时（"+RESOLVE_WATCHDOG_MS/1000+"秒无响应）。这一步没有任何报错，说明卡在解析链路内部。";
+              entry.speedBps=0;entry.etaSeconds=-1;
+            }
+          }
+          persistDownloadHistory(entry);
+        }
+      }else{
+        resolveWatchdog.remove(entry);
+      }
+    }
+
     persistDownloadHistory(entry);boolean post=false;synchronized(dirtyDownloadUi){dirtyDownloadUi.add(entry);if(!downloadUiFramePosted){downloadUiFramePosted=true;post=true;}}if(post)ui.postDelayed(this::drainDownloadUi,downloadUiIntervalMs());
   }
   long downloadUiIntervalMs(){int active=0;for(DownloadEntry entry:downloadEntries)if(isDownloadActive(entry))active++;return active>=64?500L:active>=24?250L:DOWNLOAD_UI_INTERVAL_MS;}
