@@ -149,7 +149,16 @@
 - ~~**AI-004 落地**：删除内置渠道播种与构建期 resValue 注入……**不再内置任何 API。**~~
   **⚠️ 2026-10-01 已被推翻**：用户拍板**恢复「内置渠道」**（DFW-73），走服务端中转 ——
   APK 里只有我们自己服务器的地址与应用令牌，上游地址和真 Key 只在服务器上。
-  AI-004 的删除动作由 `DfwxBuiltinProviderCleanup` 执行，现在该清理**已被撤销**。
+  - **2026-10-01 更正（本行上一版写错了）**：上一版写"AI-004 的删除动作由 `DfwxBuiltinProviderCleanup`
+    执行，现在该清理**已被撤销**"——**这句是错的，清理器没有被撤销，仍在跑**。
+    实测：`rikkahub/app/src/main/java/me/rerere/rikkahub/RikkaHubApp.kt:118` 仍调用
+    `DfwxBuiltinProviderCleanup.removeLegacySeedIfNeeded(...)`，实现体 `DfwxBuiltinProviderCleanup.kt:45-73` 未删。
+    正确关系是**两者并存、各管一个身份**（`RikkaHubApp.kt:120-123` 的注释原文）：
+    清理器认的是老身份「智能中转(内置)」（`baseUrl=https://www.aizhongzhuan.cc/v1` + 模型 `glm-5.3`，
+    见 `DfwxBuiltinProviderCleanup.kt:37-43`），负责把老版本播过的这条一次性移除；
+    **新身份「内置渠道」**由 `DfwxBuiltinChannel.syncIfNeeded()`（`RikkaHubApp.kt:123`）每次启动同步播种，
+    走自有服务器中转（`DfwxBuiltinChannel.kt:49` `DEFAULT_BASE_URL = "https://39.106.33.135/ai/v1"`）。
+    所以"新装不再播老渠道"与"新装要播新渠道"同时成立，并不矛盾。
 - **P17/P25 品牌化**：`DongfangTheme` 置首 + 全新安装默认主题；背景 OLED 真黑 `#000000`；关闭上游默认开启的 `dynamicColor`（否则 Android 12+ 系统壁纸取色会完全绕过预设主题）。
 - **U1/NET-001 + U4–U8 重放**：AI 链 HTTPS-only 四道防线；EmojiBurst 空闲挂起；三处空态 72dp FAB 净空；SettingWebPage 88dp 底部净空。
 - **依赖跟进**：haze-glass（2.5.5 新增）、quickjs 换 `io.github.dokar3:quickjs-kt:1.0.15`、floatingx 迁 `io.github.petterpx:*:3.0.0`。
