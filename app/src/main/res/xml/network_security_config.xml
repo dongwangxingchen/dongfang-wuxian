@@ -65,6 +65,10 @@
         <domain includeSubdomains="true">lanzouo.com</domain>
         <domain includeSubdomains="true">lanzouz.com</domain>
         <domain includeSubdomains="true">lanzou.com</domain>
+        <!-- [DFW-105] lanzoui.com：社区成熟项目 huankong233/lanzou_url 的 API 基址就是它
+             （const API = 'https://www.lanzoui.com'）。LANZOU_HOST 正则本来就认这个域名，
+             但明文白名单里一直缺它 —— 两边不一致是个隐患。 -->
+        <domain includeSubdomains="true">lanzoui.com</domain>
         <!-- [DFW-103] 蓝奏 2026 年把下载 API 迁到了 api.ilanzou.com；不同步放行会让下载链路断掉 -->
         <domain includeSubdomains="true">ilanzou.com</domain>
         <domain includeSubdomains="true">lanzov.com</domain>

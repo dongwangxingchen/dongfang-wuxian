@@ -18,7 +18,7 @@
 - `rikkahub/`：Kotlin/Compose vendor（**上游锚点 = re-ovo/rikkahub tag `2.5.5`，versionCode 190**）与东方无限补丁层
 - 上游源码快照 `/tmp/rikkahub-255/`：**已清空**（临时目录），需要时重新下载
 - 桌面交接包 `东方无限_交接总包_20260920.zip`：禁止删除或移动
-- 版本号：versionCode `10017` / versionName `1.0.17`（`app/build.gradle.kts`）
+- 版本号：versionCode `10018` / versionName `1.0.18`（`app/build.gradle.kts`）
   - **2026-10-01 由 1.0.0 → 1.0.1 → 1.0.2 → 1.0.3**：修好更新链路时需要真实的版本递增来验证（见 DFW-82）；
     1.0.2 带上东方助手与头像（DFW-84）；1.0.3 按官方提示工程建议把提示词改成 XML 分段结构。
     **改版本号必须同步本行**（`DocTimelinessJvmTest` 会红）。
