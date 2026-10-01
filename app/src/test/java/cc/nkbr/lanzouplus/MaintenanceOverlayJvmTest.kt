@@ -141,11 +141,17 @@ class MaintenanceOverlayJvmTest {
         // 做法：先确认没有维护拦截时，同样的调用确实会结束 Activity——
         // 如果这里也是 false，说明上一条的 assertFalse(isFinishing) 根本没有鉴别力。
         val a = activity()
+        // [DFW-73] 顶级页的返回语义变成"再返回一次退出软件"：第一次只弹横幅，
+        // 所以这条鉴别力探针要按**两次**才等价于旧行为的"按一次就退出"。
+        a.lastSystemBackAt = -10_000L
+        a.performSystemBack()
+        shadowOf(Looper.getMainLooper()).idle()
+        assertFalse("第一次返回只提示，不该退出", a.isFinishing)
         a.lastSystemBackAt = -10_000L
         a.performSystemBack()
         shadowOf(Looper.getMainLooper()).idle()
         assertTrue(
-            "无拦截时返回键应真的结束 Activity（若这里是 false，说明 backKey_isSwallowed 的断言是空的）",
+            "窗口内第二次返回应真的结束 Activity（若这里是 false，说明 backKey_isSwallowed 的断言是空的）",
             a.isFinishing,
         )
     }

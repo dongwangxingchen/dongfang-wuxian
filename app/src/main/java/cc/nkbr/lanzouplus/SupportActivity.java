@@ -18,9 +18,14 @@ import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
 
+import androidx.core.view.ViewCompat;
+import androidx.core.view.WindowCompat;
+import androidx.core.view.WindowInsetsCompat;
+
 /** 支持开发 · 独立付费窗口（用户要求"单独的一个窗口"；设计定稿见 07-研究报告/自愿付费与全App优化-深度研究汇总.md A3）。
- *  结构：开发者信 → 权益 3 条 → 收款码微信单卡全宽（真实码 v1.3.3 嵌入；v1.4.1 起确认不收款支付宝）→
- *  「我已完成支付」零验证解锁 → 感谢页（解锁后本页变成状态页）。
+ *  结构：开发者信 → 权益 1 条（用户 2026-10-01 口述：原 3 条 emoji 短语精简为 1 条长句）→ 收款码微信单卡全宽
+ *  （真实码 v1.3.3 嵌入；v1.4.1 起确认不收款支付宝）→「我已完成支付」零验证解锁 → 感谢页（解锁后本页变成状态页）。
+ *  独立 Activity 自己处理窗口 insets（见 installSystemBarInsets）：页头返回箭头与底部小字都不被系统栏压住。
  *  红线：不付费也能完整使用；本页任何位置都有"暂时不支持"退出路径。 */
 public class SupportActivity extends Activity {
   int BG,SURFACE,SURFACE2,BORDER,PRIMARY,PRIMARY_HI,PRIMARY_LO,TEXT,MUTED;
@@ -48,6 +53,8 @@ public class SupportActivity extends Activity {
     density=getResources().getDisplayMetrics().density;
     root=new LinearLayout(this);root.setOrientation(LinearLayout.VERTICAL);root.setBackgroundColor(BG);
     setContentView(root);
+    // 用户 2026-10-01 口述要求：本页顶部返回箭头被状态栏挡住（截图证据），独立窗口自己吃 insets
+    installSystemBarInsets();
     // v1.5.1 用户定调：无论是否已解锁，进来永远先看到赞助码页；点下方解锁按钮才进爱心感谢页
     renderSupportPage();
   }
@@ -62,12 +69,30 @@ public class SupportActivity extends Activity {
     ThemeEngine.Design d=ThemeEngine.active(this);
     BG=d.bg;SURFACE=d.surface;SURFACE2=d.surface2;BORDER=d.border;PRIMARY=d.primary;PRIMARY_HI=d.primaryHi;PRIMARY_LO=d.primaryLo;TEXT=d.text;MUTED=d.muted;
     Window window=getWindow();
+    // 用户 2026-10-01：本页改 edge-to-edge（见 installSystemBarInsets）后，新系统上系统栏透明、直接露出根 View 的 BG；
+    // 旧系统上这两行仍把系统栏刷成 BG —— 两种系统观感一致（深色底 + 浅色图标），下面清 LIGHT_* 即浅色图标。
     window.setStatusBarColor(BG);window.setNavigationBarColor(BG);
     if(Build.VERSION.SDK_INT>=23){
       int flags=window.getDecorView().getSystemUiVisibility();
       flags=flags&~(View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR|View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR);
       window.getDecorView().setSystemUiVisibility(flags);
     }
+  }
+
+  /** 用户 2026-10-01 口述要求（截图：页面顶部返回箭头被状态栏挡住）。
+   *  病根：本页是**独立 Activity**，此前完全没处理窗口 insets —— 既没 setDecorFitsSystemWindows(false)，
+   *  也没有 OnApplyWindowInsetsListener，窗口默认把内容摆在系统栏之下，返回箭头自然被状态栏压住。
+   *  做法（现代路线）：窗口装饰不再自动避让系统栏，改由内容根 View 把 systemBars 的四个方向吃成 padding，
+   *  顶部箭头、底部小字都让开；根 View 背景仍是 BG（padding 只缩内容不缩背景），系统栏区域观感不变。
+   *  写法参考 MainActivity.installSystemNavigationInsets()（那边只垫导航条，本页独立窗口要连状态栏一起兜住）。 */
+  void installSystemBarInsets(){
+    WindowCompat.setDecorFitsSystemWindows(getWindow(),false);
+    ViewCompat.setOnApplyWindowInsetsListener(root,(view,insets)->{
+      androidx.core.graphics.Insets bars=insets.getInsets(WindowInsetsCompat.Type.systemBars());
+      view.setPadding(bars.left,bars.top,bars.right,bars.bottom);
+      return insets;
+    });
+    ViewCompat.requestApplyInsets(root);
   }
 
   /**
@@ -80,8 +105,11 @@ public class SupportActivity extends Activity {
    * 全站约定（用户已拍板）：**`ic_back` = 返回上一页，一律在左上角；`ic_close` 只留给弹窗/浮层**。
    * 本页原来是右上角一个**文字「✕」**（全项目唯一用文字字形当关闭按钮的地方），
    * 与设置子页的左上角箭头不一致，现在统一。
+   *
+   * 用户 2026-10-01 口述补充：**页头只留返回箭头，右边不要任何文字**——
+   * 原来那句 kicker「诚信付费 · 自愿」已删，参数与右侧 TextView 一并清掉（两处调用都传空串，留着就是死代码）。
    */
-  LinearLayout pageHeader(String kicker){
+  LinearLayout pageHeader(){
     LinearLayout top=new LinearLayout(this);
     top.setGravity(Gravity.CENTER_VERTICAL);
     android.widget.ImageButton back=new android.widget.ImageButton(this);
@@ -93,10 +121,6 @@ public class SupportActivity extends Activity {
     back.setContentDescription("返回");
     back.setOnClickListener(v->finish());
     top.addView(back,new LinearLayout.LayoutParams(dp(44),dp(44)));
-    TextView label=text(kicker,12,MUTED);
-    LinearLayout.LayoutParams labelLp=new LinearLayout.LayoutParams(0,dp(44),1);
-    labelLp.leftMargin=dp(6);
-    top.addView(label,labelLp);
     return top;
   }
 
@@ -106,14 +130,13 @@ public class SupportActivity extends Activity {
     root.removeAllViews();
     LinearLayout page=new LinearLayout(this);page.setOrientation(LinearLayout.VERTICAL);page.setPadding(dp(20),dp(10),dp(20),dp(16));
     // [DFW-70] 统一页头：原来这里是**右上角一个文字「✕」**，与设置子页的左上角箭头不一致。
-    page.addView(pageHeader("诚信付费 · 自愿"),new LinearLayout.LayoutParams(-1,dp(44)));
-    // 大标题 + 副标
+    // 用户 2026-10-01 口述：页头只要左上角返回箭头，右边那句「诚信付费 · 自愿」kicker 删掉。
+    page.addView(pageHeader(),new LinearLayout.LayoutParams(-1,dp(44)));
+    // 大标题（用户 2026-10-01 口述：标题下那行「诚信付费 ￥5 · 一次付清 · 承诺永久更新」删掉，
+    // ￥5 只留在中段价格区可见 —— 价格区本身保留不动）
     TextView title=text("支持 "+MainActivity.PRODUCT_NAME,24,TEXT);
     title.setTypeface(AppFonts.bold(this));title.setIncludeFontPadding(false);
     page.addView(title,new LinearLayout.LayoutParams(-2,dp(40)));
-    TextView subtitle=text("诚信付费 ￥5 · 一次付清 · 承诺永久更新",13,MUTED);
-    subtitle.setPadding(dp(2),dp(2),0,dp(12));
-    page.addView(subtitle,new LinearLayout.LayoutParams(-2,-2));
     // 开发者信（诚意区，第一人称，v1.5.0 用户定调：委婉、少小字）——成本与坚持 + 学生分层委婉化 + 感谢
     LinearLayout letterCard=card();
     TextView letter=new TextView(this);
@@ -124,11 +147,10 @@ public class SupportActivity extends Activity {
     LinearLayout.LayoutParams letterLp=new LinearLayout.LayoutParams(-1,-2);
     letterLp.topMargin=dp(12);
     page.addView(letterCard,letterLp);
-    // 权益 3 条（图标 + 短语，≤14 字）：装进同一张卡、等距排列，与上下块用同一个 12dp 间距基准
+    // 权益行（用户 2026-10-01 口述：原来 3 条 emoji 短语全部删掉，只留这一条长句；原话照抄，仅补句末句号）
     LinearLayout perks=card();
     perks.setPadding(dp(14),dp(6),dp(14),dp(6));
-    String[][] perkItems={{"🔓","全部下载权限直接开放"},{"🛠","35 个本地工具永久全功能"},{"🤖","AI 对话不限次 · 一次付费长期有效"}};
-    for(String[] perk:perkItems)perks.addView(benefitRow(perk[0],perk[1]),new LinearLayout.LayoutParams(-1,dp(38)));
+    perks.addView(benefitRow(R.drawable.ic_trophy,"每周自费续 1 万次 DeepSeek v4.1，自动刷新，专供诚信付费的朋友，请诚信付费。"),new LinearLayout.LayoutParams(-1,-2));
     LinearLayout.LayoutParams perksLp=new LinearLayout.LayoutParams(-1,-2);
     perksLp.topMargin=dp(12);
     perksLp.bottomMargin=dp(12);
@@ -180,7 +202,7 @@ public class SupportActivity extends Activity {
     root.removeAllViews();
     LinearLayout page=new LinearLayout(this);page.setOrientation(LinearLayout.VERTICAL);page.setGravity(Gravity.CENTER);page.setPadding(dp(20),dp(10),dp(20),dp(16));
     // [DFW-70] 两个状态页的返回控件必须长得一样：同样左上角「←」。
-    page.addView(pageHeader(""),new LinearLayout.LayoutParams(-1,dp(44)));
+    page.addView(pageHeader(),new LinearLayout.LayoutParams(-1,dp(44)));
     TextView heart=text("❤",56,PRIMARY);
     heart.setGravity(Gravity.CENTER);
     page.addView(heart,new LinearLayout.LayoutParams(-1,dp(96)));
@@ -208,11 +230,18 @@ public class SupportActivity extends Activity {
     playUnlockAnimation(heart);
   }
 
-  LinearLayout benefitRow(String emoji,String phrase){
+  /** 权益行：图标 + 一句说明（用户 2026-10-01 口述要求）。图标走 Phosphor 矢量（ic_trophy），与文字同色；
+   *  行高由原来的固定 38dp 改 WRAP_CONTENT + 上下内距 —— 换成一条长句后会折行，定高会把第二行裁掉。 */
+  LinearLayout benefitRow(int iconRes,String phrase){
     LinearLayout row=new LinearLayout(this);row.setGravity(Gravity.CENTER_VERTICAL);
-    TextView icon=text(emoji,14,TEXT);
-    row.addView(icon,new LinearLayout.LayoutParams(dp(30),dp(30)));
+    row.setPadding(0,dp(9),0,dp(9));
+    ImageView icon=new ImageView(this);
+    icon.setImageResource(iconRes);
+    icon.setColorFilter(PRIMARY);
+    icon.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+    row.addView(icon,new LinearLayout.LayoutParams(dp(20),dp(20)));
     TextView label=text(phrase,13,TEXT);
+    label.setLineSpacing(dp(3),1f);
     label.setPadding(dp(10),0,0,0);
     row.addView(label,new LinearLayout.LayoutParams(0,-2,1));
     return row;

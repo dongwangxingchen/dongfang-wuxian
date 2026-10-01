@@ -265,7 +265,9 @@ loadSearchSettings();applyUserAgentSettings();detectWeakDevice();installBackAnim
   String extractSharedUrl(String text){return LinkPolicy.extractSharedUrl(text);}
   /** 只接收 http/https 的网页链接：拒绝 file/content/其它 scheme，避免变成任意文件/意图入口。 */
   boolean isShareableWebUrl(String value){return LinkPolicy.isShareableWebUrl(value);}
-    void startMainExperience(){if(mainExperienceStarted)return;mainExperienceStarted=true;showHomeLanding();prefetchHome();ui.postDelayed(()->{if(sessionBackgroundIndex)requestDirectoryIndexUpdate(false,false);},2500);
+    /** [DFW-73] 首屏按用户选的「初始界面」进入（软件库 / AI 对话 / 工具箱，见 startDestinationPreference）。
+     *  AI 分支必须和悬浮球那条路径一样先过权限引导链，否则首启直接进 AI 页会缺权限提示。 */
+    void startMainExperience(){if(mainExperienceStarted)return;mainExperienceStarted=true;int start=startDestinationPreference();if(start==4)maybeGuideAiPermissions(this::enterAiPage);else if(start==5)showTools();else showHomeLanding();prefetchHome();ui.postDelayed(()->{if(sessionBackgroundIndex)requestDirectoryIndexUpdate(false,false);},2500);
     // v1.22.10：已授权就静默建好 Download/东方无限/崩溃日志（空目录也要让用户看得见）；
     // 未授权不在启动时弹窗打扰——用户 2026-09-29 明确要求"下载后再问存储权限"。
     if(storageAccessGranted())ensureCrashFolder();
@@ -327,6 +329,8 @@ loadSearchSettings();applyUserAgentSettings();detectWeakDevice();installBackAnim
   @Override protected void onDestroy(){/** F8:v1.22.1 起返回逻辑走 androidx dispatcher（backCallback 字段），随 Activity 销毁自动清理；旧的裸 OnBackInvokedCallback 注销代码一并移除（其方法引用每次都是新对象，本来就注销不掉） */MainActivity active=ACTIVE_INSTANCE.get();if(active==this)ACTIVE_INSTANCE.clear();if(ACTIVE_OWNER==this)ACTIVE_OWNER=null;if(ownsStartupUpdateCheck){STARTUP_UPDATE_CHECKED_IN_PROCESS.set(false);ownsStartupUpdateCheck=false;}synchronized(globalSearch){searchGeneration++;globalSearch.paused=false;globalSearch.notifyAll();}synchronized(sourceSearchLock){sourceSearchSession++;sourceSearchPaused=false;sourceSearchLock.notifyAll();}/* DFWX-STAB-001（修审计 H-P0a）：先摘掉 UI 待执行消息再 close 组件——DirectLinkResolver.close 会同步回调 failed()，
   回调链若在 ui 队列再排新任务会触碰已 teardown 的 UI；drainDownloadUi 的 isDestroyed() 防线拦截这些晚到任务 */ui.removeCallbacksAndMessages(null);flushDownloadHistoryNow();releaseToolMedia();if(core!=null)core.close();if(directResolver!=null)directResolver.close();if(adbShell!=null)adbShell.close();searchIndexIo.shutdownNow();io.shutdownNow();imageIo.shutdownNow();super.onDestroy();}
   long lastSystemBackAt;/** F3:侧滑/返回键 260ms 节流,防手势取消重提交与连滑双触发放大静默失败 */
+  /** [DFW-73] 顶级页"再返回一次退出软件"：横幅视图、自动收起任务、上一次触发时刻。 */
+  View exitConfirmBanner;Runnable exitConfirmHideRunnable;long lastExitConfirmAt;
   /** v1.22.1 预返回（用户要求"侧滑时提前出现过渡动画，没拉完就弹回"）：
    *  官方路线 = OnBackPressedDispatcher + OnBackAnimationCallback（androidx.activity 1.13）。**静态裸
    *  OnBackInvokedCallback 会禁用系统预返回动画**（v1.19.x 起就一直是这样，所以用户从没见过预览效果）。
@@ -344,12 +348,15 @@ loadSearchSettings();applyUserAgentSettings();detectWeakDevice();installBackAnim
       @Override public void handleOnBackProgressed(androidx.activity.BackEventCompat event){
         float progress=Math.max(0f,Math.min(1f,event.getProgress()));
         View frame=pageFrame;if(frame==null||!motionEnabled())return;
+        // [DFW-73] 不该跟手的两处（AI 页 / 顶级页）直接不动：见 predictiveBackPreviewAllowed()
+        if(!predictiveBackPreviewAllowed())return;
         if(!backPreviewActive){backPreviewActive=true;frame.animate().cancel();frame.setLayerType(View.LAYER_TYPE_HARDWARE,null);}
-        // 跟手：缩放 1→0.92、随滑动方向侧移 ≤20dp、轻微压暗（官方预览语义）
-        float scale=1f-0.08f*progress;
+        // 跟手：缩放 1→0.93、随滑动方向侧移 ≤26dp。**不做淡出**——动作条下面没有别的页面，
+        // 淡出会露出黑底，正是用户说的"像碎纸条"的来源；预览期一律保持不透明。
+        float scale=1f-0.07f*progress;
         frame.setScaleX(scale);frame.setScaleY(scale);
-        frame.setTranslationX(event.getSwipeEdge()==androidx.activity.BackEventCompat.EDGE_LEFT?-dp(20)*progress:dp(20)*progress);
-        frame.setAlpha(1f-0.12f*progress);
+        frame.setTranslationX((event.getSwipeEdge()==androidx.activity.BackEventCompat.EDGE_LEFT?-dp(26):dp(26))*progress);
+        frame.setAlpha(1f);
       }
       @Override public void handleOnBackCancelled(){
         View frame=pageFrame;
@@ -369,25 +376,105 @@ loadSearchSettings();applyUserAgentSettings();detectWeakDevice();installBackAnim
     getOnBackPressedDispatcher().addCallback(this,backCallback);
     syncBackCallbackEnabled();
   }
-  /** isEnabled() 在 androidx 1.13 是 final，无法覆写——改为在每次页面状态变化后主动同步：
-   *  根页面（主页无消费项）禁用 → 系统"回桌面"预览动画自动出现；有可返回项则启用 → 应用内预览。 */
+  /** isEnabled() 在 androidx 1.13 是 final，无法覆写——改为在每次页面状态变化后主动同步。
+   *  [DFW-73] 现在恒为启用：顶级页也要自己吃掉这次返回（先弹"再返回一次退出软件"），
+   *  只有横幅提示出现之后，第二次返回才真的退出。 */
   void syncBackCallbackEnabled(){if(backCallback==null)return;backCallback.setEnabled(canHandleBack());}
-  boolean canHandleBack(){
-    // [DFW-60] 维护页拦截期间：返回键由我们消费掉，**不得**回主页、更不得退出应用。
-    // 用户明确要求"返回键无效"——维护页是纯粹通知，唯一的出路是那个隐藏后门。
-    if(maintenanceBlocking)return true;
-    // [DFW-65] 更新面板开着时返回键归它管：软更新=关闭，强制更新=消费掉但不关（handleBack 里决定）。
-    if(offerSheet!=null&&offerSheet.isShowing())return true;
-    if(pageKind==5)return true; // AI 页：交 Compose dispatcher 或回主页
-    if(sourceSelectionMode||downloadSelectionMode||selectionMode)return true;
-    if(pageKind==6&&!toolBackStack.isEmpty())return true;
-    if(systemBackAction!=null)return true;
-    if(primaryDestination>0)return true;
-    return pageKind!=0;
-  }
-  void performSystemBack(){if(maintenanceBlocking)return;if(offerSheet!=null&&offerSheet.isShowing()){offerSheet.handleBack();return;}if(SystemClock.uptimeMillis()-lastSystemBackAt<260)return;lastSystemBackAt=SystemClock.uptimeMillis();/* v1.10.0 内嵌 AI 页返回桥：有启用的 Compose 回调（抽屉/子路由）则交其消费，否则回主页 */if(pageKind==5){if(getOnBackPressedDispatcher().hasEnabledCallbacks()){getOnBackPressedDispatcher().onBackPressed();return;}navigateHome();return;}if(sourceSelectionMode){exitSourceSelection();return;}if(downloadSelectionMode){exitDownloadSelection();return;}if(selectionMode){exitSelection();return;}if(pageKind==6&&!toolBackStack.isEmpty()){pageDirection=-1;popToolBack();return;}if(systemBackAction!=null){Runnable action=systemBackAction;systemBackAction=null;pageDirection=-1;action.run();return;}/** F1:底栏页返回=回主页而非退出应用(预测式返回下"闪没/重置"的根因);主页再返回才退出 */if(primaryDestination>0){navigateHome();return;}finishAfterTransition();}
+  /** [DFW-73] 预测式返回的跟手预览何时允许：
+   *  - AI 内嵌页不预览（用户明确要求"AI 对话保持原有动画"）；
+   *  - 顶级页不预览（返回语义只是"再返回一次退出软件"，页面本身并不离开）。 */
+  boolean predictiveBackPreviewAllowed(){return pageKind!=5&&!atTopLevelRoot();}
+  /**
+   * [DFW-73] 恒为 true —— 顶级页也必须由**我们自己**消费这次返回。
+   *
+   * 旧实现让顶级页把返回键交还给系统（"根页面禁用回调 → 系统回桌面预览动画自动出现"），
+   * 但用户 2026-10-01 定的是"顶级页先提示『再返回一次退出软件』、第二次才退出"：
+   * 一旦交还系统，Activity 立刻 finish，横幅根本没机会出现。
+   *
+   * 维护页 / 更新面板 / AI 页 / 多选态本来就都要消费，一并被这条覆盖。
+   */
+  boolean canHandleBack(){return true;}
+  void performSystemBack(){if(maintenanceBlocking)return;if(offerSheet!=null&&offerSheet.isShowing()){offerSheet.handleBack();return;}if(SystemClock.uptimeMillis()-lastSystemBackAt<260)return;lastSystemBackAt=SystemClock.uptimeMillis();/* v1.10.0 内嵌 AI 页返回桥：有启用的 Compose 回调（抽屉/子路由）则交其消费 */if(pageKind==5&&getOnBackPressedDispatcher().hasEnabledCallbacks()){getOnBackPressedDispatcher().onBackPressed();return;}if(sourceSelectionMode){exitSourceSelection();return;}if(downloadSelectionMode){exitDownloadSelection();return;}if(selectionMode){exitSelection();return;}if(pageKind==6&&!toolBackStack.isEmpty()){pageDirection=-1;popToolBack();return;}if(systemBackAction!=null){Runnable action=systemBackAction;systemBackAction=null;pageDirection=-1;action.run();return;}if(primaryDestination==1){/* [DFW-73] 软件库列表是软件库的下一层：返回回软件库，不是顶级页 */navigateHome();return;}/* [DFW-73] 走到这里 = 顶级页且没有上一层：**再返回一次退出软件**，不再一律回软件库（用户 2026-10-01 口述） */confirmExitToSoftware();}
   /* v1.22.1 预返回：onBackPressed() 覆写已删除——覆写它会退回旧的按键式返回路径，系统预返回动画不会播。
      返回统一走 androidx OnBackPressedDispatcher（backCallback，见 installBackAnimationCallback）。 */
+
+  /**
+   * [DFW-73] 顶级页判定：当前就是悬浮球六项之一，且**没有任何"上一层"可回**。
+   *
+   * 用户 2026-10-01 口述："所有界面都要平级；在顶级页面并且没有子页面的情况下，
+   * 返回就是先提示『再返回一次退出软件』，然后再退出。"
+   *
+   * 注意：公告页虽然也是顶级页，但它记着"从哪来"（`systemBackAction=noticeReturnAction()`），
+   * 所以不算顶级根 —— 从公告返回仍然回到进来之前那一页。
+   */
+  boolean atTopLevelRoot(){
+    if(maintenanceBlocking)return false;
+    if(offerSheet!=null&&offerSheet.isShowing())return false;
+    if(sourceSelectionMode||downloadSelectionMode||selectionMode)return false;
+    if(systemBackAction!=null)return false;
+    if(pageKind==6&&!toolBackStack.isEmpty())return false;
+    // [DFW-73] 软件库列表（primaryDestination==1，从软件库页的「更多/软件」进来）是**软件库的下一层**，
+    // 不是顶级根：返回要回软件库，而不是提示退出。以前靠 performSystemBack 结尾那条
+    // `if(primaryDestination>0) navigateHome()` 兜住，那条被 DFW-73 删掉后必须在这里显式认领。
+    if(primaryDestination==1)return false;
+    // AI 内嵌页：Compose 侧还有可消费项（抽屉/子路由）时不是顶级页
+    if(pageKind==5&&getOnBackPressedDispatcher().hasEnabledCallbacks())return false;
+    return true;
+  }
+
+  /** 顶级页的返回兜底：第一次顶部横幅提示，窗口内第二次才真的退出。 */
+  void confirmExitToSoftware(){
+    long now=SystemClock.uptimeMillis();
+    if(lastExitConfirmAt>0L&&now-lastExitConfirmAt<=EXIT_CONFIRM_WINDOW_MS){lastExitConfirmAt=0L;hideExitConfirmBanner();finishAfterTransition();return;}
+    lastExitConfirmAt=now;
+    showExitConfirmBanner();
+  }
+
+  /** 「再返回一次退出软件」顶部横幅：从状态栏下方滑入，2 秒后自动收起（与二次返回窗口同长）。 */
+  void showExitConfirmBanner(){
+    if(host==null)return;
+    if(exitConfirmBanner==null){
+      LinearLayout box=new LinearLayout(this);
+      box.setOrientation(LinearLayout.HORIZONTAL);
+      box.setGravity(Gravity.CENTER_VERTICAL);
+      GradientDrawable bg=solidShape(SET_HIGH,18);
+      bg.setStroke(dp(1),BORDER);
+      box.setBackground(bg);
+      box.setElevation(dp(6));
+      box.setPadding(dp(18),0,dp(18),0);
+      TextView label=text("再返回一次退出软件",13,TEXT);
+      label.setGravity(Gravity.CENTER_VERTICAL);
+      box.addView(label,new LinearLayout.LayoutParams(-1,dp(46)));
+      box.setContentDescription("再返回一次退出软件");
+      box.setAlpha(0f);
+      box.setTranslationY(-dp(72));
+      box.setVisibility(View.GONE);
+      exitConfirmBanner=box;
+      FrameLayout.LayoutParams lp=new FrameLayout.LayoutParams(-1,dp(46),Gravity.TOP);
+      lp.setMargins(dp(16),dp(8),dp(16),0);
+      host.addView(box,lp);
+    }
+    final View banner=exitConfirmBanner;
+    if(exitConfirmHideRunnable!=null)ui.removeCallbacks(exitConfirmHideRunnable);
+    banner.animate().cancel();
+    banner.setVisibility(View.VISIBLE);
+    banner.bringToFront();
+    if(motionEnabled())banner.animate().alpha(1f).translationY(0f).setDuration(200).setInterpolator(new android.view.animation.PathInterpolator(0.05f,0.7f,0.1f,1f)).start();
+    else{banner.setAlpha(1f);banner.setTranslationY(0f);}
+    exitConfirmHideRunnable=()->{View v=exitConfirmBanner;if(v==null)return;v.animate().cancel();if(motionEnabled())v.animate().alpha(0f).translationY(-dp(72)).setDuration(170).withEndAction(()->{if(exitConfirmBanner==v)v.setVisibility(View.GONE);}).start();else{v.setAlpha(0f);v.setTranslationY(-dp(72));v.setVisibility(View.GONE);}};
+    ui.postDelayed(exitConfirmHideRunnable,EXIT_CONFIRM_WINDOW_MS);
+  }
+
+  void hideExitConfirmBanner(){
+    if(exitConfirmHideRunnable!=null)ui.removeCallbacks(exitConfirmHideRunnable);
+    View banner=exitConfirmBanner;
+    if(banner==null)return;
+    banner.animate().cancel();
+    banner.setAlpha(0f);
+    banner.setTranslationY(-dp(72));
+    banner.setVisibility(View.GONE);
+  }
+
   String downloadHistoryJson(){return getSharedPreferences("download_history",MODE_PRIVATE).getString("items","[]");}
   void loadDownloadHistory(){
     boolean normalized=false;String raw=downloadHistoryJson();
@@ -702,6 +789,16 @@ styleDialogButton(dialog.getButton(AlertDialog.BUTTON_NEGATIVE),false);styleDial
   void installSystemNavigationInsets(){if(host==null)return;host.setOnApplyWindowInsetsListener((view,insets)->{int left,top,right,bottom;if(Build.VERSION.SDK_INT>=30){android.graphics.Insets navigation=insets.getInsets(android.view.WindowInsets.Type.navigationBars()),status=insets.getInsets(android.view.WindowInsets.Type.statusBars()),cutout=insets.getInsets(android.view.WindowInsets.Type.displayCutout());left=Math.max(navigation.left,cutout.left);top=Math.max(status.top,cutout.top);right=Math.max(navigation.right,cutout.right);bottom=Math.max(navigation.bottom,cutout.bottom);}else{left=insets.getSystemWindowInsetLeft();top=insets.getSystemWindowInsetTop();right=insets.getSystemWindowInsetRight();bottom=insets.getSystemWindowInsetBottom();if(Build.VERSION.SDK_INT>=28&&insets.getDisplayCutout()!=null){android.view.DisplayCutout cutout=insets.getDisplayCutout();left=Math.max(left,cutout.getSafeInsetLeft());top=Math.max(top,cutout.getSafeInsetTop());right=Math.max(right,cutout.getSafeInsetRight());bottom=Math.max(bottom,cutout.getSafeInsetBottom());}}applySystemNavigationInsets(left,top,right,bottom);if(Build.VERSION.SDK_INT>=30){// v1.19.9 AI 内嵌页防双计：宿主已用 host padding 消费状态栏/导航条/刘海，但原先原样返回 insets，Compose（按窗口报告 insets）再垫一层=顶/底双倍空白；裁剪后再传子级，ime 必须保留（AI 输入框 imePadding 靠它浮到键盘上方）。主 app 其余页面无第二个 insets 消费者，仅 AI 页受益
 android.graphics.Insets none=android.graphics.Insets.NONE;android.view.WindowInsets.Builder cleared=new android.view.WindowInsets.Builder(insets).setInsets(android.view.WindowInsets.Type.statusBars(),none).setInsets(android.view.WindowInsets.Type.navigationBars(),none).setInsets(android.view.WindowInsets.Type.displayCutout(),none);cleared.setInsetsIgnoringVisibility(android.view.WindowInsets.Type.displayCutout(),none);return cleared.build();}return insets;});host.requestApplyInsets();}
   void invalidateSearchRenderSurface(){synchronized(searchUiLock){searchRenderEpoch++;searchRenderGrid=null;pendingSearchSession=pendingSearchEpoch=-1;pendingSearchGrid=null;pendingSearchAdds.clear();pendingSearchUpdates.clear();pendingSearchRefresh=false;searchUiPosted=false;}searchWindowPosted=false;}
+  /**
+   * [DFW-73] 悬浮球六项**全部平级**（用户 2026-10-01 口述）。
+   *
+   * 病根：公告页原来用 `primaryBase(0)`（= 软件库那一档）当底座，于是 `goToDestination(0)`
+   * 开头的 `destination==primaryDestination` 守卫直接把它吞掉——表现就是"在公告页点
+   * 悬浮球里的『软件库』，一点反应都没有"。公告必须有独立档位才能和另外五项真正平级。
+   */
+  static final int DEST_NOTICE=6;
+  /** 顶级页返回兜底："再返回一次退出软件"的第二次返回窗口（毫秒）。 */
+  static final long EXIT_CONFIRM_WINDOW_MS=2000L;
   void base(){basePage(-1);} void primaryBase(int destination){if(pageKind==1&&destination!=1)retainSourceListPage();basePage(destination);}
   void basePage(int destination){
     // [DFW-71] **在离开设置页的那一刻**记下滚动位置：任何导航离开都会经过这里，
@@ -784,9 +881,30 @@ android.graphics.Insets none=android.graphics.Insets.NONE;android.view.WindowIns
     android.view.animation.Interpolator emphasized=new android.view.animation.PathInterpolator(0.05f,0.7f,0.1f,1f),accel=new android.view.animation.PathInterpolator(0.3f,0f,0.8f,0.15f);
     if(direction==0){next.setAlpha(0f);next.setScaleX(0.92f);next.setScaleY(0.92f);next.post(()->{if(pageFrame!=next)return;previous.animate().alpha(0f).setDuration(90).start();next.animate().alpha(1f).scaleX(1f).scaleY(1f).setDuration(210).setInterpolator(emphasized).withEndAction(()->finishPageTransition(previous,next)).start();});return;}
     if(weakDevice||perfLowMotion){next.setAlpha(0f);next.setScaleX(0.96f);next.setScaleY(0.96f);next.post(()->{if(pageFrame!=next)return;previous.animate().alpha(0f).setDuration(140).start();next.animate().alpha(1f).scaleX(1f).scaleY(1f).setDuration(190).withEndAction(()->finishPageTransition(previous,next)).start();});return;}
-    int slide=dp(30);next.setAlpha(0f);
-    if(direction<0){next.setTranslationX(-slide);previous.post(()->{if(pageFrame!=next)return;previous.animate().translationX(slide).alpha(0f).setDuration(180).setInterpolator(accel).start();next.animate().translationX(0f).alpha(1f).setDuration(300).setInterpolator(emphasized).withEndAction(()->finishPageTransition(previous,next)).start();});return;}
-    next.setTranslationX(slide);previous.post(()->{if(pageFrame!=next)return;previous.animate().translationX(-slide).alpha(0f).setDuration(180).setInterpolator(accel).start();next.animate().translationX(0f).alpha(1f).setDuration(300).setInterpolator(emphasized).withEndAction(()->finishPageTransition(previous,next)).start();});}
+    // [DFW-73] 子页面推入/返回改成**整页实体位移**（用户 2026-10-01："现在的过渡像碎纸条"）。
+    // 病根：旧实现在黑色底上让两页同时"位移+淡出"，两层半透明内容叠在黑底上被看成两条互不相干的纸片。
+    // 新做法遵循真正的层级语义——**下面那一页永远不透明地待在原地**，只有盖在上面那一页在动：
+    //   推入：新页从右侧整页滑入（不淡入），旧页原地退回并压暗 → 纵深；
+    //   返回：上层页向右滑走并淡出，露出下面那页 → 抽纸感。
+    int travel=Math.max(dp(80),(int)(safeContentWidth()*0.28f));
+    if(direction<0){
+      next.setAlpha(1f);next.setTranslationX(0f);next.setScaleX(1f);next.setScaleY(1f);
+      previous.setAlpha(1f);previous.setScaleX(1f);previous.setScaleY(1f);previous.setTranslationX(0f);
+      previous.post(()->{
+        if(pageFrame!=next)return;
+        previous.animate().translationX(travel).alpha(0f).setDuration(240).setInterpolator(emphasized).withEndAction(()->finishPageTransition(previous,next)).start();
+      });
+      return;
+    }
+    next.setAlpha(1f);next.setScaleX(1f);next.setScaleY(1f);next.setTranslationX(travel);
+    previous.setAlpha(1f);previous.setTranslationX(0f);
+    previous.setPivotX(previous.getWidth()/2f);previous.setPivotY(previous.getHeight()/2f);
+    next.post(()->{
+      if(pageFrame!=next)return;
+      previous.animate().scaleX(0.94f).scaleY(0.94f).alpha(0.55f).setDuration(300).setInterpolator(emphasized).start();
+      next.animate().translationX(0f).setDuration(300).setInterpolator(emphasized).withEndAction(()->finishPageTransition(previous,next)).start();
+    });
+  }
   void finishPageTransition(View previous,View next){if(pageFrame!=next)return;settlePageTransition();}
   void settlePageTransition(){if(pageHost==null||pageFrame==null)return;for(int i=pageHost.getChildCount()-1;i>=0;i--)pageHost.getChildAt(i).animate().cancel();for(int i=pageHost.getChildCount()-1;i>=0;i--)if(pageHost.getChildAt(i)!=pageFrame)pageHost.removeViewAt(i);pageFrame.setTranslationX(0);pageFrame.setScaleX(1f);pageFrame.setScaleY(1f);pageFrame.setAlpha(1f);pageFrame.setEnabled(true);syncBackCallbackEnabled();}
   boolean homeSearchConfigurationActive(){return pageKind==0&&primaryDestination==0&&homeStage!=null&&homeSearchBox!=null&&homeHistory!=null&&(homeSearchFocused||homeSearchRequested);}
@@ -1160,6 +1278,8 @@ android.graphics.Insets none=android.graphics.Insets.NONE;android.view.WindowIns
       RemoteConfigClient.Snapshot snapshot=null;
       try{snapshot=RemoteConfigClient.fetch();}catch(Exception ignored){/* 拉不到就按正常放行 */}
       final RemoteConfigClient.Snapshot result=snapshot;
+      // [DFW-73] 后台下发的内置渠道覆盖（地址/令牌/模型/最大输出/开关）：拉到就应用，当次启动即生效。
+      if(result!=null)BuiltinAiChannel.applyRemote(result.control());
       runOnUiThread(()->{
         if(isFinishing()||isDestroyed())return;
         MaintenanceGate.Screen screen=maintenanceGate().decide(result);
@@ -1669,13 +1789,20 @@ android.graphics.Insets none=android.graphics.Insets.NONE;android.view.WindowIns
    *   于是在导航栈里公告天然成了设置的子页；
    * - `systemBackAction` 与 `aboutBackBar` 又都写死回 `showSettings()`。
    *
-   * 现在：底座用首页档（与"软件库/下载/工具箱"同级），返回动作 = **回到进来之前那一页**。
+   * 现在：底座用**公告自己的档位**（`DEST_NOTICE`，与"软件库/下载/工具箱/设置/AI"五项完全平级，
+   * 不再借用 0），返回动作 = **回到进来之前那一页**。
    */
   void showNoticeCenter(){
     if(isFinishing()||isDestroyed())return;
     // 先记下"从哪来"，再 `primaryBase` 重建页面——顺序反了，记到的就是公告页自己。
     final Runnable back=noticeReturnAction();
-    primaryBase(0);
+    // [DFW-73] 公告是悬浮球六项之一，**进场必须和另外五项长得一模一样**
+    // （用户 2026-10-01："点『公告』的切换动画要和其他 5 个一致"）。
+    // 另外五项都走 goToDestination 的 `primaryNavigationSwitch=true;pageDirection=0`（原位淡切），
+    // 公告以前没设，于是它走的是"从右边推入"的子页动画 —— 那正是它被看成子页的观感来源。
+    primaryNavigationSwitch=true;
+    pageDirection=0;
+    primaryBase(DEST_NOTICE);
     pageKind=10;
     activeSource=null;
     clearFolderTrail();
@@ -2274,6 +2401,56 @@ content=new LinearLayout(this);content.setOrientation(LinearLayout.VERTICAL);pag
     if(perfTierSummary!=null)perfTierSummary.setText(perfTierDescription(perfTier)+"\n"+perfTierFacts());
     if(perfMotionRow!=null)perfMotionRow.setVisibility(perfTier==0?View.VISIBLE:View.GONE);}
   String perfTierLabel(int tier){return tier==0?"节能":tier==1?"均衡":"高性能";}
+  /**
+   * [DFW-73] **初始界面**（用户 2026-10-01 口述：悬浮球六项全部平级之后，要能指定开软件时停在哪一页）。
+   *
+   * 用户只给了三个选项：**软件库 / AI 对话 / 工具箱**（下载、设置、公告没给，不要自行添加）。
+   * 非法值一律回落 0=软件库，保证老用户升级后行为不变。
+   */
+  int startDestinationPreference(){int stored=getPreferences(0).getInt("start_destination",0);return stored==4||stored==5?stored:0;}
+  void setStartDestinationPreference(int value){getPreferences(0).edit().putInt("start_destination",value==4||value==5?value:0).apply();}
+  LinearLayout startDestinationChipRow;
+  /** 初始界面三选一芯片行（视觉与「性能模式」三档芯片一致：选中=主色实底 + 反白字）。 */
+  LinearLayout buildStartDestinationRow(){
+    LinearLayout panel=new LinearLayout(this);panel.setOrientation(LinearLayout.VERTICAL);panel.setPadding(dp(10),dp(8),dp(10),dp(4));panel.setContentDescription("初始界面");
+    TextView title=text("初始界面",15,TEXT);title.setTypeface(AppFonts.bold(this));
+    panel.addView(title,new LinearLayout.LayoutParams(-1,dp(30)));
+    TextView hint=text("打开软件时默认停在哪个界面",12,SET_T2);
+    panel.addView(hint,new LinearLayout.LayoutParams(-1,dp(24)));
+    LinearLayout chips=new LinearLayout(this);chips.setOrientation(LinearLayout.HORIZONTAL);
+    String[] names={"软件库","AI 对话","工具箱"};
+    int[] values={0,4,5};
+    startDestinationChipRow=chips;
+    for(int i=0;i<values.length;i++){
+      final int value=values[i];
+      TextView chip=text(names[i],14,TEXT);
+      chip.setGravity(Gravity.CENTER);
+      chip.setTag(value);
+      chip.setClickable(true);
+      chip.setFocusable(true);
+      chip.setOnClickListener(v->{setStartDestinationPreference(value);syncStartDestinationChips();showNotice("初始界面已设为"+names[value==4?1:value==5?2:0],false);});
+      chips.addView(chip,new LinearLayout.LayoutParams(0,dp(46),1));
+      if(i<values.length-1)chips.addView(new View(this),new LinearLayout.LayoutParams(dp(8),1));
+    }
+    panel.addView(chips,new LinearLayout.LayoutParams(-1,dp(46)));
+    syncStartDestinationChips();
+    return panel;
+  }
+  void syncStartDestinationChips(){
+    if(startDestinationChipRow==null)return;
+    int current=startDestinationPreference();
+    for(int i=0;i<startDestinationChipRow.getChildCount();i++){
+      View child=startDestinationChipRow.getChildAt(i);
+      if(!(child instanceof TextView))continue;
+      TextView chip=(TextView)child;
+      Object tag=chip.getTag();
+      boolean selected=tag instanceof Integer&&((Integer)tag).intValue()==current;
+      chip.setSelected(selected);
+      chip.setTextColor(selected?BG:TEXT);
+      chip.setBackground(filterRipple(solidShape(selected?PRIMARY:SURFACE2,16)));
+      chip.setContentDescription(chip.getText()+(selected?"，已选择":""));
+    }
+  }
   LinearLayout buildPerfTierCard(){LinearLayout card=new LinearLayout(this);card.setOrientation(LinearLayout.VERTICAL);card.setPadding(dp(10),dp(10),dp(10),dp(12));perfChipRow=new LinearLayout(this);perfChipRow.setOrientation(LinearLayout.HORIZONTAL);String[] names={"节能","均衡","高性能"};
     for(int i=0;i<3;i++){final int tier=i;TextView chip=text(names[i],14,TEXT);chip.setGravity(Gravity.CENTER);chip.setTag(i);chip.setClickable(true);chip.setFocusable(true);chip.setOnClickListener(v->applyPerfTier(tier));LinearLayout.LayoutParams chipLp=new LinearLayout.LayoutParams(0,dp(46),1);perfChipRow.addView(chip,chipLp);if(i<2){View gap=new View(this);perfChipRow.addView(gap,new LinearLayout.LayoutParams(dp(8),1));}}
     card.addView(perfChipRow,new LinearLayout.LayoutParams(-1,dp(46)));
@@ -2282,7 +2459,7 @@ content=new LinearLayout(this);content.setOrientation(LinearLayout.VERTICAL);pag
     updatePerfTierUi();return card;}
   void showSettings(){
     // [DFW-71] 必须在 primaryBase 拆掉旧视图树**之前**存位置，否则就读不到了。
-    primaryBase(3);pageKind=4;settingsRefreshers.clear();settingsSearchSections.clear();activeSource=null;clearFolderTrail();systemBackAction=null;primaryHeader("设置");LinearLayout body=new LinearLayout(this);body.setOrientation(LinearLayout.VERTICAL);body.setPadding(0,dp(4),0,dp(18));/* v1.22.3 边距统一：左右 8dp→0，设置卡片与 header/首页同 16dp 基准（原 24dp 比首页多缩 8dp，造成"边距不齐像被挤住"观感） */LinearLayout.LayoutParams integrityPayLp=new LinearLayout.LayoutParams(-1,-2);integrityPayLp.bottomMargin=dp(10);body.addView(new IntegrityPayButton(this,ThemeEngine.active(this),getResources().getDisplayMetrics().density,Support.unlocked(this),motionEnabled(),this::openSupportActivity),integrityPayLp);applePressScale(integrityPayLp==null?null:(View)body.getChildAt(body.getChildCount()-1));/* v1.23 T5-S 四分区重排（v7 设计稿）：常用默认展开；性能模式收起（细项过渡态，三档芯片随后替换）；高级收起（网络兼容+ADB）；数据与关于收起 */addSettingsSection(body,settingsSection(R.drawable.ic_download,"常用","下载、搜索与列表浏览",true,buildDownloadPathPanel(),buildSearchModeRow(),buildRecursiveFoldersRow(),settingsSwitchRow(R.drawable.ic_expand,"浏览时自动加载更多",sessionAutoExpand,checked->{sessionAutoExpand=checked;persistSearchSettings();if(checked&&folderPullScroll!=null)folderPullScroll.post(this::maybeAutoExpand);}),buildAutoInstallDownloadsRow(),settingsSwitchRow(R.drawable.ic_home,"下载时推荐诚信付费",Support.askOnDownload(this),checked->{Support.setAskOnDownload(this,checked);})));addSettingsSection(body,settingsSection(R.drawable.ic_bolt,"性能模式","下载与动效的整体节奏",false,buildPerfTierCard(),buildSearchSettingsPanel(),buildDownloadSettingsPanel(),buildListDisplaySettings(),buildAutoExpandPageSettings(),buildIndexSliderSettings(),buildAdbInstallThreadSettings(),buildIndexProgressCard()));addSettingsSection(body,settingsSection(R.drawable.ic_sliders,"高级","网络、兼容与 ADB 安装",false,buildUaSettingsRow(),settingsSwitchRow(R.drawable.ic_open_with,"蓝奏链接直接解析打开",directLanzouListOpen,checked->{directLanzouListOpen=checked;persistSearchSettings();}),buildLanzouBaseOriginRow(),settingsSwitchRow(R.drawable.ic_refresh,"基础链接超时自动切换",sessionLanzouTimeoutFailover,checked->{sessionLanzouTimeoutFailover=checked;persistSearchSettings();}),settingsSwitchRow(R.drawable.ic_share,"网页外部打开",sessionOpenWebExternal,checked->{sessionOpenWebExternal=checked;persistSearchSettings();}),settingsSwitchRow(R.drawable.ic_file,"列表源展示链接",showSourceLinks,checked->{showSourceLinks=checked;persistSearchSettings();}),buildAdbPermissionCard()));addSettingsSection(body,settingsSection(R.drawable.ic_database,"数据与关于","下载显示与资源管理",false,settingsSwitchRow(R.drawable.ic_nav_grid,"批量下载逐项显示",sessionBatchDownloadSingleItem,checked->{sessionBatchDownloadSingleItem=checked;persistSearchSettings();if(pageKind==2)renderDownloads(downloadQuery);}),buildSourceSettingsPanel(),settingsAction(R.drawable.ic_notifications,"公告",v->showNoticeCenter()),settingsAction(R.drawable.ic_sources,"资源源管理",v->showSourcesFromSettings()),settingsAction(R.drawable.ic_refresh,"开源项目主页",v->openInBrowser(DFWX_REPOSITORY,""))));
+    primaryBase(3);pageKind=4;settingsRefreshers.clear();settingsSearchSections.clear();activeSource=null;clearFolderTrail();systemBackAction=null;primaryHeader("设置");LinearLayout body=new LinearLayout(this);body.setOrientation(LinearLayout.VERTICAL);body.setPadding(0,dp(4),0,dp(18));/* v1.22.3 边距统一：左右 8dp→0，设置卡片与 header/首页同 16dp 基准（原 24dp 比首页多缩 8dp，造成"边距不齐像被挤住"观感） */LinearLayout.LayoutParams integrityPayLp=new LinearLayout.LayoutParams(-1,-2);integrityPayLp.bottomMargin=dp(10);body.addView(new IntegrityPayButton(this,ThemeEngine.active(this),getResources().getDisplayMetrics().density,Support.unlocked(this),motionEnabled(),this::openSupportActivity),integrityPayLp);applePressScale(integrityPayLp==null?null:(View)body.getChildAt(body.getChildCount()-1));/* v1.23 T5-S 四分区重排（v7 设计稿）：常用默认展开；性能模式收起（细项过渡态，三档芯片随后替换）；高级收起（网络兼容+ADB）；数据与关于收起 */addSettingsSection(body,settingsSection(R.drawable.ic_download,"常用","下载、搜索与列表浏览",true,buildStartDestinationRow(),buildDownloadPathPanel(),buildSearchModeRow(),buildRecursiveFoldersRow(),settingsSwitchRow(R.drawable.ic_expand,"浏览时自动加载更多",sessionAutoExpand,checked->{sessionAutoExpand=checked;persistSearchSettings();if(checked&&folderPullScroll!=null)folderPullScroll.post(this::maybeAutoExpand);}),buildAutoInstallDownloadsRow(),settingsSwitchRow(R.drawable.ic_home,"下载时推荐诚信付费",Support.askOnDownload(this),checked->{Support.setAskOnDownload(this,checked);})));addSettingsSection(body,settingsSection(R.drawable.ic_bolt,"性能模式","下载与动效的整体节奏",false,buildPerfTierCard(),buildSearchSettingsPanel(),buildDownloadSettingsPanel(),buildListDisplaySettings(),buildAutoExpandPageSettings(),buildIndexSliderSettings(),buildAdbInstallThreadSettings(),buildIndexProgressCard()));addSettingsSection(body,settingsSection(R.drawable.ic_sliders,"高级","网络、兼容与 ADB 安装",false,buildUaSettingsRow(),settingsSwitchRow(R.drawable.ic_open_with,"蓝奏链接直接解析打开",directLanzouListOpen,checked->{directLanzouListOpen=checked;persistSearchSettings();}),buildLanzouBaseOriginRow(),settingsSwitchRow(R.drawable.ic_refresh,"基础链接超时自动切换",sessionLanzouTimeoutFailover,checked->{sessionLanzouTimeoutFailover=checked;persistSearchSettings();}),settingsSwitchRow(R.drawable.ic_share,"网页外部打开",sessionOpenWebExternal,checked->{sessionOpenWebExternal=checked;persistSearchSettings();}),settingsSwitchRow(R.drawable.ic_file,"列表源展示链接",showSourceLinks,checked->{showSourceLinks=checked;persistSearchSettings();}),buildAdbPermissionCard()));addSettingsSection(body,settingsSection(R.drawable.ic_database,"数据与关于","下载显示与资源管理",false,settingsSwitchRow(R.drawable.ic_nav_grid,"批量下载逐项显示",sessionBatchDownloadSingleItem,checked->{sessionBatchDownloadSingleItem=checked;persistSearchSettings();if(pageKind==2)renderDownloads(downloadQuery);}),buildSourceSettingsPanel(),settingsAction(R.drawable.ic_notifications,"公告",v->showNoticeCenter()),settingsAction(R.drawable.ic_sources,"资源源管理",v->showSourcesFromSettings()),settingsAction(R.drawable.ic_refresh,"开源项目主页",v->openInBrowser(DFWX_REPOSITORY,""))));
   // T5-S §8:底部关于区——崩溃日志/参考致谢/关于移出"数据与关于"单独收底,三行顺序按用户指定(崩溃日志→参考致谢→关于);诚信付费按钮保持在设置页顶部
   LinearLayout footer=new LinearLayout(this);footer.setOrientation(LinearLayout.VERTICAL);GradientDrawable footerBg=new GradientDrawable();footerBg.setColor(SET_LOW);footerBg.setCornerRadius(dp(20));footerBg.setStroke(dp(1),SET_STROKE);footer.setBackground(footerBg);footer.setClipToOutline(true);footer.setTag(true);
   LinearLayout footerContent=new LinearLayout(this);footerContent.setOrientation(LinearLayout.VERTICAL);footerContent.setPadding(dp(4),0,dp(4),dp(6));

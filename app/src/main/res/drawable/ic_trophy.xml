@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 来源：Phosphor Icons（MIT）regular 档 trophy —— 项目定库见参考库 06-开源参考库/01-图标库.md（2026-09-25 用户拍板 Phosphor）。
+     源文件 https://cdn.jsdelivr.net/npm/@phosphor-icons/core@2.1.1/assets/regular/trophy.svg（viewBox 0 0 256 256），
+     仅把 fill="currentColor" 落成 android:fillColor="#FFFFFFFF"，与 ic_bolt/ic_tool_star 同构，运行时 setColorFilter 上色。 -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="24dp" android:height="24dp" android:viewportWidth="256" android:viewportHeight="256"><path android:pathData="M232,64H208V48a8,8,0,0,0-8-8H56a8,8,0,0,0-8,8V64H24A16,16,0,0,0,8,80V96a40,40,0,0,0,40,40h3.65A80.13,80.13,0,0,0,120,191.61V216H96a8,8,0,0,0,0,16h64a8,8,0,0,0,0-16H136V191.58c31.94-3.23,58.44-25.64,68.08-55.58H208a40,40,0,0,0,40-40V80A16,16,0,0,0,232,64ZM48,120A24,24,0,0,1,24,96V80H48v32q0,4,.39,8Zm144-8.9c0,35.52-29,64.64-64,64.9a64,64,0,0,1-64-64V56H192ZM232,96a24,24,0,0,1-24,24h-.5a81.81,81.81,0,0,0,.5-8.9V80h24Z" android:fillColor="#FFFFFFFF"/></vector>

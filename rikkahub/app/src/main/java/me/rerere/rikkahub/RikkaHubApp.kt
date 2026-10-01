@@ -41,6 +41,8 @@ import me.rerere.rikkahub.utils.DatabaseUtil
 import me.rerere.rikkahub.data.repository.WorkspaceRepository
 // [DFWX AI-004] 存量内置渠道一次性清理
 import me.rerere.rikkahub.dfwx.DfwxBuiltinProviderCleanup
+// [DFW-73] 内置渠道（服务端中转）播种 / 同步
+import me.rerere.rikkahub.dfwx.DfwxBuiltinChannel
 import me.rerere.workspace.WorkspaceManager
 import org.koin.android.ext.android.get
 import org.koin.android.ext.koin.androidContext
@@ -114,6 +116,11 @@ open class RikkaHubApp : Application() {
         // 内置 API 全部移除，后续免费额度只在官方群聊发放，由用户自行配置渠道。
         // 下面的清理器负责把老版本播过的"智能中转(内置)"渠道一次性移除（保守身份证明，只删原样未改的）。
         DfwxBuiltinProviderCleanup.removeLegacySeedIfNeeded(this, get<AppScope>(), get<SettingsStore>())
+
+        // [DFW-73] 内置渠道回归（用户 2026-10-01 拍板，方案 = 服务端中转，上游地址与真 Key 只在国内服务器上）。
+        // 与 AI-004 的清理器并存不冲突：清理器认的是"智能中转(内置)"那个老身份，这里是新身份「内置渠道」。
+        // 每次启动都同步（不是只播一次），后台改了地址/令牌/模型/最大输出，用户下次打开就生效。
+        DfwxBuiltinChannel.syncIfNeeded(get<AppScope>(), get<SettingsStore>())
 
         // Composer.setDiagnosticStackTraceMode(ComposeStackTraceMode.Auto)
     }
