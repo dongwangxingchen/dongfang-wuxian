@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  [DFW-74] 从诚信付费页返回时**上层页**（付费页自身）的离场：向右滑走并淡出。
+  与站内子页转场 MainActivity.animatePage 的"返回"分支（direction<0）里 previous 完全一致：
+    previous.animate().translationX(travel).alpha(0f).setDuration(240).setInterpolator(emphasized)
+  其中 travel = max(80dp, 屏宽 * 0.28) → XML 里就是 28%p（窗口动画的 %p = 屏幕宽度）。
+  观感是"抽纸"：上面那页被抽走，下面那页原样露出来。
+  系统"动画时长缩放 = 0"时窗口动画被系统整体跳过，不需要额外门控。
+-->
+<set xmlns:android="http://schemas.android.com/apk/res/android"
+     android:shareInterpolator="false"
+     android:interpolator="@android:interpolator/fast_out_slow_in">
+    <translate
+        android:fromXDelta="0"
+        android:toXDelta="28%p"
+        android:duration="240" />
+    <alpha
+        android:fromAlpha="1.0"
+        android:toAlpha="0.0"
+        android:duration="240" />
+</set>

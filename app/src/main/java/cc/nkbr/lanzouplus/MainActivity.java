@@ -818,7 +818,11 @@ android.graphics.Insets none=android.graphics.Insets.NONE;android.view.WindowIns
     if(pageKind==4&&pageScroll!=null)settingsScrollY=pageScroll.getScrollY();
     clearHomeBrandCiallo();navigationSession++;invalidateSearchRenderSurface();synchronized(sourceSearchLock){sourceSearchSession++;sourceSearchRunning=false;sourceSearchPaused=false;sourceSearchLock.notifyAll();}sourceRenderSession++;dismissBreadcrumbChooser();cancelFolderPullWork();systemBackAction=null;liveGrid=null;itemsGrid=null;sourceGrid=null;sourceHeading=null;sourceFilter=null;sourceCategoryStrip=null;searchDragBar=null;searchScrollFrame=null;searchPauseButton=null;progress=null;status=null;statusRight=null;liveUrls.clear();currentSourceSearchUrls.clear();selectedUrls.clear();selectionChecks.clear();selectionMode=false;selectionBar=null;selectionSummary=null;selectionCopyDescription=null;selectionCategorize=null;selectionRenameFolder=null;selectedSourceUrls.clear();sourceSelectionChecks.clear();visibleSources.clear();sourcePageSources=null;sourceSelectionMode=false;sourceSelectionBar=null;sourceSelectionSummary=null;sourceSelectionRename=null;selectedDownloads.clear();downloadChecks.clear();downloadSelectionMode=false;downloadSelectionBar=null;downloadSelectionSummary=null;downloadGlobalControlButton=null;downloadsPage=false;downloadLabels.clear();downloadBars.clear();folderPullFrame=null;folderPullScroll=null;folderPullIndicator=null;folderPullLabel=null;folderMoreSpinner=null;pageHeaderRow=null;settingsDownloadPathText=null;settingsSearchInput=null;settingsSearchEmpty=null;settingsSearchSections.clear();profilePresent=false;folderProfilePending=false;homeSearchFocused=false;homeStage=null;homeBrand=null;homeHistory=null;homeRecommendations=null;homeRecommendationsScroll=null;homeRecommendation=null;homeSearchBox=null;homeSearchCategory=null;homeCategoryPicker=null;homeLibsBand=null;if(sourceSearchRunnable!=null)ui.removeCallbacks(sourceSearchRunnable);if(sourceListFilterRunnable!=null)ui.removeCallbacks(sourceListFilterRunnable);sourceListFilterRunnable=null;if(searchDebounceRunnable!=null)ui.removeCallbacks(searchDebounceRunnable);searchDebounceRunnable=null;downloadRenderGeneration++;View previous=pageFrame;root=new LinearLayout(this);root.setOrientation(LinearLayout.VERTICAL);root.setPadding(dp(16),dp(8),dp(16),dp(16));root.addOnLayoutChangeListener((v,l,t,r,b,ol,ot,or_,ob)->{int width=r-l;if(width>0&&Math.abs(width-lastLayoutWidth)>dp(12)){lastLayoutWidth=width;ui.post(this::refreshAdaptiveLayout);}});
     selectionAllButton=null;sourceSelectionAllButton=null;downloadSelectionAllButton=null;if(host==null){host=new FrameLayout(this);host.setBackgroundColor(BG);host.addOnLayoutChangeListener((v,l,t,r,b,ol,ot,or_,ob)->{int width=r-l,height=b-t;if(width>0&&height>0&&(Math.abs(width-lastHostWidth)>dp(2)||Math.abs(height-lastHostHeight)>dp(2))){lastHostWidth=width;lastHostHeight=height;ui.post(this::refreshAdaptiveLayout);ui.post(this::reflowNavBall);}});pageHost=new FrameLayout(this);host.addView(pageHost,new FrameLayout.LayoutParams(-1,-1));toastScroll=new ScrollView(this);toastScroll.setFillViewport(false);toastScroll.setVerticalScrollBarEnabled(false);toastScroll.setVisibility(View.GONE);toastLayer=new LinearLayout(this);toastLayer.setOrientation(LinearLayout.VERTICAL);toastScroll.addView(toastLayer,new ScrollView.LayoutParams(-1,-2));FrameLayout.LayoutParams tp=new FrameLayout.LayoutParams(Math.max(dp(1),Math.min(dp(250),safeContentWidth()-dp(24))),0,Gravity.TOP|Gravity.END);tp.setMargins(dp(12),dp(64),dp(12),0);host.addView(toastScroll,tp);setContentView(host);installSystemNavigationInsets();installNavBall();prewarmAiCompose();}
-    primaryDestination=destination;if(destination>=0){primaryShell=new LinearLayout(this);composePrimaryShell();pageFrame=primaryShell;}else{primaryShell=null;pageFrame=root;}if(navBall!=null)ui.post(this::refreshNavBall);FrameLayout.LayoutParams pageParams=new FrameLayout.LayoutParams(-1,-1);if(previous!=null&&pageDirection<0)pageHost.addView(pageFrame,0,pageParams);else pageHost.addView(pageFrame,pageParams);if(primaryNavigationSwitch){primaryNavigationSwitch=false;animatePage(previous,pageFrame,0);}else animatePage(previous,pageFrame,pageDirection);pageDirection=1;
+    primaryDestination=destination;if(destination>=0){primaryShell=new LinearLayout(this);composePrimaryShell();pageFrame=primaryShell;}else{primaryShell=null;pageFrame=root;}
+    /* [DFW-73 修正] 页面本身必须**不透明**。root 以前没有底色，页面内容又填不满整屏（比如崩溃日志页），
+       于是"整页实体位移"的转场里，新页滑进来的过程中下面那截会透出旧页（旧页又被压暗到 55%）
+       —— 用户看到的就是"上半部分打开了、下半部分透明"。给页面帧刷上 BG 就彻底没有这个缝。 */
+    pageFrame.setBackgroundColor(BG);if(navBall!=null)ui.post(this::refreshNavBall);FrameLayout.LayoutParams pageParams=new FrameLayout.LayoutParams(-1,-1);if(previous!=null&&pageDirection<0)pageHost.addView(pageFrame,0,pageParams);else pageHost.addView(pageFrame,pageParams);if(primaryNavigationSwitch){primaryNavigationSwitch=false;animatePage(previous,pageFrame,0);}else animatePage(previous,pageFrame,pageDirection);pageDirection=1;
 
   }
   int safeContentWidth(){int padding=host==null?0:host.getPaddingLeft()+host.getPaddingRight(),measured=host==null?0:host.getWidth();if(measured>padding)return measured-padding;int configured=dp(Math.max(1,getResources().getConfiguration().screenWidthDp));return Math.max(dp(1),configured-padding);}
@@ -1054,8 +1058,13 @@ android.graphics.Insets none=android.graphics.Insets.NONE;android.view.WindowIns
           BuildConfig.OFFICIAL_URL,
           alternativePageUrl());
       if(fromServer!=null&&fromServer.versionCode>BuildConfig.VERSION_CODE)return fromServer;
+      /* [DFW-73 修正] 后台**可达且明确回答了"最新版本是哪个"**时，就以它为准，不再打 GitHub 兜底。
+         旧实现会继续往下走 GitHub，而 GitHub 的 /releases/latest 在我们把全部旧版本标成预发布之后返回 404
+         → UpdateClient 抛「无法获取更新信息」→ 用户点「检查更新」看到的是"检查更新失败"，
+         而正确答案明明是"已是最新版本"。后台能回答的问题，不该因为兜底源挂掉而报错。 */
+      return null;
     }
-    // 后台不可达 / 后台版本不比当前新 → GitHub 兜底。
+    // 后台不可达 → GitHub 兜底。
     UpdateClient.UpdateInfo info=UpdateClient.check(BuildConfig.VERSION_NAME);
     return info==null?null:UpdateOffer.fromGithub(info,BuildConfig.OFFICIAL_URL);
   }
@@ -3667,40 +3676,10 @@ void showCustomLanzouBaseOriginDialog(){EditText input=sourceInput("输入 oreoj
 
   void showUpdateNotice(String message,boolean longLived){
     final String msg=(message==null||message.trim().isEmpty())?"操作未完成":message;
-    runOnUiThread(()->{
-      // 同一时刻只留一条：连点「检查更新」时旧条先撤，避免通知叠罗汉。
-      if(updateNoticeBanner!=null){updateNoticeBanner.dismiss();updateNoticeBanner=null;}
-      LinearLayout card=new LinearLayout(this);
-      card.setOrientation(LinearLayout.HORIZONTAL);
-      card.setGravity(Gravity.CENTER_VERTICAL);
-      card.setBackground(solidShape(SURFACE,18));
-      card.setElevation(dp(10));
-      card.setPadding(dp(14),dp(12),dp(14),dp(12));
-      ImageView icon=new ImageView(this);
-      icon.setImageResource(R.drawable.ic_refresh);
-      icon.setColorFilter(PRIMARY);
-      icon.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
-      card.addView(icon,new LinearLayout.LayoutParams(dp(20),dp(20)));
-      TextView label=text(msg,14,TEXT);
-      // 文字多寡都要适配：容器 wrap_content 自动长高，正文最多 4 行、超出省略号。
-      // 内边距**不随行数变**，否则一行和四行看着会像两个不同的组件。
-      label.setMaxLines(NoticeBanner.maxLines());
-      label.setEllipsize(android.text.TextUtils.TruncateAt.END);
-      label.setLineSpacing(dp(2),1f);
-      LinearLayout.LayoutParams labelParams=new LinearLayout.LayoutParams(0,-2,1);
-      labelParams.leftMargin=dp(10);
-      card.addView(label,labelParams);
-      FrameLayout.LayoutParams cardParams=new FrameLayout.LayoutParams(-1,-2);
-      cardParams.leftMargin=dp(12);
-      cardParams.rightMargin=dp(12);
-      card.setLayoutParams(cardParams);
-      updateNoticeBanner=NoticeBanner.create(this,sheetHost(),card,()->{updateNoticeBanner=null;},
-          motionEnabled(),statusBarInset()+dp(8),longLived?5000:2500);
-      updateNoticeBanner.show();
-    });
+    // [DFW-73] 与 showNotice 共用同一个构造点（唯一差异是图标），避免两处样式各自漂移。
+    runOnUiThread(()->showTopBanner(msg,longLived?5000:2500,R.drawable.ic_refresh));
   }
 
-  /** 状态栏高度：通知条要落在它下面，否则会被状态栏压住半截。 */
   int statusBarInset(){
     if(Build.VERSION.SDK_INT>=30){
       android.view.WindowInsets insets=getWindow()==null?null:getWindow().getDecorView().getRootWindowInsets();
@@ -3713,8 +3692,78 @@ void showCustomLanzouBaseOriginDialog(){EditText input=sourceInput("输入 oreoj
     return id>0?getResources().getDimensionPixelSize(id):dp(24);
   }
 
-  public void showNotice(String message,boolean longLived){final String msg=(message==null||message.trim().isEmpty())?"操作未完成":message;// v1.5.1：空文字通知只剩边框的兜底
-  runOnUiThread(()->{TextView notice=text(msg,12,TEXT);notice.setPadding(dp(4),0,dp(4),0);LinearLayout holder=toastPanel();holder.addView(notice,new LinearLayout.LayoutParams(-1,-1));addToastPanel(holder,48);notice.postDelayed(()->{if(holder.getParent()==toastLayer)dismissPanel(holder,null);},longLived?5000:2500);});}
+  /**
+   * [DFW-73] **全站提示统一成"顶部通知条"**（用户 2026-10-01 真机截图反馈）。
+   *
+   * 用户原话：
+   * > "图一图二分别展现了它的样子和它滑入的时候那个特别烂的动画效果。我不是告诉你了，
+   * >  让你全部都用图三的那个顶部的样式吗？那个顶部的那种出现方式、那个样子，
+   * >  才是我们应该把所有弹窗都支持的。后续不管弹出什么，都是用这个弹出来的。"
+   *
+   * 图三 = DFW-66 给"更新链路"单独做的那条 `NoticeBanner`（从屏幕顶部像消息通知一样滑下来、
+   * 无遮罩、可上/左/右滑走、文字多寡自适应）。当时刻意只换了更新一条链路做试点
+   * （见 `showUpdateNotice` 的注释），**现在用户明确要求全站推广**，所以 `showNotice`
+   * 这个 227 处共用的底座直接换成同一条。
+   *
+   * 旧底座（飘在右上角的 250dp 小黑胶囊 + 从**左边**横滑进来 + 淡入）两个毛病：
+   *  - 从左侧横滑 + 半透明淡入，跟"通知"的语义完全不搭，用户看到的就是"割裂感"；
+   *  - 宽度只有 250dp 且贴右上角，会压住下面的内容（截图里正好压住设置页的搜索框）。
+   */
+  public void showNotice(String message,boolean longLived){
+    final String msg=(message==null||message.trim().isEmpty())?"操作未完成":message;// v1.5.1：空文字通知只剩边框的兜底
+    runOnUiThread(()->showTopBanner(msg,longLived?5000:2500,R.drawable.ic_notifications));
+  }
+
+  /** 当前正在显示的顶部通知条。全站共用：同一时刻只留一条，避免叠罗汉。 */
+  NoticeBanner activeNoticeBanner;
+
+  /**
+   * [DFW-73] 顶部通知条的**唯一构造点**（`showNotice` 与 `showUpdateNotice` 共用）。
+   *
+   * 之所以抽出来：两处原本各写一份卡片构造，改样式时必然只改一处 —— 那正是"两个组件看着不一样"的来源。
+   * 图标是唯一的差异（普通提示=铃铛、更新=刷新）。
+   */
+  void showTopBanner(String message,int durationMs,int iconRes){
+    if(isFinishing()||isDestroyed())return;
+    final String msg=(message==null||message.trim().isEmpty())?"操作未完成":message;
+    final ViewGroup container=sheetHost();
+    if(container==null)return;
+    // 先把旧条摘下来再 dismiss：dismiss 是带动画的异步过程，它的 onDismissed 回调会在几百毫秒后
+    // 才跑；如果那时才去清引用，会把**这一条新的**清掉（旧条自己都不知道新条已经上来了）。
+    NoticeBanner previous=activeNoticeBanner;
+    activeNoticeBanner=null;
+    if(previous!=null)previous.dismiss();
+    LinearLayout card=new LinearLayout(this);
+    card.setOrientation(LinearLayout.HORIZONTAL);
+    card.setGravity(Gravity.CENTER_VERTICAL);
+    card.setBackground(solidShape(SURFACE,18));
+    card.setElevation(dp(10));
+    card.setPadding(dp(14),dp(12),dp(14),dp(12));
+    ImageView icon=new ImageView(this);
+    icon.setImageResource(iconRes);
+    icon.setColorFilter(PRIMARY);
+    icon.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+    card.addView(icon,new LinearLayout.LayoutParams(dp(20),dp(20)));
+    TextView label=text(msg,14,TEXT);
+    // 文字多寡都要适配：容器 wrap_content 自动长高，正文最多 4 行、超出省略号；
+    // 内边距**不随行数变**，否则一行和四行看着会像两个不同的组件。
+    label.setMaxLines(NoticeBanner.maxLines());
+    label.setEllipsize(android.text.TextUtils.TruncateAt.END);
+    label.setLineSpacing(dp(2),1f);
+    LinearLayout.LayoutParams labelParams=new LinearLayout.LayoutParams(0,-2,1);
+    labelParams.leftMargin=dp(10);
+    card.addView(label,labelParams);
+    FrameLayout.LayoutParams cardParams=new FrameLayout.LayoutParams(-1,-2);
+    cardParams.leftMargin=dp(12);
+    cardParams.rightMargin=dp(12);
+    card.setLayoutParams(cardParams);
+    final NoticeBanner[] holder=new NoticeBanner[1];
+    holder[0]=NoticeBanner.create(this,container,card,
+        ()->{if(activeNoticeBanner==holder[0])activeNoticeBanner=null;},
+        motionEnabled(),statusBarInset()+dp(8),durationMs);
+    activeNoticeBanner=holder[0];
+    activeNoticeBanner.show();
+  }
   void postFolderIconPrefetch(List<Models.Item> items,int start,int limit){if(start>=items.size()||limit<=0)return;int session=navigationSession;List<Models.Item> snapshot=new ArrayList<>(items);ui.postDelayed(()->{if(session!=navigationSession||pageKind!=3)return;for(int i=start;i<Math.min(start+limit,snapshot.size());i++)requestImage(snapshot.get(i).iconUrl,null);},180);}
   void loadImage(String url,ImageView view){if(restoringFolderState){loadCachedFolderImage(url,view);return;}requestImage(url,view);}
   void loadCachedFolderImage(String url,ImageView view){if(view==null||url==null||url.isEmpty())return;view.setTag(url);Bitmap bitmap=activeFolderState==null?null:activeFolderState.pinnedIcons.get(url);if(bitmap==null)bitmap=imageCache.get(url);if(bitmap!=null&&url.equals(view.getTag())){view.setImageBitmap(bitmap);return;}synchronized(imageLock){List<java.lang.ref.WeakReference<ImageView>> waiters=imageWaiters.get(url);if(waiters!=null)waiters.add(new java.lang.ref.WeakReference<>(view));}}

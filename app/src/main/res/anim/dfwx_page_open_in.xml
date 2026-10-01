@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  [DFW-74] 诚信付费页（SupportActivity）**进场**：新页从右侧滑入。
+  与站内子页转场一一对应（MainActivity.animatePage 的"推入"分支，direction>0）：
+    travel = max(80dp, 屏宽 * 0.28)；next.translationX: travel → 0；300ms；emphasized(0.05,0.7,0.1,1)。
+  · 窗口动画里 %p = 父容器（= 屏幕）宽度，所以 28%p 就是站内那条 travel；
+  · 曲线用系统 @android:interpolator/fast_out_slow_in —— 它就是 M3 emphasized 的标准曲线，
+    与站内 PathInterpolator(0.05f,0.7f,0.1f,1f) 同源，不自己造；
+  · 站内推入时新页 alpha 恒为 1（不淡入），所以这里只做位移，不加 alpha；
+  · 系统"动画时长缩放 = 0"时，窗口动画会被系统整体跳过（动画时长算作 0），不需要额外门控。
+-->
+<set xmlns:android="http://schemas.android.com/apk/res/android"
+     android:shareInterpolator="false"
+     android:interpolator="@android:interpolator/fast_out_slow_in">
+    <translate
+        android:fromXDelta="28%p"
+        android:toXDelta="0"
+        android:duration="300" />
+</set>

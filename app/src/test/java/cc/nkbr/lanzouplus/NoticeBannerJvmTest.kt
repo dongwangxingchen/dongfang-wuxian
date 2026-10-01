@@ -215,13 +215,18 @@ class NoticeBannerJvmTest {
 
     // ── 与 MainActivity 的接线 ────────────────────────────────────────────
 
+    /**
+     * [DFW-73] 用户 2026-10-01 要求把这条顶部通知条**全站推广**，所以
+     * `showUpdateNotice` 与 `showNotice` 现在共用同一个构造点、同一条"当前通知条"引用
+     * （`activeNoticeBanner`，旧的 `updateNoticeBanner` 字段已并入）。
+     */
     @Test
     fun showUpdateNotice_buildsAndShowsTheBanner() {
         val a = activity()
         a.showUpdateNotice("正在检查更新…", false)
         shadowOf(Looper.getMainLooper()).idle()
-        assertNotNull("更新链路必须能弹出新通知条", a.updateNoticeBanner)
-        assertTrue(a.updateNoticeBanner!!.isShowing())
+        assertNotNull("更新链路必须能弹出新通知条", a.activeNoticeBanner)
+        assertTrue(a.activeNoticeBanner!!.isShowing())
     }
 
     @Test
@@ -230,9 +235,10 @@ class NoticeBannerJvmTest {
         val a = activity()
         a.showUpdateNotice("正在检查更新…", false)
         shadowOf(Looper.getMainLooper()).idle()
-        val first = a.updateNoticeBanner
+        val first = a.activeNoticeBanner
         a.showUpdateNotice("正在检查更新…", false)
         shadowOf(Looper.getMainLooper()).idle()
-        assertFalse("旧条必须已被替换/关闭", first === a.updateNoticeBanner && first!!.isShowing())
+        assertNotNull("第二条必须上屏", a.activeNoticeBanner)
+        assertFalse("旧条必须已被替换/关闭", first === a.activeNoticeBanner && first!!.isShowing())
     }
 }
