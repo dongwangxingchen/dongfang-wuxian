@@ -64,6 +64,10 @@ public class SupportActivity extends Activity {
     // thankYouMode 时无需处理；未解锁的赞助码页保持不动（扫码回来解锁仍由解锁按钮触发）
   }
   boolean thankYouMode;
+  /** [BRAND-001] 解锁进行中：防连点导致整页重建途中被再次触发。 */
+  boolean unlocking;
+  /** [BRAND-001] 解锁流程真正被执行的次数（供测试证明"连点只进一次"）。 */
+  int unlockInvocations;
 
   void applyPalette(){
     ThemeEngine.Design d=ThemeEngine.active(this);
@@ -144,18 +148,23 @@ public class SupportActivity extends Activity {
     letter.setTextColor(TEXT);letter.setTextSize(14);letter.setLineSpacing(dp(4),1f);letter.setTypeface(AppFonts.normal(this));
     letter.setPadding(dp(16),dp(14),dp(16),dp(14));
     letterCard.addView(letter,new LinearLayout.LayoutParams(-1,-2));
+    letterCard.setContentDescription("开发者的话：这个应用没有广告，也不强制付费；还在读书的朋友可以直接使用。");
     LinearLayout.LayoutParams letterLp=new LinearLayout.LayoutParams(-1,-2);
     letterLp.topMargin=dp(12);
     page.addView(letterCard,letterLp);
     // 权益行（用户 2026-10-01 口述：原来 3 条 emoji 短语全部删掉，只留这一条长句；原话照抄，仅补句末句号）
     LinearLayout perks=card();
-    perks.setPadding(dp(14),dp(6),dp(14),dp(6));
+    // [BRAND-001] 内边距与开发者信同基准（原来 14/6，与信的 16/14 不在一个节奏上）
+    perks.setPadding(dp(16),dp(8),dp(16),dp(8));
     perks.addView(benefitRow(R.drawable.ic_trophy,"每周自费续 1 万次 DeepSeek v4.1，自动刷新，专供诚信付费的朋友，请诚信付费。"),new LinearLayout.LayoutParams(-1,-2));
     LinearLayout.LayoutParams perksLp=new LinearLayout.LayoutParams(-1,-2);
     perksLp.topMargin=dp(12);
     perksLp.bottomMargin=dp(12);
     page.addView(perks,perksLp);
-    // 价格大字（成熟付费页惯例：价格必须一眼可见）+ 永久更新承诺
+    // [BRAND-001] 价格区从"裸行"升级成一张卡：上面是开发者信、中间是权益、这里是价格，
+    // 三块同一节奏才像一页设计过的产品页；￥5 仍然在**中段**一眼可见（用户 2026-10-01 的要求）。
+    LinearLayout priceCard=card();
+    priceCard.setPadding(dp(16),dp(14),dp(16),dp(14));
     LinearLayout price=new LinearLayout(this);price.setGravity(Gravity.CENTER_VERTICAL);
     TextView amount=text("￥5",30,PRIMARY);amount.setTypeface(AppFonts.bold(this));
     price.addView(amount,new LinearLayout.LayoutParams(-2,-2));
@@ -167,8 +176,9 @@ public class SupportActivity extends Activity {
     priceCol.addView(priceNote2,note2Lp);
     LinearLayout.LayoutParams priceColLp=new LinearLayout.LayoutParams(-2,-2);priceColLp.leftMargin=dp(12);
     price.addView(priceCol,priceColLp);
-    LinearLayout.LayoutParams priceLp=new LinearLayout.LayoutParams(-1,-2);priceLp.topMargin=dp(4);priceLp.bottomMargin=dp(6);
-    page.addView(price,priceLp);
+    priceCard.addView(price,new LinearLayout.LayoutParams(-1,-2));
+    LinearLayout.LayoutParams priceLp=new LinearLayout.LayoutParams(-1,-2);priceLp.bottomMargin=dp(12);
+    page.addView(priceCard,priceLp);
     // 收款区：微信单卡全宽（用户仅收款微信；码图撑满卡宽，消除两侧留白）
     page.addView(codeCard("微信收款码",R.drawable.pay_wechat,"微信扫码 · 付 5 元"),new LinearLayout.LayoutParams(-1,-2));
     // 主 CTA：第一人称动词句，零验证解锁（v1.5.1 删「复制金额」小按钮——重复无用，减小字）
@@ -179,14 +189,29 @@ public class SupportActivity extends Activity {
     // 真胶囊：`solidShape` 的半径量化会把 24 压成 26（做出来是圆角方块而不是胶囊），
     // 所以直接走 PremiumSurface.pill（半径 = 高度一半）。高度也统一到 56dp。
     confirm.setBackground(ripple(PremiumSurface.pill(PRIMARY,dp(56),0,0,PremiumSurface.HIGHLIGHT)));
-    confirm.setOnClickListener(v->unlockNow());
+    confirm.setContentDescription("诚信付费，解锁全部下载权限；不付费也可以完整使用其它功能");
+    // [BRAND-001] 防连点：解锁会整页重建，连点两次会在重建途中再触发一次，
+    // 表现为按钮闪一下/白屏一帧。解锁是本地幂等写，但重建不是幂等的。
+    confirm.setOnClickListener(v->{
+      if(unlocking)return;
+      unlocking=true;
+      confirm.setEnabled(false);
+      confirm.setAlpha(0.6f);
+      unlockNow();
+    });
     LinearLayout.LayoutParams ctaParams=new LinearLayout.LayoutParams(-1,dp(56));ctaParams.setMargins(0,dp(16),0,0);
     page.addView(confirm,ctaParams);
     // 辅助链接：暂时不支持（降级路径永远存在）
     TextView skip=text("暂时不支持，继续使用",13,PRIMARY);
-    skip.setGravity(Gravity.CENTER);skip.setPadding(0,dp(10),0,0);skip.setClickable(true);skip.setFocusable(true);
+    skip.setGravity(Gravity.CENTER);skip.setClickable(true);skip.setFocusable(true);
+    // [BRAND-001] 降级路径原来是一个**没有任何按压反馈**的裸 TextView：点下去毫无回应，
+    // 而这恰恰是"不付费也能走"的唯一出口，最不该让人怀疑自己点没点到。
+    skip.setBackground(ripple(new ColorDrawable(Color.TRANSPARENT)));
+    skip.setContentDescription("暂时不支持，继续使用（不付费也能完整使用其它功能）");
     skip.setOnClickListener(v->finish());
-    page.addView(skip,new LinearLayout.LayoutParams(-1,dp(40)));
+    LinearLayout.LayoutParams skipLp=new LinearLayout.LayoutParams(-1,dp(44));
+    skipLp.topMargin=dp(6);
+    page.addView(skip,skipLp);
     // 底部小字：诚实说明本地标记
     TextView footnote=text("解锁记录保存在本机 · 不付费也可以完整使用",11,MUTED);
     footnote.setGravity(Gravity.CENTER);footnote.setPadding(0,dp(8),0,0);
@@ -267,6 +292,7 @@ public class SupportActivity extends Activity {
 
   /** 零验证解锁：唯一按钮，付费者与暂无收入者同一入口（文案已委婉分层，不再设独立免费链接） */
   void unlockNow(){
+    unlockInvocations++;
     Support.unlock(this);
     renderThankYou();
     MainActivity.showSupportNotice(this,"已解锁全部下载权限 · 谢谢你");
