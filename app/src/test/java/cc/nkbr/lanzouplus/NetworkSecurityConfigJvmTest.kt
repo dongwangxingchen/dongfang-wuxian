@@ -155,4 +155,35 @@ class NetworkSecurityConfigJvmTest {
             manifest.contains("android:allowBackup,"),
         )
     }
+    // ── [DFW-88] trust-anchors 守卫（之前**完全没有**，所以悄悄回归了）──────────
+
+    /**
+     * 用户 2026-10-01 实测：开着 VPN 时下载全部失败
+     * `无法解析下载链接：Trust anchor for certification path not found`。
+     *
+     * 根因是 DFW-10 顺手写的 `<certificates src="system" />` 样板 ——
+     * 安卓**默认**是「系统证书 + 用户证书」，只写 system 等于把用户装的证书排除了。
+     * 很多 VPN/代理会装用户证书做中间人，于是整条链路握手失败。
+     *
+     * 这条测试就是当时缺的那一条。
+     */
+    @Test
+    fun trustAnchors_includeBothSystemAndUser() {
+        val xml = config()
+        assertTrue("必须信任系统证书", xml.contains("<certificates src=\"system\" />"))
+        assertTrue(
+            "必须信任用户证书 —— 只写 system 会让 VPN/代理/抓包环境下的 HTTPS 全部握手失败" +
+                "（用户实测报错：Trust anchor for certification path not found）。" +
+                "这只是回到安卓默认，不是放宽：真正的安全目标（拒绝明文）由 cleartextTrafficPermitted 保证。",
+            xml.contains("<certificates src=\"user\" />"),
+        )
+    }
+
+    /** 反向探针：确认这条守卫**真的能红**。 */
+    @Test
+    fun theTrustAnchorGuardActuallyDetectsSystemOnly() {
+        val systemOnly = "<base-config><trust-anchors><certificates src=\"system\" /></trust-anchors></base-config>"
+        assertFalse("只有 system 的配置必须被判为不合格（否则就是假绿）", systemOnly.contains("<certificates src=\"user\" />"))
+    }
+
 }

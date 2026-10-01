@@ -27,9 +27,32 @@
   防止将来有人偷偷加回通配符。
 -->
 <network-security-config>
+    <!--
+      [DFW-88 2026-10-01] trust-anchors **必须同时含 system 与 user**。
+
+      ## 为什么（这是一次真实的回归）
+      DFW-10 加这份配置时的**目标只是"默认拒绝明文"**，但顺手写了一段
+      `<trust-anchors><certificates src="system" /></trust-anchors>` 样板 ——
+      而安卓的**默认**是「系统证书 **+ 用户证书**」。只写 `system` 等于
+      **悄悄把用户安装的证书排除掉了**，没有任何测试守着它，也没人注意到。
+
+      ## 后果（用户 2026-10-01 实测）
+      用户开着 VPN 时下载全部失败：
+        `无法解析下载链接：Trust anchor for certification path not found`
+      很多 VPN / 代理 / 抓包工具会装一张**用户证书**做中间人；只信系统证书时，
+      这类链路会直接握手失败。用户的原话是"无论哪个链接都是"——**系统性问题**，
+      与"某一个域名证书坏了"的表现不一致，符合信任链被收紧的特征。
+
+      ## 为什么可以放心加回 user
+      1. 这只是**回到安卓默认**，不是新增放宽；
+      2. 本应用的下载**不依赖 TLS 作为最后一道防线** —— 下载后有三重校验
+         （sha256 + 包名 + 签名证书，系统级比对，篡改包装不上）；
+      3. 真正的安全目标（拒绝明文）由 `cleartextTrafficPermitted="false"` 保证，与此无关。
+    -->
     <base-config cleartextTrafficPermitted="false">
         <trust-anchors>
             <certificates src="system" />
+            <certificates src="user" />
         </trust-anchors>
     </base-config>
 
