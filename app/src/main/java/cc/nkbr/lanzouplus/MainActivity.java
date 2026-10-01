@@ -222,7 +222,7 @@ loadSearchSettings();applyUserAgentSettings();detectWeakDevice();installBackAnim
   static boolean enqueueWebDownload(String url,String name){MainActivity activity=ACTIVE_OWNER!=null?ACTIVE_OWNER:ACTIVE_INSTANCE.get();if(activity==null||activity.isFinishing())return false;activity.runOnUiThread(()->activity.startWebDirectDownload(url,name));return true;}
   static boolean showWebNotice(String message,boolean longLived){MainActivity activity=ACTIVE_OWNER!=null?ACTIVE_OWNER:ACTIVE_INSTANCE.get();if(activity==null||activity.isFinishing())return false;activity.showNotice(message,longLived);return true;}
   /** 给 SupportActivity 的静态回执（同 showWebNotice 通道；SupportActivity 无法直接拿到 activity 实例）。
-   *  [DFW-76] 主路径改成站内页后，只剩**遗留**的 SupportActivity.unlockNow() 还在用它；
+   *  [DFW-78] 主路径改成站内页后，只剩**遗留**的 SupportActivity.unlockNow() 还在用它；
    *  站内页的解锁直接走自己的 showNotice(...)，不再绕这一层。 */
   static boolean showSupportNotice(Activity host,String message){
     MainActivity activity=ACTIVE_OWNER!=null?ACTIVE_OWNER:ACTIVE_INSTANCE.get();
@@ -247,7 +247,7 @@ loadSearchSettings();applyUserAgentSettings();detectWeakDevice();installBackAnim
     AlertDialog prompt=new AlertDialog.Builder(this).setView(panel).setNegativeButton("继续下载（不付费）",(dialog,which)->action.run()).setPositiveButton("打开诚信付费页",(dialog,which)->{openSupportActivity();action.run();}).create();showRounded(prompt);
   }
   /**
-   * [DFW-76] 打开诚信付费页 —— 现在是**站内页**（`showSupportPage()`），不再是独立 Activity。
+   * [DFW-78] 打开诚信付费页 —— 现在是**站内页**（`showSupportPage()`），不再是独立 Activity。
    *
    * 用户 2026-10-01 第二次投诉这一页的动画：
    * > "点击诚信付费按钮后的动画效果和关闭那个页面的动画效果太磨叽且不自然不流畅，重置，
@@ -262,7 +262,7 @@ loadSearchSettings();applyUserAgentSettings();detectWeakDevice();installBackAnim
    */
   void openSupportActivity(){showSupportPage();}
   /* v1.5.1：按钮永远打开赞助码页，解锁确认统一由页内按钮触发爱心感谢页——删除原已付费简陋弹窗分流。
-     [DFW-76] 解锁后的感谢页现在是**同一站内页里换内容**（renderThankYou），不再跳第二个窗口。 */
+     [DFW-78] 解锁后的感谢页现在是**同一站内页里换内容**（renderThankYou），不再跳第二个窗口。 */
 
   void handleExternalAction(Intent intent){if(intent==null)return;String action=intent.getAction();
     if(ACTION_OPEN_DOWNLOADS.equals(action)){pageDirection=0;showDownloads();return;}
@@ -2723,7 +2723,7 @@ content=new LinearLayout(this);content.setOrientation(LinearLayout.VERTICAL);pag
      复用工具箱那颗 Phosphor 心，不再复制一份同形状的资源。 */
   footerContent.addView(settingsAction(R.drawable.ic_tool_heart,"参考与致谢",v->showAcknowledgementsPage()),new LinearLayout.LayoutParams(-1,-2));
   View footerDividerAck=new View(this);footerDividerAck.setBackgroundColor(SET_STROKE2);LinearLayout.LayoutParams fdAckLp=new LinearLayout.LayoutParams(-1,dp(1));fdAckLp.setMargins(dp(50),0,dp(8),0);footerContent.addView(footerDividerAck,fdAckLp);
-  /* [DFW-76] 「更新记录」从「数据与关于」分区搬到页脚，位置按用户指定：**参考与致谢的下面**。
+  /* [DFW-78] 「更新记录」从「数据与关于」分区搬到页脚，位置按用户指定：**参考与致谢的下面**。
      它本来就是"关于这个软件"的东西，和崩溃日志/参考致谢/关于放一起才对。 */
   footerContent.addView(settingsAction(R.drawable.ic_history,"更新记录",v->showChangelogCenter()),new LinearLayout.LayoutParams(-1,-2));
   View footerDivider2=new View(this);footerDivider2.setBackgroundColor(SET_STROKE2);LinearLayout.LayoutParams fd2Lp=new LinearLayout.LayoutParams(-1,dp(1));fd2Lp.setMargins(dp(50),0,dp(8),0);footerContent.addView(footerDivider2,fd2Lp);
@@ -3464,7 +3464,7 @@ content=new LinearLayout(this);content.setOrientation(LinearLayout.VERTICAL);pag
     TextView verText=text(PRODUCT_NAME+"  "+BuildConfig.VERSION_NAME,12,MUTED);verText.setGravity(Gravity.CENTER);LinearLayout.LayoutParams verLp=new LinearLayout.LayoutParams(-1,-2);verLp.setMargins(0,dp(18),0,dp(6));body.addView(verText,verLp);
     ScrollView scroll=new ScrollView(this);scroll.setFillViewport(true);scroll.addView(body,new ScrollView.LayoutParams(-1,-2));root.addView(scroll,new LinearLayout.LayoutParams(-1,0,1));}
   /**
-   * [DFW-76] **诚信付费：站内页**。
+   * [DFW-78] **诚信付费：站内页**。
    *
    * 用户 2026-10-01 原话（第二次投诉这一页的动画）：
    * > "点击诚信付费按钮后的动画效果和关闭那个页面的动画效果太磨叽且不自然不流畅，重置，
@@ -3608,7 +3608,7 @@ content=new LinearLayout(this);content.setOrientation(LinearLayout.VERTICAL);pag
     // 而这恰恰是"不付费也能走"的唯一出口，最不该让人怀疑自己点没点到。
     skip.setBackground(filterRipple(new ColorDrawable(Color.TRANSPARENT)));
     skip.setContentDescription("暂时不支持，继续使用（不付费也能完整使用其它功能）");
-    // [DFW-76] 退出方向必须与返回箭头一致（弹出 -1），否则这条降级出口的转场方向会反。
+    // [DFW-78] 退出方向必须与返回箭头一致（弹出 -1），否则这条降级出口的转场方向会反。
     skip.setOnClickListener(v->{pageDirection=-1;showSettings();});
     // [DFW-43] 降级出口是最不该让人怀疑"点没点到"的控件，同样补上按压形变（红线：这条出口必须能走）
     applePressScale(skip);

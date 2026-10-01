@@ -22,7 +22,7 @@ import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowCompat;
 import androidx.core.view.WindowInsetsCompat;
 
-/** [DFW-76] **本类已不是诚信付费页的主路径**（2026-10-01 起）。
+/** [DFW-78] **本类已不是诚信付费页的主路径**（2026-10-01 起）。
  *  用户第二次投诉这一页的动画后，主路径改成了站内页 `MainActivity.showSupportPage()`——
  *  独立 Activity 的窗口转场永远做不成"和关于东方无限一样"（站内那套压暗的是同窗口里的另一块 View，
  *  这里把调用方窗口调成半透明，透出来的是桌面壁纸）。

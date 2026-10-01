@@ -11,7 +11,7 @@
  <provider android:name=".DownloadFileProvider" android:authorities="${applicationId}.downloads" android:exported="false" android:grantUriPermissions="true"/>
   <provider android:name="rikka.shizuku.ShizukuProvider" android:authorities="${applicationId}.shizuku" android:multiprocess="false" android:enabled="true" android:exported="true" android:permission="android.permission.INTERACT_ACROSS_USERS_FULL"/>
   <activity android:name=".LanzouWebActivity" android:exported="false" android:configChanges="orientation|screenSize|keyboardHidden|uiMode"/>
-  <!-- [DFW-76] SupportActivity 已降级为**遗留**页面：应用内没有任何 startActivity 指向它
+  <!-- [DFW-78] SupportActivity 已降级为**遗留**页面：应用内没有任何 startActivity 指向它
        （诚信付费改走站内页 MainActivity.showSupportPage()），exported="false" 也挡掉了外部 Intent。
        条目暂时保留，只因为 5 个 JVM 用例仍直接驱动这个类；删条目要连用例一起改。 -->
   <activity android:name=".SupportActivity" android:exported="false" android:configChanges="orientation|screenSize|keyboardHidden|uiMode"/>
