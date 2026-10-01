@@ -73,12 +73,18 @@ class NetworkSecurityConfigJvmTest {
         // 新增条目必须**先找到代码里的调用点**（本测试的用意就是逼这一条）：
         //  - lanzou* : LanzouCore.validatedRouteOrigin() / parseUserSourceInput() 接受 http 蓝奏链接
         //  - localhost / 127.0.0.1 / ::1 / local : 内置 Web 服务 + MCP OAuth 回调（回环不出设备）
+        //  - ilanzou.com : [DFW-103] 蓝奏 2026 年把**下载 API 迁到了 api.ilanzou.com**
+        //    （取证：真实分享页里出现 https://api.ilanzou.com/unproved/pd/url?id=...&token=...）。
+        //    调用点：LanzouCore.requireLanzouPage() 的可信域名判定 —— 不放行它，
+        //    所有下载都会报「该源已失效或跳转异常」（真机已复现）。
+        //    与 lanzou* 同性质：都是蓝奏自己的域名，放行范围有界。
         //  - 39.106.33.135 : RemoteConfigClient（DFW-19 自建后台：公告/版本/总控/更新记录），
         //    用户决策 #33 走 HTTP，安全性由下载后 sha256+包名+签名三重校验保证。
         //    调用点：RemoteConfigClient.BASE = "http://39.106.33.135/pb"
         val allowed = setOf(
             "lanzout.com", "lanzoux.com", "lanzouw.com", "lanzoup.com",
             "lanzouo.com", "lanzouz.com", "lanzou.com", "lanzov.com",
+            "ilanzou.com",
             "localhost", "127.0.0.1", "::1", "local",
             "39.106.33.135",
         )
