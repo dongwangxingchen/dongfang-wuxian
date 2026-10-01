@@ -123,7 +123,30 @@ final class LanzouCore {
   /* [DFW-38] 注意 `lanzn.com` 也是一个真实在用的蓝奏域名（内置源清单里 19/85 条在用），
        旧正则漏了它 → 那些源会丢掉自己的域名、子文件夹被静默丢弃、页面校验也过不去。
        实测 `yoyodadada.lanzn.com/b07pspid` 本身完全正常（GET 0.24s + POST 0.30s，zt=1，50 条）。 */
-  private static final Pattern LANZOU_HOST=Pattern.compile("(?i)(?:[a-z0-9-]+[.])*(?:lanzou[a-z0-9]?|lanzov|lanzn)[.]com");
+  /**
+   * 蓝奏云可信域名。
+   *
+   * [DFW-103 2026-10-01] **必须包含 `ilanzou.com`** —— 这是本次"下载全挂"的真根因。
+   *
+   * 用户从 v1.0.5 报到 v1.0.14 都下不了，最后一步的报错是「该源已失效或跳转异常」。
+   * 真机取证（用用户截图里那条真实分享链接 `oreojiang.lanzout.com/b013k4d1i` 拉页面）发现
+   * 蓝奏**已经把下载 API 迁到了新域名**：
+   *
+   *     https://api.ilanzou.com/unproved/pd/url?id=...&time=...&token=...&type=2
+   *
+   * 而旧正则是 `(?:lanzou[a-z0-9]?|lanzov|lanzn)[.]com` ——
+   * 它匹配 `lanzou.com` / `lanzoux.com` / `lanzov.com`，
+   * **但匹配不到 `ilanzou.com`**（标签是 `ilanzou`，不以 `lanzou` 开头）。
+   *
+   * 于是 `requireLanzouPage()` 判定"跳转到了不受信任的地址"并抛错，
+   * 界面显示成「该源已失效或跳转异常」—— 用户看到的就是这一句。
+   *
+   * **这不是我们改坏的，是蓝奏官方迁移了域名。** 用户的原话"以前能下载现在咋不行了"完全正确。
+   *
+   * 维护提示：蓝奏历史上换过很多次域名（lanzous→lanzoux→lanzout…）。
+   * 以后再出同类故障，**第一步就是用真实分享链接拉一次页面，看有没有新域名**。
+   */
+  private static final Pattern LANZOU_HOST=Pattern.compile("(?i)(?:[a-z0-9-]+[.])*(?:i?lanzou[a-z0-9]?|lanzov|lanzn)[.]com");
     private static final Pattern URL_SCHEME=Pattern.compile("(?i)^[a-z][a-z0-9+.-]*://.*");
   private static final Pattern HOST_PATH=Pattern.compile("(?i)^(?:[a-z0-9-]+[.])+[a-z]{2,63}/.+");
   private static final Pattern SHARE_SEGMENT=Pattern.compile("(?i)[a-z0-9._~-]{3,96}");
