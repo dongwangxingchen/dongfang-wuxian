@@ -1082,70 +1082,6 @@ android.graphics.Insets none=android.graphics.Insets.NONE;android.view.WindowIns
     return "";
   }
 
-  /**
-   * [DFW-62] **更新完成后弹一次「更新记录」**。
-   *
-   * 用户 2026-09-30 原话：
-   * > "每次更新完后会弹出来一个弹窗，可以看到每次的更新记录，往下滑一滑，就能看到每个日期、每个改的地方"
-   *
-   * ## 怎么判定"更新过"
-   * 上次启动记下的 `versionCode` 与当前不同 = 中间装过新版本。判定完**立刻写回**当前值，
-   * 所以同一版本第二次启动不会再弹（用户要的是"更新后弹一次"，不是每次冷启都弹）。
-   *
-   * ## 三种情况刻意不弹
-   * - **全新安装**（没有历史记录）：没有"更新"这回事，第一次打开就糊一屏更新记录是骚扰；
-   * - **后台拉不到**：fail-open，宁可这次不弹，也不拿本地残留当历史（那会显示过期内容）；
-   * - **后台没有更新记录**：没东西可展示。
-   */
-  void maybeShowChangelogAfterUpdate(RemoteConfigClient.Snapshot snapshot){
-    if(isFinishing()||isDestroyed())return;
-    long current=updateStamp(packageLastUpdateTime(),BuildConfig.VERSION_CODE);
-    long last=getPreferences(0).getLong("last_update_stamp",0L);
-    if(last==current)return;
-    // 先写回，再判断弹不弹：判定"更新过"这件事只发生一次，写回之后同一次安装不会再进来。
-    getPreferences(0).edit().putLong("last_update_stamp",current).apply();
-    if(!shouldShowChangelogAfterUpdate(last,current,snapshot))return;
-    final RemoteConfigClient.Snapshot result=snapshot;
-    // 让启动那几百毫秒先过去再弹，别和首屏渲染抢主线程。
-    ui.postDelayed(()->{
-      if(isFinishing()||isDestroyed())return;
-      showChangelogDialog("已更新到 "+BuildConfig.VERSION_NAME,"往下滑可以看全部历史更新记录",result.changelogs());
-    },900);
-  }
-
-  /**
-   * 一次安装的**身份戳**：系统记录的 `lastUpdateTime` 与 `versionCode` 一起用。
-   *
-   * 为什么不能只看 versionCode：测试期每个包都是 `10000`，用户装上新包 versionCode 一点没变，
-   * 判定"更新过"会永远为假 —— 功能看着做好了，实际一次都不会弹。
-   * `lastUpdateTime` 每次覆盖安装都会变，这才是"这次是不是刚装过新包"的真信号。
-   */
-  static long updateStamp(long lastUpdateTime,int versionCode){return lastUpdateTime*1000L+versionCode;}
-
-  /** 系统记录的本包最后安装时间；读不到就退 0（此时只剩 versionCode 起作用）。 */
-  long packageLastUpdateTime(){
-    try{return getPackageManager().getPackageInfo(getPackageName(),0).lastUpdateTime;}
-    catch(Exception ignored){return 0L;}
-  }
-
-  /**
-   * [DFW-62] 「这次启动该不该弹更新记录」的**纯判定**（不碰 UI、不写偏好，方便单测钉死）。
-   *
-   * @param last    上次启动记下的安装戳（0 = 没有历史 = 全新安装）
-   * @param current 当前安装戳
-   * @param snapshot 启动时拉到（或没拉到）的后台快照
-   */
-  static boolean shouldShowChangelogAfterUpdate(long last,long current,RemoteConfigClient.Snapshot snapshot){
-    if(last==0||last==current)return false;
-    if(snapshot==null||!snapshot.reachable)return false;
-    return !snapshot.changelogs().isEmpty();
-  }
-
-  /**
-   * [DFW-62] 设置页常驻入口「更新记录」：不必等更新，随时可看。
-   *
-   * 已经有启动时拉到的快照就直接用（秒开）；没有才现拉一次，并顺手补上快照。
-   */
   void showChangelogCenter(){
     if(isFinishing()||isDestroyed())return;
     if(noticeSnapshot!=null&&noticeSnapshot.reachable){showChangelogDialog("更新记录","",noticeSnapshot.changelogs());return;}
@@ -1441,8 +1377,6 @@ android.graphics.Insets none=android.graphics.Insets.NONE;android.view.WindowIns
         if(isFinishing()||isDestroyed())return;
         MaintenanceGate.Screen screen=maintenanceGate().decide(result);
         if(screen.block)showMaintenanceOverlay(screen);
-        // [DFW-62] 维护拦截时不打扰；正常启动才看"这次是不是刚更新过"，是就弹一次更新记录。
-        else maybeShowChangelogAfterUpdate(result);
       });
     });
   }
@@ -2646,17 +2580,24 @@ content=new LinearLayout(this);content.setOrientation(LinearLayout.VERTICAL);pag
     updatePerfTierUi();return card;}
   void showSettings(){
     // [DFW-71] 必须在 primaryBase 拆掉旧视图树**之前**存位置，否则就读不到了。
-    primaryBase(3);pageKind=4;settingsRefreshers.clear();settingsSearchSections.clear();activeSource=null;clearFolderTrail();systemBackAction=null;primaryHeader("设置");LinearLayout body=new LinearLayout(this);body.setOrientation(LinearLayout.VERTICAL);body.setPadding(0,dp(4),0,dp(18));/* v1.22.3 边距统一：左右 8dp→0，设置卡片与 header/首页同 16dp 基准（原 24dp 比首页多缩 8dp，造成"边距不齐像被挤住"观感） */LinearLayout.LayoutParams integrityPayLp=new LinearLayout.LayoutParams(-1,-2);integrityPayLp.bottomMargin=dp(10);body.addView(new IntegrityPayButton(this,ThemeEngine.active(this),getResources().getDisplayMetrics().density,Support.unlocked(this),motionEnabled(),this::openSupportActivity),integrityPayLp);applePressScale(integrityPayLp==null?null:(View)body.getChildAt(body.getChildCount()-1));/* v1.23 T5-S 四分区重排（v7 设计稿）：常用默认展开；性能模式收起（细项过渡态，三档芯片随后替换）；高级收起（网络兼容+ADB）；数据与关于收起 */addSettingsSection(body,settingsSection(R.drawable.ic_download,"常用","下载、搜索与列表浏览",true,buildStartDestinationRow(),buildDownloadPathPanel(),buildSearchModeRow(),buildRecursiveFoldersRow(),settingsSwitchRow(R.drawable.ic_expand,"浏览时自动加载更多",sessionAutoExpand,checked->{sessionAutoExpand=checked;persistSearchSettings();if(checked&&folderPullScroll!=null)folderPullScroll.post(this::maybeAutoExpand);}),buildAutoInstallDownloadsRow(),settingsSwitchRow(R.drawable.ic_home,"下载时推荐诚信付费",Support.askOnDownload(this),checked->{Support.setAskOnDownload(this,checked);})));addSettingsSection(body,settingsSection(R.drawable.ic_bolt,"性能模式","下载与动效的整体节奏",false,buildPerfTierCard(),buildSearchSettingsPanel(),buildDownloadSettingsPanel(),buildListDisplaySettings(),buildAutoExpandPageSettings(),buildIndexSliderSettings(),buildAdbInstallThreadSettings(),buildIndexProgressCard()));addSettingsSection(body,settingsSection(R.drawable.ic_sliders,"高级","网络、兼容与 ADB 安装",false,buildUaSettingsRow(),settingsSwitchRow(R.drawable.ic_open_with,"蓝奏链接直接解析打开",directLanzouListOpen,checked->{directLanzouListOpen=checked;persistSearchSettings();}),buildLanzouBaseOriginRow(),settingsSwitchRow(R.drawable.ic_refresh,"基础链接超时自动切换",sessionLanzouTimeoutFailover,checked->{sessionLanzouTimeoutFailover=checked;persistSearchSettings();}),settingsSwitchRow(R.drawable.ic_share,"网页外部打开",sessionOpenWebExternal,checked->{sessionOpenWebExternal=checked;persistSearchSettings();}),settingsSwitchRow(R.drawable.ic_file,"列表源展示链接",showSourceLinks,checked->{showSourceLinks=checked;persistSearchSettings();}),buildAdbPermissionCard()));addSettingsSection(body,settingsSection(R.drawable.ic_database,"数据与关于","下载显示与资源管理",false,settingsSwitchRow(R.drawable.ic_nav_grid,"批量下载逐项显示",sessionBatchDownloadSingleItem,checked->{sessionBatchDownloadSingleItem=checked;persistSearchSettings();if(pageKind==2)renderDownloads(downloadQuery);}),buildSourceSettingsPanel(),settingsAction(R.drawable.ic_notifications,"公告",v->showNoticeCenter()),settingsAction(R.drawable.ic_history,"更新记录",v->showChangelogCenter()),settingsAction(R.drawable.ic_sources,"资源源管理",v->showSourcesFromSettings()),settingsAction(R.drawable.ic_refresh,"开源项目主页",v->openInBrowser(DFWX_REPOSITORY,""))));
+    primaryBase(3);pageKind=4;settingsRefreshers.clear();settingsSearchSections.clear();activeSource=null;clearFolderTrail();systemBackAction=null;primaryHeader("设置");LinearLayout body=new LinearLayout(this);body.setOrientation(LinearLayout.VERTICAL);body.setPadding(0,dp(4),0,dp(18));/* v1.22.3 边距统一：左右 8dp→0，设置卡片与 header/首页同 16dp 基准（原 24dp 比首页多缩 8dp，造成"边距不齐像被挤住"观感） */LinearLayout.LayoutParams integrityPayLp=new LinearLayout.LayoutParams(-1,-2);integrityPayLp.bottomMargin=dp(10);body.addView(new IntegrityPayButton(this,ThemeEngine.active(this),getResources().getDisplayMetrics().density,Support.unlocked(this),motionEnabled(),this::openSupportActivity),integrityPayLp);applePressScale(integrityPayLp==null?null:(View)body.getChildAt(body.getChildCount()-1));/* v1.23 T5-S 四分区重排（v7 设计稿）：常用默认展开；性能模式收起（细项过渡态，三档芯片随后替换）；高级收起（网络兼容+ADB）；数据与关于收起 */addSettingsSection(body,settingsSection(R.drawable.ic_download,"常用","下载、搜索与列表浏览",true,buildStartDestinationRow(),buildDownloadPathPanel(),buildSearchModeRow(),buildRecursiveFoldersRow(),settingsSwitchRow(R.drawable.ic_expand,"浏览时自动加载更多",sessionAutoExpand,checked->{sessionAutoExpand=checked;persistSearchSettings();if(checked&&folderPullScroll!=null)folderPullScroll.post(this::maybeAutoExpand);}),buildAutoInstallDownloadsRow(),settingsSwitchRow(R.drawable.ic_home,"下载时推荐诚信付费",Support.askOnDownload(this),checked->{Support.setAskOnDownload(this,checked);})));addSettingsSection(body,settingsSection(R.drawable.ic_bolt,"性能模式","下载与动效的整体节奏",false,buildPerfTierCard(),buildSearchSettingsPanel(),buildDownloadSettingsPanel(),buildListDisplaySettings(),buildAutoExpandPageSettings(),buildIndexSliderSettings(),buildAdbInstallThreadSettings(),buildIndexProgressCard()));addSettingsSection(body,settingsSection(R.drawable.ic_sliders,"高级","网络、兼容与 ADB 安装",false,buildUaSettingsRow(),settingsSwitchRow(R.drawable.ic_open_with,"蓝奏链接直接解析打开",directLanzouListOpen,checked->{directLanzouListOpen=checked;persistSearchSettings();}),buildLanzouBaseOriginRow(),settingsSwitchRow(R.drawable.ic_refresh,"基础链接超时自动切换",sessionLanzouTimeoutFailover,checked->{sessionLanzouTimeoutFailover=checked;persistSearchSettings();}),settingsSwitchRow(R.drawable.ic_share,"网页外部打开",sessionOpenWebExternal,checked->{sessionOpenWebExternal=checked;persistSearchSettings();}),settingsSwitchRow(R.drawable.ic_file,"列表源展示链接",showSourceLinks,checked->{showSourceLinks=checked;persistSearchSettings();}),buildAdbPermissionCard()));addSettingsSection(body,settingsSection(R.drawable.ic_database,"数据与关于","下载显示与资源管理",false,settingsSwitchRow(R.drawable.ic_nav_grid,"批量下载逐项显示",sessionBatchDownloadSingleItem,checked->{sessionBatchDownloadSingleItem=checked;persistSearchSettings();if(pageKind==2)renderDownloads(downloadQuery);}),buildSourceSettingsPanel(),settingsAction(R.drawable.ic_notifications,"公告",v->showNoticeCenter()),settingsAction(R.drawable.ic_sources,"资源源管理",v->showSourcesFromSettings()),settingsAction(R.drawable.ic_refresh,"开源项目主页",v->openInBrowser(DFWX_REPOSITORY,""))));
   // T5-S §8:底部关于区——崩溃日志/参考致谢/关于移出"数据与关于"单独收底,三行顺序按用户指定(崩溃日志→参考致谢→关于);诚信付费按钮保持在设置页顶部
   LinearLayout footer=new LinearLayout(this);footer.setOrientation(LinearLayout.VERTICAL);GradientDrawable footerBg=new GradientDrawable();footerBg.setColor(SET_LOW);footerBg.setCornerRadius(dp(20));footerBg.setStroke(dp(1),SET_STROKE);footer.setBackground(footerBg);footer.setClipToOutline(true);footer.setTag(true);
   LinearLayout footerContent=new LinearLayout(this);footerContent.setOrientation(LinearLayout.VERTICAL);footerContent.setPadding(dp(4),0,dp(4),dp(6));
   footerContent.addView(settingsAction(R.drawable.ic_file,"崩溃日志",v->showCrashLogPage()),new LinearLayout.LayoutParams(-1,-2));
   View footerDivider=new View(this);footerDivider.setBackgroundColor(SET_STROKE2);LinearLayout.LayoutParams fdLp=new LinearLayout.LayoutParams(-1,dp(1));fdLp.setMargins(dp(50),0,dp(8),0);footerContent.addView(footerDivider,fdLp);
-  footerContent.addView(settingsAction(R.drawable.ic_expand,"参考与致谢",v->showAcknowledgementsPage()),new LinearLayout.LayoutParams(-1,-2));
+  /* 图标：ic_expand 是个"向下箭头"，表达的是"可展开"，拿来当"参考与致谢"的图标完全不搭
+     （用户 2026-10-01 反馈："那个图标我感觉并不适合参考与致谢"）。改成心形：致谢就是"谢谢"。
+     复用工具箱那颗 Phosphor 心，不再复制一份同形状的资源。 */
+  footerContent.addView(settingsAction(R.drawable.ic_tool_heart,"参考与致谢",v->showAcknowledgementsPage()),new LinearLayout.LayoutParams(-1,-2));
+  View footerDividerAck=new View(this);footerDividerAck.setBackgroundColor(SET_STROKE2);LinearLayout.LayoutParams fdAckLp=new LinearLayout.LayoutParams(-1,dp(1));fdAckLp.setMargins(dp(50),0,dp(8),0);footerContent.addView(footerDividerAck,fdAckLp);
+  /* [DFW-76] 「更新记录」从「数据与关于」分区搬到页脚，位置按用户指定：**参考与致谢的下面**。
+     它本来就是"关于这个软件"的东西，和崩溃日志/参考致谢/关于放一起才对。 */
+  footerContent.addView(settingsAction(R.drawable.ic_history,"更新记录",v->showChangelogCenter()),new LinearLayout.LayoutParams(-1,-2));
   View footerDivider2=new View(this);footerDivider2.setBackgroundColor(SET_STROKE2);LinearLayout.LayoutParams fd2Lp=new LinearLayout.LayoutParams(-1,dp(1));fd2Lp.setMargins(dp(50),0,dp(8),0);footerContent.addView(footerDivider2,fd2Lp);
   footerContent.addView(settingsAction(R.drawable.ic_refresh,"检查更新 · 当前 "+BuildConfig.VERSION_NAME,v->manualCheckForUpdates()),new LinearLayout.LayoutParams(-1,-2));
   View footerDivider3=new View(this);footerDivider3.setBackgroundColor(SET_STROKE2);LinearLayout.LayoutParams fd3Lp=new LinearLayout.LayoutParams(-1,dp(1));fd3Lp.setMargins(dp(50),0,dp(8),0);footerDivider3.setLayoutParams(fd3Lp);footerContent.addView(footerDivider3);
-  footerContent.addView(settingsAction(R.drawable.ic_copy,"关于"+PRODUCT_NAME,v->showAboutPage()),new LinearLayout.LayoutParams(-1,-2));
+  footerContent.addView(settingsAction(R.drawable.ic_tool_info,"关于"+PRODUCT_NAME,v->showAboutPage()),new LinearLayout.LayoutParams(-1,-2));
   footer.addView(footerContent,new LinearLayout.LayoutParams(-1,-2));settingsSearchSections.add(footer);body.addView(footer,new LinearLayout.LayoutParams(-1,-2));
   LinearLayout.LayoutParams emptyLp=new LinearLayout.LayoutParams(-1,-2);emptyLp.setMargins(0,dp(40),0,0);settingsSearchEmpty=text("没有匹配的设置项",13,MUTED);settingsSearchEmpty.setGravity(Gravity.CENTER);settingsSearchEmpty.setVisibility(View.GONE);body.addView(settingsSearchEmpty,emptyLp);root.addView(buildSettingsSearch(),new LinearLayout.LayoutParams(-1,dp(48)));ScrollView scroll=new ScrollView(this);scroll.setFillViewport(true);scroll.setContentDescription("设置");scroll.addView(body,new ScrollView.LayoutParams(-1,-2));root.addView(scroll,new LinearLayout.LayoutParams(-1,0,1));
     // [DFW-71] 让设置页也持有 pageScroll（原来只有目录/源列表/下载页持有），
