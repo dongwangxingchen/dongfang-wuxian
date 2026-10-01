@@ -35,7 +35,7 @@ final class ThemeEngine {
   }
 
 /** legacy：经典紫温（原 applySystemColors 原色值），默认主题。v1.19.7 底色改 OLED 真黑（wear-ui-system.md §5：Screen=#000000，表面阶梯更清晰且省电） */
-/* 描边与表面必须分离（原缺陷：surface2 与 border **是同一个色值** #262332）。
+/* [DFW-43] 描边与表面必须分离（原缺陷：surface2 与 border **是同一个色值** #262332）。
    一个色既当"面"又当"描边"，结果就是**等于没有描边**：纯黑底上的卡片/胶囊是一片平的深灰紫，
    没有边缘定义、没有层次。两者职责不同 → 取值必然不同：
      · surface2 = **面**（填充），要在 §5 亮度阶梯的 Surface 档里；
