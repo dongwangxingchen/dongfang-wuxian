@@ -2,6 +2,8 @@ package me.rerere.rikkahub.dfwx
 
 import me.rerere.ai.provider.Model
 import me.rerere.ai.provider.Modality
+import me.rerere.rikkahub.data.model.Assistant
+import me.rerere.rikkahub.data.model.Avatar
 import me.rerere.ai.provider.ProviderSetting
 import me.rerere.rikkahub.data.datastore.Settings
 import org.junit.After
@@ -426,6 +428,95 @@ class DfwxBuiltinChannelTest {
             .first { it.name == DfwxBuiltinChannel.PROVIDER_NAME }
             .models.single()
         assertTrue("重复同步后仍须保留 IMAGE 输入", Modality.IMAGE in model.inputModalities)
+    }
+
+    // ── [DFW-84] 东方助手：名字 / 头像 / 软件知识 ─────────────────────────
+
+    private fun builtinAssistant(settings: Settings): Assistant {
+        val model = settings.providers
+            .filterIsInstance<ProviderSetting.OpenAI>()
+            .first { it.name == DfwxBuiltinChannel.PROVIDER_NAME }
+            .models.single()
+        return settings.assistants.first { it.chatModelId == model.id || it.chatModelId == null }
+    }
+
+    @Test
+    fun freshInstall_seedsTheDongfangAssistant_withNameAvatarAndKnowledge() {
+        val seeded = DfwxBuiltinChannel.buildSyncedSettings(Settings().copy(providers = emptyList()))
+        val a = builtinAssistant(seeded)
+        assertEquals("默认助手的名字必须是东方助手", DfwxAssistantProfile.ASSISTANT_NAME, a.name)
+        assertTrue("必须带上软件使用知识，否则它答不了『这个软件怎么用』", a.systemPrompt.isNotBlank())
+        // 知识里必须真的有"怎么用"的硬事实，而不是空话
+        for (fact in listOf("软件库", "工具箱", "Download/东方无限", "诚信付费", "内置渠道")) {
+            assertTrue("手册里缺少关键事实：$fact", a.systemPrompt.contains(fact))
+        }
+        assertFalse(
+            "用户明确说不要制作历史 —— 提示词里不许出现内部实现/版本痕迹",
+            a.systemPrompt.contains("versionCode") || a.systemPrompt.contains("DFW-"),
+        )
+        assertEquals("内置助手要用我们给的头像", Avatar.Image(DfwxAssistantProfile.AI_AVATAR_URL), a.avatar)
+        assertTrue(
+            "必须打开 useAssistantAvatar，否则聊天里显示的是模型图标而不是我们的头像",
+            a.useAssistantAvatar,
+        )
+    }
+
+    @Test
+    fun freshInstall_seedsTheUserAvatarOnlyWhenUnset() {
+        val seeded = DfwxBuiltinChannel.buildSyncedSettings(Settings().copy(providers = emptyList()))
+        assertEquals(
+            "用户头像默认给图3（紫色发光人形）",
+            Avatar.Image(DfwxAssistantProfile.USER_AVATAR_URL),
+            seeded.displaySetting.userAvatar,
+        )
+    }
+
+    @Test
+    fun userCustomisations_areNeverOverwritten() {
+        val mine = Avatar.Emoji("🐳")
+        val before = Settings().copy(providers = emptyList()).let { base ->
+            base.copy(
+                assistants = base.assistants.map { it.copy(name = "我的助手", systemPrompt = "自定义提示词", avatar = mine) },
+                displaySetting = base.displaySetting.copy(userAvatar = mine),
+            )
+        }
+        val after = DfwxBuiltinChannel.buildSyncedSettings(before)
+        val a = after.assistants.first { it.name == "我的助手" }
+        assertEquals("用户改过的名字不许被覆盖", "我的助手", a.name)
+        assertEquals("用户写过的提示词不许被覆盖", "自定义提示词", a.systemPrompt)
+        assertEquals("用户选过的头像不许被覆盖", mine, a.avatar)
+        assertEquals("用户选过的用户头像不许被覆盖", mine, after.displaySetting.userAvatar)
+    }
+
+    @Test
+    fun assistantsOnOtherProviders_areLeftAlone() {
+        // 用户自己接的渠道：名字/头像/提示词一个都不许动 —— 用户说"别人对接新 API 站的时候用他们默认的"
+        val other = me.rerere.ai.provider.Model(modelId = "gpt-x", displayName = "GPT-X")
+        val otherProvider = ProviderSetting.OpenAI(
+            name = "我自己的渠道",
+            apiKey = "sk-x",
+            baseUrl = "https://api.example.com",
+            models = listOf(other),
+        )
+        val base = Settings().copy(providers = emptyList())
+        val mine = base.copy(
+            providers = base.providers + otherProvider,
+            assistants = base.assistants.map { it.copy(chatModelId = other.id, avatar = Avatar.Dummy, name = "", systemPrompt = "") },
+        )
+        val after = DfwxBuiltinChannel.buildSyncedSettings(mine)
+        for (a in after.assistants.filter { it.chatModelId == other.id }) {
+            assertEquals("非内置助手的名字不许被改", "", a.name)
+            assertEquals("非内置助手的提示词不许被改", "", a.systemPrompt)
+            assertEquals("非内置助手的头像不许被改", Avatar.Dummy, a.avatar)
+            assertFalse("非内置助手不许被打开 useAssistantAvatar", a.useAssistantAvatar)
+        }
+    }
+
+    @Test
+    fun theProfileIsIdempotent() {
+        val once = DfwxBuiltinChannel.buildSyncedSettings(Settings().copy(providers = emptyList()))
+        val twice = DfwxBuiltinChannel.buildSyncedSettings(once)
+        assertEquals("第二轮同步必须与第一轮完全相同（否则每次启动都白写 DataStore）", once, twice)
     }
 
 }

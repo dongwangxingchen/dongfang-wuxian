@@ -65,7 +65,7 @@
 
 - **唯一事实源**：`docs/plan/current-state.md`（带当前版本号，可核时效）；
 - **决策与风险**：`docs/plan/decisions.md` / `risk-register.md`（本轮补 R-20/R-21 闭环）；
-- **架构拆分进度**：`docs/tasks/DFWX-ARCH-001-progress.md`（含已抽领域、后续顺序、风险排序）；
+- **架构拆分进度**：`docs/archive/tasks/legacy-cards/DFWX-ARCH-001-progress.md`（含已抽领域、后续顺序、风险排序）；
 - **第三方与许可证**：`docs/THIRD-PARTY-NOTICES.md`（含**已移除**组件记录，避免"以为还在"）；
 - **任务看板**：看板卡即当前目标与验收标准，做完移入 `in_review` 附证据评论。
 

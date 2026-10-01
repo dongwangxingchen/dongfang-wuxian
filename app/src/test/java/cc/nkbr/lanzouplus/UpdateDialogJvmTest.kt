@@ -43,9 +43,21 @@ class UpdateDialogJvmTest {
 
     private val digest = "sha256:" + "b".repeat(64)
 
+    /**
+     * 测试里的"新版本"必须**相对当前构建版本**递增，不能写死。
+     *
+     * 历史：这里原来写死 `10001L`。2026-10-01 把 versionCode 提到 10002 之后，
+     * `10001 > 10002` 为假 → 本类 **8 条用例一起变红**。
+     * 测试不该在每次发版时都要手改，所以改成从 `BuildConfig.VERSION_CODE` 派生。
+     */
+    private val nextCode: Long get() = BuildConfig.VERSION_CODE + 1L
+    private val nextName = "9.9.1"
+    private val newerCode: Long get() = BuildConfig.VERSION_CODE + 2L
+    private val newerName = "9.9.2"
+
     private fun offer(
-        versionName: String = "1.0.1",
-        versionCode: Long = 10001L,
+        versionName: String = nextName,
+        versionCode: Long = nextCode,
         mode: UpdatePromptPolicy.Mode = UpdatePromptPolicy.Mode.SOFT,
         body: String = "修了几个问题",
         withDigest: Boolean = true,
@@ -130,7 +142,7 @@ class UpdateDialogJvmTest {
         shadowOf(Looper.getMainLooper()).idle()
 
         val texts = textsIn(panelOf(a))
-        assertTrue("标题要显示新版本号：$texts", texts.any { it.contains("发现新版本") && it.contains("1.0.1") })
+        assertTrue("标题要显示新版本号：$texts", texts.any { it.contains("发现新版本") && it.contains(nextName) })
         assertTrue("更新内容必须显示出来：$texts", texts.any { it.contains("修了闪退") })
     }
 
@@ -197,7 +209,7 @@ class UpdateDialogJvmTest {
     @Test
     fun forceMode_stillPromptsAfterUserDismissedThatVersion() {
         val a = activity()
-        a.updatePromptPolicy().rememberDismissed(10001L)
+        a.updatePromptPolicy().rememberDismissed(nextCode)
         a.showUpdateOffer(offer(mode = UpdatePromptPolicy.Mode.FORCE), false)
         shadowOf(Looper.getMainLooper()).idle()
         assertNotNull("强制更新必须无视历史的「不再显示」，否则点一次就能永久绕过强制", a.offerSheet)
@@ -218,27 +230,27 @@ class UpdateDialogJvmTest {
     @Test
     fun neverRemind_suppressesOnlyThatVersion_thenNextVersionPromptsAgain() {
         val a = activity()
-        a.showUpdateOffer(offer(versionName = "1.0.1", versionCode = 10001L), false)
+        a.showUpdateOffer(offer(), false)
         shadowOf(Looper.getMainLooper()).idle()
         a.dismissOfferDialog()
 
         // 模拟用户点「不再显示」
-        a.updatePromptPolicy().rememberDismissed(10001L)
-        a.showUpdateOffer(offer(versionName = "1.0.1", versionCode = 10001L), false)
+        a.updatePromptPolicy().rememberDismissed(nextCode)
+        a.showUpdateOffer(offer(), false)
         shadowOf(Looper.getMainLooper()).idle()
         assertNull("同一版被「不再显示」后不得再弹", a.offerSheet)
 
         // 换版本必须照弹——这是用户明确要求的语义
-        a.showUpdateOffer(offer(versionName = "1.0.2", versionCode = 10002L), false)
+        a.showUpdateOffer(offer(versionName = newerName, versionCode = newerCode), false)
         shadowOf(Looper.getMainLooper()).idle()
-        assertNotNull("换成 1.0.2 必须照弹（「不再显示」≠「永不更新」）", a.offerSheet)
+        assertNotNull("换成更高版本必须照弹（「不再显示」≠「永不更新」）", a.offerSheet)
     }
 
     @Test
     fun manualCheck_bypassesRememberedDismissal() {
         val a = activity()
-        a.updatePromptPolicy().rememberDismissed(10001L)
-        a.showUpdateOffer(offer(versionName = "1.0.1", versionCode = 10001L), true)
+        a.updatePromptPolicy().rememberDismissed(nextCode)
+        a.showUpdateOffer(offer(), true)
         shadowOf(Looper.getMainLooper()).idle()
         assertNotNull("用户主动点「检查更新」时必须能看到该版本，否则回「已是最新」是骗人的", a.offerSheet)
         assertEquals("手动检查应顺手清掉记忆", 0L, a.updatePromptPolicy().dismissedVersionCode())
@@ -257,7 +269,7 @@ class UpdateDialogJvmTest {
     @Test
     fun offerWithoutAnyDownloadRoute_doesNotShowBrokenSheet() {
         // 点哪个都没用的面板等于骗用户。宁可不弹，并给一句说明。
-        val dead = UpdateOffer("1.0.1", 10001L, 0L, "", "", "", "", "", "", UpdatePromptPolicy.Mode.SOFT)
+        val dead = UpdateOffer(nextName, nextCode, 0L, "", "", "", "", "", "", UpdatePromptPolicy.Mode.SOFT)
         val a = activity()
         a.showUpdateOffer(dead, false)
         shadowOf(Looper.getMainLooper()).idle()
