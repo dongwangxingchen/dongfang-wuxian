@@ -17,6 +17,7 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 import org.robolectric.shadows.ShadowAlertDialog
+import java.io.File
 
 /**
  * [DFW-62] 更新记录：更新后弹一次 + 设置页常驻入口。
@@ -37,6 +38,12 @@ class ChangelogJvmTest {
 
     companion object {
         @BeforeClass @JvmStatic fun silenceAutoImport() { MainActivity.LIBRARY_AUTO_IMPORT = false }
+
+        private val repoRoot: File = run {
+            var dir = File(System.getProperty("user.dir") ?: ".").absoluteFile
+            while (!File(dir, "app/src/main/AndroidManifest.xml").isFile && dir.parentFile != null) dir = dir.parentFile!!
+            dir
+        }
     }
 
     private fun activity(): MainActivity {
@@ -69,82 +76,91 @@ class ChangelogJvmTest {
         return out
     }
 
-    // ── 该不该弹：纯判定 ──────────────────────────────────────────────────
+    // ── [DFW-76] 更新后**不再自动弹** ────────────────────────────────────
 
+    /**
+     * 用户 2026-10-01 原话：
+     * > "我发现刚刚我的软件弹出来了一个弹窗，说我的软件已经更新到了 1.0.0……
+     * >  要不就不弹弹窗了吧。你去设置界面，把它放到参考与致谢的下面。"
+     * > "反正你去掉更新后加载了什么吧。就是更新后更新了啥，那个弹窗去掉吧。"
+     *
+     * 所以：更新完成后**什么都不弹**；要看更新记录，自己从设置页点进去。
+     * 顺带解释用户"好像是点了公告才弹"的疑惑：旧实现是启动后延迟 900ms 弹的，
+     * 在这 900ms 内做任何操作（包括点公告）都会看起来像是那次操作触发的。现在没有这个延迟弹窗了。
+     */
     @Test
-    fun upgradedWithHistory_shows() {
-        assertTrue(
-            "装过新版本 + 后台有更新记录 → 必须弹",
-            MainActivity.shouldShowChangelogAfterUpdate(10000L, 10001L, snapshot(true, history)),
-        )
-    }
-
-    @Test
-    fun freshInstall_neverShows() {
-        assertFalse(
-            "全新安装没有「更新」这回事：第一次打开就弹一屏更新记录是骚扰",
-            MainActivity.shouldShowChangelogAfterUpdate(0L, 10000L, snapshot(true, history)),
-        )
-    }
-
-    @Test
-    fun sameVersion_neverShows() {
-        assertFalse(
-            "版本没变就是普通冷启，不许弹（用户要的是「更新后弹一次」，不是每次都弹）",
-            MainActivity.shouldShowChangelogAfterUpdate(10000L, 10000L, snapshot(true, history)),
-        )
-    }
-
-    @Test
-    fun unreachableBackend_neverShows() {
-        assertFalse(
-            "后台拉不到就不弹：宁可这次不弹，也不拿本地残留当历史（会显示过期内容）",
-            MainActivity.shouldShowChangelogAfterUpdate(10000L, 10001L, snapshot(false, history)),
-        )
-        assertFalse(MainActivity.shouldShowChangelogAfterUpdate(10000L, 10001L, null))
-    }
-
-    @Test
-    fun emptyHistory_neverShows() {
-        assertFalse(
-            "后台没有更新记录 → 没东西可展示，不弹空弹窗",
-            MainActivity.shouldShowChangelogAfterUpdate(10000L, 10001L, snapshot(true, emptyList())),
-        )
-    }
-
-    // ── 真链路：装过新版本时确实会弹，且只弹一次 ────────────────────────────
-
-    @Test
-    fun upgradedLaunch_actuallyShowsDialog_andRecordsVersionSoItPopsOnlyOnce() {
+    fun afterAnUpdate_nothingPopsUpOnItsOwn() {
         val a = activity()
-        val current = MainActivity.updateStamp(a.packageLastUpdateTime(), BuildConfig.VERSION_CODE)
-        // 造"上次启动记的是另一个包"（覆盖安装前的那一次）
-        a.getPreferences(0).edit().putLong("last_update_stamp", current - 1).apply()
+        a.getPreferences(0).edit().putLong("last_update_stamp", -1L).apply()
+        a.showSettings()
+        shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofMillis(3000))
+        assertNull("更新后不许再自动弹更新记录", ShadowAlertDialog.getLatestAlertDialog())
+    }
 
-        a.maybeShowChangelogAfterUpdate(snapshot(true, history))
+    @Test
+    fun theAutoPopupIsGoneFromTheSource_forGood() {
+        val src = File(repoRoot, "app/src/main/java/cc/nkbr/lanzouplus/MainActivity.java").readText()
+        assertFalse("自动弹更新记录的那套判定必须已经删干净", src.contains("maybeShowChangelogAfterUpdate"))
+        assertFalse(src.contains("shouldShowChangelogAfterUpdate"))
+        assertFalse("连同它的安装戳记录一起删掉", src.contains("last_update_stamp"))
+    }
+
+    // ── [DFW-76] 入口挪到页脚：参考与致谢的下面 ──────────────────────────
+
+    @Test
+    fun settingsFooter_putsChangelogRightBelowAcknowledgements() {
+        val a = activity()
+        a.showSettings()
         shadowOf(Looper.getMainLooper()).idle()
-        // 弹窗是延迟 900ms 弹的（不与首屏渲染抢主线程），把时间推过去
-        shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofMillis(1200))
-
+        val labels = textsIn(a.root).filter {
+            it == "崩溃日志" || it == "参考与致谢" || it == "更新记录" ||
+                it.startsWith("检查更新") || it.startsWith("关于")
+        }
         assertEquals(
-            "判定完必须立刻写回当前安装戳，否则同一次安装会反复弹",
-            current,
-            a.getPreferences(0).getLong("last_update_stamp", 0L),
+            "页脚顺序必须是 崩溃日志 → 参考与致谢 → 更新记录 → 检查更新 → 关于（用户指定更新记录放参考与致谢下面）",
+            listOf("崩溃日志", "参考与致谢", "更新记录"),
+            labels.take(3),
         )
-        assertNotNull("装过新包时应该真的弹出更新记录", ShadowAlertDialog.getLatestAlertDialog())
+        assertTrue("检查更新必须还在", labels.any { it.startsWith("检查更新") })
+        assertTrue("关于必须还在", labels.any { it.startsWith("关于") })
+    }
 
-        // 第二次（同一次安装的普通冷启）不该再弹
-        ShadowAlertDialog.getLatestAlertDialog()?.dismiss()
+    @Test
+    fun changelogIsNoLongerInTheDataAndAboutSection() {
+        // 同一页里只该出现一次「更新记录」，而且是在页脚那段。
+        val a = activity()
+        a.showSettings()
         shadowOf(Looper.getMainLooper()).idle()
-        ShadowAlertDialog.reset()
-        a.maybeShowChangelogAfterUpdate(snapshot(true, history))
-        shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofMillis(1200))
-        assertEquals(
-            "同一次安装第二次启动不许再弹",
-            current,
-            a.getPreferences(0).getLong("last_update_stamp", 0L),
+        assertEquals("「更新记录」整页只许有一个入口", 1, textsIn(a.root).count { it == "更新记录" })
+    }
+
+    // ── [DFW-76] 两个不合适的图标 ─────────────────────────────────────────
+
+    @Test
+    fun acknowledgementsRow_doesNotUseAChevron() {
+        // 用户原话："顺便把参考与致谢那个按钮给改一改，就是那个按钮左边的图标。
+        //           那个图标我感觉并不适合参考与致谢。"
+        // 旧图标 ic_expand 是个"向下箭头"，语义是"可展开"，跟致谢毫无关系。
+        val src = File(repoRoot, "app/src/main/java/cc/nkbr/lanzouplus/MainActivity.java").readText()
+        assertFalse(
+            "参考与致谢不许再用展开箭头当图标",
+            src.contains("settingsAction(R.drawable.ic_expand,\"参考与致谢\""),
         )
-        assertNull("第二次启动不该再弹更新记录", ShadowAlertDialog.getLatestAlertDialog())
+        assertTrue(
+            "参考与致谢应该用「致谢」语义的图标（心形）",
+            src.contains("settingsAction(R.drawable.ic_tool_heart,\"参考与致谢\""),
+        )
+    }
+
+    @Test
+    fun aboutRow_doesNotUseTheCopyIcon() {
+        // 用户原话："还有关于东方无限也不太适合那个按钮。" —— 旧图标 ic_copy 是"复制"。
+        val src = File(repoRoot, "app/src/main/java/cc/nkbr/lanzouplus/MainActivity.java").readText()
+        assertFalse("关于不许再用「复制」图标", src.contains("settingsAction(R.drawable.ic_copy,\"关于\""))
+        assertTrue(
+            "关于应该用信息图标",
+            src.contains("settingsAction(R.drawable.ic_tool_info,\"关于\""),
+        )
     }
 
     // ── 弹窗内容：全部历史、按新→旧、可滚动 ────────────────────────────────
