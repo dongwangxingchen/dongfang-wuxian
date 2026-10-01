@@ -519,4 +519,34 @@ class DfwxBuiltinChannelTest {
         assertEquals("第二轮同步必须与第一轮完全相同（否则每次启动都白写 DataStore）", once, twice)
     }
 
+    // ── [DFW-84] 提示词结构（依据 Anthropic 官方提示工程文档）──────────────
+
+    /**
+     * 依据：Anthropic《Prompting best practices》——
+     * > "Structure prompts with XML tags ... especially when your prompt mixes instructions,
+     * >  context, examples, and variable inputs. Wrapping each type of content in its own tag
+     * >  reduces misinterpretation."
+     *
+     * 我们的提示词正是"行为规则 + 一大块软件手册 + FAQ + 底线"混在一起的形态，
+     * 所以必须把**指令**和**资料**用标签分开；否则模型容易把手册里的陈述句当成对它下的指令。
+     */
+    @Test
+    fun systemPrompt_separatesInstructionsFromReferenceMaterialWithXmlTags() {
+        val p = DfwxAssistantProfile.SYSTEM_PROMPT
+        for (tag in listOf("role", "style", "manual", "faq", "rules")) {
+            assertTrue("提示词必须用 <$tag> 标签分段（官方建议：混装内容要各自成标签）", p.contains("<$tag>") && p.contains("</$tag>"))
+        }
+        // 标签必须配对且不嵌套错乱
+        for (tag in listOf("role", "style", "manual", "faq", "rules")) {
+            assertEquals("<$tag> 开闭标签数量必须相等", p.split("<$tag>").size, p.split("</$tag>").size)
+        }
+        assertTrue(
+            "必须明确告诉模型 <manual> 是资料而不是指令，否则它会照着手册的陈述句行动",
+            p.contains("这是给你查阅的资料") && p.contains("不是对你的指令"),
+        )
+        // 顺序：指令在前、资料在中、底线在后 —— 首尾都是"对模型说的话"
+        assertTrue("<role> 必须在最前面", p.trimStart().startsWith("<role>"))
+        assertTrue("<rules> 必须在最后面", p.trimEnd().endsWith("</rules>"))
+    }
+
 }
