@@ -2,6 +2,8 @@
 <html lang="zh-CN">
 <head>
 <meta charset="utf-8">
+<meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>东方无限 · 控制台</title>
 <style>
@@ -63,6 +65,7 @@ button:active{transform:scale(.975)}
   font-size:13px;cursor:pointer;text-align:left;color:var(--fg);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .mchip:hover{border-color:var(--accent)}
 .mchip.on{border-color:var(--accent);background:var(--card2);box-shadow:0 0 0 1px var(--accent) inset}
+.mchip.off{opacity:.55;border-style:dashed}
 .item{background:var(--card2);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:10px}
 .item .top{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
 .item .name{font-weight:600;font-size:14.5px}
@@ -342,15 +345,24 @@ function renderAiChannel(p){
   aiTg.onclick = () => aiTg.classList.toggle("on");
   // 「切换模型」：模型清单来自服务器 /ai/v1/models（本地静态返回，不打上游）。
   // 点一下就把模型名填进 #aim —— 这就是"专门用来切换内置模型的按钮"。
+  /*
+   * 清单来自服务器上游的 `/v1/models`（在服务器上拉的，不经过 App）。
+   * 2026-10-01 实测：`hy4` 与 `mimo-v2.5` 调用返回 403 "currently off due to limited stock"
+   * —— 上游缺货停用。仍然列出来（随时可能恢复），但在按钮上标出来，免得切过去不能用。
+   */
   const AIMODELS = ["glm-5.2","hy4","mimo-v2.5","glm-5.3","kimi-k3","deepseek-v4.1-flash",
     "glm-5.3-flashx","glm-5.3-flash","deepseek-v4-flash","mimo-v2.5-pro"];
+  const AIMODELS_OFF = ["hy4","mimo-v2.5"];
   const aimNow = $("#aimnow"), aimList = $("#aimlist"), aimInput = $("#aim"), aidInput = $("#aid");
   function syncAimNow(){ aimNow.textContent = (aimInput.value.trim() || "deepseek-v4.1-flash"); }
   function paintAimList(){
     const cur = aimInput.value.trim();
     aimList.querySelectorAll(".mchip").forEach(b => b.classList.toggle("on", b.dataset.m === cur));
   }
-  aimList.innerHTML = AIMODELS.map(m => `<button class="mchip" data-m="${m}">${m}</button>`).join("");
+  aimList.innerHTML = AIMODELS.map(m =>
+    `<button class="mchip${AIMODELS_OFF.includes(m) ? " off" : ""}" data-m="${m}"`
+    + `${AIMODELS_OFF.includes(m) ? ' title="上游暂时缺货停用，切过去可能报错"' : ""}>`
+    + `${m}${AIMODELS_OFF.includes(m) ? "（缺货）" : ""}</button>`).join("");
   aimList.querySelectorAll(".mchip").forEach(b => {
     b.onclick = () => {
       aimInput.value = b.dataset.m;
@@ -403,10 +415,14 @@ function renderRelease(p){
     <input id="apk" type="file" accept=".apk,application/vnd.android.package-archive">
     <div class="note" id="apkInfo">选好文件后，<b>大小与校验值会自动算好</b>，点保存时顺带传上服务器——不用手填。</div>
 
-    <label for="vn">② 版本号</label>
+    <label for="vn">② 版本号（显示给用户看的）</label>
     <input id="vn" type="text" placeholder="1.0.0" value="${esc(r.versionName)}">
 
-    <label for="um">③ 更新方式</label>
+    <label for="vc">③ 版本序号（versionCode）—— 决定软件会不会提示更新</label>
+    <input id="vc" type="number" min="1" value="${(Number(r.versionCode) || 0) + 1}">
+    <p class="hint">软件就是拿这个数字比大小的：<b>必须比现在大，否则用户永远收不到更新</b>。已经帮你填好「现在 +1」。</p>
+
+    <label for="um">④ 更新方式</label>
     <select id="um">
       <option value="soft"${r.updateMode==="soft"?" selected":""}>软更新 —— 用户可以关闭、可以不再提示</option>
       <option value="force"${r.updateMode==="force"?" selected":""}>强制更新 —— 必须更新才能用</option>
@@ -455,17 +471,36 @@ function renderRelease(p){
         b.innerHTML = '<span class="spin"></span> 上传安装包…';
         await uploadApk(pendingApk.file, pendingApk.name);
       }
+      /*
+       * [DFW-82] 这里原来是 `versionCode: cache.release ? cache.release.versionCode : 0` ——
+       * **把旧的 versionCode 原样回写**，而页面上根本没有这个输入框。
+       * 结果：不管怎么发布，版本序号永远不变，软件永远判定"已是最新版本"。
+       * 用户 2026-10-01 报的"更新功能坏掉了"就是这一行。
+       * 现在改成读输入框，并且**强制严格递增**。
+       */
+      const currentCode = Number(cache.release && cache.release.versionCode) || 0;
+      const nextCode = Number($("#vc").value || 0);
       const body = {
         versionName: $("#vn").value.trim(),
-        versionCode: cache.release ? cache.release.versionCode : 0,
+        versionCode: nextCode,
         updateMode: $("#um").value,
         apkUrl: $("#au").value.trim(),
         sha256: $("#sh").value.trim().toLowerCase(),
         size: Number($("#sz").value || 0)
       };
       if (!body.versionName) throw new Error("请填写版本号");
+      if (!Number.isInteger(nextCode) || nextCode <= 0) throw new Error("版本序号必须是不小于 1 的整数");
+      if (nextCode <= currentCode) {
+        throw new Error("版本序号必须比现在大（现在是 " + currentCode + "，你填的是 " + nextCode
+          + "）—— 否则软件会认为已经是最新版，不会提示更新");
+      }
       if (!/^[0-9a-f]{64}$/.test(body.sha256)) throw new Error("校验值必须是 64 位十六进制（选一个安装包就会自动算好）");
       if (!(body.size > 0)) throw new Error("请选择安装包，大小会自动算出来");
+      if (currentCode > 0 && body.versionName === (cache.release && cache.release.versionName)) {
+        const ok = confirm("版本号（" + body.versionName + "）和现在一样，只有版本序号变大了。\n"
+          + "这样用户会收到更新提示，但显示的版本名不会变。确定要发布吗？");
+        if (!ok) { b.disabled = false; b.textContent = "保存并发布"; return; }
+      }
       await upsert("release", cache.release && cache.release.id, body);
       toast("已发布，用户下次打开就会看到", "ok");
       pendingApk = null;
