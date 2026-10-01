@@ -55,24 +55,36 @@ cmd_verify() {
     || fail "release 任务名含 Debug：${RELEASE_TASK}（v1.18.0 ABI 翻转事故根因）"
   ok "任务名 $RELEASE_TASK"
 
+  step "版本号一致性：build.gradle.kts / current-state.md 同步"
+  # [DFW-91] 版本号现在**只有一处**：build.gradle.kts 里的 `val buildCode`。
+  # versionName 由它算出来，所以这里也只读那一个数字，再按同一条规则反推名字。
+  local code name
+  code="$(grep -oE 'val buildCode = [0-9]+' app/build.gradle.kts | head -1 | grep -oE '[0-9]+')"
+  [[ -n "$code" ]] || fail "读不到 val buildCode（DFW-91 后版本号的唯一来源）"
+  name="$(( code / 10000 )).$(( (code / 100) % 100 )).$(( code % 100 ))"
+  ok "build.gradle.kts: versionCode=$code versionName=$name"
+
+  # 事实页必须跟上版本号（v1.22.9 曾出现"版本号改了、事实页没改"，导致接手者读到旧状态）。
+  # [DFW-91] 从「不同步就报错」改成「**自动改好**」：靠人记得改文档不可靠 ——
+  # 上一个窗口就真的漏过一次，是 DocTimelinessJvmTest 变红才发现的。现在想漏都漏不掉。
+  local state_file="docs/plan/current-state.md"
+  if [[ -f "$state_file" ]]; then
+    if sed --version >/dev/null 2>&1; then SED_INPLACE=(sed -i -E); else SED_INPLACE=(sed -i '' -E); fi
+    "${SED_INPLACE[@]}" \
+      "s/(- 版本号：versionCode \`)[0-9]+(\` \/ versionName \`)[0-9.]+(\`)/\1${code}\2${name}\3/" \
+      "$state_file"
+    grep -q "versionName \`$name\`" "$state_file" \
+      || fail "$state_file 自动同步失败（该行格式被改过，请检查「- 版本号：versionCode ...」这一行）"
+    ok "current-state.md 已同步到 ${name}（自动写入）"
+  fi
+
   step "跑 CI 门禁（层 1+2：静态 + 三套 JVM 测试）"
   JAVA_HOME="$JAVA_HOME" DFWX_OFFLINE="${DFWX_OFFLINE:-1}" bash tools/ci-gate.sh docs
   JAVA_HOME="$JAVA_HOME" DFWX_OFFLINE="${DFWX_OFFLINE:-1}" bash tools/ci-gate.sh unit
 
-  step "版本号一致性：build.gradle.kts / current-state.md / CHANGELOG 同步"
-  local code name
-  code="$(grep -oE 'versionCode = [0-9]+' app/build.gradle.kts | head -1 | grep -oE '[0-9]+')"
-  name="$(grep -oE 'versionName = "[^"]+"' app/build.gradle.kts | head -1 | sed 's/.*"\(.*\)"/\1/')"
-  [[ -n "$code" && -n "$name" ]] || fail "读不到版本号"
-  ok "build.gradle.kts: versionCode=$code versionName=$name"
-
-  # 事实页必须跟上版本号（v1.22.9 曾出现"版本号改了、事实页没改"，导致接手者读到旧状态）
-  local state_file="docs/plan/current-state.md"
-  if [[ -f "$state_file" ]]; then
-    grep -q "versionName \`$name\`" "$state_file" \
-      || fail "$state_file 未同步到当前版本 ${name}（接手者会读到旧状态）"
-    ok "current-state.md 已同步到 $name"
-  fi
+  # [DFW-91] 顺序很重要：**自动同步事实页必须在跑门禁之前**。
+  # 否则 DocTimelinessJvmTest 会拿旧文档去比新版本号，先红一次、同步完再绿——
+  # 那不是"门禁发现问题"，是"门禁自己制造的假故障"。
 
   step "AGPL / 上游署名义务仍在"
   grep -q "AGPL-3.0" README.md || fail "README 缺少 AGPL-3.0 署名"
@@ -125,6 +137,12 @@ cmd_verify() {
 # ---------------------------------------------------------------- 构建 + 归档
 cmd_build() {
   require_java
+
+  # [DFW-91] **出包前强制先过 verify**。
+  # 以前 verify 和 build 是两个互不相干的子命令，只跑 build 就直接出包了 ——
+  # v1.0.15 那次"带红门禁发布"就是这么来的（门禁红着，包照样发出去）。
+  # 现在 build 自己先把 verify 跑一遍，想跳过都难。
+  cmd_verify
 
   [[ "$RELEASE_TASK" != *"Debug"* && "$RELEASE_TASK" != *"debug"* ]] \
     || fail "release 任务名含 Debug：$RELEASE_TASK"

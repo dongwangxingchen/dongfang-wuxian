@@ -54,9 +54,11 @@ class UpdateTriggerJvmTest {
             "设置页必须有可见的「检查更新」入口，否则用户没有手动出路（DFW-7 的核心缺陷）：$labels",
             labels.any { it.startsWith("检查更新") },
         )
+        // [DFW-91] 版本号从标签里挪到了**同一行的右侧**（用户要求"在检查更新四个字右侧"），
+        // 所以它现在是另一个 TextView，不再拼在「检查更新」后面。
         assertTrue(
-            "入口上要带上当前版本号，用户才知道自己在哪个版本：$labels",
-            labels.any { it.startsWith("检查更新") && it.contains(BuildConfig.VERSION_NAME) },
+            "「检查更新」右侧要带当前版本号（DFW-91：全站只保留这一处）：$labels",
+            labels.any { it.trim() == BuildConfig.VERSION_NAME },
         )
     }
 

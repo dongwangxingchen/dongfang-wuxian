@@ -6,6 +6,7 @@ import android.view.ViewGroup
 import android.widget.TextView
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.BeforeClass
 import org.junit.Test
@@ -181,10 +182,14 @@ class BrandCreditsJvmTest {
     }
 
     @Test
-    fun aboutPage_showsCurrentVersion() {
+    fun aboutPage_noLongerShowsCurrentVersion() {
+        // [DFW-91] 用户原话："关于东方无限底部的和其他地方显示版本号的地方，你都给我删除。"
+        // 版本号现在只留在设置页「检查更新」那一行的右侧。
+        // 原先这条断言的理由是"便于用户报障时提供版本号"——那个需求仍然成立，
+        // 只是位置从关于页挪到了设置页（用户打开设置就能看到，比翻到关于页更快）。
         val joined = textsOf(openAbout().root).joinToString("\n")
-        assertTrue(
-            "关于页必须显示当前版本号（便于用户报障时提供）：期望 ${BuildConfig.VERSION_NAME}",
+        assertFalse(
+            "关于页不许再显示版本号（全站只保留「检查更新」右侧一处）：$joined",
             joined.contains(BuildConfig.VERSION_NAME),
         )
     }

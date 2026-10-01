@@ -58,7 +58,9 @@ class MaintenanceOverlayJvmTest {
         val overlay = a.maintenanceOverlay ?: return null
         var found: TextView? = null
         fun walk(v: View) {
-            if (v is TextView && v.text.toString().startsWith(MainActivity.PRODUCT_NAME) && v.text.toString().contains(BuildConfig.VERSION_NAME)) {
+            // [DFW-91] 后门标签**不再显示版本号**（版本号只留「检查更新」右侧），
+            // 现在它就是产品名本身。后门照旧挂在它上面。
+            if (v is TextView && v.text.toString() == MainActivity.PRODUCT_NAME) {
                 found = v
             }
             if (v is ViewGroup) for (i in 0 until v.childCount) walk(v.getChildAt(i))
@@ -193,13 +195,13 @@ class MaintenanceOverlayJvmTest {
     // ── 隐藏后门 ──────────────────────────────────────────────────────────
 
     @Test
-    fun backdoor_sevenTapsOnVersionLabel_releasesTheGate() {
+    fun backdoor_sevenTapsOnTheBottomLabel_releasesTheGate() {
         val a = activity()
         a.showMaintenanceOverlay(screen())
         shadowOf(Looper.getMainLooper()).idle()
 
         val label = versionLabel(a)
-        assertNotNull("维护页底部必须有版本号标签（后门就挂在它上面）", label)
+        assertNotNull("维护页底部必须有个可点的标签（后门就挂在它上面）", label)
 
         for (i in 1 until MaintenanceGate.BACKDOOR_TAPS) {
             label!!.performClick()

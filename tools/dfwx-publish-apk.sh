@@ -37,7 +37,7 @@ echo "→ 上传到服务器…"
 scp -q "$APK" "dfwx:/tmp/${NAME}"
 REMOTE_SHA="$(ssh dfwx "sudo mv /tmp/${NAME} /var/www/dfwx/apk/ && sudo chown www-data:www-data /var/www/dfwx/apk/${NAME} && sha256sum /var/www/dfwx/apk/${NAME} | cut -d' ' -f1")"
 if [[ "$REMOTE_SHA" != "$LOCAL_SHA" ]]; then
-  echo "❌ 服务器上的 sha256 与本机不一致（$REMOTE_SHA）—— 中止，不写记录" >&2
+  echo "❌ 服务器上的 sha256 与本机不一致（${REMOTE_SHA}）—— 中止，不写记录" >&2
   exit 1
 fi
 echo "✅ 服务器校验一致"
