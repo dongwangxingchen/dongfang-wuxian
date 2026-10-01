@@ -276,6 +276,32 @@ final class LanzouCore {
   private static final class PageRateLimitedException extends IOException{PageRateLimitedException(String message){super(message);}}
     private static final class RecoverableBrowseException extends IOException{RecoverableBrowseException(String message){super(message);}}
   private static final class PageCapabilityException extends IOException{PageCapabilityException(String message){super(message);}}
+
+  /**
+   * [DFW-108 2026-10-01] 撞上了蓝奏的**阿里云 WAF 滑块验证页**（captchaV2 / acw_sc__v3）。
+   *
+   * 为什么要单独一个异常类型：UI 层必须能把它和"普通解析失败"**区分开** ——
+   * 普通的失败只能提示用户重试，而这个要**弹 WebView 让用户手动过一次验证**，
+   * 然后把 WAF 下发的 cookie 注入回下载会话继续下载。
+   * 混在通用的 PageCapabilityException 里，UI 层无从判断。
+   *
+   * 为什么必须真人过：子智能体读了 9 个开源仓库的全部源码，
+   * grep `aliyun_waf|captchaV2|请完成以下操作|验证您是真人|滑块` → **0 命中**。
+   * 阿里云 WAF 有两种挑战：
+   *   · `acw_sc__v2` = JS 校验，可计算（社区都在解这个，我们的算法也是对的）
+   *   · `acw_sc__v3` = **滑块，必须真人交互**，纯算法无解
+   * 我们撞上的是第二种，所以这是**社区未解问题**，只能走人工。
+   *
+   * 携带 `challengeUrl`：WebView 必须加载**同一个 URL**，
+   * 因为阿里云的挑战是绑定 URL + 会话的。
+   */
+  static final class WafChallengeException extends IOException{
+    final String challengeUrl;
+    WafChallengeException(String challengeUrl){
+      super("蓝奏要求人机验证");
+      this.challengeUrl=challengeUrl==null?"":challengeUrl;
+    }
+  }
   private static final class PageWaitException extends IOException{final long delayMillis;PageWaitException(long delayMillis){super("目录请求等待调度");this.delayMillis=delayMillis;}}
   private static final class SearchApiPage{DirectLink page;JSONArray items;int state,count,total=-1;boolean available,used;}
   private static final class SourceSearchState{
@@ -1637,7 +1663,7 @@ final class LanzouCore {
     private static boolean isDirectoryOffShell(String html){String value=html==null?"":html.toLowerCase(Locale.ROOT).replace('\'', '"');return value.contains("class=\"off\"")&&value.contains("ufolder")&&value.contains("display:none")&&!value.contains("filemoreajax.php")&&!value.contains("foldermoreajax.php");}
   private static boolean isUnavailableShareShell(String html){String value=html==null?"":html.toLowerCase(Locale.ROOT),title=strip(cap(html==null?"":html,"(?is)<title[^>]*>(.*?)</title>")).toLowerCase(Locale.ROOT);return isDirectoryOffShell(html)||value.contains("router.parklogic.com")||title.equals("redirecting...")||title.contains("403 forbidden")||title.equals("403")||title.equals("404")||value.contains("/assets/share/404a.css");}
     private static boolean isCancelledShareText(String html){String text=COLLAPSE_WHITESPACE.matcher(strip(html==null?"":html)).replaceAll("").replace("，","").replace(",","");return text.contains("分享已取消")||text.contains("文件取消分享")||text.contains("文件已取消分享")||text.contains("已被取消分享")||text.contains("文件不存在或已删除")||text.contains("来晚啦")&&text.contains("取消分享");}
-  private static void requireActiveShare(DirectLink page)throws IOException{String html=page==null||page.html==null?"":page.html;if(isCancelledShareText(html))throw new ShareCancelledException();if(isWafChallengePage(html))throw new PageCapabilityException("当前 UA 返回蓝奏验证页");if(isDirectorySharePage(html)||isSingleFileSharePage(html)||pageTemplate(html)!=TEMPLATE_UNKNOWN)return;if(isUnavailableShareShell(html))throw new PageCapabilityException("当前 UA 返回不可解析的蓝奏中间页");throw new PageCapabilityException("当前 UA 未返回可解析的蓝奏分享页");}
+  private static void requireActiveShare(DirectLink page)throws IOException{String html=page==null||page.html==null?"":page.html;if(isCancelledShareText(html))throw new ShareCancelledException();if(isWafChallengePage(html))throw new WafChallengeException(page==null?null:page.url);if(isDirectorySharePage(html)||isSingleFileSharePage(html)||pageTemplate(html)!=TEMPLATE_UNKNOWN)return;if(isUnavailableShareShell(html))throw new PageCapabilityException("当前 UA 返回不可解析的蓝奏中间页");throw new PageCapabilityException("当前 UA 未返回可解析的蓝奏分享页");}
   private static DirectLink getGuarded(String url,long deadline)throws Exception{return getGuarded(url,deadline,ANDROID_UA);}
   private static DirectLink getGuarded(String url,long deadline,String userAgent)throws Exception{return getGuarded(url,deadline,userAgent,"");}
   private static DirectLink getGuarded(String url,long deadline,String userAgent,String initialCookie)throws Exception{
