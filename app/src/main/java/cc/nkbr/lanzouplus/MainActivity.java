@@ -885,7 +885,10 @@ android.graphics.Insets none=android.graphics.Insets.NONE;android.view.WindowIns
   /** v1.22.0 悬浮球取代底栏：内容区恒为 root 全尺寸（球挂 host 层，跨页常驻） */
   void composePrimaryShell(){if(primaryShell==null||root==null)return;primaryShell.removeAllViews();primaryShell.setOrientation(LinearLayout.VERTICAL);primaryShell.addView(root,new LinearLayout.LayoutParams(-1,-1));}
   void refreshAdaptiveLayout(){if(root==null)return;reflowVisibleLayouts();}
+  /** [DFW-75] 最近一次页面转场的方向（+1 推入 / -1 弹出 / 0 切档淡入），供 JVM 用例断言方向没被搞反。 */
+  int lastPageTransitionDirection;
   void animatePage(View previous,View next,int direction){
+    lastPageTransitionDirection=direction;
     // v1.21.0 转场重写（20260924 报告·方向 D 落地，用户反馈"切换动画是透明的"）：推入/返回=sharedAxis
     // 30dp 同轴滑+淡（出 180ms accel、入 300ms emphasized，方向随操作语义对称）；切 tab/原位=fadeThrough
     // （旧页淡出 90ms，新页 92%→1 缩放淡入 210ms）；弱机保底=交叉淡化+新页 96%→1 缩放（仍是纵深淡入，不再纯透明）。
@@ -2101,8 +2104,11 @@ android.graphics.Insets none=android.graphics.Insets.NONE;android.view.WindowIns
     SourceListPageState state=retainedSourceListPage;if(!sourceListPageStateValid(state))return false;retainedSourceListPage=null;sourceListRebuildFallback=null;settlePageTransition();navigationSession++;invalidateSearchRenderSurface();synchronized(sourceSearchLock){sourceSearchSession++;sourceSearchRunning=false;sourceSearchPaused=false;sourceSearchLock.notifyAll();}sourceRenderSession++;sourceFilterGeneration++;dismissBreadcrumbChooser();cancelFolderPullWork();if(sourceSearchRunnable!=null)ui.removeCallbacks(sourceSearchRunnable);
     View previous=pageFrame;ViewParent retainedParent=state.pageFrame.getParent();if(retainedParent instanceof ViewGroup)((ViewGroup)retainedParent).removeView(state.pageFrame);root=state.root;primaryShell=state.primaryShell;pageFrame=state.pageFrame;pageHeaderRow=state.pageHeaderRow;pageScroll=state.pageScroll;sourceGrid=state.sourceGrid;sourceHeading=state.sourceHeading;sourceFilter=state.sourceFilter;sourceCategoryStrip=state.sourceCategoryStrip;searchDragBar=state.searchDragBar;sourcePageSources=state.sourcePageSources;activeSourceCategory=state.activeSourceCategory;
     visibleSources.clear();visibleSources.addAll(state.visibleSources);sourceSelectionChecks.clear();sourceSelectionChecks.putAll(state.sourceSelectionChecks);selectedSourceUrls.clear();selectedSourceUrls.addAll(state.selectedSourceUrls);System.arraycopy(state.sourceSelectionKinds,0,sourceSelectionKinds,0,sourceSelectionKinds.length);sourceSelectionMode=state.sourceSelectionMode;sourceSelectionBar=state.sourceSelectionBar;sourceSelectionSummary=state.sourceSelectionSummary;sourceSelectionRename=state.sourceSelectionRename;sourceSelectionAllButton=state.sourceSelectionAllButton;
-    liveGrid=null;itemsGrid=null;content=null;sourceSearch=null;progress=null;status=null;statusRight=null;searchPauseButton=null;folderPullFrame=null;folderPullScroll=null;folderPullIndicator=null;folderPullLabel=null;folderMoreSpinner=null;selectionMode=false;selectionBar=null;downloadSelectionMode=false;downloadsPage=false;activeSource=null;folderRootSources=false;clearFolderTrail();systemBackAction=null;primaryDestination=1;pageKind=1;
-    FrameLayout.LayoutParams pageParams=new FrameLayout.LayoutParams(-1,-1);pageHost.addView(pageFrame,0,pageParams);if(primaryNavigationSwitch){primaryNavigationSwitch=false;animatePage(previous,pageFrame,0);}else animatePage(previous,pageFrame,-1);pageDirection=1;if(root!=null)root.post(this::reflowVisibleLayouts);if(navBall!=null)ui.post(this::refreshNavBall);return true;
+    liveGrid=null;itemsGrid=null;content=null;sourceSearch=null;progress=null;status=null;statusRight=null;searchPauseButton=null;folderPullFrame=null;folderPullScroll=null;folderPullIndicator=null;folderPullLabel=null;folderMoreSpinner=null;selectionMode=false;selectionBar=null;downloadSelectionMode=false;downloadsPage=false;activeSource=null;folderRootSources=false;clearFolderTrail();/* [DFW-75] 恢复留存态时**不能**把返回目的地清成 null —— 那会让"设置→资源源管理→返回"掉到软件库（用户真机反馈）。目的地由调用方（showSourcesFromSettings/showSources）设定，整页存活期间保持。 */systemBackAction=sourceListFromSettings?this::showSettings:null;primaryDestination=1;pageKind=1;
+    FrameLayout.LayoutParams pageParams=new FrameLayout.LayoutParams(-1,-1);pageHost.addView(pageFrame,0,pageParams);/* [DFW-75] 方向判定：悬浮球切档=fadeThrough(0)；**首次进入**=推入(+1)；从源/文件夹返回=弹出(-1)。
+       旧实现只有 0 和 -1 两支，从设置点进来会被当成"返回"，播的是返回动画。 */
+    boolean entry=sourceListEntry;sourceListEntry=false;
+    if(primaryNavigationSwitch){primaryNavigationSwitch=false;animatePage(previous,pageFrame,0);}else animatePage(previous,pageFrame,entry?1:-1);pageDirection=1;if(root!=null)root.post(this::reflowVisibleLayouts);if(navBall!=null)ui.post(this::refreshNavBall);return true;
   }
   void openSourcePage(Models.Source source){source=runtimeLanzouSource(source);retainSourceListPage();pageDirection=1;resetFolderTrail(source);folderRootSources=true;showFolderPage(activeFolderState.source,true);}
   void openNestedFolder(Models.Item item){pageDirection=1;if(activeSource==null)activeSource=home;captureActiveFolderState();Models.Source nested;try{if(compositeSource(activeSource)&&!item.folderId.isEmpty()&&!item.folderId.startsWith("remote:"))nested=core.compositeFolderSource(activeSource,item.folderId,item.title);else{nested=new Models.Source();nested.title=item.title;nested.url=preferredLanzouUrl(item.url);nested.password=item.password;}}catch(Exception error){showNotice(friendlyError(error),true);return;}activeFolderState=new FolderPageState(nested);folderTrail.add(activeFolderState);showFolderPage(nested,true);}
@@ -3185,9 +3191,19 @@ content=new LinearLayout(this);content.setOrientation(LinearLayout.VERTICAL);pag
   boolean sourceListFromSettings;
 
   /** [DFW-71] 从设置页进入资源源管理：返回时回**设置页**。 */
-  void showSourcesFromSettings(){sourceListFromSettings=true;openSourceList();}
+  /**
+   * [DFW-75] 「本次是**首次进入**源列表，不是从某个源/文件夹返回」。
+   *
+   * 与 `sourceListFromSettings` 是两件事，不能合并：
+   *  - `sourceListFromSettings` 决定**返回去哪**（设置 or 软件库），整页存活期间都不该被清掉；
+   *  - 本标志只决定**转场方向**（首次进入=推入 +1，从文件夹返回=弹出 -1），用掉即清。
+   *  之前两者都没有，恢复留存态时一律按 `-1`（弹出）播，于是用户从设置点进「资源源管理」
+   *  看到的是**返回动画**——这就是"点进去后加载动画有问题"。
+   */
+  boolean sourceListEntry;
+  void showSourcesFromSettings(){sourceListFromSettings=true;sourceListEntry=true;openSourceList();}
 
-  void showSources(){sourceListFromSettings=false;openSourceList();}
+  void showSources(){sourceListFromSettings=false;sourceListEntry=true;openSourceList();}
 
   /** 真正的开页逻辑；两个入口共用，**标志位由调用方设置**（不能在内部清，否则会互相覆盖）。 */
   void openSourceList(){if(restoreSourceListPage())return;SourceListPageState fallback=retainedSourceListPage!=null?retainedSourceListPage:sourceListRebuildFallback;retainedSourceListPage=null;sourceListRebuildFallback=null;showSources(fallback);}

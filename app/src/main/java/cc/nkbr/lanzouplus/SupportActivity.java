@@ -52,16 +52,22 @@ public class SupportActivity extends Activity {
   /**
    * [DFW-74] **本页进出场与站内子页转场统一**。
    *
-   * 用户 2026-10-01：
-   * > "诚信付费的那个预返回动画与其他的不一样，就是崩溃日志或者是其他的那种返回效果并不一样。
-   * >  能不能给它们统一为一个非常好的效果？"
+   * 用户 2026-10-01 两轮反馈：
+   * > "诚信付费的那个预返回动画与其他的不一样……能不能给它们统一为一个非常好的效果？"
+   * > "在设置界面点击诚信付费后，那个进入的动画有问题。我希望你可以改为和崩溃日志以及关于东方无限
+   * >  这些界面一样的进入方式。然后退出的时候也不用加上预加载动画了……我看了看也挺简洁的，那就不加了。"
    *
-   * 病根：本页是**独立 Activity**，此前完全没设转场动画 —— 进场/退场走系统默认转场，
-   * 与站内子页（MainActivity.animatePage 的 sharedAxis 推入/抽纸式返回）完全不是一套。
-   * 现在把 animatePage 的语义原样搬成窗口动画资源，对应关系写在 res/anim/dfwx_page_*.xml 顶部注释里：
-   *   推入 300ms：新页从右侧 28% 屏宽滑入（dfwx_page_open_in）+ 旧页原地缩到 94% 并压暗到 55%（dfwx_page_open_out）；
-   *   返回 240ms：上层页向右滑走并淡出（dfwx_page_close_out）+ 下层页不透明不动（dfwx_page_close_in）。
-   * 曲线一律用系统 @android:interpolator/fast_out_slow_in（= 站内那条 M3 emphasized），不自己造。
+   * 病根：本页是**独立 Activity**，此前完全没设转场动画 —— 进场走系统默认转场，
+   * 与站内子页（崩溃日志 / 关于东方无限，走 MainActivity.animatePage 的推入）完全不是一套。
+   *
+   * 现在只做**进场**：新页从右侧 28% 屏宽滑入，300ms，曲线用系统
+   * `@android:interpolator/fast_out_slow_in`（= 站内那条 M3 emphasized），方向与站内推入一致。
+   * **退场不做任何动画**（用户明确要求保持简洁），见 closePage()。
+   *
+   * ⚠️ 这里踩过的坑：上一版照抄站内推入，给**调用方窗口**也套了 `scale→0.94 + alpha→0.55`。
+   * 站内那套压暗的是**同一个窗口里的另一块 View**，底下是应用自己的黑底；
+   * 而这里是**两个独立窗口**，把设置页窗口整体调成 55% 透明 → 透出来的是**桌面壁纸**，
+   * 再加整窗缩放露出黑边 —— 观感就是用户说的"进入的动画有问题"。独立 Activity 的转场**不要动调用方窗口**。
    *
    * **为什么两条 API 都设**（这是本页必须自己设、又必须设对的关键）：
    * ① 任务指定的 {@code overridePendingTransition} 在**被启动页的 onCreate 里调用会被系统直接丢弃** ——
@@ -78,24 +84,33 @@ public class SupportActivity extends Activity {
    * 系统"动画时长缩放 = 0"时，窗口动画会被系统整体跳过（动画时长按 0 处理），这里不需要额外门控。
    */
   void installPageTransitions(){
+    // [DFW-75] 只做**进场**：新页从右侧滑入，和站内子页（崩溃日志 / 关于东方无限）的推入方向一致。
+    //
+    // 退场**不做任何动画**（用户 2026-10-01 口述："退出的时候也不用加上预加载动画了……
+    // 我看了看也挺简洁的，那就不加了"）—— 所以两条 API 的第二个参数（作用于**调用方**窗口的动画）
+    // 一律传 0，closePage() 里也不再设任何转场，直接 finish()。
+    //
+    // 上一版为什么不对：它给调用方窗口套了 `scale 1→0.94 + alpha 1→0.55`（照抄站内 animatePage 的推入分支）。
+    // 站内那套是**同一个窗口里的两个 View**，压暗的是同一块黑底；而这里是**两个独立窗口**，
+    // 把设置页窗口整体调成 55% 透明 → 透出来的是**桌面壁纸**（不是黑），再加上整窗缩放露出黑边，
+    // 观感就是用户说的"进入的动画有问题"。
     if(Build.VERSION.SDK_INT>=34){
-      overrideActivityTransition(OVERRIDE_TRANSITION_OPEN,R.anim.dfwx_page_open_in,R.anim.dfwx_page_open_out);
-      overrideActivityTransition(OVERRIDE_TRANSITION_CLOSE,R.anim.dfwx_page_close_in,R.anim.dfwx_page_close_out);
+      overrideActivityTransition(OVERRIDE_TRANSITION_OPEN,R.anim.dfwx_page_open_in,0);
     }
-    overridePendingTransition(R.anim.dfwx_page_open_in,R.anim.dfwx_page_open_out);
+    overridePendingTransition(R.anim.dfwx_page_open_in,0);
   }
 
-  /** [DFW-74] 本页唯一的退场出口：所有返回路径都走这里，保证退场动画与站内子页一致。
-   *  先设动画再 finish()：此刻本页确定处于 RESUMED（正是 overridePendingTransition 状态门禁要求的），
-   *  设完再退，AMS 会把这条动画用在紧随其后的关闭转场里。 */
+  /** [DFW-75] 本页唯一的退场出口：**不做转场动画**，直接退。
+   *  用户明确要求"退出的时候也不用加上预加载动画了"——保持简洁。
+   *  `overridePendingTransition(0,0)` 是**显式清掉**：本页 onCreate 里为进场设过一次转场，
+   *  这里必须把"下一次转场"重新钉成 0，否则退场会带着进场那套资源走。
+   *  此刻本页处于 RESUMED，正是 overridePendingTransition 状态门禁允许的时机。 */
   void closePage(){
-    overridePendingTransition(R.anim.dfwx_page_close_in,R.anim.dfwx_page_close_out);
+    overridePendingTransition(0,0);
     finish();
   }
 
-  /** 系统返回（边缘滑动 / 返回键）也走同一个退场：本页没有 enableOnBackInvokedCallback，
-   *  走的是传统 onBackPressed 链路；默认实现就是裸 finish()，不接管的话这条路径的退场
-   *  又会退回系统默认动画，跟左上角返回箭头不一致（用户要求的就是"统一"）。 */
+  /** 系统返回（边缘滑动 / 返回键）也走同一个退场，保证两条路径观感一致。 */
   @Override public void onBackPressed(){
     closePage();
   }
