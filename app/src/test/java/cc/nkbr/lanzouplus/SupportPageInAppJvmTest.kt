@@ -22,7 +22,7 @@ import java.nio.charset.StandardCharsets
 import java.nio.file.Files
 
 /**
- * [DFW-76] **诚信付费 = 站内页**的结构/转场守卫。
+ * [DFW-78] **诚信付费 = 站内页**的结构/转场守卫。
  *
  * 用户 2026-10-01 第二次投诉这一页的动画：
  * > "点击诚信付费按钮后的动画效果和关闭那个页面的动画效果太磨叽且不自然不流畅，重置，

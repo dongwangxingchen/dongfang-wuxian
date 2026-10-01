@@ -22,7 +22,7 @@ import java.nio.file.Files;
 /**
  * [DFW-75] 诚信付费页（独立 Activity）转场守卫。
  *
- * <h2>[DFW-76] 本文件守的是哪条路（为什么没改写成"站内页转场"）</h2>
+ * <h2>[DFW-78] 本文件守的是哪条路（为什么没改写成"站内页转场"）</h2>
  * 2026-10-01 用户第二次投诉这一页的动画后，**主路径**已经从独立 Activity 改成站内页
  * （`MainActivity.showSupportPage()`），进/出都走 `animatePage`（推入 +1 / 弹出 -1）。
  * 那条主路径由 **`SupportPageInAppJvmTest`** 守。
