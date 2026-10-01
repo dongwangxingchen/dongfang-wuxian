@@ -367,17 +367,76 @@ public class SupportActivity extends Activity {
     MainActivity.showSupportNotice(this,"已解锁全部下载权限 · 谢谢你");
   }
 
-  /** 解锁反馈：克制的单次缩放+淡入（<500ms，无循环；MotionScale 门控在系统动画关闭时跳过） */
+  /** 解锁反馈：克制的单次缩放+淡入（无循环；MotionScale 门控在系统动画关闭时跳过）。
+   *
+   *  **360ms → 220ms**：360ms 破了规范 §2.1「页面转场/动效 VPA ≤300ms」铁律（历史事故复盘定的红线）。
+   *  取 220ms 的理由：这是站内**唯一被真机长期验证过**的"缩放回弹"时长——
+   *  `NavBall.PRESS_UP` 与 `MainActivity` v1.5.0 按压缩放的注释都是同一条
+   *  「松手 220ms 弱过冲回弹 (0.2,0.9,0.3,1.05)」。本页心形出现本来就是一次"确认微弹"（规范 §7.5），
+   *  用同一条曲线、同一条时长，观感与站内一致；曲线从原来的 (0.2,0,0,1) 换成 PRESS_UP，
+   *  正是那条"弱过冲"配方（§2 允许 spatial 类受控 overshoot）。 */
   void playUnlockAnimation(View target){
     if(!motionEnabled())return;
     target.setScaleX(0.6f);target.setScaleY(0.6f);target.setAlpha(0f);
-    target.animate().scaleX(1f).scaleY(1f).alpha(1f).setDuration(360)
-      .setInterpolator(new android.view.animation.PathInterpolator(0.2f,0f,0f,1f)).start();
+    target.animate().scaleX(1f).scaleY(1f).alpha(1f).setDuration(REBOUND_MS)
+      .setInterpolator(PRESS_UP).start();
   }
   boolean motionEnabled(){
     try{return android.provider.Settings.Global.getFloat(getContentResolver(),android.provider.Settings.Global.ANIMATOR_DURATION_SCALE,1f)>0f;}
     catch(Exception ignored){return true;}
   }
+
+  /** 松手回弹时长（ms）：站内那条 220ms 配方（`NavBall.PRESS_UP` / `MainActivity` v1.5.0 注释）。
+   *  本页两处共用同一条"手感"：① 按压松手回位；② 解锁心形的确认微弹。
+   *  上限由规范 §2.1 钉死：动效 VPA ≤300ms。 */
+  static final long REBOUND_MS=220;
+  /** 按下缩放：规范 §3 的"大卡片/长胶囊"档 0.96；站内 v1.22.3 起也统一用 0.96（MainActivity.applePressScale）。
+   *  本页跟随站内的统一值，不再按控件形状分 0.94/0.96 两档——同页两档只会更碎。 */
+  static final float PRESS_SCALE=0.96f;
+  /** 按压提亮：白 8% SRC_ATOP（站内 v1.21.0 配方）。只作用于背景不透明像素，透明底不会加灰罩。
+   *  规范 §3 写的是「surface 提亮 +2~4%」，这里跟随站内实测配方（0x14FFFFFF），
+   *  否则本页按下去会比站内"更没反应"，两页手感不一致。 */
+  static final int PRESS_TINT=0x14FFFFFF;
+
+  /** [DFW-77] 可点控件的按压反馈（规范 §3 第一优先级）：**按下即缩、松手回弹**，取代"只有灰 ripple"。
+   *
+   *  **为什么不直接复用 MainActivity 那套 applePressScale**（三条硬理由，缺一不可）：
+   *  ① 它是 MainActivity 的**实例方法**——弹簧缓存 `pressSprings`、`motionEnabled()` 都是实例状态；
+   *     本页是独立 Activity，拿不到 MainActivity 实例，强持有一个 Activity 引用就是内存泄漏；
+   *  ② 那个文件由**另一个窗口**在改，本页的观感不能绑在它随时会变的内部实现上；
+   *  ③ 它走 dynamicanimation 弹簧，而本项目对**触摸路径**的既有结论是禁弹簧——
+   *     `NavBall` 的类注释铁律（v1.19.7 真机卡死事故教训）：「全部动效走 VPA + 有界 PathInterpolator，
+   *     禁止 dynamicanimation（弹簧 settle 无上界→渲染风暴→ANR）；ACTION_DOWN 必须 cancel 旧动画」。
+   *  所以这里照抄 `NavBall.pressFeedback` 的写法（同样不依赖 MainActivity）：
+   *  DOWN 立即缩到 0.96 并 cancel 旧动画，UP/CANCEL 用 220ms 有界曲线回位。
+   *  返回 false，不吞事件 —— 点击仍由控件自己的 OnClickListener 处理。 */
+  void pressScale(View v){
+    if(v==null)return;
+    v.setOnTouchListener((view,event)->{
+      int action=event.getActionMasked();
+      if(action==android.view.MotionEvent.ACTION_DOWN){
+        view.animate().cancel();
+        if(!motionEnabled())return false;
+        view.setScaleX(PRESS_SCALE);
+        view.setScaleY(PRESS_SCALE);
+        android.graphics.drawable.Drawable bg=view.getBackground();
+        if(bg!=null)bg.setColorFilter(PRESS_TINT,android.graphics.PorterDuff.Mode.SRC_ATOP);
+      }else if(action==android.view.MotionEvent.ACTION_UP||action==android.view.MotionEvent.ACTION_CANCEL){
+        android.graphics.drawable.Drawable bg=view.getBackground();
+        if(bg!=null)bg.clearColorFilter();
+        if(!motionEnabled()){
+          view.setScaleX(1f);
+          view.setScaleY(1f);
+          return false;
+        }
+        view.animate().scaleX(1f).scaleY(1f).setDuration(REBOUND_MS).setInterpolator(PRESS_UP).start();
+      }
+      return false;
+    });
+  }
+  /** 回弹曲线：与站内同源。`NavBall.PRESS_UP` / `MainActivity` v1.5.0 注释那条
+   *  「弱过冲回弹 (0.2,0.9,0.3,1.05)」——按下缩小、松手轻微过冲后归位（规范 §2 允许 spatial 受控 overshoot）。 */
+  static final android.view.animation.PathInterpolator PRESS_UP=new android.view.animation.PathInterpolator(0.2f,0.9f,0.3f,1.05f);
 
   TextView text(String s,int sp,int color){
     TextView v=new TextView(this);v.setText(s);v.setTextSize(sp);v.setTextColor(color);v.setFontFeatureSettings("kern");v.setTypeface(AppFonts.normal(this));return v;
@@ -392,11 +451,28 @@ public class SupportActivity extends Activity {
     card.setBackground(bg);
     return card;
   }
+  /** 形状 Token 收敛（规范 §4：Circle / Pill / Card 20 / Panel 26–30 四档）。
+   *
+   *  量化规则**抄自站内 `MainActivity.solidShape`（HEAD 69bb1e3 的 MainActivity.java:599，
+   *  该文件正由另一个窗口在改，这里抄的是那一刻的规则原文）**：
+   *  `radius>=24→26(Panel)；14–23→20(Card)；5–13→8(Micro 内嵌小块)；<5 原样(指示条)`。
+   *
+   *  抄规则而不直接调那个方法，理由同下面的 pressScale：它是 MainActivity 的实例方法
+   *  （依赖那边的 dp()/资源上下文），且那个文件随时会变；本页不能把圆角体系挂在别人身上。
+   *
+   *  本页原实现**不做量化**，于是同一页出现了两种卡片圆角（卡 20 / 收款码卡 16）——
+   *  16 现在也收敛到 Card 的 20。 */
   GradientDrawable solidShape(int color,int radius){
-    GradientDrawable g=new GradientDrawable();g.setColor(color);g.setCornerRadius(dp(radius));return g;
+    GradientDrawable g=new GradientDrawable();
+    g.setColor(color);
+    g.setCornerRadius(dp(radius>=24?26:radius>=14?20:radius>=5?8:radius));
+    return g;
   }
+  /** 涟漪：**降级为辅助**（规范 §3：主反馈 = scale 形变 + 表面提亮，**不用灰 ripple 当主反馈**）。
+   *  原来拿 `BORDER`（不透明灰 #262332）当涟漪色，按下去是一块实心灰罩盖住控件；
+   *  现在换成主色 16% 淡染，与站内 `MainActivity.filterRipple` 的 `ThemeEngine.tint(PRIMARY,42)` 同值同源。 */
   android.graphics.drawable.Drawable ripple(android.graphics.drawable.Drawable content){
-    if(Build.VERSION.SDK_INT>=21)return new android.graphics.drawable.RippleDrawable(android.content.res.ColorStateList.valueOf(BORDER),content,null);
+    if(Build.VERSION.SDK_INT>=21)return new android.graphics.drawable.RippleDrawable(android.content.res.ColorStateList.valueOf(ThemeEngine.tint(PRIMARY,42)),content,null);
     return content;
   }
   int dp(int v){return(int)(v*density+.5f);}

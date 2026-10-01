@@ -210,6 +210,105 @@ class DfwxBuiltinChannelTest {
      * 按 `model.id` 精确匹配。旧实现每轮同步都新建 `Model(...)`，于是用户重启后
      * `chatModelId` 指向上一轮的随机 id → 查不到 → AI 页弹「请先选择模型」，**每次重启都要重选一次**。
      */
+    // ── [DFW-77] 远程控制：显示名 / 请求路径 / 换模型 ─────────────────────
+
+    /**
+     * 用户 2026-10-01：
+     * > "我希望你在我的控制台里面再加一个板块。我在里面可以改什么呢？
+     * >  可以改URL、Key、上下文长度、最大输出、模型名字等等等等的……
+     * >  但是我是远程控制的，而不是在软件内控制的。"
+     *
+     * 所以后台控制台改的每一项都必须**真的落到设置里**，而且不能把用户自己的渠道带坏。
+     */
+    @Test
+    fun remoteDisplayName_isDecoupledFromTheUpstreamModelId() {
+        DfwxBuiltinChannel.install(
+            DfwxBuiltinChannel.Config(
+                baseUrl = proxyUrl,
+                token = "dfwx-test-token",
+                modelId = "glm-5.3-flashx",
+                displayName = "东方无限 · 极速",
+                maxTokens = 8192,
+            ),
+        )
+        val settings = DfwxBuiltinChannel.buildSyncedSettings(
+            Settings().copy(providers = emptyList()),
+            DfwxBuiltinChannel.current(),
+        )
+        val model = settings.providers.single { DfwxBuiltinChannel.isBuiltin(it) }.models.single()
+        assertEquals("发给上游的必须是后台配的真实模型名", "glm-5.3-flashx", model.modelId)
+        assertEquals("界面上要显示后台配的显示名", "东方无限 · 极速", model.displayName)
+    }
+
+    @Test
+    fun blankDisplayName_fallsBackToTheModelId() {
+        installChannel()
+        val settings = DfwxBuiltinChannel.buildSyncedSettings(
+            Settings().copy(providers = emptyList()),
+            DfwxBuiltinChannel.current(),
+        )
+        val model = settings.providers.single { DfwxBuiltinChannel.isBuiltin(it) }.models.single()
+        assertEquals("没配显示名就回落到模型名，不能显示空白", model.modelId, model.displayName)
+    }
+
+    @Test
+    fun remoteChatPath_isApplied_andBlankFallsBackToTheDefault() {
+        DfwxBuiltinChannel.install(
+            DfwxBuiltinChannel.Config(
+                baseUrl = proxyUrl,
+                token = "t",
+                modelId = "m",
+                chatPath = "/v1/chat/completions",
+                maxTokens = 4096,
+            ),
+        )
+        val custom = DfwxBuiltinChannel.buildSyncedSettings(
+            Settings().copy(providers = emptyList()),
+            DfwxBuiltinChannel.current(),
+        ).providers.single { DfwxBuiltinChannel.isBuiltin(it) } as me.rerere.ai.provider.ProviderSetting.OpenAI
+        assertEquals("后台配的请求路径必须生效", "/v1/chat/completions", custom.chatCompletionsPath)
+
+        installChannel()
+        val fallback = DfwxBuiltinChannel.buildSyncedSettings(
+            Settings().copy(providers = emptyList()),
+            DfwxBuiltinChannel.current(),
+        ).providers.single { DfwxBuiltinChannel.isBuiltin(it) } as me.rerere.ai.provider.ProviderSetting.OpenAI
+        assertEquals(
+            "没配请求路径就用 RikkaHub 的默认值",
+            DfwxBuiltinChannel.DEFAULT_CHAT_PATH,
+            fallback.chatCompletionsPath,
+        )
+    }
+
+    @Test
+    fun switchingTheRemoteModel_keepsTheSameProviderAndModelIds() {
+        // 后台"切换模型"只是换 modelId/displayName，**不许**换 Provider/Model 的 UUID ——
+        // 换了的话用户当前选中的模型就悬空了，等于每次远程换模型都要用户重选。
+        installChannel()
+        val fresh = Settings().copy(providers = emptyList())
+        val before = DfwxBuiltinChannel.buildSyncedSettings(fresh, DfwxBuiltinChannel.current())
+        val beforeProvider = before.providers.single { DfwxBuiltinChannel.isBuiltin(it) }
+        val beforeModel = beforeProvider.models.single()
+
+        DfwxBuiltinChannel.install(
+            DfwxBuiltinChannel.Config(
+                baseUrl = proxyUrl,
+                token = "dfwx-test-token",
+                modelId = "kimi-k3",
+                displayName = "东方无限 · 长文",
+                maxTokens = 8192,
+            ),
+        )
+        val after = DfwxBuiltinChannel.buildSyncedSettings(before, DfwxBuiltinChannel.current())
+        val afterProvider = after.providers.single { DfwxBuiltinChannel.isBuiltin(it) }
+        val afterModel = afterProvider.models.single()
+
+        assertEquals("换模型不许换 Provider UUID", beforeProvider.id, afterProvider.id)
+        assertEquals("换模型不许换 Model UUID", beforeModel.id, afterModel.id)
+        assertEquals("modelId 要真的换过去", "kimi-k3", afterModel.modelId)
+        assertEquals("用户选中的模型不能悬空", before.chatModelId, after.chatModelId)
+    }
+
     @Test
     fun sync_isIdempotent_andKeepsTheModelIdStable() {
         installChannel()
