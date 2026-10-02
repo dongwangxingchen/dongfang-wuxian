@@ -43,8 +43,10 @@ fi
 echo "✅ 服务器校验一致"
 
 echo "→ 同步 release 记录…"
+# [DFW-118 路线 B 过渡] ALLOW_DOWNGRADE=1 才放行"序号回退"这一次（换编号方案专用）。
+# 默认不带，回退仍会被 set-release.py 拒绝 —— 那是对的，回退会让用户收不到更新。
 scp -q server/dfwx-pb/set-release.py dfwx:/tmp/set-release.py
-ssh dfwx "sudo VER='${VER}' CODE='${CODE}' SHA='${LOCAL_SHA}' SIZE='${SIZE}' python3 /tmp/set-release.py; rm -f /tmp/set-release.py"
+ssh dfwx "sudo ALLOW_DOWNGRADE='${ALLOW_DOWNGRADE:-0}' VER='${VER}' CODE='${CODE}' SHA='${LOCAL_SHA}' SIZE='${SIZE}' python3 /tmp/set-release.py; rm -f /tmp/set-release.py"
 
 echo "→ 外网可达性检查…"
 curl -s -o /dev/null -w "APK  http://39.106.33.135/apk/${NAME} -> %{http_code}\n" "http://39.106.33.135/apk/${NAME}"

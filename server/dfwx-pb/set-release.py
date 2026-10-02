@@ -53,8 +53,16 @@ def main():
     latest = req("GET", "/api/collections/release/records?perPage=1&sort=-id", token)["items"][0]
     current = int(latest.get("versionCode") or 0)
     if code < current:
-        print("拒绝：版本序号回退（记录 %d，本次 %d）" % (current, code))
-        return 3
+        # [DFW-118 路线 B 过渡] 默认仍然拒绝回退 —— 这是对的，回退会让用户收不到更新。
+        # 但**换版本编号方案那一次必须放行**：手机上是旧计数器的 10034，
+        # 新方案 1.0.0 算出来是 10000。堵死就只能去手改 PocketBase，那更危险。
+        # 所以留一个显式开关，并且**把后果打在日志里**（不静默）。
+        if os.environ.get("ALLOW_DOWNGRADE") != "1":
+            print("拒绝：版本序号回退（记录 %d，本次 %d）" % (current, code))
+            print("如果这是「换了版本编号方案」的一次性过渡，加 ALLOW_DOWNGRADE=1 重跑。")
+            return 3
+        print("⚠️ 允许序号回退（ALLOW_DOWNGRADE=1）：记录 %d -> 本次 %d" % (current, code))
+        print("⚠️ 后果：装了旧版的用户收不到更新提示，必须手动卸载重装一次。")
 
     body = {
         "versionName": ver,
