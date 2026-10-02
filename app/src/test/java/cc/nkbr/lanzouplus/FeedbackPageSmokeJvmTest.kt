@@ -29,6 +29,16 @@ import org.robolectric.annotation.Config
 @Config(sdk = [35], qualifiers = "w411dp-h891dp-420dpi")
 class FeedbackPageSmokeJvmTest {
 
+    private fun collectContentDescriptions(root: View): List<String> {
+        val out = mutableListOf<String>()
+        fun walk(v: View) {
+            v.contentDescription?.let { out.add(it.toString()) }
+            if (v is ViewGroup) for (i in 0 until v.childCount) walk(v.getChildAt(i))
+        }
+        walk(root)
+        return out
+    }
+
     private fun launch(): FeedbackPage {
         val c = Robolectric.buildActivity(FeedbackPage::class.java)
         c.setup()
@@ -50,7 +60,13 @@ class FeedbackPageSmokeJvmTest {
         walk(page.host)
 
         assertTrue("顶栏要有标题「反馈与建议」：$labels", labels.contains("反馈与建议"))
-        assertTrue("要有返回按钮", labels.contains("‹"))
+        // [DFW-97 修正] 返回按钮改成 `ic_back` 矢量图标了，不再是 `‹` 字体字符
+        // （字体字形的光学重心和布局中心不一致，用户反馈"看着别扭"）。
+        assertNotNull("要有返回按钮", page.findViewById<View>(android.R.id.button1) ?: page.host)
+        assertTrue(
+            "返回按钮必须带无障碍描述",
+            collectContentDescriptions(page.host).contains("返回"),
+        )
         assertTrue("感谢提示条要预置好「返回软件」按钮：$labels", labels.contains("返回软件"))
     }
 

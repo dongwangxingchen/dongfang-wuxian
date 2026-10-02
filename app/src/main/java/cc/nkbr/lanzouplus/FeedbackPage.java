@@ -159,12 +159,16 @@ public final class FeedbackPage extends Activity {
     bar.setBackgroundColor(BG);
     bar.setPadding(dp(6), 0, dp(12), 0);
 
-    TextView back = new TextView(this);
-    back.setText("‹");
-    back.setTextSize(26);
-    back.setTextColor(PRIMARY);
-    back.setGravity(Gravity.CENTER);
+    /*
+     * 与蓝奏云网页页统一：**返回一律用 `ic_back` 矢量图标**（全站约定，见 SupportActivity.java:190），
+     * 不用字体字符 `‹` —— 字体字形的光学重心和布局中心不一致，看着会"偏"。
+     */
+    android.widget.ImageButton back = new android.widget.ImageButton(this);
+    back.setImageResource(R.drawable.ic_back);
+    back.setColorFilter(PRIMARY);
     back.setContentDescription("返回");
+    back.setScaleType(android.widget.ImageView.ScaleType.CENTER_INSIDE);
+    back.setPadding(dp(11), dp(11), dp(11), dp(11));
     back.setBackground(ripple());
     back.setOnClickListener(v -> finish());
     bar.addView(back, new LinearLayout.LayoutParams(dp(44), dp(48)));

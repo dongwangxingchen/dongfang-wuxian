@@ -18,7 +18,22 @@ public final class LanzouWebActivity extends Activity{
       //   · 已经在网页历史起点 → **注销回调**，把返回交回系统，于是"退出本页"这一步恢复预览动画。
       // 用 WebView 的 canGoBack 作为唯一依据，随每次页面加载变化同步一次。
       syncBackCallback();shell=new FrameLayout(this);LinearLayout root=new LinearLayout(this);root.setOrientation(LinearLayout.VERTICAL);root.setBackgroundColor(BG);shell.addView(root,new FrameLayout.LayoutParams(-1,-1));noticeLayer=new FrameLayout(this);FrameLayout.LayoutParams notices=new FrameLayout.LayoutParams(-1,-1);shell.addView(noticeLayer,notices);if(Build.VERSION.SDK_INT>=20)shell.setOnApplyWindowInsetsListener((v,insets)->{root.setPadding(0,insets.getSystemWindowInsetTop(),0,0);return insets;});
-    LinearLayout bar=new LinearLayout(this);bar.setGravity(Gravity.CENTER_VERTICAL);bar.setPadding(dp(8),dp(6),dp(8),dp(6));bar.setBackgroundColor(SURFACE);LinearLayout capsule=new LinearLayout(this);capsule.setGravity(Gravity.CENTER_VERTICAL);capsule.setPadding(dp(2),0,dp(2),0);GradientDrawable cap=shape(Color.TRANSPARENT,24);cap.setStroke(dp(1),DIV);capsule.setBackground(cap);capsule.setClipToOutline(true);TextView back=tool("‹",26);back.setOnClickListener(v->handleBack());capsule.addView(back,new LinearLayout.LayoutParams(dp(44),dp(42)));address=new TextView(this);address.setTextColor(TEXT);address.setTextSize(13);address.setSingleLine(true);address.setGravity(Gravity.CENTER_VERTICAL);address.setEllipsize(android.text.TextUtils.TruncateAt.MIDDLE);address.setPadding(dp(8),0,dp(8),0);address.setTypeface(AppFonts.normal(this));capsule.addView(address,new LinearLayout.LayoutParams(0,dp(42),1));TextView menu=tool("⋮",24);menu.setOnClickListener(v->menu(menu));capsule.addView(menu,new LinearLayout.LayoutParams(dp(44),dp(42)));bar.addView(capsule,new LinearLayout.LayoutParams(-1,dp(44)));root.addView(bar,new LinearLayout.LayoutParams(-1,dp(56)));
+    LinearLayout bar=new LinearLayout(this);bar.setGravity(Gravity.CENTER_VERTICAL);bar.setPadding(dp(8),dp(6),dp(8),dp(6));bar.setBackgroundColor(SURFACE);LinearLayout capsule=new LinearLayout(this);capsule.setGravity(Gravity.CENTER_VERTICAL);capsule.setPadding(dp(2),0,dp(2),0);GradientDrawable cap=shape(Color.TRANSPARENT,24);cap.setStroke(dp(1),DIV);capsule.setBackground(cap);capsule.setClipToOutline(true);/* [DFW-97 修正] 这里原来是字体字符 `‹`（U+2039）。
+       用户 2026-10-02 反馈：「左上角按钮貌似上下比例出问题了，就是有点往下了，看着别扭」。
+       实测：`‹` 的字形墨迹在 42dp 的框里高 108px，光学中心和布局中心差 2px ——
+       数值上"居中"，但**字体字形的光学重心本来就不等于布局中心**，看着就是别扭。
+       项目早有约定（见 SupportActivity.java:190）：
+       **`ic_back` = 返回上一页，一律在左上角**。改用矢量图标，光学居中由图形自己保证。
+       顺带把点击区从 44×42 提到 44×44（无障碍最小触摸目标）。 */
+      android.widget.ImageButton back=new android.widget.ImageButton(this);
+      back.setImageResource(R.drawable.ic_back);
+      back.setColorFilter(PRIMARY);
+      back.setContentDescription("返回");
+      back.setScaleType(android.widget.ImageView.ScaleType.CENTER_INSIDE);
+      back.setPadding(dp(11),dp(11),dp(11),dp(11));
+      back.setBackground(ripple(new ColorDrawable(Color.TRANSPARENT)));
+      back.setOnClickListener(v->handleBack());
+      capsule.addView(back,new LinearLayout.LayoutParams(dp(44),dp(44)));address=new TextView(this);address.setTextColor(TEXT);address.setTextSize(13);address.setSingleLine(true);address.setGravity(Gravity.CENTER_VERTICAL);address.setEllipsize(android.text.TextUtils.TruncateAt.MIDDLE);address.setPadding(dp(8),0,dp(8),0);address.setTypeface(AppFonts.normal(this));capsule.addView(address,new LinearLayout.LayoutParams(0,dp(44),1));TextView menu=tool("⋮",24);menu.setOnClickListener(v->menu(menu));capsule.addView(menu,new LinearLayout.LayoutParams(dp(44),dp(44)));bar.addView(capsule,new LinearLayout.LayoutParams(-1,dp(44)));root.addView(bar,new LinearLayout.LayoutParams(-1,dp(56)));
     web=new WebView(this);WebSettings ws=web.getSettings();ws.setJavaScriptEnabled(true);ws.setDomStorageEnabled(true);
     /* [DFWX PATCH P33] WebView 最小权限（DFW-10）：显式钉死官方安全基线，不吃平台默认值。
        API 26–29 上 allowFileAccess 默认是 true，本应用只加载 http(s) 页面（蓝奏分享页），

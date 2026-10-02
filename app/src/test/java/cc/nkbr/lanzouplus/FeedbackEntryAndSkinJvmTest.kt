@@ -208,6 +208,30 @@ class FeedbackEntryAndSkinJvmTest {
     }
 
     /**
+     * [DFW-97 修正] **网页页的返回按钮必须用 `ic_back` 矢量图标，不许用字体字符 `‹`。**
+     *
+     * 用户 2026-10-02：「左上角按钮貌似上下比例出问题了，就是有点往下了，看着别扭」。
+     * 实测：`‹` 的字形墨迹在 42dp 框里高 108px，光学中心和布局中心差 2px ——
+     * 数值上"居中"，但**字体字形的光学重心本来就不等于布局中心**，看着就是偏。
+     * 项目早有约定（`SupportActivity.java:190`）：`ic_back` = 返回上一页、一律在左上角。
+     */
+    @Test
+    fun webPagesUseTheVectorBackIconNotAGlyph() {
+        val lanzou = read("app/src/main/java/cc/nkbr/lanzouplus/LanzouWebActivity.java")
+        for (pair in listOf("蓝奏云网页页" to lanzou, "反馈页" to page)) {
+            assertTrue("${pair.first}必须用 ic_back 矢量图标", pair.second.contains("R.drawable.ic_back"))
+            assertFalse(
+                "${pair.first}不许再用字体字符 `‹`（字形光学重心不等于布局中心，看着会偏）",
+                pair.second.contains("\"‹\""),
+            )
+        }
+        assertTrue(
+            "返回按钮必须带无障碍描述（无障碍最小要求）",
+            lanzou.contains("setContentDescription(\"返回\")") && page.contains("setContentDescription(\"返回\")"),
+        )
+    }
+
+    /**
      * [DFW-97 修正] **顶栏不能和状态栏打架。**
      *
      * 用户 2026-10-02 的截图里，FlowUs 自己的面包屑和系统状态栏图标叠在一起，
