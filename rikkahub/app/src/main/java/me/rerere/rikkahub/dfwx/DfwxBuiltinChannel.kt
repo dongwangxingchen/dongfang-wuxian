@@ -47,6 +47,8 @@ object DfwxBuiltinChannel {
     /** [DFW-114] 一次性迁移标记的落点（与 vendor 的 Settings/DataStore 分开，互不干扰）。 */
     private const val PREFS = "dfwx_builtin_channel"
     private const val KEY_CAPABILITIES_DONE = "capabilities_v1_done"
+    /** [DFW-111] 网络搜索的一次性标记。**故意与上面那个分开**，理由见 syncIfNeeded 里的注释。 */
+    private const val KEY_WEB_SEARCH_DONE = "web_search_v1_done"
 
     const val PROVIDER_NAME = "内置渠道"
     const val DEFAULT_BASE_URL = "https://39.106.33.135/ai/v1"
@@ -160,6 +162,7 @@ object DfwxBuiltinChannel {
         settings: Settings,
         cfg: Config = current(),
         enableCapabilities: Boolean = false,
+        enableWebSearch: Boolean = false,
     ): Settings {
         val index = settings.providers.indexOfFirst { isBuiltin(it) }
         val existing = if (index >= 0) settings.providers[index] else null
@@ -286,6 +289,7 @@ object DfwxBuiltinChannel {
                         )
             },
             enableCapabilities = enableCapabilities,
+            enableWebSearch = enableWebSearch,
         )
     }
 
@@ -320,9 +324,22 @@ object DfwxBuiltinChannel {
                  */
                 val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
                 val firstRun = !prefs.getBoolean(KEY_CAPABILITIES_DONE, false)
-                val next = buildSyncedSettings(settings, cfg, enableCapabilities = firstRun)
+                /*
+                 * [DFW-111 2026-10-02] 网络搜索用**独立的标记**。
+                 *
+                 * 不复用 KEY_CAPABILITIES_DONE：那个标记已经随 1.0.0 发出去过一次，
+                 * 用户机器上可能已经是 true —— 复用的话，升过级的用户永远拿不到搜索。
+                 */
+                val firstSearchRun = !prefs.getBoolean(KEY_WEB_SEARCH_DONE, false)
+                val next = buildSyncedSettings(
+                    settings,
+                    cfg,
+                    enableCapabilities = firstRun,
+                    enableWebSearch = firstSearchRun,
+                )
                 if (next != settings) store.update(next)
                 if (firstRun) prefs.edit().putBoolean(KEY_CAPABILITIES_DONE, true).apply()
+                if (firstSearchRun) prefs.edit().putBoolean(KEY_WEB_SEARCH_DONE, true).apply()
                 if (next != settings) Log.i(TAG, "builtin channel synced")
             }.onFailure {
                 Log.e(TAG, "builtin channel sync failed", it)

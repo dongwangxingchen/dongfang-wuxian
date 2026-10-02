@@ -151,6 +151,7 @@ object DfwxAssistantProfile {
         settings: Settings,
         useBuiltin: (me.rerere.rikkahub.data.model.Assistant) -> Boolean,
         enableCapabilities: Boolean = false,
+        enableWebSearch: Boolean = false,
     ): Settings {
         var changed = false
 
@@ -183,6 +184,24 @@ object DfwxAssistantProfile {
              */
             if (enableCapabilities && !(next.enableMemory && next.enableRecentChatsReference)) {
                 next = next.copy(enableMemory = true, enableRecentChatsReference = true)
+                changed = true
+            }
+            /*
+             * [DFW-111 2026-10-02] 网络搜索。
+             *
+             * 用**独立的标记**，不复用 enableCapabilities 那个 ——
+             * 理由：能力开关（记忆/翻聊天记录）已经随 1.0.0 发出去过一次，
+             * 那个标记在用户机器上可能已经是 true 了。如果搜索复用同一个标记，
+             * 已经升过级的用户**永远拿不到搜索**。两个标记各管各的，互不影响。
+             *
+             * 搜索源就是 RikkaHub 自带的必应本地抓取（`SearchServiceOptions.DEFAULT`
+             * = `BingLocalOptions()`，见 `SearchService.kt`）：
+             * `www.bing.com` 在国内会 302 到 `cn.bing.com`，Jsoup 跟随后能正常解析
+             * （已实测：`li.b_algo` / `h2 > a` / `.b_caption p` 选择器全部命中，10 条结果）。
+             * **不需要任何 API key**，这是选它的唯一理由。
+             */
+            if (enableWebSearch && !next.enableWebSearch) {
+                next = next.copy(enableWebSearch = true)
                 changed = true
             }
             // 只填"还没设过"的头像：用户自己选过的（Emoji / 图片）一律不动。
