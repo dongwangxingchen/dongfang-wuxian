@@ -10,6 +10,7 @@ import me.rerere.ai.provider.Model
 import me.rerere.ai.provider.ModelAbility
 import me.rerere.ai.provider.Modality
 import me.rerere.ai.provider.ProviderSetting
+import me.rerere.rikkahub.data.datastore.DEFAULT_ASSISTANT_ID
 import me.rerere.rikkahub.data.datastore.Settings
 import me.rerere.rikkahub.data.datastore.SettingsStore
 import me.rerere.rikkahub.data.datastore.findProvider
@@ -214,9 +215,57 @@ object DfwxBuiltinChannel {
          * 不会出现"最大输出给了内置助手、头像却给了别的助手"这种错位。
          * 只在字段为空时写入，用户改过的一律不覆盖 —— 细节见 DfwxAssistantProfile。
          */
+        /*
+         * [DFW-108 2026-10-02] **判据补上「默认助手」这一支。**
+         *
+         * ## 用户报的现象
+         * > 「东方助手，它不是配置过提示词和其他东西吗……为什么现在全都清空了呢？
+         * >   我的内置 AI 不应是这个头像吧，我以前不是给过你一个图片」
+         * 界面上：名字是「东方助手」，提示词空、头像变成模型图标。
+         *
+         * ## 根因（不是被谁删了，是这道门没放行）
+         * 原来只给两类助手写人设：显式绑定内置模型的、或全局模型恰好是内置模型的。
+         * 用户把全局模型换成了别的之后，默认助手 `chatModelId` 为 null 且不等于内置模型
+         * → **静默跳过**（这里没有任何日志）→ 默认助手一直是 vendor 的空壳。
+         *
+         * 而界面上「东方助手」四个字来自 vendor 的**字符串兜底**
+         * （`values/strings.xml` 的 assistant_default_name），**跟人设写没写进去无关** ——
+         * 所以呈现出来正好是"名字在、内容全空"，看起来就像"被清空了"。
+         *
+         * ## 为什么给默认助手开绿灯是安全的
+         * 默认助手就是「没被用户显式配置过的那一个」，本来该由我们播种；
+         * 而 `applyDefaults` 是**只填空**（字段非空一律不覆盖），
+         * 用户自己改过名字/提示词/头像的，一个像素都不会动。
+         * 用户自己新建的助手、以及绑了别的渠道的助手，仍然不受影响 ——
+         * 这守住了 `DfwxBuiltinChannelTest` 里"用户自己的模型选择不许被顶掉"那条断言。
+         *
+         * ## 关于"跳过时静默"这件事
+         * 这次排查最大的障碍就是门没放行时**一个字都没有**，只能通读源码反推。
+         * 本想在这里加一行日志，但 **vendor 区的单测跑在纯 JVM 上，`android.util.Log` 没有 mock**
+         * （一加就 `RuntimeException: Method i in android.util.Log not mocked`，7 条用例全红）。
+         * 为了不打坏可测性，这里**不加日志**；改为用
+         * `existingUser_whoseGlobalModelIsNotTheBuiltinOne_stillGetsThePersona`
+         * 这条回归用例把"门必须放行"钉死 —— 测试比日志更早发现问题。
+         * 这次排查最大的障碍就是"跳过时完全静默"—— 用户说配置没了，
+         * 代码里却一个字都没有，只能靠通读源码反推。
+         */
         return DfwxAssistantProfile.applyDefaults(synced) { assistant ->
             assistant.chatModelId == model.id ||
-                (assistant.chatModelId == null && nextChatModelId == model.id)
+                (
+                    // 「跟随全局模型」= 用户没显式配置过这一个
+                    assistant.chatModelId == null &&
+                        // 全局模型就是内置的（原判据）
+                        (nextChatModelId == model.id ||
+                            // [DFW-108] 或者它就是**默认助手** —— 这一支是本次修的根因。
+                            //
+                            // 为什么必须是「跟随全局」而不是无条件：用户明确要求过
+                            // 「别人对接新 API 站的时候用他们默认的」。
+                            // 如果默认助手被**显式**指到了别的渠道（chatModelId 非空），
+                            // 那就是用户自己的选择，一个像素都不该动。
+                            // 只有"没配置过、跟随全局"的那种，才该由我们播种人设 ——
+                            // 哪怕此刻全局模型不是内置的（正是用户遇到的情形）。
+                            assistant.id == DEFAULT_ASSISTANT_ID)
+                    )
         }
     }
 

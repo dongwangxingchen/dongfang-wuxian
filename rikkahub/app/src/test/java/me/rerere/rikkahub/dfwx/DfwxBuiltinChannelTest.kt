@@ -5,6 +5,7 @@ import me.rerere.ai.provider.Modality
 import me.rerere.rikkahub.data.model.Assistant
 import me.rerere.rikkahub.data.model.Avatar
 import me.rerere.ai.provider.ProviderSetting
+import me.rerere.rikkahub.data.datastore.DEFAULT_ASSISTANT_ID
 import me.rerere.rikkahub.data.datastore.Settings
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -355,6 +356,58 @@ class DfwxBuiltinChannelTest {
             "渠道 id 也要沿用旧的",
             once.providers.single { DfwxBuiltinChannel.isBuiltin(it) }.id,
             twice.providers.single { DfwxBuiltinChannel.isBuiltin(it) }.id,
+        )
+    }
+
+    /**
+     * [DFW-108 2026-10-02] **老用户回归用例 —— 这一条是补盲区。**
+     *
+     * ## 用户报的现象
+     * > 「东方助手，它不是配置过提示词和其他东西吗……为什么现在全都清空了呢？
+     * >   我的内置 AI 不应是这个头像吧」
+     * 界面上：名字是「东方助手」，提示词空、头像变成模型图标。
+     *
+     * ## 为什么之前的测试没抓到
+     * 现有覆盖人设的用例**全都是"全新安装"前提**（`providers = emptyList()`）。
+     * 而真实用户早就有自己的渠道、全局模型也早就换成了别人的 ——
+     * 那种情况下旧判据会**静默跳过**，默认助手一直是 vendor 的空壳。
+     * 名字看着还在，是因为 UI 用了 vendor 的字符串兜底，**跟人设写没写进去无关**。
+     *
+     * 这条测试就是那个真实场景：**有别人的渠道 + 全局模型是别人的**，
+     * 默认助手仍然必须拿到名字 / 提示词 / 头像。
+     */
+    @Test
+    fun existingUser_whoseGlobalModelIsNotTheBuiltinOne_stillGetsThePersona() {
+        installChannel()
+        val cfg = DfwxBuiltinChannel.current()
+        val (userProvider, userModel) = userProvider()
+        val base = Settings().copy(providers = listOf(userProvider), chatModelId = userModel.id)
+
+        val after = DfwxBuiltinChannel.buildSyncedSettings(base, cfg)
+        val a = after.assistants.first { it.id == DEFAULT_ASSISTANT_ID }
+
+        assertEquals(
+            "老用户的默认助手也必须拿到「东方助手」这个名字",
+            DfwxAssistantProfile.ASSISTANT_NAME,
+            a.name,
+        )
+        assertTrue(
+            "老用户的默认助手也必须拿到软件使用知识 —— 否则它答不了「这个软件怎么用」",
+            a.systemPrompt.isNotBlank(),
+        )
+        assertEquals(
+            "老用户的默认助手也必须用我们给的头像（用户给的那张紫色发光星体）",
+            Avatar.Image(DfwxAssistantProfile.AI_AVATAR_URL),
+            a.avatar,
+        )
+        assertTrue(
+            "必须打开 useAssistantAvatar，否则聊天里显示的是模型图标而不是我们的头像",
+            a.useAssistantAvatar,
+        )
+        assertEquals(
+            "给默认助手写人设，绝不能顺手把用户自己的模型选择顶掉",
+            userModel.id,
+            after.chatModelId,
         )
     }
 
