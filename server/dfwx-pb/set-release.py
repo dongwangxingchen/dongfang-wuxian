@@ -74,7 +74,40 @@ def main():
     out = req("PATCH", "/api/collections/release/records/" + latest["id"], token, body)
     print("release 记录已同步：%s / %s / %s"
           % (out.get("versionName"), out.get("versionCode"), out.get("apkUrl")))
+
+    snapshot(token, out)
     return 0
+
+
+def snapshot(token, rec):
+    """[DFW-106] 往 `release_history` 追一条，让控制台的「发布历史」也能看到命令行发的版。
+
+    ## 为什么历史不放在 release 集合里
+    `release` 的 id 是 PocketBase 随机生成的 `[a-z0-9]{15}`，**字符串排序与创建时间无关**。
+    实测：按 1→2→3 的顺序插入三条记录，App 用的 `perPage=1&sort=-id` 返回的第一条是**最旧的 1 号**。
+    也就是说 `release` 一旦出现第二条记录，App 就可能读到随机一条 —— 那正是 DFW-82
+    那个「改了版本号但用户收不到更新」的静默故障。所以 `release` 永远只保留一条（当前版本），
+    历史另存一个集合。
+
+    ## 失败不许影响发版
+    这条只是日志。集合还没建、网络抖了、字段校验没过 —— 一律只打一行警告，
+    **绝不改变退出码**：APK 已经传上去、release 记录也已经同步好了，那才是要紧的事。
+    """
+    try:
+        req("POST", "/api/collections/release_history/records", token, {
+            "versionName": rec.get("versionName") or "",
+            "versionCode": int(rec.get("versionCode") or 0),
+            "apkUrl": rec.get("apkUrl") or "",
+            "sha256": rec.get("sha256") or "",
+            "size": int(rec.get("size") or 0),
+            # updateMode 这次没改，用 PATCH 回来的当前值，保证历史里的这一条是完整的
+            "updateMode": rec.get("updateMode") or "soft",
+            "action": "cli",
+            "note": "命令行发布（tools/dfwx-publish-apk.sh）",
+        })
+        print("发布历史已记录一条（action=cli）")
+    except Exception as error:                       # noqa: BLE001
+        print("提示：发布历史没记上（不影响本次发版）：%s" % error)
 
 
 if __name__ == "__main__":

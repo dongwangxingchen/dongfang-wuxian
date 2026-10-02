@@ -124,7 +124,9 @@ let token = localStorage.getItem("dfwx_token") || "";
  */
 let adminUser = "dongfang@dfwx.local", adminPass = "";
 let tab = "总控";
-let cache = { control:null, release:null, notice:[], changelog:[] };
+let cache = { control:null, release:null, notice:[], changelog:[],
+  // [DFW-106] 发布历史。单独一个集合，**绝不混进 release**（理由见 renderRelease 上方的注释）。
+  history:[], histPage:1, histTotal:0, histPages:1, histMissing:false, histError:"" };
 let pending = {};
 
 /* ---------- 小工具 ---------- */
@@ -146,7 +148,10 @@ async function api(path, opts={}){
   if (!r.ok) {
     let m = "操作失败（" + r.status + "）";
     try { const j = await r.json(); if (j && j.message) m = j.message; } catch(e){}
-    throw new Error(m);
+    const err = new Error(m);
+    // [DFW-106] 把状态码带出来：发布历史集合不存在时要靠 404 区分「集合还没建」和「真的没数据」。
+    err.status = r.status;
+    throw err;
   }
   if (r.status === 204) return null;
   return r.json();
@@ -421,15 +426,312 @@ function renderAiChannel(p){
   };
 }
 
-/* ---------- 版本 ---------- */
+/* ---------- 版本：发新版 / 当前版本 / 发布历史（编辑·删除·回滚） ---------- */
 /** 待上传的安装包（选完文件后暂存，点保存时真正上传）。 */
 let pendingApk = null;
 /** 安装包对外地址的固定前缀：**故意用 http**——App 走的是明文下载，
  *  改成 https 会因为那张证书不被设备信任而直接下载失败。 */
 const APK_ORIGIN = "http://39.106.33.135";
 
+/**
+ * [DFW-106] **发布历史另起一个集合，绝不放进 `release`。**
+ *
+ * 三条都是实测出来的，不是推测：
+ *
+ * 1. App 读的就是 `release` 的 `perPage=1&sort=-id` 第一条。而 `release` 的 id 是
+ *    PocketBase 随机生成的 `[a-z0-9]{15}`，**字符串排序和创建时间毫无关系**。
+ *    实测：按 1→2→3 的顺序插入三条记录，`sort=-id` 返回的第一条是**最旧的 1 号**
+ *    （三条的返回顺序是 1、3、2）。也就是说，只要 `release` 里出现第二条记录，
+ *    App 就可能读到**随机一条**——表现正是 DFW-82 那个「改了版本号但用户收不到更新」
+ *    的静默故障，而且这次连"没改版本号"都看不出来。
+ * 2. `set-release.py`（命令行发版走的那个）是直接 PATCH「`sort=-id` 第一条」的，
+ *    历史混在 `release` 里会被它**原地覆盖**。
+ * 3. `reconcile-release.py` 每 60 秒把「其它记录里最大的 versionCode」抬到当前记录上，
+ *    历史混在 `release` 里，**回滚会在 60 秒内被它悄悄改回去**。
+ *
+ * 所以：`release` 永远只保留一条（= 用户正在拿到的版本），历史单独一个集合。
+ * App 的命脉查询、以及那两个脚本的行为，一个字都不用改。
+ */
+const HIST = "/release_history";
+const HIST_PER = 20;
+/**
+ * 建历史集合用的字段定义（页面与 `server/dfwx-pb/README.md` 里的说明必须一致）。
+ *
+ * ⚠️ `created` / `updated` **必须显式声明**：PocketBase 建集合时不会自动加这两个系统字段
+ * （`release` 集合就没有，所以那边 `sort=-created` 一直返回 400）。历史要按时间排、要分页，
+ * 靠的就是这个 `created`。字段 id 可以不写，PocketBase 会自己补。
+ */
+const HIST_FIELDS = [
+  { name:"versionName", type:"text",   required:true,  max:32 },
+  { name:"versionCode", type:"number", required:true },
+  { name:"apkUrl",      type:"url",    required:true },
+  { name:"sha256",      type:"text",   required:true,  max:80 },
+  { name:"size",        type:"number", required:true },
+  { name:"updateMode",  type:"select", required:true,  values:["soft","force","off"], maxSelect:1 },
+  { name:"action",      type:"select", required:false, values:["publish","rollback","edit","cli"], maxSelect:1 },
+  { name:"note",        type:"text",   required:false, max:200 },
+  { name:"created",     type:"autodate", onCreate:true, onUpdate:false },
+  { name:"updated",     type:"autodate", onCreate:true, onUpdate:true }
+];
+const MODE_TEXT = { soft:"软更新", force:"强制更新", off:"不提示" };
+const ACTION_TEXT = { publish:"发布", rollback:"回滚", edit:"改动", cli:"命令行发布" };
+
+/** 当前正在编辑的那条发布记录：`{key, current}`；null = 都是列表态。 */
+let editingRel = null;
+
+/** PocketBase 的时间戳（`2026-10-02 15:04:52.652Z`）→ 人话。空格换成 T 才是合法 ISO。 */
+function fmtTime(s){
+  if (!s) return "";
+  const d = new Date(String(s).replace(" ", "T"));
+  if (isNaN(d.getTime())) return String(s);
+  const p = n => String(n).padStart(2, "0");
+  return d.getFullYear() + "-" + p(d.getMonth()+1) + "-" + p(d.getDate())
+       + " " + p(d.getHours()) + ":" + p(d.getMinutes());
+}
+
+/** 只取一条记录里跟「发布」有关的字段：渲染、写回、回滚都用同一套。 */
+function relFields(o){
+  return {
+    versionName: String((o && o.versionName) || ""),
+    versionCode: Number((o && o.versionCode) || 0),
+    apkUrl:      String((o && o.apkUrl) || ""),
+    sha256:      String((o && o.sha256) || ""),
+    size:        Number((o && o.size) || 0),
+    updateMode:  (o && o.updateMode) || "soft"
+  };
+}
+
+/**
+ * [DFW-82 / DFW-118] **版本序号守卫**（原来写在「发新版」里，现在抽出来给三条路径共用）。
+ *
+ * 只要一个操作会让「用户拿到的版本序号」发生变化，就必须过这里。三种模式只在「相等」那条上不同：
+ * - `publish`：发一条新的。相等 = 静默发出同序号 = 用户永远「已是最新版本」（DFW-82 老病）→ **硬拦**。
+ * - `switch`：回滚到另一条记录。相等 = 用户那边等于什么都没变 → 同样**硬拦**。
+ * - `editCurrent`：改的就是当前那一条。相等是它自己（比如只改下载地址），属正常保存 → 放行。
+ *
+ * 「变小」一律 confirm，并把后果原样写清楚 —— 这是换版本编号方案 / 真回退时的一次性通道，
+ * 默认拦住、显式放行。
+ */
+function guardVersionTransition(nextCode, currentCode, mode){
+  if (!Number.isInteger(nextCode) || nextCode <= 0) {
+    throw new Error("版本序号必须是不小于 1 的整数");
+  }
+  if (mode !== "editCurrent" && currentCode > 0 && nextCode === currentCode) {
+    if (mode === "publish") {
+      throw new Error("版本序号和现在一样（都是 " + currentCode + "）—— 软件会认为已经是最新版，不会提示更新。"
+        + "如果刚才提示「读不出包里的版本号」，请手动填成新版本的值。");
+    }
+    throw new Error("这条记录的版本序号和当前版本一样（都是 " + currentCode + "）——"
+      + "回滚过去，用户那边等于什么都没变。要回滚请选一个序号不同的版本。");
+  }
+  if (currentCode > 0 && nextCode < currentCode) {
+    const ok = confirm("⚠️ 这次的版本序号比当前版本**小**（当前 " + currentCode + "，本次 " + nextCode + "）。\n\n"
+      + "后果：已经装了新版（序号 " + currentCode + "）的用户**收不到更新提示**，必须手动卸载重装一次。\n\n"
+      + "只有「换了版本编号方案」或「确实要回退」才该继续。确定吗？");
+    if (!ok) throw new Error("已取消：版本序号不能比当前小（当前 " + currentCode + "）");
+  }
+}
+
+/** 拉一页历史。集合还没建时**不抛**，只标记 `histMissing`，由页面给一个「创建」按钮。 */
+async function loadHistory(page){
+  try {
+    const d = await api(HIST + "/records?perPage=" + HIST_PER + "&page=" + (page || 1) + "&sort=-created");
+    cache.histMissing = false;
+    cache.histError = "";
+    cache.history = d.items || [];
+    cache.histPage = d.page || 1;
+    cache.histTotal = d.totalItems || 0;
+    cache.histPages = d.totalPages || 1;
+    // 删到最后一页空了：自动退回最后一页，否则会停在一个永远空白的页上。
+    if (cache.histPage > cache.histPages) {
+      cache.histPage = Math.max(1, cache.histPages);
+      return loadHistory(cache.histPage);
+    }
+  } catch(e){
+    cache.history = [];
+    cache.histTotal = 0;
+    cache.histPages = 1;
+    cache.histMissing = (e && e.status === 404);
+    cache.histError = cache.histMissing ? "" : (e.message || "读取发布历史失败");
+  }
+}
+
+/** 集合不存在时点这个按钮：按 HIST_FIELDS 把集合建出来。 */
+async function createHistoryCollection(){
+  await api("", { method:"POST", body: JSON.stringify({
+    name: HIST.replace(/^\//, ""),
+    type: "base",
+    // 历史只给登录后的后台看：不给 App，也不给匿名读。
+    listRule: null, viewRule: null, createRule: null, updateRule: null, deleteRule: null,
+    fields: HIST_FIELDS
+  })});
+}
+
+/** 往历史里追一条。**写历史失败不许拖垮发布本身** —— 发布已经生效了，缺的只是一条日志。 */
+async function snapshot(f, action, note){
+  try {
+    await api(HIST + "/records", { method:"POST", body: JSON.stringify({
+      versionName: f.versionName, versionCode: f.versionCode, apkUrl: f.apkUrl,
+      sha256: f.sha256, size: f.size, updateMode: f.updateMode,
+      action: action || "publish", note: note || ""
+    })});
+  } catch(e){
+    toast("已生效，但历史记录没写进去：" + e.message, "err");
+  }
+}
+
+/** 一条发布记录的卡片。`key` 是编辑态的键：当前版本固定用 `cur`，历史条目用它的记录 id。 */
+function relItemHtml(key, o, isCurrent, meta){
+  if (editingRel && editingRel.key === key) return relEditForm(key, isCurrent);
+  const f = relFields(o);
+  const shortSha = f.sha256 ? f.sha256.slice(0, 16) + (f.sha256.length > 16 ? "…" : "") : "（未填）";
+  return `
+    <div class="item">
+      <div class="top">
+        <div>
+          <div class="name">${esc(f.versionName || "（未填版本号）")}
+            <span style="color:var(--muted);font-weight:400">· 序号 ${f.versionCode}</span>
+            ${isCurrent ? '<span style="color:var(--ok);font-size:12px"> ● 当前</span>' : ""}</div>
+          ${meta ? `<div class="meta">${meta}</div>` : ""}
+          <div class="meta">${MODE_TEXT[f.updateMode] || esc(f.updateMode)} · ${f.size ? mbText(f.size) : "大小未填"} · sha256 ${esc(shortSha)}</div>
+          <div class="meta" style="word-break:break-all">${esc(f.apkUrl || "（未填下载地址）")}</div>
+        </div>
+      </div>
+      <div style="height:10px"></div>
+      <div class="row">
+        ${isCurrent ? "" : `<button class="btn-main" data-rollback="${esc(key)}">设为当前</button>`}
+        <button class="btn-sec" data-editrel="${esc(key)}">编辑</button>
+        <button class="btn-danger" data-delrel="${esc(key)}">删除</button>
+      </div>
+    </div>`;
+}
+
+/** 编辑表单。同一时刻只会开一个，所以用固定 id 就够了。 */
+function relEditForm(key, isCurrent){
+  const f = relFields(isCurrent ? cache.release : (cache.history || []).find(x => x.id === key));
+  const sel = v => `<option value="${v}"${f.updateMode === v ? " selected" : ""}>${MODE_TEXT[v]}</option>`;
+  return `
+    <div class="item">
+      <div class="name" style="margin-bottom:4px">${isCurrent ? "编辑当前版本" : "编辑这条历史记录"}</div>
+      <div class="meta" style="margin-bottom:10px">${isCurrent
+        ? "这一条就是用户正在拿到的版本，改完立刻生效。"
+        : "改的是历史日志本身，不影响用户现在拿到的版本。"}</div>
+      <label>版本号（显示给用户看的）</label>
+      <input id="evn" type="text" value="${esc(f.versionName)}" placeholder="1.0.0">
+      <label>版本序号（versionCode）</label>
+      <input id="evc" type="number" min="1" value="${f.versionCode}">
+      <label>更新方式</label>
+      <select id="eum">${sel("soft")}${sel("force")}${sel("off")}</select>
+      <label>安装包大小</label>
+      <input id="eszText" type="text" readonly value="${f.size ? mbText(f.size) : "（未填）"}">
+      <label>校验值（sha256）</label>
+      <input id="esh" type="text" value="${esc(f.sha256)}">
+      <label>下载地址</label>
+      <input id="eau" type="text" value="${esc(f.apkUrl)}">
+      <input id="esz" type="hidden" value="${f.size || ""}">
+      <div style="height:12px"></div>
+      <div class="row">
+        <button class="btn-main" data-saverel="1">保存修改</button>
+        <button class="btn-sec" data-cancelrel="1">取消</button>
+      </div>
+    </div>`;
+}
+
+/** 保存编辑。当前版本要严格校验（那是用户真会去下载的地址），历史条目宽松些。 */
+async function saveRelEdit(key, isCurrent){
+  const body = {
+    versionName: $("#evn").value.trim(),
+    versionCode: Number($("#evc").value || 0),
+    updateMode: $("#eum").value,
+    apkUrl: $("#eau").value.trim(),
+    sha256: $("#esh").value.trim().toLowerCase(),
+    size: Number($("#esz").value || 0)
+  };
+  if (!body.versionName) throw new Error("请填写版本号");
+  if (!body.apkUrl) throw new Error("请填写下载地址");
+  if (isCurrent) {
+    if (!cache.release) throw new Error("当前没有版本记录，刷新一下再试");
+    if (!/^[0-9a-f]{64}$/.test(body.sha256)) {
+      throw new Error("校验值必须是 64 位十六进制 —— 这一条是用户真正会下载的版本，写错了用户装不上");
+    }
+    if (!(body.size > 0)) throw new Error("大小必须大于 0 —— 这一条是用户真正会下载的版本");
+    guardVersionTransition(body.versionCode, relFields(cache.release).versionCode, "editCurrent");
+    await api("/release/records/" + cache.release.id, { method:"PATCH", body: JSON.stringify(body) });
+    toast("已保存，用户下次打开软件生效", "ok");
+  } else {
+    await api(HIST + "/records/" + key, { method:"PATCH", body: JSON.stringify(body) });
+    toast("历史记录已保存", "ok");
+  }
+}
+
+/** 回滚：把某条历史重新设为「当前版本」——写回 release 那一条，并留一条回滚日志。 */
+async function rollbackTo(key){
+  const h = (cache.history || []).find(x => x.id === key);
+  if (!h) throw new Error("这条历史记录不在当前页了，刷新一下再试");
+  const f = relFields(h);
+  if (!f.apkUrl) throw new Error("这条历史没有下载地址，不能回滚");
+  if (!/^[0-9a-f]{64}$/.test(f.sha256)) {
+    throw new Error("这条历史的校验值不是 64 位十六进制，直接回滚用户会装不上 —— 请先「编辑」把它补对");
+  }
+  if (!(f.size > 0)) throw new Error("这条历史的大小是 0，直接回滚用户会装不上 —— 请先「编辑」把它补对");
+  const cur = cache.release ? relFields(cache.release) : null;
+  guardVersionTransition(f.versionCode, cur ? cur.versionCode : 0, "switch");
+  const ok = confirm("把当前版本回滚到「" + f.versionName + "」（序号 " + f.versionCode + "）？\n\n"
+    + "用户下次打开软件就会拿到这个版本的下载地址。\n"
+    + "已经装了更新版本的用户**不会**收到提示（软件只往「更新」的方向提示），要他们降级只能手动卸载重装。");
+  if (!ok) return;
+  await upsert("release", cache.release && cache.release.id, f);
+  await snapshot(f, "rollback", "回滚自 " + (cur ? cur.versionName + "（序号 " + cur.versionCode + "）" : "无记录"));
+  toast("已回滚到 " + f.versionName, "ok");
+  await refresh();
+}
+
+/** 删除当前版本记录：等于让 App 读不到任何版本，后果要说清楚。 */
+async function deleteCurrentRelease(){
+  if (!cache.release) return;
+  const f = relFields(cache.release);
+  if (!confirm("删除「当前版本」记录？\n\n"
+    + "现在下发的是 " + f.versionName + "（序号 " + f.versionCode + "）。\n"
+    + "删掉之后 App 读不到任何版本记录，**所有用户都不会再收到更新提示**，直到你重新发布一条。\n\n"
+    + "发布历史不会跟着删，随时可以从历史里「设为当前」恢复。确定删除？")) return;
+  await api("/release/records/" + cache.release.id, { method:"DELETE" });
+  toast("已删除当前版本记录", "ok");
+  await refresh();
+}
+
+/** 删除一条历史日志（不影响当前下发的版本）。 */
+async function deleteHistory(key){
+  const h = (cache.history || []).find(x => x.id === key);
+  if (!confirm("删除历史记录「" + ((h && h.versionName) || key) + "」？\n\n只删这条日志，不影响用户现在拿到的版本。")) return;
+  await api(HIST + "/records/" + key, { method:"DELETE" });
+  toast("已删除", "ok");
+  await refresh();
+}
+
+/** 历史列表的 HTML（空态也在这一处处理）。 */
+function histHtml(){
+  const hist = cache.history || [];
+  if (!hist.length) return '<div class="empty">还没有历史记录。发布一次或回滚一次就会出现。</div>';
+  return hist.map(h => relItemHtml(h.id, h, false,
+    (ACTION_TEXT[h.action] || "发布")
+    + (h.created ? " · " + fmtTime(h.created) : "")
+    + (h.note ? " · " + esc(h.note) : ""))).join("");
+}
+
+/** 历史分页条。只有一页时什么都不显示。 */
+function histPagerHtml(){
+  const pages = cache.histPages || 1, cur = cache.histPage || 1;
+  if (pages <= 1) return "";
+  return `<div class="row" style="margin-top:12px">
+    <button class="btn-sec" data-page="${cur - 1}"${cur <= 1 ? " disabled" : ""}>上一页</button>
+    <div style="flex:0 0 auto;min-width:auto;display:flex;align-items:center;justify-content:center;
+      color:var(--muted);font-size:13px">第 ${cur} / ${pages} 页</div>
+    <button class="btn-sec" data-page="${cur + 1}"${cur >= pages ? " disabled" : ""}>下一页</button>
+  </div>`;
+}
+
 function renderRelease(p){
-  const r = cache.release || { versionName:"", versionCode:0, apkUrl:"", sha256:"", size:0, updateMode:"soft" };
+  const r = cache.release;
   pendingApk = null;
   p.innerHTML = `
   <div class="card">
@@ -441,30 +743,48 @@ function renderRelease(p){
     <div class="note" id="apkInfo">选好文件后，<b>大小与校验值会自动算好</b>，点保存时顺带传上服务器——不用手填。</div>
 
     <label for="vn">② 版本号（显示给用户看的）</label>
-    <input id="vn" type="text" placeholder="1.0.0" value="${esc(r.versionName)}">
+    <input id="vn" type="text" placeholder="1.0.0" value="${esc(r ? r.versionName : "")}">
 
     <label for="vc">③ 版本序号（versionCode）—— 决定软件会不会提示更新</label>
-    <input id="vc" type="number" min="1" value="${Number(r.versionCode) || 0}">
+    <input id="vc" type="number" min="1" value="${Number(r && r.versionCode) || 0}">
     <p class="hint">软件就是拿这个数字比大小的：<b>必须比现在大，否则用户永远收不到更新</b>。已经帮你填好「现在 +1」。</p>
 
     <label for="um">④ 更新方式</label>
     <select id="um">
-      <option value="soft"${r.updateMode==="soft"?" selected":""}>软更新 —— 用户可以关闭、可以不再提示</option>
-      <option value="force"${r.updateMode==="force"?" selected":""}>强制更新 —— 必须更新才能用</option>
-      <option value="off"${r.updateMode==="off"?" selected":""}>不提示 —— 静默发布，不弹任何窗口</option>
+      <option value="soft"${!r || r.updateMode==="soft"?" selected":""}>软更新 —— 用户可以关闭、可以不再提示</option>
+      <option value="force"${r && r.updateMode==="force"?" selected":""}>强制更新 —— 必须更新才能用</option>
+      <option value="off"${r && r.updateMode==="off"?" selected":""}>不提示 —— 静默发布，不弹任何窗口</option>
     </select>
 
     <div class="note">下面三项在选完安装包后自动带出，一般不用改。</div>
     <label>安装包大小</label>
-    <input id="szText" type="text" readonly value="${r.size ? mbText(r.size) : "（选文件后自动算出）"}">
+    <input id="szText" type="text" readonly value="${r && r.size ? mbText(r.size) : "（选文件后自动算出）"}">
     <label for="sh">校验值（sha256）</label>
-    <input id="sh" type="text" value="${esc(r.sha256)}">
+    <input id="sh" type="text" value="${esc(r ? r.sha256 : "")}">
     <label for="au">下载地址</label>
-    <input id="au" type="text" value="${esc(r.apkUrl)}">
-    <input id="sz" type="hidden" value="${r.size||""}">
+    <input id="au" type="text" value="${esc(r ? r.apkUrl : "")}">
+    <input id="sz" type="hidden" value="${r && r.size ? r.size : ""}">
 
     <div style="height:14px"></div>
     <button class="btn-main" id="save">保存并发布</button>
+  </div>
+
+  <div class="card">
+    <h2>当前版本${r ? "" : "（没有）"}</h2>
+    <p class="hint">用户打开软件时读到的就是这一条（App 请求 <code>/pb/api/collections/release/records?perPage=1&amp;sort=-id</code>）。
+      <b>release 集合永远只保留这一条</b>——多一条，App 就可能随机读到别的版本，所以历史另存一个集合。</p>
+    ${r ? relItemHtml("cur", r, true, "") : '<div class="empty">没有任何版本记录，用户不会收到更新提示</div>'}
+  </div>
+
+  <div class="card">
+    <h2>发布历史（${cache.histTotal}）</h2>
+    <p class="hint">每次「发新版」和「回滚」都会在这里留一条。可以编辑、删除，或者一键把它重新设为当前版本。</p>
+    ${cache.histMissing
+      ? '<div class="note warn">发布历史集合（<code>release_history</code>）还没建。<br>点下面的按钮建一下就好，不会动到现有数据。</div>'
+        + '<button class="btn-main" id="mkhist">创建发布历史集合</button>'
+      : `${cache.histError ? '<div class="note danger">读发布历史失败：' + esc(cache.histError) + '</div>' : ""}
+        <div id="hlist">${histHtml()}</div>
+        ${histPagerHtml()}`}
   </div>`;
 
   $("#apk").onchange = async e => {
@@ -516,6 +836,9 @@ function renderRelease(p){
        * 结果：不管怎么发布，版本序号永远不变，软件永远判定"已是最新版本"。
        * 用户 2026-10-01 报的"更新功能坏掉了"就是这一行。
        * 现在改成读输入框，并且**强制严格递增**。
+       *
+       * [DFW-106] 这两条守卫（相等硬拦 / 变小 confirm）已抽成 guardVersionTransition，
+       * 由「发新版」「回滚」「编辑当前版本」三条路径共用 —— 规则一字未改，只是不再只有一处生效。
        */
       const currentCode = Number(cache.release && cache.release.versionCode) || 0;
       const nextCode = Number($("#vc").value || 0);
@@ -528,29 +851,7 @@ function renderRelease(p){
         size: Number($("#sz").value || 0)
       };
       if (!body.versionName) throw new Error("请填写版本号");
-      if (!Number.isInteger(nextCode) || nextCode <= 0) throw new Error("版本序号必须是不小于 1 的整数");
-      if (nextCode === currentCode) {
-        // 相等 = 大概率是「读不出包里的版本号，输入框还停在旧值」（见上面那个 err 提示）。
-        // 直接拦下，让他手填 —— 静默发出去就是 DFW-82 那个"永远已是最新版本"的老病。
-        throw new Error("版本序号和现在一样（都是 " + currentCode + "）—— 软件会认为已经是最新版，不会提示更新。"
-          + "如果刚才提示「读不出包里的版本号」，请手动填成新版本的值。");
-      }
-      if (nextCode < currentCode) {
-        /*
-         * [DFW-118 路线 B 过渡] 这里原来直接 throw。
-         *
-         * 但**切换版本编号方案那一次必须允许序号回退**：用户手机上装着旧计数器的
-         * 10034，而新方案 1.0.0 算出来是 10000。硬拦着就根本发不出去，
-         * 只能去手改 PocketBase —— 那才是真正危险的操作。
-         *
-         * 所以改成「把后果原样说清楚，让他自己确认」：
-         * 仍然**不静默**（默认拦下），但不堵死。
-         */
-        const ok = confirm("⚠️ 这次的版本序号比上一版**小**（现在是 " + currentCode + "，你填的是 " + nextCode + "）。\n\n"
-          + "后果：已经装了旧版的用户**收不到更新提示**，必须手动卸载重装一次。\n\n"
-          + "只有「换了版本编号方案」这一种情况才该继续。确定要发布吗？");
-        if (!ok) throw new Error("已取消：版本序号不能比现在小（现在是 " + currentCode + "）");
-      }
+      guardVersionTransition(nextCode, currentCode, "publish");
       if (!/^[0-9a-f]{64}$/.test(body.sha256)) throw new Error("校验值必须是 64 位十六进制（选一个安装包就会自动算好）");
       if (!(body.size > 0)) throw new Error("请选择安装包，大小会自动算出来");
       if (currentCode > 0 && body.versionName === (cache.release && cache.release.versionName)) {
@@ -560,11 +861,58 @@ function renderRelease(p){
         if (!ok) { b.disabled = false; b.textContent = "保存并发布"; return; }
       }
       await upsert("release", cache.release && cache.release.id, body);
+      // [DFW-106] 发布成功后再往历史里追一条。写历史失败不影响发布本身（snapshot 内部已兜住）。
+      await snapshot(body, "publish", "");
       toast("已发布，用户下次打开就会看到", "ok");
       pendingApk = null;
+      cache.histPage = 1;
       await refresh();
     } catch(e){ toast(e.message, "err"); }
     b.disabled = false; b.textContent = "保存并发布";
+  };
+
+  /* 历史集合还没建：只给一个显式的「创建」按钮，不做偷偷建表这种事。 */
+  if (cache.histMissing) {
+    const mk = $("#mkhist");
+    if (mk) mk.onclick = async () => {
+      mk.disabled = true; mk.innerHTML = '<span class="spin"></span> 创建中…';
+      try { await createHistoryCollection(); toast("发布历史集合已创建", "ok"); await refresh(); }
+      catch(e){ toast(e.message, "err"); mk.disabled = false; mk.textContent = "创建发布历史集合"; }
+    };
+    return;
+  }
+
+  /*
+   * 当前版本卡片与历史列表的事件都挂在**面板**上，不挂在列表容器上：
+   * 编辑态是整块重渲染出来的，挂在容器上会变成游离节点（公告那一页踩过同样的坑）。
+   */
+  p.onclick = async e => {
+    const roll = e.target.closest("[data-rollback]"), ed = e.target.closest("[data-editrel]"),
+          del = e.target.closest("[data-delrel]"), save = e.target.closest("[data-saverel]"),
+          cancel = e.target.closest("[data-cancelrel]"), pg = e.target.closest("[data-page]");
+    try {
+      if (pg) { cache.histPage = Number(pg.dataset.page); await refresh(); return; }
+      if (roll) { await rollbackTo(roll.dataset.rollback); return; }
+      if (ed) {
+        const key = ed.dataset.editrel;
+        editingRel = { key: key, current: key === "cur" };
+        renderRelease(p);
+        return;
+      }
+      if (cancel) { editingRel = null; renderRelease(p); return; }
+      if (save) {
+        const cur = !!(editingRel && editingRel.current);
+        const key = editingRel && editingRel.key;
+        editingRel = null;
+        await saveRelEdit(key, cur);
+        await refresh();
+        return;
+      }
+      if (del) {
+        if (del.dataset.delrel === "cur") await deleteCurrentRelease();
+        else await deleteHistory(del.dataset.delrel);
+      }
+    } catch(err){ toast(err.message, "err"); }
   };
 }
 
@@ -774,7 +1122,9 @@ async function upsert(coll, id, body){
 async function load(){
   const [c, r, n, g] = await Promise.all([
     api("/control/records?perPage=1").catch(()=>({items:[]})),
-    api("/release/records?perPage=1").catch(()=>({items:[]})),
+    // [DFW-106] 必须和 App 用**完全一样**的查询：否则控制台显示的"当前版本"
+    // 和用户真正拿到的那一条可能不是同一条（release 的 id 是随机的，排序≠创建时间）。
+    api("/release/records?perPage=1&sort=-id").catch(()=>({items:[]})),
     api("/notice/records?perPage=200&sort=-id").catch(()=>({items:[]})),
     api("/changelog/records?perPage=200&sort=-id").catch(()=>({items:[]}))
   ]);
@@ -782,6 +1132,7 @@ async function load(){
   cache.release = (r.items && r.items[0]) || null;
   cache.notice = (n.items || []);
   cache.changelog = (g.items || []);
+  await loadHistory(cache.histPage);
 }
 
 /**
