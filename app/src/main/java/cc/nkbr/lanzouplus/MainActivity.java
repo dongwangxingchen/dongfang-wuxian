@@ -1123,6 +1123,26 @@ FrameLayout.LayoutParams tp=new FrameLayout.LayoutParams(Math.max(dp(1),Math.min
       in.setVisibility(View.VISIBLE);
       in.animate().alpha(1f).setDuration(DUR_SMALL).setInterpolator(standardEase()).start();
     }).start();
+    /*
+     * [DFW-95] **结算兜底，不能省。**
+     *
+     * 上面靠 `withEndAction` 把 `in` 显示出来。可动画一旦被打断
+     * （快速连按返回、Activity 转后台、系统"动画时长 0"），`withEndAction` 就可能不执行 ——
+     * 结果是 `in` 永远停在 GONE，用户看到的是**一整页空白**。
+     *
+     * 这与 `animatePage` 里那条 600ms 兜底是同一个道理（那里的注释写得很清楚：
+     * "修复动画被打断后结算丢失导致的旧页残留/新页整页不可点"）。
+     * 兜底做成**幂等**的：正常走完时这里什么都不改。
+     */
+    ui.postDelayed(()->{
+      if(in.getVisibility()==View.VISIBLE)return;
+      out.animate().cancel();
+      in.animate().cancel();
+      out.setVisibility(View.GONE);
+      out.setAlpha(1f);
+      in.setVisibility(View.VISIBLE);
+      in.setAlpha(1f);
+    },600);
   }
 
   void exitHomeSearchFocus(){if(!homeSearchFocused){navigateHome();return;}invalidateSearchRenderSurface();homeSearchRequested=false;homeSearchHistoryOnly=true;homeSearchFocused=false;systemBackAction=null;syncBackCallbackEnabled();pageDirection=1;searchBack.setVisibility(View.GONE);fitHomeSearchControls(homeSearchWidth());if(homeSearchBox!=null)homeSearchBox.setBackground(searchBoxShape(false));crossFadeHomeSection(homeHistory,homeLibsBand);search.clearFocus();((android.view.inputmethod.InputMethodManager)getSystemService(INPUT_METHOD_SERVICE)).hideSoftInputFromWindow(search.getWindowToken(),0);if(homeScroll!=null)homeScroll.smoothScrollTo(0,0);clearHomeBrandCiallo();}
