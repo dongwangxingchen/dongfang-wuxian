@@ -21,19 +21,15 @@ import android.webkit.WebViewClient;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 import android.widget.TextView;
-import java.io.BufferedReader;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.nio.charset.StandardCharsets;
 
 /**
- * [DFW-97] 「反馈与建议」页：用 WebView 打开 FlowUs 反馈表，并把它**换肤成《东方无限》的样子**。
+ * [DFW-97] 「反馈与建议」页：用 WebView 打开 FlowUs 反馈表，并让网页走**暗夜模式**。
  *
  * ## 用户原话（2026-10-02）
  * > 「设置页加一个『反馈与建议』的入口，点进去打开 flowus 那个反馈表，
  * > 但是**它的风格和我的软件不一样，你得统一一下**。」
  *
- * ## 换肤为什么不用类名选择器
+ * ## 暗夜模式为什么不用类名选择器
  * FlowUs 是第三方 SPA，类名是构建产物（带哈希、随时会变），
  * 靠 `[class*="banner"]` 这种猜法迟早失效。**实测第一版就是这么翻车的**：
  * 把 `body` 背景刷黑、文字刷成浅色，但真正承载白底的是内层容器 ——
@@ -52,14 +48,25 @@ import java.nio.charset.StandardCharsets;
 public final class FeedbackPage extends Activity {
 
   /** 反馈表地址。FlowUs 分享页，用户 2026-10-02 确认用它。 */
-  static final String FEEDBACK_URL = "https://flowus.cn/dongfang/share/d0183611-c568-4d63-98ed-f28b81dff202";
+  /**
+   * 反馈表地址。**必须是 form 直链，不是 share 分享页。**
+   *
+   * [DFW-97 修正] 第一版放的是分享页 `flowus.cn/dongfang/share/...`，那是**错的**：
+   * 分享页默认开在「填写内容」表格视图，用户还要自己点下拉切到「东方无限App」视图才看得到表单，
+   * 而且默认带 Preview mode 横条（不点它就没有提交按钮）。
+   * 用户 2026-10-02 给出正确地址并指出问题：
+   * > 「你那个反馈问题界面有问题，你放错链接了，应该放这个：…/form/…」
+   *
+   * 换成 form 直链后实测（Playwright）：标题「东方无限App」、7 个输入区、4 个填空、
+   * 2 个文件上传、1 个提交按钮，**没有 Preview mode** —— 打开就是能填的表单。
+   */
+  static final String FEEDBACK_URL = "https://flowus.cn/form/511c82ce-70dd-4a74-82c4-12f3a65d6496?code=NDH3Z3";
 
   static final String EXTRA_URL = "dfwx.feedback.url";
 
   WebView web;
   FrameLayout host;
   LinearLayout thanksBar;
-  String skinScript = "";
   boolean backCallbackRegistered;
   int BG, SURFACE, TEXT, MUTED, DIV, PRIMARY;
 
@@ -79,8 +86,7 @@ public final class FeedbackPage extends Activity {
   @Override public void onCreate(Bundle state) {
     super.onCreate(state);
     applyPalette();
-    skinScript = readAsset("feedback_skin.js");
-
+    
     FrameLayout root = new FrameLayout(this);
     root.setBackgroundColor(BG);
     host = root;
@@ -99,14 +105,14 @@ public final class FeedbackPage extends Activity {
         syncBackCallback();
         // 每次页面加载完都注入一次：FlowUs 是 SPA，内部跳转不会重新触发 onPageFinished，
         // 但刷新/重进时需要重新换肤。
-        injectSkin();
+        injectDarkMode();
       }
     });
     web.setWebChromeClient(new WebChromeClient());
     // 唯一暴露给网页的能力：告诉我们"提交成功了"。**不暴露任何数据、不暴露任何读写方法**。
     web.addJavascriptInterface(new Bridge(), "DFWX");
 
-    root.addView(web, new FrameLayout.LayoutParams(-1, -1));
+    root.addView(web, webParams());
 
     root.addView(buildTopBar(), topBarParams());
     root.addView(buildThanksBar(), thanksParams());
@@ -131,6 +137,23 @@ public final class FeedbackPage extends Activity {
 
   /** 顶栏：返回 + 标题。与 App 内其它二级页同一套观感。 */
   View buildTopBar() {
+    /*
+     * [DFW-97 修正] 顶栏原来只有一个 48dp 的横条、`topMargin = 状态栏高度`，
+     * 而 WebView 是**全屏**的 —— 于是站点的头部（FlowUs 自己的面包屑/标题）
+     * 直接画到状态栏里去，和系统图标叠在一起；用户截图里那一团就是这个。
+     *
+     * 现在改成：外层是一个**不透明的竖直容器**，先垫一条状态栏高度的空白，再放 48dp 的横条。
+     * 同时 WebView 下移「状态栏 + 横条」的高度（见 onCreate），
+     * 站点内容从此不会跑到顶栏底下去。
+     */
+    LinearLayout column = new LinearLayout(this);
+    column.setOrientation(LinearLayout.VERTICAL);
+    column.setBackgroundColor(BG);
+
+    View statusSpacer = new View(this);
+    statusSpacer.setBackgroundColor(BG);
+    column.addView(statusSpacer, new LinearLayout.LayoutParams(-1, statusBarInset()));
+
     LinearLayout bar = new LinearLayout(this);
     bar.setGravity(Gravity.CENTER_VERTICAL);
     bar.setBackgroundColor(BG);
@@ -152,12 +175,19 @@ public final class FeedbackPage extends Activity {
     title.setTextSize(16);
     title.setTypeface(AppFonts.bold(this));
     bar.addView(title, new LinearLayout.LayoutParams(0, dp(48), 1));
-    return bar;
+    column.addView(bar, new LinearLayout.LayoutParams(-1, dp(48)));
+    return column;
   }
 
   FrameLayout.LayoutParams topBarParams() {
-    FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(-1, dp(48), Gravity.TOP);
-    lp.topMargin = statusBarInset();
+    // 高度 -2（WRAP_CONTENT）：容器自己包含"状态栏占位 + 48dp 横条"两段。
+    return new FrameLayout.LayoutParams(-1, -2, Gravity.TOP);
+  }
+
+  /** 网页可视区从「状态栏 + 顶栏」之下开始，站点内容不会顶进状态栏。 */
+  FrameLayout.LayoutParams webParams() {
+    FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(-1, -1);
+    lp.topMargin = statusBarInset() + dp(48);
     return lp;
   }
 
@@ -259,24 +289,12 @@ public final class FeedbackPage extends Activity {
     return true;
   }
 
-  void injectSkin() {
-    if (web == null || skinScript.isEmpty()) return;
-    // 包在 IIFE 里执行，异常不会污染页面全局
-    web.evaluateJavascript(skinScript, null);
+  void injectDarkMode() {
+    // 走共享工具：两个网页页用同一份脚本，不会出现"这个页面变暗了、那个没有"
+    WebDarkMode.apply(this, web);
   }
 
-  String readAsset(String name) {
-    try (InputStream in = getAssets().open(name);
-         BufferedReader reader = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8))) {
-      StringBuilder sb = new StringBuilder();
-      String line;
-      while ((line = reader.readLine()) != null) sb.append(line).append('\n');
-      return sb.toString();
-    } catch (Exception ignored) {
-      // 读不到就退化成"不换肤"——页面本身仍然可用，绝不能因此白屏
-      return "";
-    }
-  }
+
 
   /** 网页 → App 的唯一通道。只有"提交成功"这一个信号，没有任何读写能力。 */
   final class Bridge {

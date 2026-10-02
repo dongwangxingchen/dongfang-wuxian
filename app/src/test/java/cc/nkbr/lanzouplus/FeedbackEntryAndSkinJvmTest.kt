@@ -48,7 +48,7 @@ class FeedbackEntryAndSkinJvmTest {
 
     private val main by lazy { read("app/src/main/java/cc/nkbr/lanzouplus/MainActivity.java") }
     private val page by lazy { read("app/src/main/java/cc/nkbr/lanzouplus/FeedbackPage.java") }
-    private val skin by lazy { read("app/src/main/assets/feedback_skin.js") }
+    private val skin by lazy { read("app/src/main/assets/web_dark_mode.js") }
     private val manifest by lazy { read("app/src/main/AndroidManifest.xml") }
 
     @Test
@@ -85,8 +85,11 @@ class FeedbackEntryAndSkinJvmTest {
             main.contains("startActivity(new Intent(this,FeedbackPage.class))"),
         )
         assertTrue(
-            "必须指向用户确认的那个反馈表地址",
-            page.contains("https://flowus.cn/dongfang/share/d0183611-c568-4d63-98ed-f28b81dff202"),
+            // [DFW-97 修正] 第一版放的是分享页，那是错的：分享页默认开在表格视图，
+            // 还要用户自己点下拉切视图，而且带 Preview mode 横条。
+            // 用户 2026-10-02 给出正确地址并指出问题。
+            "必须指向用户给的那个 form 直链（不是 share 分享页）",
+            page.contains("https://flowus.cn/form/511c82ce-70dd-4a74-82c4-12f3a65d6496?code=NDH3Z3"),
         )
     }
 
@@ -124,7 +127,7 @@ class FeedbackEntryAndSkinJvmTest {
      * 正确写法见 `RenderFolderNullSafetyJvmTest.theGuardActuallyDetectsAnUnguardedCall`。
      */
     private fun skinTouchesPointerEvents(src: String): Boolean =
-        src.contains("pointer-events") || src.contains("pointerEvents")
+        stripJsComments(src).let { it.contains("pointer-events") || it.contains("pointerEvents") }
 
     private fun skinSetsLayoutProperty(src: String, prop: String): Boolean =
         Regex("style\\.setProperty\\(\\s*[\"']" + prop).containsMatchIn(src)
@@ -175,17 +178,53 @@ class FeedbackEntryAndSkinJvmTest {
         )
     }
 
-    /** 预览模式横条只能"找到了才点"，找不到就算了 —— 不许乱点。 */
+    /**
+     * [DFW-97] **所有内置网页都走暗夜模式**（用户 2026-10-02：「我们软件所有网站都打开默认暗夜模式」）。
+     *
+     * 为什么专门守这条：第一版只改了反馈页，蓝奏云网页页没改 ——
+     * 用户看到的就是"有的页面是暗的、有的不是"。两个页面必须共用同一份脚本。
+     */
     @Test
-    fun previewModeIsSkippedOnlyWhenActuallyFound() {
-        assertTrue("必须识别预览模式横条", skin.contains("preview mode"))
+    fun everyWebPageGetsTheSameDarkMode() {
         assertTrue(
-            "必须先确认元素真实可见（宽高都大于 0）再点，避免点空气",
-            skin.contains("getBoundingClientRect") && skin.contains("r.width <= 0"),
+            "必须有共享的暗夜模式工具（否则两个页面各写一套，改一处忘一处）",
+            File(root, "app/src/main/java/cc/nkbr/lanzouplus/WebDarkMode.java").isFile,
+        )
+        val helper = read("app/src/main/java/cc/nkbr/lanzouplus/WebDarkMode.java")
+        assertTrue("脚本文件名必须只有一处硬编码", helper.contains("web_dark_mode.js"))
+
+        val lanzou = read("app/src/main/java/cc/nkbr/lanzouplus/LanzouWebActivity.java")
+        assertTrue("蓝奏云网页页必须也注入暗夜模式", lanzou.contains("WebDarkMode.apply("))
+        assertTrue("反馈页必须也注入暗夜模式", page.contains("WebDarkMode.apply("))
+
+        assertTrue(
+            "注入必须发生在 onPageFinished（页面每次加载完都要来一次）",
+            lanzou.contains("onPageFinished") && lanzou.indexOf("WebDarkMode.apply(") > lanzou.indexOf("onPageFinished"),
         )
         assertTrue(
-            "提交成功要回调 App，让 App 弹自己的提示而不是甩第三方英文 toast",
-            skin.contains("DFWX") && skin.contains("onSubmitted"),
+            "读不到脚本时必须退化成「不换肤」而不是抛异常（绝不能因此白屏）",
+            helper.contains("cached = \"\"") && helper.contains("catch (Exception ignored)"),
+        )
+    }
+
+    /**
+     * [DFW-97 修正] **顶栏不能和状态栏打架。**
+     *
+     * 用户 2026-10-02 的截图里，FlowUs 自己的面包屑和系统状态栏图标叠在一起，
+     * 因为第一版把 WebView 铺满全屏、顶栏只是浮在上面 —— 站点内容就画到状态栏里去了。
+     * 现在：顶栏容器自带状态栏占位，WebView 从「状态栏 + 顶栏」之下开始。
+     */
+    @Test
+    fun theTopBarDoesNotCollideWithTheStatusBar() {
+        assertTrue("顶栏必须有状态栏占位", page.contains("statusBarInset()"));
+        assertTrue("WebView 必须下移到顶栏之下", page.contains("FrameLayout.LayoutParams webParams()"))
+        assertTrue(
+            "下移量必须等于「状态栏 + 顶栏」",
+            page.contains("lp.topMargin = statusBarInset() + dp(48);"),
+        )
+        assertFalse(
+            "顶栏参数里不该再单独加 topMargin（占位已经进到容器里了，重复加会顶两次）",
+            Regex("topBarParams[\\s\\S]{0,200}topMargin").containsMatchIn(page),
         )
     }
 
@@ -206,6 +245,10 @@ class FeedbackEntryAndSkinJvmTest {
             skinTouchesPointerEvents("el.style.pointerEvents = 'none';"),
         )
         assertFalse("干净代码不该被误伤", skinTouchesPointerEvents("el.style.color = '#fff';"))
+        assertFalse(
+            "注释里写「绝不碰 pointer-events」不该被误判（脚本头部的铁律说明里就有这句，本次实际踩到）",
+            skinTouchesPointerEvents(" * 2. **绝不碰 pointer-events** —— 碰了用户就点不动页面。"),
+        )
 
         // ② 改布局属性必须被抓
         assertTrue(

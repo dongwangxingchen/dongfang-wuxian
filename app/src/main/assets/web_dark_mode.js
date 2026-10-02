@@ -1,14 +1,21 @@
-/* 《东方无限》反馈页换肤（WebView 注入版）。
+/* 《东方无限》网页暗夜模式（所有内置网页统一注入）。
  *
- * 为什么**不**用类名选择器：FlowUs 是第三方 SPA，类名是构建产物（带哈希、会变），
- * 靠 `[class*="banner"]` 这种猜法迟早失效。实测第一版就是这么翻车的：
- * 把 body 背景刷成黑、文字刷成浅色，但真正承载白底的是内层容器 ——
- * 结果变成"白底浅字"，**比不换肤还糟**。
+ * ## 用户要求（2026-10-02）
+ * > 「我们软件所有网站都打开默认暗夜模式。」
  *
- * 改成**按计算样式做明度重映射**：遍历 DOM，读每个元素真实的 background-color / color /
- * border-color，接近白的刷成深色、接近黑的刷成浅色、饱和蓝刷成品牌紫。
- * 这样与类名无关，FlowUs 改版也不会失效。
+ * ## 为什么是"按计算样式做明度重映射"，而不是一套 CSS 类名选择器
+ * 第一版用的是 `[class*="flowus"]` 那一套猜法，实测直接翻车：
+ * 把 body 背景刷黑、文字刷成浅色，但**真正承载白底的是内层容器** ——
+ * 结果变成"白底浅字"，比不换肤还糟（Playwright 真实渲染截图取证）。
+ * 现在改成遍历 DOM 读每个元素**真实的** background-color / color / border-color，
+ * 按明度重映射。与类名无关，第三方站点改版也不会失效。
+ *
+ * ## 三条铁律
+ * 1. **只改颜色，绝不改布局** —— 改布局会让站点自己的逻辑错位。
+ * 2. **绝不碰 pointer-events** —— 碰了用户就点不动页面。
+ * 3. 脚本失败只是"没变暗"，页面照样能用（全部包在 try 里）。
  */
+
 (function () {
   var BG = "#000000", SURFACE = "#14121A", TEXT = "#E8E6EF", MUTED = "#8A85A0",
       BORDER = "#3A3350", PRIMARY = "#7C4DFF", PRIMARY_TEXT = "#FFFFFF";
@@ -107,22 +114,5 @@ function detectSubmitted() {
 }
 setInterval(detectSubmitted, 1200);
 
-/* ── 预览模式自动放行 ────────────────────────────────────────────────
-   FlowUs 把分享页默认开在 Preview mode（一条蓝色横条写着 click here to submit），
-   不点它就没有提交按钮 —— 普通用户根本不知道要点。这里自动点掉。
-   只在"确实存在这条横条"时才动手，找不到就算了（不猜、不乱点）。 */
-function skipPreviewMode() {
-  var all = document.querySelectorAll('div,button,a,span');
-  for (var i = 0; i < all.length; i++) {
-    var el = all[i];
-    var t = (el.textContent || "").trim();
-    if (t.length > 60) continue;
-    if (!/preview mode|click here to submit/i.test(t)) continue;
-    var r = el.getBoundingClientRect();
-    if (r.width <= 0 || r.height <= 0) continue;
-    try { el.click(); return true; } catch (e) { return false; }
-  }
-  return false;
-}
-setTimeout(skipPreviewMode, 1500);
-setTimeout(skipPreviewMode, 4000);
+/* 给注入方一个可断言的返回值（evaluateJavascript 能拿到），便于排查"到底跑没跑"。 */
+"dfwx-dark-mode-ok";
