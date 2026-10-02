@@ -52,6 +52,19 @@ def main():
 
     latest = req("GET", "/api/collections/release/records?perPage=1&sort=-id", token)["items"][0]
     current = int(latest.get("versionCode") or 0)
+    # [DFW-115] 注意这里比较用的是 `<`，**相等（code == current）是刻意放行的，不要改成 `<=`。**
+    #
+    # 原因：测试期会用不同的 GitHub tag 重复发**同一个 versionCode**
+    # （tag 是 test-YYYYMMDD-N，版本号一直是 1.0.0 / 10000），改成 `<=` 会把这条工作流直接堵死。
+    #
+    # 与 App 的状态无关：App 比的是「服务器记录 vs 手机已装」，两条都是 10000 时它判定
+    # "已是最新版本" —— 这正是想要的（用户装的确实是同一版）。
+    #
+    # 与**控制台**的差异不矛盾：控制台的「相等硬拦」
+    # （server/dfwx-admin/index.html 的 guardVersionTransition，publish 模式）是
+    # **给人看的 UI 保护** —— 防止有人在网页上忘了改序号就点「发布」，
+    # 静默发出同序号会让用户永远收不到更新（DFW-82 老病）。
+    # CLI 传 CODE 是显式行为，控制台是防手滑；两者不同层。
     if code < current:
         # [DFW-118 路线 B 过渡] 默认仍然拒绝回退 —— 这是对的，回退会让用户收不到更新。
         # 但**换版本编号方案那一次必须放行**：手机上是旧计数器的 10034，

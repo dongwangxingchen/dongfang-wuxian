@@ -91,7 +91,7 @@ docs/adr/ 或 docs/decisions/    MISSING
 | 对象 | 证据 | 说明 |
 |---|---|---|
 | ~~`tools/*.ps1` 7 个~~ **已删除** | `git ls-files tools/`：`count_catch.ps1`、`fix_catch_batch1/3.ps1`、`fix_catch_main.ps1`、`fix_route_region.ps1`、`list_catch_ctx.ps1`、`splice_routeactivity.ps1`；全仓 `grep -rl` 无任何 md/sh/yml 引用；最后一次提交 `2275502`（2026-09-15） | **2026-10-02 由 DFW-122 第 7 条 `git rm` 删除**（7 个，未归档 —— git 历史即归档；删除前 `git grep -E '7 个名字'` 全仓唯一命中就是本行）。原判：Windows 时代一次性脚本，Mac 上不可执行（`lessons.md:94` 自己也标注"仅回 Windows 适用"） |
-| `tools/B3ToolsTest.java`、`ConvertToolsTest.java`、`TextStatsTest.java` | 在 `tools/` 而不是 `app/src/test/`，无任何构建脚本引用 | 不在任何 test 源集里，等于不跑 |
+| ~~`tools/B3ToolsTest.java`、`ConvertToolsTest.java`、`TextStatsTest.java`~~ **已处理** | 原先在 `tools/` 而不是 `app/src/test/`，无任何构建脚本引用 → **不在任何 test 源集里，从来没跑过**；且不含任何 `cc.nkbr.lanzouplus` 导入（自拷算法副本测副本） | **2026-10-02 分两步处理（DFW-122 第 8 条）**：① 先把 69 条用例**移植**成真测试 `app/src/test/java/cc/nkbr/lanzouplus/ToolboxAlgorithmsJvmTest.kt`（改成调真 `Toolbox`，期望值不改）；② 再 `git rm` 这 3 个文件。**没有直接删** —— 理由见 G-7 执行状态块 |
 | `tools/parked-tests/`（6 个） | `lessons.md:67` 说明 paparazzi 与 AGP9 不兼容已停泊 | 停泊是有意为之，但停在 `tools/` 顶层会让人以为是活代码 |
 | `android-build.yml` | 只在 `workflow_dispatch` 触发；`gh run list` 中**从未出现过名为 `android-build` 的运行** | 与 `lanzouplus-empty.yml` 的冒烟编译职责重叠，且它连 `setup-android` 都没有（依赖 runner 预装 SDK） |
 | `docs/agents/lessons.md:54` 的"发版三件套" | 规则写着"每版发布附**用户视角更新说明**（≤10 条）"；全仓 `grep -rn "用户视角更新说明"` **只命中这一行自己** | 规则无人执行；`tools/release.sh:227` 的 Release notes 是 `--notes "东方无限 $tag"` 空壳 |
@@ -234,12 +234,32 @@ Keep a Changelog 的第一条原则就是"Changelogs are *for humans*, not machi
 #### G-7｜Windows 时代死脚本与孤儿测试（等级 A）
 
 **现状**：见 §1.4。`tools/` 下 ~~7 个 `.ps1`~~（**2026-10-02 已按 DFW-122 第 7 条 `git rm` 删除**）、
-3 个孤儿 `.java` 测试、`tools/parked-tests/` 6 个。
+~~3 个孤儿 `.java` 测试~~（**2026-10-02 已按 DFW-122 第 8 条处理，见下**）、`tools/parked-tests/` 6 个。
 
-> ✅ **执行状态（2026-10-02，DFW-122）**：G-7 里的 **7 个 `.ps1` 已删除**；
-> 3 个孤儿测试与 `tools/parked-tests/` 不在本卡范围。删除方式选用 `git rm` 而非本文 P5 原本建议的
-> `git mv` 归档（见 §P5）——理由是项目已有 `git` 历史作为归档，且 DFW-122 验收要求
-> "文档里不再有指向已删除文件的引用"。下方"为什么需要清理"的判断仍然成立。
+> ✅ **执行状态（2026-10-02，DFW-122）**：G-7 里的 **7 个 `.ps1` 已删除**（第 7 条）；
+> **3 个孤儿 `.java` 测试也已处理**（第 8 条）；`tools/parked-tests/` 仍不在本卡范围。
+> 删除方式选用 `git rm` 而非本文 P5 原本建议的 `git mv` 归档（见 §P5）——理由是项目已有 `git` 历史作为归档，
+> 且 DFW-122 验收要求"文档里不再有指向已删除文件的引用"。
+>
+> **第 8 条的处理方式和第 7 条不同，值得记下来。** 卡里原写"3 个孤儿测试 —— 测的对象已经删了，
+> 测试还在跑（假绿）"，**这个前提是错的**。实测：
+> - 这三个文件在 `tools/` 下、不在任何 test 源集里 → **从来没跑过**；
+> - 它们**不 import 任何 app 代码**：文件里自己复制了一份算法，再测这份副本
+>   （三个文件的头行注释都写着"与 `Toolbox.java` 新实现同步的**副本**"）。
+>
+> 所以它们连"假绿"都算不上，是**零信息**：真实现改了它们不会红。
+> 而被复制的 8 个算法（生肖 / 身份证 / 年龄计算、base64 / URL / 时间戳 / 进制 / 摩斯、字数统计）
+> 对应的 9 个工具 id 在 `Toolbox.TOOLS` 里**全都还在** ——
+> 即**用户点得到，却零真覆盖**。真正唯一的真测试 `ToolboxLogicJvmTest.kt` 只覆盖
+> `rgbToHsl` / `colorInfo` / `rmsToDb` 三个，不含上面这批。
+>
+> 处置因此是**先移植、再删**：69 条用例搬进
+> `app/src/test/java/cc/nkbr/lanzouplus/ToolboxAlgorithmsJvmTest.kt`，全部改成调真 `Toolbox`
+> （**期望值一个都没改**，并且用 Python 标准库独立重算了每一个能算的期望值，
+> 而不是照 Java 再抄一遍）。移植过程额外捞到两件事：
+> ① 副本自己有个**星期映射 bug**（`DAY_OF_WEEK-2` 让星期天显示成"周一"），**真实现是对的**；
+> ② 副本硬编码 GMT+8，真实现跟**设备时区**走 —— 不钉时区的话这些向量在 UTC 的 CI 上会红。
+> 下方"为什么需要清理"的判断仍然成立。
 
 **为什么这个仓库需要清理**：
 `lessons.md:68` 自己标注"命令速查（**Windows 时代**，仅回 Windows 适用）"，`lessons.md:94` 标注 PowerShell 坑"仅回 Windows 适用"，
@@ -416,7 +436,13 @@ GitHub runner 上是否可下载**尚未验证**（本机可下载不等于 runn
   原建议的归档方案没有采纳，理由：`git` 历史本身就是不可删除的归档（`git show 2275502:tools/count_catch.ps1` 永远可取回），
   而 `docs/archive/` 按 `docs/archive/README.md` 的定位是**文档**归档；把这 7 个 Windows 时代脚本搬进去，
   等于把"误导下一位接手者"的东西从 `tools/` 挪到了另一个他会看到的地方。删除前已 `git grep` 全仓确认零引用。
-- `git mv tools/{B3ToolsTest,ConvertToolsTest,TextStatsTest}.java tools/parked-tests/`；
+- ~~`git mv tools/{B3ToolsTest,ConvertToolsTest,TextStatsTest}.java tools/parked-tests/`~~；
+  ✅ **实际执行（2026-10-02，DFW-122 第 8 条）：先把 69 条用例移植成真测试
+  （`app/src/test/java/cc/nkbr/lanzouplus/ToolboxAlgorithmsJvmTest.kt`，改成调真 `Toolbox`），再 `git rm` 原文件。**
+  原建议的"挪进 `parked-tests/`"没有采纳：`parked-tests/` 是**停泊的预览测试**
+  （paparazzi 与 AGP9 不兼容才停的），把这 3 个挪进去只会换个地方继续误导；
+  而且它们里面是**真有价值的测试向量**（GB/T 2260 省级区划码表、寿星公式立春、RFC 4648 向量），
+  该做的是**变成真测试**，不是停泊。详见 G-7 的执行状态块；
 - 删除 `.github/workflows/android-build.yml`（从未运行、与冒烟工作流重复）；
 - `tools/` 下另加一行 `README.md`，写清"入口只有 `ci-gate.sh` / `release.sh` / `dfwx-publish-apk.sh`"。
 

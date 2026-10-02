@@ -5,13 +5,83 @@
 >
 > 审计对象：`tools/release.sh`、`tools/dfwx-publish-apk.sh`、`tools/bump-version.sh`（只读）、
 > `server/dfwx-pb/set-release.py`。
-> 全部结论都带复现命令或 `文件:行号`。**本文件只报告，不改任何脚本**（改动由 Lead 决定）。
+> 全部结论都带复现命令或 `文件:行号`。
 
 审计时间：2026-10-03。审计时线上版本 `1.0.0 / versionCode 10000`。
 
 ---
 
-## 结论速览（按严重度排序）
+## 修复状态（2026-10-03 Lead 批准后本轮执行）
+
+| # | 位置 | 状态 | 验证 |
+|---|---|---|---|
+| 1 | `dfwx-publish-apk.sh` 的 `;` | ✅ **已修**（`rc=$?; rm; exit $rc`）+ **回读断言**双保险 | 反向探针：改前 0 → 改后 **3** |
+| 2 | `dfwx-publish-apk.sh` 可达性 | ✅ **已修**（断言 200 + **下载回来重算 sha256**） | 反向探针：改前 0 → 改后 **1** |
+| 3 | 两个脚本的版本身份 | ✅ **已修**（`aapt dump badging` 断言 `versionName==VER && versionCode==CODE`，两处都加） | 反向探针：`v1.0.0` 的包 + `v1.0.5` → 两处**都被拒** |
+| 4 | 整条链没有编排 | ⏸ **本轮不做**（Lead 决定今晚手工三步、每步有输出可核）—— 见文末「下一步」 | — |
+| 5 | `cmd_build` 不与 `val appVersionName` 对账 | ✅ **已修** | 静态（`cmd_build` 要跑 gradle，本轮未执行） |
+| 6 | `ls \| head -1` 任取 | ✅ **已修**（必须恰好 1 个，否则 fail） | 静态 |
+| 7 | `cp` 覆盖归档 | ✅ **已修**（已存在就 fail，附改名建议） | 静态 |
+| 8 | `set-release.py` 的 `<` | ✅ **保持 `<`** + 补注释说明为何刻意放行 | `py_compile` 通过 |
+| — | `/api/version.json` | ✅ **已按 A 案执行**：删掉 `latest` 块 | 结构校验：顶层键只剩 `version/deprecated/channel/notes` |
+
+**本轮唯一未做的是第 4 项（编排）**，Lead 明确指示今晚手工三步发版，故留作下一张卡。
+
+### 反向探针怎么跑（可复现）
+
+脚本里用 `# >>> DFWX-PROBE:<名字>` / `# <<< DFWX-PROBE:<名字>` 把三段关键逻辑圈了出来，
+可以直接抽出来单独跑 —— 这样探针测的是**脚本里的真实代码**，不是抄一份。
+
+```bash
+cd ~/heiyao/src
+P=tools/dfwx-publish-apk.sh
+
+# ① P0：远程同步的退出码
+awk '/^# >>> DFWX-PROBE:sync_release_record$/,/^# <<< DFWX-PROBE:sync_release_record$/' $P > /tmp/probe_sync.sh
+scp -q server/dfwx-pb/set-release.py dfwx:/tmp/set-release.py     # 探针要它存在
+( source /tmp/probe_sync.sh; sync_release_record 0.9.9 9999 $(printf 'a%.0s' $(seq 1 64)) 123 0 ); echo $?
+#   → 3（非 0）。改前是 0。这条用回退守卫触发，**不写库**
+
+( source /tmp/probe_sync.sh; verify_release_record 10005 <真实sha> ); echo $?
+#   → 1（回读断言能独立发现问题）
+
+# ② P1：可达性
+awk '/^# >>> DFWX-PROBE:verify_public_apk$/,/^# <<< DFWX-PROBE:verify_public_apk$/' $P > /tmp/probe_public.sh
+( source /tmp/probe_public.sh; verify_public_apk 根本不存在-v9.9.9.apk <sha> 999 ); echo $?
+#   → 1（非 0）。改前是 0
+
+# ③ P1-3：版本身份
+awk '/^# >>> DFWX-PROBE:assert_apk_identity$/,/^# <<< DFWX-PROBE:assert_apk_identity$/' $P > /tmp/probe_identity.sh
+( source /tmp/probe_identity.sh; assert_apk_identity <v1.0.0的包> 1.0.5 10005 ); echo $?
+#   → 1（非 0）。改前会放行
+bash tools/release.sh publish v1.0.5 <v1.0.0的包>        # 默认 dry-run，安全
+#   → ❌ 失败：包内 versionName=1.0.0，与 tag v1.0.5 不一致 —— 拒绝把旧包当新版本发出去
+```
+
+> ⚠️ **正对照也要跑**（不然守卫可能只是"永远失败"）：
+> `assert_apk_identity <包> 1.0.0 10000` → 0；`sync_release_record 1.0.0 10000 <真实sha> 36837310 0` → 0；
+> `verify_public_apk dongfang-wuxian-v1.0.0.apk <真实sha> 36837310` → 0。
+> 本轮三组正对照**都过了**。
+
+### 顺手抓到的一个自己的 bug（值得记）
+
+新写的提示里有三处 `$real_code，`（变量后面**紧跟中文标点**）。实测这种写法会被 bash
+吞掉变量值 —— 打出来是 `versionCode=��且`。改用 `${real_code}` 花括号即可。
+`tools/release.sh` 与 `tools/dfwx-publish-apk.sh` 已用正则全量扫过，现在**零命中**：
+
+```bash
+python3 -c "
+import re
+for p in ['tools/release.sh','tools/dfwx-publish-apk.sh']:
+    s=open(p,encoding='utf-8').read()
+    h=[(i,m.group(1)) for i,l in enumerate(s.split(chr(10)),1) for m in re.finditer(r'\\\$([A-Za-z_][A-Za-z0-9_]*)([^\x00-\x7F])',l)]
+    print(p, '✅ 干净' if not h else h)
+"
+```
+
+---
+
+## 结论速览（按严重度排序；状态见上表）
 
 | # | 严重度 | 位置 | 一句话 |
 |---|---|---|---|
@@ -22,7 +92,10 @@
 | 5 | P2 | `tools/release.sh:177-178` vs `:73-75` | `cmd_build` 不比对「APK 的 versionName」与 `val appVersionName`（唯一数字源） |
 | 6 | P2 | `tools/release.sh:166` | `ls ... \| head -1` 多包时任取其一（今天只有 1 个，属潜在） |
 | 7 | P3 | `tools/release.sh:184` | `cp` 会静默覆盖同名归档，丢掉已发布的那份字节 |
-| 8 | P3 | `server/dfwx-pb/set-release.py:55` | 守卫是 `<` 不是 `<=`：CLI 路径允许重复发同一 versionCode，与控制台「相等硬拦」不一致 |
+| 8 | P3 | `server/dfwx-pb/set-release.py:55` | 守卫是 `<` 不是 `<=`：CLI 路径允许重复发同一 versionCode，与控制台「相等硬拦」不一致（**Lead 决定保持 `<`**） |
+
+> 下文各节保留的是**修复前**的原始分析（含复现输出），作为"为什么要这么改"的留存证据；
+> 行号对修好后的脚本已经偏移，看行号请以「修复状态」表为准。
 
 ---
 
@@ -495,4 +568,85 @@ private static final String API = BASE + "/api/collections/";
 
 顺带：`/api/*.json` 的 nginx 块已经带了 `Cache-Control: no-store`（`sites-available/dfwx:41-50`），
 所以**没有**"客户端缓存了旧数据"这一层额外风险 —— 退役时不用考虑缓存失效。
+
+### 5）✅ 本轮已执行 A 案（2026-10-03）
+
+`latest` 块已删除。备份留在服务器上：
+`/var/www/dfwx/api/version.json.bak-20261003-015003`（786 字节，md5 `5e25f8812cf0266d7b7b72650e7bbeb5`）。
+
+改完 `curl` 回来的实际内容：
+
+```
+$ curl -s http://39.106.33.135/api/version.json
+{
+  "version": 1,
+  "deprecated": true,
+  "channel": "stable",
+  "notes": [
+    "本文件已废弃，没有任何代码读它。",
+    "[DFW-115 2026-10-03] 原先这里有一个 latest 块，内容停在 1.0.21 / versionCode 10021，",
+    "而当时线上真实版本是 1.0.0 / versionCode 10000 —— 按字段读的客户端只看 latest，",
+    "不会读兄弟节点里的 notes，于是会把一个更老的构建当成升级包（而那个 APK 当时也还在，确实能下）。",
+    "已删除 latest 块：保留本文件只为不让旧链接 404，但不再对外提供任何版本信息。",
+    "App 真正的、唯一的更新源是 PocketBase：",
+    "  http://39.106.33.135/pb/api/collections/release/records?perPage=1&sort=-id",
+    "发版时请改 PocketBase 的 release 记录，不要改这里。"
+  ]
+}
+```
+
+结构性验证（**不要用 `grep latest` 判断** —— `notes` 里作为说明文字出现过若干次，
+会误报；要按 JSON 结构看）：
+
+```
+$ curl -s http://39.106.33.135/api/version.json | python3 -c '...'
+  顶层键        : ['version', 'deprecated', 'channel', 'notes']
+  有 latest 键吗: ✅ 没有
+  有 versionCode: ✅ 没有（非 notes 部分）
+  deprecated    : True
+  notes 条数    : 8
+  → 任何按字段读的客户端现在都拿不到版本号 ✅
+
+$ curl -s -o /dev/null -w "%{http_code} %{size_download}\n" http://39.106.33.135/api/version.json
+200 833
+```
+
+旧链接仍返回 200（不 404），但已经没有 `latest` 可供机器读取。
+
+---
+
+# 五、下一步（明确留给下一张卡）
+
+## 5.1 发布链编排 —— 本轮**未做**，Lead 指示留作独立卡
+
+今晚的发版仍走**手工三步**（`bump-version` → `release.sh build` → `release.sh publish` →
+`dfwx-publish-apk.sh`），Lead 明确选择"宁可手工、每步有输出可核"。
+
+这仍然是 **DFW-82 的原形**：GitHub 与自有服务器是两次独立操作，
+任何一次跑一半就是「只改了记录没换包 / 只换了包没改记录」。
+建议单独开卡：加 `tools/release-all.sh`（或在 `release.sh publish` 成功后调用
+`dfwx-publish-apk.sh`），任一步失败立即 `exit 1` —— 三条分发路径要么全绿、要么全红。
+
+## 5.2 本轮**没能端到端验证**的两处（诚实登记）
+
+1. **`cmd_build` 的三处改动**（APK 数量断言、与 `val appVersionName` 对账、归档已存在就 fail）
+   都只在 `cmd_build` 里，而 `cmd_build` 要跑 gradle —— Lead 本轮占用 gradle 跑 DFW-124，
+   明确要求不要跑。所以这三处**只做了 `bash -n` 与静态复核，没有实跑**。
+   下一轮发版时它们会第一次真正执行，请留意输出里有没有
+   「包内版本与 build.gradle.kts 一致」这一行。
+2. **`dfwx-publish-apk.sh` 的完整端到端**（scp → 远端 sha256 → 同步 → 回读 → 外网重算）
+   没有真跑过，因为那会真发一次版。三段逻辑各自的反向探针 + 正对照都单独跑过了
+   （见上文「反向探针怎么跑」），但**串起来跑是第一次由 Lead 的发版来验证**。
+
+## 5.3 建议 Lead 发版时重点看的三行输出
+
+```
+✅ 包内版本核对一致：versionName=1.0.0 versionCode=10000        ← 身份断言（新增）
+✅ release 记录同步命令返回 0                                    ← 退出码透出（新增）
+✅ 回读确认：release 记录已指向 versionCode=10000，且 sha256 一致  ← 回读断言（新增）
+✅ 外网下载并重算一致：36837310 字节 / f3dfe0ec…                 ← 下载回算（新增）
+```
+
+这四行都出现，才算这次发版"真的两头都对上了"。
+**任何一行没出现、或脚本提前退出，就是它拦住了某件本来会静默发生的事** —— 不要绕过。
 

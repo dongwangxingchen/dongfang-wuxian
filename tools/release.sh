@@ -162,9 +162,20 @@ cmd_build() {
   step "构建 arm64 release（${RELEASE_TASK}）"
   ./gradlew -p "$REPO_ROOT" "$RELEASE_TASK"
 
-  local apk
-  apk="$(ls app/build/outputs/apk/empty/release/*.apk 2>/dev/null | head -1 || true)"
-  [[ -n "$apk" && -f "$apk" ]] || fail "未产出 release APK"
+  # [DFW-115] 原来这里是 `ls app/build/outputs/apk/empty/release/*.apk | head -1`。
+  # 目录里多于一个 APK 时会**静默取字典序最小的那个**，可能把一个旧包归档并发布出去。
+  # 现在改成「必须恰好一个，否则停下来」。刻意不用数组：macOS 自带的 bash 3.2 在
+  # `set -u` 下展开空数组会报 unbound variable。
+  local apk="" count=0 listing="" f
+  for f in app/build/outputs/apk/empty/release/*.apk; do
+    if [[ -f "$f" ]]; then
+      count=$(( count + 1 ))
+      listing="${listing}${listing:+ }$f"
+      if [[ "$count" -eq 1 ]]; then apk="$f"; fi
+    fi
+  done
+  [[ "$count" -eq 1 ]] \
+    || fail "release 目录下应恰好有 1 个 APK，实际 ${count} 个：${listing:-无}（不许任取一个）"
 
   local aapt; aapt="$(aapt_bin)"
 
@@ -178,9 +189,26 @@ cmd_build() {
   code="$(grep -oE "versionCode='[^']+'" /tmp/dfwx-rel-badging.txt | head -1 | sed "s/versionCode='\(.*\)'/\1/")"
   [[ -n "$name" ]] || fail "读不到 versionName"
 
+  # [DFW-115] 与「唯一数字源」对账。
+  # 上面 name/code 读的是**盘上的那个包**；cmd_verify 读的是 app/build.gradle.kts
+  # 里**应该发什么**。这两处以前从不比对 —— 于是「gradle 没吃到新版本号」
+  # （构建复用旧产物、bump-version.sh 只改了一半…）会静默按**旧版本**归档，
+  # 并提示「下一步 publish v旧版本」，全程不报错。
+  local src_name
+  src_name="$(grep -oE 'val appVersionName = "[0-9]+\.[0-9]+\.[0-9]+"' app/build.gradle.kts | head -1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')"
+  [[ -n "$src_name" ]] || fail "读不到 app/build.gradle.kts 里的 val appVersionName"
+  [[ "$name" == "$src_name" ]] \
+    || fail "盘上这个包的 versionName=${name}，但 app/build.gradle.kts 写的是 ${src_name} —— 构建没有产出新版本，拒绝按旧包归档/发布"
+  ok "包内版本与 build.gradle.kts 一致：${name} (${code})"
+
   step "归档到 黑曜/03-构建产物/（不删旧包）"
   mkdir -p "$ARCHIVE_DIR"
   local target="$ARCHIVE_DIR/dongfang-wuxian-v${name}.apk"
+  # [DFW-115] 铁律是「不删旧包」。原来直接 cp 会**静默覆盖**同名归档，
+  # 如果那份正是已经发出去的字节，就再也无法比对复现了。已存在就停下来让人决定。
+  [[ -e "$target" ]] && fail "归档已存在：${target}
+静默覆盖会丢掉已发布的那份字节（铁律：不删旧包）。
+要重发同一版本，请先把旧的那份改名（例如加 -prev-$(date +%Y%m%d-%H%M%S)）再重跑。"
   cp "$apk" "$target"
   local sha; sha="$(shasum -a 256 "$target" | awk '{print $1}')"
   local size; size="$(stat -f%z "$target" 2>/dev/null || stat -c%s "$target")"
@@ -215,6 +243,26 @@ cmd_publish() {
   bytes="$(LC_ALL=C printf '%s' "$asset" | wc -c | tr -d ' ')"
   chars="$(printf '%s' "$asset" | wc -m | tr -d ' ')"
   [[ "$bytes" == "$chars" ]] || fail "资产名必须纯 ASCII（字节数 $bytes ≠ 字符数 ${chars}）：$asset"
+
+  # [DFW-115] 断言「包内真实版本」==「tag 里的版本」。
+  #
+  # 原来的三道核对全是**自洽性**检查：本机 sha ↔ 远端同一个文件的 digest、
+  # 直链 200 + PK 头、AGPL 署名 —— 没有一道能发现「要发的这个包是旧的」。
+  # `release.sh publish v1.0.5 <v1.0.0 的包>` 会一路打印「✅ 发布完成并通过全部核对」，
+  # 而资产 dongfang-wuxian-v1.0.5.apk 装出来是 1.0.0 → 用户装完仍被提示更新（更新死循环）。
+  # 放在 dry-run 之前，这样干跑就能发现。
+  local aapt badging real_name real_code want_code
+  aapt="$(aapt_bin)"
+  badging="$("$aapt" dump badging "$apk" 2>/dev/null || true)"
+  [[ -n "$badging" ]] || fail "aapt 读不出这个包（不是合法 APK？）：${apk}"
+  real_name="$(grep -oE "versionName='[^']+'" <<<"$badging" | head -1 | sed "s/versionName='\(.*\)'/\1/")"
+  real_code="$(grep -oE "versionCode='[^']+'" <<<"$badging" | head -1 | sed "s/versionCode='\(.*\)'/\1/")"
+  want_code="$(awk -F. '{ printf "%d", $1 * 10000 + $2 * 100 + $3 }' <<<"$version")"
+  [[ "$real_name" == "$version" ]] \
+    || fail "包内 versionName=${real_name}，与 tag v${version} 不一致 —— 拒绝把旧包当新版本发出去"
+  [[ "$real_code" == "$want_code" ]] \
+    || fail "包内 versionCode=${real_code}，由 ${version} 推导应为 ${want_code}"
+  ok "包内版本与 tag 一致：${real_name} (${real_code})"
 
   # 上传前先复制成 ASCII 名（v1.22.8 事故：中文名被剥离导致 404）
   local upload_src="/tmp/${asset}"
