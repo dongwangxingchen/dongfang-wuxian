@@ -663,7 +663,16 @@ trigger.addView(value,new LinearLayout.LayoutParams(0,dp(54),1));arrow=new Image
   TextView text(String s,int sp,int color,int weight){TextView v=text(s,sp,color);v.setTypeface(weight>=650?AppFonts.bold(this):weight>=500?AppFonts.medium(this):AppFonts.normal(this));return v;}
   /** v1.19.7 形状 Token 归档（wear-ui-system.md §4）：radius≥24→26(Panel)，14–23→20(Card)，5–13→8(Micro 内嵌小块)，<5 原样(指示条)。历史 14 种圆角经此收敛为四档+指示条，调用点零改动。 */
   public GradientDrawable solidShape(int color,int radius){GradientDrawable g=new GradientDrawable();g.setColor(color);g.setCornerRadius(dp(radius>=24?26:radius>=14?20:radius>=5?8:radius));return g;}
-  String friendlyError(Throwable error){String raw=error==null||error.getMessage()==null?"":error.getMessage().trim(),lower=raw.toLowerCase(Locale.ROOT);if(raw.contains("分享已取消"))return"分享已取消";if(raw.contains("不受信任")||raw.contains("跳转"))return"该源已失效或跳转异常";if(raw.contains("超时")||lower.contains("timeout")||lower.contains("timed out"))return"连接超时，请稍后重试";if(raw.contains("密码"))return raw;if(raw.contains("过快")||raw.contains("频率")||raw.contains("受限"))return"请求频率受限，请稍后重试";if(raw.contains("ACW"))return"蓝奏验证暂不可用，请稍后重试";if(lower.contains("socket")||lower.contains("connect")||lower.contains("host")||raw.contains("网络"))return"网络连接异常，请稍后重试";if(raw.startsWith("请输入")||raw.startsWith("无法")||raw.startsWith("未获得")||raw.startsWith("没有"))return raw;return"操作失败，请稍后重试";}
+  String friendlyError(Throwable error){
+    /*
+     * [DFW-101] 全站**唯一**的"把异常变成给人看的话"的出口，47 个调用点都从这里过。
+     *
+     * 所以这一行等于给"任何会显示给用户的错误"自动装上了留证 ——
+     * 不需要在任何一个具体 bug 旁边插埋点，也不会漏掉还没被发现的那些。
+     * 这就是"不做针对性埋点"：给**通道**打点，不是给**已知故障**打点。
+     */
+    DfLog.failure("ui","user-visible-error",error);
+    String raw=error==null||error.getMessage()==null?"":error.getMessage().trim(),lower=raw.toLowerCase(Locale.ROOT);if(raw.contains("分享已取消"))return"分享已取消";if(raw.contains("不受信任")||raw.contains("跳转"))return"该源已失效或跳转异常";if(raw.contains("超时")||lower.contains("timeout")||lower.contains("timed out"))return"连接超时，请稍后重试";if(raw.contains("密码"))return raw;if(raw.contains("过快")||raw.contains("频率")||raw.contains("受限"))return"请求频率受限，请稍后重试";if(raw.contains("ACW"))return"蓝奏验证暂不可用，请稍后重试";if(lower.contains("socket")||lower.contains("connect")||lower.contains("host")||raw.contains("网络"))return"网络连接异常，请稍后重试";if(raw.startsWith("请输入")||raw.startsWith("无法")||raw.startsWith("未获得")||raw.startsWith("没有"))return raw;return"操作失败，请稍后重试";}
   GradientDrawable shape(int color,int radius){GradientDrawable g=new GradientDrawable();g.setColor(color);g.setCornerRadius(dp(radius));g.setStroke(dp(1),BORDER);return g;}
   public Drawable filterRipple(Drawable content){
     return new RippleDrawable(android.content.res.ColorStateList.valueOf(ThemeEngine.tint(PRIMARY,42)),content,null);
@@ -2928,9 +2937,9 @@ content=new LinearLayout(this);content.setOrientation(LinearLayout.VERTICAL);pag
     dialog.setCanceledOnTouchOutside(false);showRounded(dialog);
   }
   void confirmClearCrashLog(){AlertDialog dialog=new AlertDialog.Builder(this).setTitle("清除崩溃记录？").setMessage("会删掉最近一次崩溃的堆栈、crash.log 历史，以及 "+crashFolderLabel()+" 里已导出的报告文件。清除后无法恢复。").setNegativeButton("取消",null).setPositiveButton("清除",(d,w)->{clearCrashArtifacts();showNotice("崩溃记录已清除",false);pageDirection=0;showCrashLogPage();}).create();dialog.setCanceledOnTouchOutside(false);showRounded(dialog);}
-  void clearCrashArtifacts(){me.rerere.rikkahub.utils.CrashHandler.INSTANCE.clearCrashed(this);deleteQuietly(privateCrashLogFile());try{if(storageAccessGranted()){deleteQuietly(App.publicCrashLogFile());for(java.io.File file:crashReportFiles())deleteQuietly(file);}}catch(Exception ignored){android.util.Log.w("MainActivity","MainActivity Exception: "+ignored.getMessage(),ignored);}}
+  void clearCrashArtifacts(){me.rerere.rikkahub.utils.CrashHandler.INSTANCE.clearCrashed(this);deleteQuietly(privateCrashLogFile());DfLog.clear();try{if(storageAccessGranted()){deleteQuietly(App.publicCrashLogFile());for(java.io.File file:crashReportFiles())deleteQuietly(file);}}catch(Exception ignored){android.util.Log.w("MainActivity","MainActivity Exception: "+ignored.getMessage(),ignored);}}
   /** 崩溃报告正文：最近一次堆栈 + crash.log 历史 + 环境诊断。环境段统一取 App.diagnostics()，避免两处各写各的。 */
-  String buildCrashReport(){StringBuilder report=new StringBuilder();String latest=me.rerere.rikkahub.utils.CrashHandler.INSTANCE.getStackTrace(this);if(latest!=null&&!latest.trim().isEmpty())report.append("── 最近一次崩溃（最新） ──\n").append(latest.trim()).append("\n\n");String history=crashLogTail();if(!history.isEmpty())report.append("── crash.log 历史（最多最近 12K） ──\n").append(history).append("\n\n");if(report.length()==0)return "";report.append("── 环境诊断 ──\n").append(App.diagnostics());
+  String buildCrashReport(){StringBuilder report=new StringBuilder();String latest=me.rerere.rikkahub.utils.CrashHandler.INSTANCE.getStackTrace(this);if(latest!=null&&!latest.trim().isEmpty())report.append("── 最近一次崩溃（最新） ──\n").append(latest.trim()).append("\n\n");String history=crashLogTail();if(!history.isEmpty())report.append("── crash.log 历史（最多最近 12K） ──\n").append(history).append("\n\n");if(report.length()==0&&DfLog.readForExport().isEmpty())return "";report.append("── 环境诊断 ──\n").append(App.diagnostics());
     /*
      * [DFW-88] **把下载解析日志也带进报告。**
      *
@@ -2955,7 +2964,27 @@ content=new LinearLayout(this);content.setOrientation(LinearLayout.VERTICAL);pag
       }
     }catch(Throwable ignored){
       // 报告本身绝不能因为附加上下文而失败
-    };return report.toString();}
+    }
+    /*
+     * [DFW-101] **统一事件日志整段带走。**
+     *
+     * 这是"任何不合理问题都留下现场"的最后一步：前面那些机制负责**记**，
+     * 这里负责让用户**拿得到**。否则又是一次"埋点加了却取不出来"（DFW-88 的教训）。
+     * 上限 24K，避免报告大到分享/剪贴板放不下。
+     */
+    try{
+      String events=DfLog.readForExport();
+      report.append("\n── 应用事件日志（DFW-101 全量现场，最多最近 24K） ──\n");
+      if(events.isEmpty()){
+        report.append("（还没有记录）\n");
+      }else{
+        report.append(events);
+        if(!events.endsWith("\n"))report.append("\n");
+      }
+    }catch(Throwable ignored){
+      // 报告本身绝不能因为附加上下文而失败
+    }
+    return report.toString();}
   /** 报告文件名用纯 ASCII（时间 + 版本号）：中文名在分享/保存链路上会被截断（同 v1.22.8 发版资产名事故根因）。 */
   /** DFW-29：实现已迁到 {@link CrashLogStore}；此处保留转发，外部调用点不变。 */
   String crashReportFileName(){return CrashLogStore.reportFileName(BuildConfig.VERSION_NAME);}
@@ -4814,6 +4843,25 @@ if(motionEnabled()){panel.setAlpha(0f);panel.setTranslationY(-dp(8));panel.anima
   void showTopBanner(String message,int durationMs,int iconRes){
     if(isFinishing()||isDestroyed())return;
     final String msg=(message==null||message.trim().isEmpty())?"操作未完成":message;
+    /*
+     * [DFW-101] 记面包屑（**纯内存，不落盘**）。
+     *
+     * 放在这里而不是 `showNotice` 里：这个方法是**顶部通知条唯一的构造点**
+     * （`showNotice`/`showUpdateNotice`/下载完成/错误提示四条路径都汇到这里，
+     * 见本方法上方的注释与 DFW-73）。所以这一行等于自动记下"应用对用户说过的每一句话"，
+     * 不需要在 139 个调用点上各插一次。
+     *
+     * 用户回头报"卡住了/没反应"时，这条时间线能立刻区分
+     * 「什么都没提示」和「提示了但用户没看懂」——那是两种完全不同的故障。
+     * 只进内存是因为提示太频繁，落盘会把真正的事故挤出去。
+     *
+     * [Lead 修正 2026-10-02] 事件名用 `notice` 而不是 `banner`：
+     * 埋点位置确实在"通知条构造点"，但**日志里该记的是发生了什么、不是用什么控件显示的**——
+     * 哪天通知条换成别的控件，`banner` 这个名字就变成假话了。
+     * 另外测试侧三处（`DfLogWiringJvmTest.kt:119/130`、`DfLogJvmTest.kt:296`）
+     * 都按 `notice` 写，代码这一处是唯一的离群值。
+     */
+    DfLog.breadcrumb("ui","notice","msg",msg);
     final ViewGroup container=sheetHost();
     if(container==null)return;
     // 先把旧条摘下来再 dismiss：dismiss 是带动画的异步过程，它的 onDismissed 回调会在几百毫秒后

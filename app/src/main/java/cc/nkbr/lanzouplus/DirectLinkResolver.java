@@ -127,14 +127,24 @@ final class DirectLinkResolver implements AutoCloseable {
   // 定位完成后这段埋点可以保留（开销极小，只在解析时各写一行），
   // 因为它解决的是"以后同类问题怎么快速定位"，不是一次性的。
   private static void trace(String message){
+    /*
+     * [DFW-101] 两个出口，各管一段，缺一不可：
+     *  ① 统一事件流（DfLog）—— 落在**应用私有目录**，不需要任何权限，一定写得进去；
+     *  ② 历史遗留的 download.log —— 落在公共目录，用户能直接翻到，
+     *     但 Android 11+ 没有「管理所有文件」权限时写入会**静默失败**。
+     * 以前只有 ②，于是在新系统上"解析现场"经常是空的 —— 埋点等于没埋。
+     *
+     * 两处写入都走 DfLog 的**同一把锁**：历史上 `DirectLinkResolver` 与 `LanzouCore`
+     * 各写一份 download.log、谁都没加锁，并发时行会互相插入（DFW-14 同类问题，
+     * 当时只修了 crash.log，这个文件漏掉了）。
+     */
+    DfLog.event("resolve","trace","msg",message);
     try{
       File dir=new File(Environment.getExternalStorageDirectory(),"Download/东方无限/崩溃日志");
       if(!dir.exists()&&!dir.mkdirs())return;
       File file=new File(dir,"download.log");
-      if(file.exists()&&file.length()>256*1024)file.delete();
-      String line=new SimpleDateFormat("MM-dd HH:mm:ss.SSS",Locale.US).format(new Date())+"  "+message+"\n";
-      FileOutputStream out=new FileOutputStream(file,true);
-      try{out.write(line.getBytes(StandardCharsets.UTF_8));}finally{out.close();}
+      String line=new SimpleDateFormat("MM-dd HH:mm:ss.SSS",Locale.US).format(new Date())+"  "+message;
+      DfLog.appendLocked(file,line);
     }catch(Throwable ignored){
       // 埋点绝不能影响主流程
     }

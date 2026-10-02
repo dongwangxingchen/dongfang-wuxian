@@ -61,6 +61,7 @@ public class App extends me.rerere.rikkahub.RikkaHubApp {
     public void onCreate() {
         // DFW-29：把真实日志出口注入 CrashLogStore（默认是空实现，便于纯 JVM 单测）。
         CrashLogStore.setLogger((message,error)->android.util.Log.w("CrashLogStore",message,error));
+        installEventLog();
         installCrashLogger();
         // [DFW-73] 内置渠道配置必须赶在 super.onCreate() 之前注入：RikkaHub 的 Application.onCreate
         // 会立刻触发渠道同步，晚一步这一轮就同步不到配置（下一次启动才生效）。
@@ -91,8 +92,44 @@ public class App extends me.rerere.rikkahub.RikkaHubApp {
         final Thread.UncaughtExceptionHandler previous = Thread.getDefaultUncaughtExceptionHandler();
         Thread.setDefaultUncaughtExceptionHandler((thread, throwable) -> {
             writeCrashLog("UNCAUGHT thread=" + thread.getName(), throwable);
+            /*
+             * [DFW-101] 崩溃时额外抓一次**全线程**现场。
+             *
+             * 只记抛出异常那个线程的栈是不够的：崩溃经常是"后台线程持锁不放 → 主线程等超时 →
+             * 某处抛异常"，真凶在另一个线程上。崩溃本身是低频事件，全量线程栈的开销完全付得起。
+             */
+            DfLog.scene("uncaught:" + thread.getName());
             if (previous != null) previous.uncaughtException(thread, throwable);
         });
+    }
+
+    /**
+     * [DFW-101] 装配统一事件日志 + 主线程卡死看门狗。
+     *
+     * 为什么放在 Application 而不是某个 Activity：
+     *  - 日志目录只需要一个权威来源，放这里就不会出现"两个页面各写各的"；
+     *  - 卡死可能发生在 Activity 还没起来的时候（`super.onCreate()` 里那一段就是历史事故点），
+     *    看门狗必须比任何界面都早。
+     *
+     * 目录选择沿用 `crash.log` 的双写思路：私有目录是权威副本（不需要任何权限），
+     * 公共 `Download/东方无限/崩溃日志/` 是给用户手取的副本（写不进去就自动放弃，不影响前者）。
+     */
+    private void installEventLog() {
+        File primary = null;
+        try {
+            primary = getExternalFilesDir(null);
+            if (primary == null) primary = getFilesDir();
+        } catch (Throwable ignored) {
+            // 取不到目录就退化成"不记日志"，绝不因此影响启动
+        }
+        File mirror = null;
+        try {
+            mirror = publicCrashFolder();
+        } catch (Throwable ignored) {
+            // 公共目录只是"方便用户拿"，拿不到就算了
+        }
+        DfLog.install(primary, mirror);
+        MainThreadStallWatchdog.start();
     }
 
     /** 测试专用入口：暴露给 JVM 测试验证并发写不交错（生产代码走 installCrashLogger 的处理器）。 */
@@ -110,6 +147,16 @@ public class App extends me.rerere.rikkahub.RikkaHubApp {
             if (t != null) t.printStackTrace(pw);
             pw.print(diagnostics());
             String text = sw.toString();
+            /*
+             * [DFW-101] 同一次崩溃也进统一事件流。
+             *
+             * crash.log 与 dfwx-events.log 是**两个用途**，不是重复：
+             *  - crash.log 是"崩溃专用卷宗"（用户从崩溃页看到的那份，含双写与固定名副本）；
+             *  - 事件流是"应用一生的事件年表"，崩溃只是其中一条，
+             *    旁边还挨着它崩溃前做过什么（面包屑）和别的线程在干什么。
+             * 排查时要的正是后者这种"前后文"。
+             */
+            DfLog.failure("crash", kind, t);
             // 双写（v1.22.10，用户 2026-09-29 反馈"在 MT 管理器里找不到"）：
             // ① 公共目录 Download/东方无限/崩溃日志/crash.log —— 文件管理器直接可见，用户能手取；
             // ② 应用私有目录 —— 无需任何权限，作为权威副本，保证没授权时也不丢现场。

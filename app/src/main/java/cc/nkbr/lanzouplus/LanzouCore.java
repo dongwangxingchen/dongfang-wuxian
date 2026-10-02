@@ -1815,14 +1815,18 @@ final class LanzouCore {
    */
   private static void wafLog(String message){
     android.util.Log.i("LanzouCore",message);
+    /*
+     * [DFW-101] 与 `DirectLinkResolver.trace` 同源问题、同一种修法：
+     * 统一事件流（私有目录，一定写得进去）+ 历史 download.log（公共目录，可能没权限），
+     * 两处共用 DfLog 的同一把锁 —— 这两个类以前各写一份、都没加锁。
+     */
+    DfLog.event("waf","trace","msg",message);
     try{
       java.io.File dir=new java.io.File(android.os.Environment.getExternalStorageDirectory(),"Download/东方无限/崩溃日志");
       if(!dir.exists()&&!dir.mkdirs())return;
       java.io.File file=new java.io.File(dir,"download.log");
-      if(file.exists()&&file.length()>256*1024)file.delete();
-      String line=new java.text.SimpleDateFormat("MM-dd HH:mm:ss.SSS",java.util.Locale.US).format(new java.util.Date())+"  "+message+"\n";
-      java.io.FileOutputStream out=new java.io.FileOutputStream(file,true);
-      try{out.write(line.getBytes(java.nio.charset.StandardCharsets.UTF_8));}finally{out.close();}
+      String line=new java.text.SimpleDateFormat("MM-dd HH:mm:ss.SSS",java.util.Locale.US).format(new java.util.Date())+"  "+message;
+      DfLog.appendLocked(file,line);
     }catch(Throwable ignored){
       // 埋点绝不能影响主流程
     }
