@@ -2,7 +2,14 @@
 
 > 一款纯净的原生 Android 工具箱：软件库资源获取 · 37 个离线小工具 · 完整 AI 聊天
 
-![License](https://img.shields.io/github/license/dongwangxingchen/dongfang-wuxian) ![Release](https://img.shields.io/github/v/release/dongwangxingchen/dongfang-wuxian) ![Platform](https://img.shields.io/badge/Android-8.0%2B%20%7C%20arm64--v8a-brightgreen)
+![License](https://img.shields.io/github/license/dongwangxingchen/dongfang-wuxian) ![Release](https://img.shields.io/github/v/release/dongwangxingchen/dongfang-wuxian?include_prereleases) ![Platform](https://img.shields.io/badge/Android-8.0%2B%20%7C%20arm64--v8a-brightgreen)
+
+<!--
+  徽章为什么要带 ?include_prereleases —— 2026-10-02 实测：
+  当前所有 Release 都是 Pre-release（测试专区），而 shields.io 的 `v/release`
+  **默认不统计预发布**，于是渲染出来是「release: no releases or repo not found」。
+  加上这个参数后正常显示最新标签。删掉它 = 徽章变回一句假话。
+-->
 
 **东方无限**是一款原生 Android 应用，把三件事装进一个干净的小体积 APP 里：
 
