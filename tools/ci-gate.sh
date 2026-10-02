@@ -96,8 +96,18 @@ gate_unit() {
   #
   # 一处跑全部，别一个个写（少写一个就是永久缺口）：
   # 这些模块都没有 flavor，任务名统一是 testDebugUnitTest。
+  # ⚠️ **必须串行**（`--max-workers=1`）。
+  #
+  # [DFW-97] 实测教训：这 9 个模块刚加进门禁时用了默认并行
+  # （gradle.properties 里 `org.gradle.parallel=true`），
+  # 于是 12 个测试任务同时起 JVM —— 本地能过，**CI 上偶发**
+  # `NoticeFlowJvmTest > urgentNotice_stillHasAnAcknowledgeAction`
+  # 报 `java.lang.NullPointerException at ShadowCompatibility.java:53`。
+  # 那是 Robolectric **自己的**内部 NPE，不是产品代码的问题：并发起太多
+  # Robolectric sandbox 时它的静态状态会打架。
+  # 串行之后 CI 稳定通过；代价只是这几分钟，换的是"门禁的红一定是真红"。
   step "JVM 测试门禁：vendor 其余模块（ai/highlight/speech/workspace/search/oauth/document/material3/web）"
-  ./gradlew "${GRADLE_ARGS[@]}" \
+  ./gradlew "${GRADLE_ARGS[@]}" --max-workers=1 \
     :ai:testDebugUnitTest \
     :highlight:testDebugUnitTest \
     :speech:testDebugUnitTest \
