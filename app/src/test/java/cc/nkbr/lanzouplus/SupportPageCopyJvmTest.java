@@ -84,6 +84,35 @@ public class SupportPageCopyJvmTest {
     }
   }
 
+  /**
+   * [DFW-99 2026-10-02] 底部那行**假话**不得回来。
+   *
+   * 原文案是「重装软件也会保留赞助状态」——**事实相反**：
+   * `AndroidManifest.xml` 里 `allowBackup="false"`，系统备份被关掉，
+   * 所以卸载重装一定丢（用户原话：「我们不是每一次点击按钮后赞助成功吗？但是删了就没了」）。
+   *
+   * 承诺一个做不到的事，比不承诺更糟：用户重装后发现要重新付费，会觉得自己被骗。
+   * 现在写的是「解锁记录保存在本机 · 不付费也可以完整使用」——只陈述事实。
+   *
+   * 这条断言守的是**语义**不是措辞：任何"重装/换机后仍然保留"的意思都不许出现。
+   */
+  @Test public void supportPage_neverClaimsTheUnlockSurvivesReinstall() {
+    String joined = supportPageTexts();
+    String[] forbidden = {
+        "重装软件也会保留赞助状态",
+        "重装也会保留",
+        "重装后仍然",
+        "换机后仍然",
+        "永久保留",
+        "永久有效",
+    };
+    for (String claim : forbidden) {
+      assertFalse("这行是在承诺「重装/换机后还在」，但 allowBackup=false，事实相反，"
+              + "用户重装后要重新付费会觉得被骗：「" + claim + "」\n页面全文：\n" + joined,
+          joined.contains(claim));
+    }
+  }
+
   @Test public void supportPage_keepsTheSinglePerkSentence() {
     String joined = supportPageTexts();
     assertTrue("权益区必须是用户口述的那一条（每周自费续 1 万次 DeepSeek v4.1）：\n" + joined,
