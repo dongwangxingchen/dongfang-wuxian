@@ -169,3 +169,99 @@
 3. **`github.com:443` 本机直连不通**：验证 GitHub Release 直链必须走代理
    （`curl -sL -x http://127.0.0.1:7890 ...`），否则会长时间挂住或返回 `http=000`。
    上传走 `gh`（已登录），不受影响。
+
+---
+
+## 八、2026-10-02 这一轮踩到的坑（都是"看起来没事、其实一直坏着"的类型）
+
+### 1. `gradlew` 在 git 里的模式是 100644 —— CI 长期全红的真正根因
+
+**现象**：GitHub Actions 241 次运行几乎全红，所有人都以为是 Android SDK 装不上
+（那也确实是一个原因，`platforms;android-37` 真名是 `platforms;android-37.0`）。
+修完 SDK 之后 CI **还是红**，日志里只有一行：
+
+```
+tools/ci-gate.sh: line 80: ./gradlew: Permission denied
+##[error]Process completed with exit code 126.
+```
+
+**根因**：`git ls-files -s gradlew` → `100644`（普通文件），而磁盘上是 `-rwxr-xr-x`。
+**git 只记录两种模式：100644 和 100755**，可执行位是**跟着索引走的**。
+检出到 CI 后文件没有 x 位，`./gradlew` 直接 126。
+
+**为什么一直没人发现**：本地是 `-rwxr-xr-x`，跑得好好的；而且红得太久，
+所有人（包括我）都默认"CI 就是红的"，没人去看那行 `Permission denied`。
+
+**修法**：`git update-index --chmod=+x gradlew`（顺带把 `rikkahub/gradlew` 和 4 个
+`tools/*.sh` 一起补上），并在工作流里显式 `chmod +x gradlew` 兜底。
+
+**教训**：**"红了很久"本身就是最大的掩护**。一条长期为红的检查，
+等价于没有检查 —— 甚至更糟，因为它会让人以为"CI 在跑"。
+
+### 2. 假绿的反向探针：字面量自比
+
+我给 5 个测试类写"反向探针"时写成了这样：
+
+```kotlin
+assertTrue("坏代码（碰 pointer-events）必须被识别",
+    "el.style.pointerEvents='none'".contains("pointerEvents"))
+```
+
+两个操作数都是**字符串字面量**，编译期就恒真，**跟产品代码一点关系都没有**。
+后果是"守卫配了反向探针"这条检查项在评审时显示为**已满足**，实际零鉴别力。
+
+**正确写法**（模板见 `RenderFolderNullSafetyJvmTest.theGuardActuallyDetectsAnUnguardedCall`）：
+把守卫抽成一个函数，**把坏代码真的喂进去**：
+
+```kotlin
+private fun skinTouchesPointerEvents(src: String) =
+    src.contains("pointer-events") || src.contains("pointerEvents")
+
+assertTrue(skinTouchesPointerEvents("el.style.pointerEvents='none'"))
+assertFalse(skinTouchesPointerEvents(skin))   // 好代码必须为假
+```
+
+**教训**：反向探针必须**跨过被测边界**。只要断言里没有出现"被测对象"，
+它就只是自我安慰。
+
+### 3. Robolectric 里测不出"动画被打断"
+
+给 `crossFadeHomeSection` 补了 600ms 幂等结算兜底，并写了一条"快速来回切 + 推进时钟"的测试。
+**反向探针（去掉兜底）实测不红** —— 因为 Robolectric 里 `animate().cancel()`
+照样会触发 `withEndAction`，"结算丢失"这个极端情况复现不出来。
+
+**处理**：把这段如实写进测试的注释里（"这条测试**没有**证明什么"），
+不把它当成"验过了"。那条兜底是**防御性代码**，依据是 `animatePage` 里同款兜底的既有注释。
+
+**教训**：测试通过 ≠ 被测的东西验过了。**写清楚"没验到什么"和写清楚"验到了什么"同样重要。**
+
+### 4. 测试 JVM 线程只增不减 → 一次红 184 条
+
+761 条 Robolectric 用例跑下来，测试 JVM 里的线程只增不减；加上系统里浏览器/输入法/微信
+常驻进程本来就占着 2600+ 线程，顶到 `ulimit -u` 之后后面所有用例成批报
+`OutOfMemoryError: unable to create native thread`。
+
+**看起来像代码全炸了，其实一行代码的问题都没有。**
+
+**修法（三层）**：
+1. `tools/ci-gate.sh` / `release.sh` 开头把**软上限顶到硬上限**（`ulimit -u "$(ulimit -Hu)"`）；
+2. `app/build.gradle.kts` 的 `testOptions` 加 **`forkEvery = 24`** —— 定期换测试 JVM，
+   旧进程退出、线程全部归还。这是真正治本的一层；
+3. 仍然建议跑之前 `./gradlew --stop && pkill -9 -f GradleDaemon`。
+
+### 5. Java/Kotlin 字符串里不许出现内层 ASCII 双引号
+
+一天之内踩了 **5 次**：`assertTrue("必须尊重"关闭动效"开关", ...)`。
+Java 和 Kotlin 都会把它解析成字符串结束。
+
+**规矩**：中文文案里的引号一律用 **「」**，不要用 `"..."`。
+写完立刻编译一次，别攒着。
+
+### 6. shell 里 `$变量` 紧跟中文会被吞
+
+`echo "$CODE（安卓靠它判断）"` → bash 把 `（` 的字节当成变量名的一部分 →
+`CODE?: unbound variable`。**一律写 `${CODE}`**。
+
+`VersionNumberSinglePlaceJvmTest` 里有一条守卫会扫 `tools/*.sh` 抓这个模式，
+**扫描范围必须是"目录下所有 .sh"而不是写死几个文件名** ——
+这次新加的 `tools/bump-version.sh` 就因为不在写死列表里，立刻又踩了一遍。

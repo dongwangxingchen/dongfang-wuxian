@@ -30,6 +30,43 @@ class DocTimelinessJvmTest {
 
     private fun read(rel: String) = File(root, rel).readText(Charsets.UTF_8)
 
+    /**
+     * [DFW-97 审计] **交接文档的抬头版本号必须跟得上当前版本。**
+     *
+     * 为什么专门加这条：`docs/handover/README.md` 是「30 秒接手的单一入口」，
+     * 但它**连续两轮审计都被点出过期**——
+     * 上一轮写 1.0.1（实际 1.0.3），这一轮写 1.0.21（实际 1.0.25，落后 4 个版本），
+     * §4 的表里 5 张卡标着"待做"其实全部已发版。
+     *
+     * 机制原因：原有的 `DocTimelinessJvmTest` 只断言"文件里**某处**出现过当前 versionName"，
+     * 而 `release.sh` 只 sed 版本号那一行 —— 于是**版本号行自动同步、抬头永远烂**。
+     * 这条测试改成直接盯抬头那一句。
+     *
+     * 该目录按 AGENTS.md 是**故意不提交**的本机现场，所以 CI 上不存在：
+     * 文件不在就跳过（这是设计，不是失败）。
+     */
+    @Test
+    fun handoverHeaderTracksTheCurrentVersion() {
+        val handover = File(root, "docs/handover/README.md")
+        if (!handover.isFile) return   // CI / 换机器时不存在，属正常
+
+        val text = handover.readText(Charsets.UTF_8)
+        val versionName = read("app/build.gradle.kts")
+            .let { Regex("val buildCode = (\\d+)").find(it)!!.groupValues[1].toInt() }
+            .let { "${it / 10000}.${(it / 100) % 100}.${it % 100}" }
+
+        assertTrue(
+            "交接文档抬头必须写着当前版本 $versionName（这是「30 秒接手」的第一句话，" +
+                "写错会让人一开始就按错误的版本认知开工）：" +
+                text.lines().take(20).joinToString(" | ") { it.trim().take(60) },
+            text.lines().take(20).any { it.contains(versionName) },
+        )
+        assertFalse(
+            "§4 里不许还留着「待做」—— 做完了就要改，否则接手的人会去做已经做完的事",
+            text.contains("| 待做 |"),
+        )
+    }
+
     /** AGENTS.md 不得再把过期文件当成会话开始的事实源。 */
     @Test
     fun agentsMd_warnsAgainstStaleProjectDoc() {
