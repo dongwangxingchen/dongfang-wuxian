@@ -150,11 +150,17 @@ gate_apk() {
 
   step "断言清单关键开关（DFW-10 / DFW-16）"
   "$aapt" dump xmltree "$apk" AndroidManifest.xml > /tmp/dfwx-manifest.txt || fail "aapt dump xmltree 失败"
-  grep -q 'android:usesCleartextTraffic(0x[0-9a-f]*)="(type 0x12)0x0"' /tmp/dfwx-manifest.txt \
+  # [DFW-97 审计] 这两条正则**一直写错着**，所以这个 job 从来没绿过。
+  # 错在哪：模式里写的是 `)="(type 0x12)0x0`，而 aapt 的真实输出是
+  #   A: android:usesCleartextTraffic(0x010104ec)=(type 0x12)0x0
+  # —— `)` 后面直接跟 `=`，**没有引号**。多一个 `"` 就永远匹配不上，
+  # 于是「清单是对的」也被判成「清单不是 false」。
+  # 教训：门禁的正则必须拿**真实产物**跑一遍再合进去，否则红的是门禁自己，不是代码。
+  grep -q 'android:usesCleartextTraffic(0x[0-9a-f]*)=(type 0x12)0x0' /tmp/dfwx-manifest.txt \
     || fail "清单 usesCleartextTraffic 不是 false（DFW-10）"
   grep -q "android:networkSecurityConfig" /tmp/dfwx-manifest.txt \
     || fail "清单缺少 networkSecurityConfig（DFW-10）"
-  grep -q 'android:allowBackup(0x[0-9a-f]*)="(type 0x12)0x0"' /tmp/dfwx-manifest.txt \
+  grep -q 'android:allowBackup(0x[0-9a-f]*)=(type 0x12)0x0' /tmp/dfwx-manifest.txt \
     || fail "清单 allowBackup 不是 false（DFW-16）"
 
   step "断言版本号与页面一致"
