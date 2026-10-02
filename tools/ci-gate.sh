@@ -45,7 +45,10 @@ GRADLE_ARGS=(-p "$REPO_ROOT")
 [[ "${DFWX_OFFLINE:-0}" == "1" ]] && GRADLE_ARGS+=(--offline)
 
 step() { printf '\n=== %s ===\n' "$1"; }
-fail() { printf '\n❌ 门禁失败：%s\n' "$1" >&2; exit 1; }
+# [DFW-122 2026-10-02] 用 %b 而不是 %s：调用方在消息里写的 `\n` 是要换行，
+# 但 %s 不解释转义，于是错误信息里会原样打印出 "\n" 两个字（DFW-15 那条一直是这样）。
+# %b 会解释转义序列，所有调用方一次性都对了。
+fail() { printf '\n❌ 门禁失败：%b\n' "$1" >&2; exit 1; }
 
 # ---------------------------------------------------------------- 文档/卫生
 gate_docs() {
@@ -68,7 +71,20 @@ gate_docs() {
 
   # 发版资产命名红线（纯 ASCII、无描述性后缀）
   grep -q "东方无限-vX.Y.Z-release" SECURITY.md \
-    && fail "SECURITY.md 又写回带描述后缀的资产名（发版红线）"
+    && fail "SECURITY.md 又写回带描述性后缀的资产名（发版红线）"
+
+  # [DFW-122 / 2026-10-02] 测试文件必须被 git 跟踪。
+  #
+  # 为什么这条重要：本地 `./gradlew test` 会跑**工作区里所有**测试文件，
+  # 但 CI 跑的是**仓库里的**测试文件。一个没 `git add` 的新测试，
+  # 本地全绿、CI 全绿（因为它压根没跑），**两边都不会报错** ——
+  # 直到某天有人改了它守护的代码，CI 依然绿，缺陷直接上线。
+  #
+  # 这个坑在本项目真实发生过：测试可信度审计（docs/audit/20261002-test-integrity.md）
+  # 专门去数了一遍"仓库里有多少测试是没被跟踪的"。
+  local untracked_tests
+  untracked_tests="$(git ls-files --others --exclude-standard -- '*/src/test/*' '*/src/test/**' 2>/dev/null || true)"
+  [[ -z "$untracked_tests" ]] || fail "有测试文件没被 git 跟踪（本地会跑、CI 不会跑）：\n$untracked_tests\n→ 补 git add，或确认它该不该存在"
 
   echo "✅ 文档与卫生门禁通过"
 }
