@@ -44,6 +44,10 @@ import kotlin.uuid.Uuid
 object DfwxBuiltinChannel {
     private const val TAG = "DfwxBuiltinAi"
 
+    /** [DFW-114] 一次性迁移标记的落点（与 vendor 的 Settings/DataStore 分开，互不干扰）。 */
+    private const val PREFS = "dfwx_builtin_channel"
+    private const val KEY_CAPABILITIES_DONE = "capabilities_v1_done"
+
     const val PROVIDER_NAME = "内置渠道"
     const val DEFAULT_BASE_URL = "https://39.106.33.135/ai/v1"
     const val DEFAULT_MODEL_ID = "deepseek-v4.1-flash"
@@ -127,12 +131,17 @@ object DfwxBuiltinChannel {
 
     @Volatile
     private var lastStore: SettingsStore? = null
+    /** [DFW-114] 存的是 `applicationContext`，不是 Activity —— 静态持有 Activity 会泄漏。 */
+    private var lastContext: Context? = null
 
     /** 后台下发了新的渠道配置之后调用：让改动**当次启动**就生效，不用等下次冷启。 */
     fun syncNow() {
+        // [DFW-114] syncIfNeeded 现在还要一个 Context（能力开关的一次性标记）。
+        // 这里用上次传进来的那个 —— 调用方给的是 Application，存着不会泄漏。
+        val context = lastContext ?: return
         val scope = lastScope ?: return
         val store = lastStore ?: return
-        syncIfNeeded(scope, store)
+        syncIfNeeded(context, scope, store)
     }
 
     /**
@@ -147,7 +156,11 @@ object DfwxBuiltinChannel {
      *  - `next == settings` 永远为假 → 每次启动都白写一遍 DataStore。
      * 所以这里必须把已存在模型的 id 抄回来。
      */
-    fun buildSyncedSettings(settings: Settings, cfg: Config = current()): Settings {
+    fun buildSyncedSettings(
+        settings: Settings,
+        cfg: Config = current(),
+        enableCapabilities: Boolean = false,
+    ): Settings {
         val index = settings.providers.indexOfFirst { isBuiltin(it) }
         val existing = if (index >= 0) settings.providers[index] else null
         val model = Model(
@@ -249,24 +262,31 @@ object DfwxBuiltinChannel {
          * 这次排查最大的障碍就是"跳过时完全静默"—— 用户说配置没了，
          * 代码里却一个字都没有，只能靠通读源码反推。
          */
-        return DfwxAssistantProfile.applyDefaults(synced) { assistant ->
-            assistant.chatModelId == model.id ||
-                (
-                    // 「跟随全局模型」= 用户没显式配置过这一个
-                    assistant.chatModelId == null &&
-                        // 全局模型就是内置的（原判据）
-                        (nextChatModelId == model.id ||
-                            // [DFW-108] 或者它就是**默认助手** —— 这一支是本次修的根因。
-                            //
-                            // 为什么必须是「跟随全局」而不是无条件：用户明确要求过
-                            // 「别人对接新 API 站的时候用他们默认的」。
-                            // 如果默认助手被**显式**指到了别的渠道（chatModelId 非空），
-                            // 那就是用户自己的选择，一个像素都不该动。
-                            // 只有"没配置过、跟随全局"的那种，才该由我们播种人设 ——
-                            // 哪怕此刻全局模型不是内置的（正是用户遇到的情形）。
-                            assistant.id == DEFAULT_ASSISTANT_ID)
-                    )
-        }
+        return DfwxAssistantProfile.applyDefaults(
+            settings = synced,
+            // 注意：这里必须写成具名参数 + 显式 lambda，**不能用尾随 lambda** ——
+            // Kotlin 的尾随 lambda 绑定的是**最后一个**参数，而最后一个现在是
+            // `enableCapabilities: Boolean`，会报 "Too many arguments" / 类型不匹配。
+            useBuiltin = { assistant ->
+                assistant.chatModelId == model.id ||
+                    (
+                        // 「跟随全局模型」= 用户没显式配置过这一个
+                        assistant.chatModelId == null &&
+                            // 全局模型就是内置的（原判据）
+                            (nextChatModelId == model.id ||
+                                // [DFW-108] 或者它就是**默认助手** —— 这一支是本次修的根因。
+                                //
+                                // 为什么必须是「跟随全局」而不是无条件：用户明确要求过
+                                // 「别人对接新 API 站的时候用他们默认的」。
+                                // 如果默认助手被**显式**指到了别的渠道（chatModelId 非空），
+                                // 那就是用户自己的选择，一个像素都不该动。
+                                // 只有"没配置过、跟随全局"的那种，才该由我们播种人设 ——
+                                // 哪怕此刻全局模型不是内置的（正是用户遇到的情形）。
+                                assistant.id == DEFAULT_ASSISTANT_ID)
+                        )
+            },
+            enableCapabilities = enableCapabilities,
+        )
     }
 
     /**
@@ -274,9 +294,10 @@ object DfwxBuiltinChannel {
      * 后台改了地址、令牌、模型名或最大输出之后，用户下次打开软件就生效，不必发版。
      * 只有在真的有字段变化时才写 settings —— 靠 [buildSyncedSettings] 的幂等性保证。
      */
-    fun syncIfNeeded(scope: CoroutineScope, store: SettingsStore) {
+    fun syncIfNeeded(context: Context, scope: CoroutineScope, store: SettingsStore) {
         lastScope = scope
         lastStore = store
+        lastContext = context.applicationContext
         val cfg = current()
         if (!cfg.enabled || cfg.token.isBlank()) {
             Log.i(TAG, "builtin channel disabled or token missing, skip")
@@ -285,10 +306,24 @@ object DfwxBuiltinChannel {
         scope.launch(Dispatchers.IO) {
             runCatching {
                 val settings = store.settingsFlowRaw.first()
-                val next = buildSyncedSettings(settings, cfg)
-                if (next == settings) return@launch
-                store.update(next)
-                Log.i(TAG, "builtin channel synced")
+                /*
+                 * [DFW-114 2026-10-02] 能力开关（记忆 / 翻聊天记录）只在**升级后第一次**打开，
+                 * 之后永远不动。理由见 DfwxAssistantProfile.applyDefaults 里那段长注释：
+                 * 这两个字段是 Boolean、默认 false，**分不出「用户主动关掉」和「从没设置过」**，
+                 * 所以只能靠一个一次性标记，而不是每次启动都硬开。
+                 *
+                 * 标记写在 store.update **成功之后** —— 失败就不写，下次启动自然重试。
+                 * 与 DfwxBuiltinProviderCleanup 是同一套语义。
+                 *
+                 * 注意这里不能写成 `if (next == settings) return@launch`：
+                 * 那样"能力早就开着、本次无需改动"时标记永远写不上，等于每次都重跑。
+                 */
+                val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+                val firstRun = !prefs.getBoolean(KEY_CAPABILITIES_DONE, false)
+                val next = buildSyncedSettings(settings, cfg, enableCapabilities = firstRun)
+                if (next != settings) store.update(next)
+                if (firstRun) prefs.edit().putBoolean(KEY_CAPABILITIES_DONE, true).apply()
+                if (next != settings) Log.i(TAG, "builtin channel synced")
             }.onFailure {
                 Log.e(TAG, "builtin channel sync failed", it)
             }

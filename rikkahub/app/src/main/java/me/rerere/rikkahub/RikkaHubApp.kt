@@ -120,7 +120,9 @@ open class RikkaHubApp : Application() {
         // [DFW-73] 内置渠道回归（用户 2026-10-01 拍板，方案 = 服务端中转，上游地址与真 Key 只在国内服务器上）。
         // 与 AI-004 的清理器并存不冲突：清理器认的是"智能中转(内置)"那个老身份，这里是新身份「内置渠道」。
         // 每次启动都同步（不是只播一次），后台改了地址/令牌/模型/最大输出，用户下次打开就生效。
-        DfwxBuiltinChannel.syncIfNeeded(get<AppScope>(), get<SettingsStore>())
+        // [DFW-114] 多传一个 this：能力开关（记忆 / 翻聊天记录）需要一次性的 SharedPreferences 标记，
+        // 只在升级后第一次启动时打开，之后用户手动关掉就永远尊重他。
+        DfwxBuiltinChannel.syncIfNeeded(this, get<AppScope>(), get<SettingsStore>())
 
         // Composer.setDiagnosticStackTraceMode(ComposeStackTraceMode.Auto)
     }

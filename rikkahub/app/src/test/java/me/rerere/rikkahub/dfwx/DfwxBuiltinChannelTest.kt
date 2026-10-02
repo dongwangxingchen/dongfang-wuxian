@@ -602,4 +602,132 @@ class DfwxBuiltinChannelTest {
         assertTrue("<rules> 必须在最后面", p.trimEnd().endsWith("</rules>"))
     }
 
+    // ── [DFW-114] 能力开关：只开一次，之后尊重用户 ──────────────────────────
+
+    /**
+     * 升级后**第一次**启动：内置助手必须拿到「记忆」和「翻聊天记录」。
+     *
+     * 用户 2026-10-02 要求「东方助手要非常强大」，但 RikkaHub 这两个能力
+     * **默认全关**（`Assistant.kt:29` / `:31`），所以开箱即用的助手其实
+     * 记不住任何事、也答不了"我们上次聊了什么" —— 从界面上完全看不出来。
+     */
+    @Test
+    fun capabilities_firstRun_enablesMemoryAndRecentChatsForTheBuiltinAssistant() {
+        installChannel()
+        val cfg = DfwxBuiltinChannel.current()
+        val (userProvider, userModel) = userProvider()
+        val base = Settings().copy(providers = listOf(userProvider), chatModelId = userModel.id)
+
+        val after = DfwxBuiltinChannel.buildSyncedSettings(base, cfg, enableCapabilities = true)
+        val a = after.assistants.first { it.id == DEFAULT_ASSISTANT_ID }
+
+        assertTrue(
+            "首次同步必须打开「记忆」—— 否则助手记不住任何事，用户会以为它变笨了",
+            a.enableMemory,
+        )
+        assertTrue(
+            "首次同步必须打开「翻聊天记录」—— 否则它答不了「我们上次聊了什么」",
+            a.enableRecentChatsReference,
+        )
+    }
+
+    /**
+     * **之后**每次启动都不许再动这两个开关 —— 用户手动关掉必须被尊重。
+     *
+     * ## 这是本卡最容易做错的地方
+     * 这两个字段是 `Boolean`、默认 `false`，**分不出「用户主动关掉了」和「从来没设置过」**
+     * （字符串/头像可以靠 `isBlank()` / `Avatar.Dummy` 判断"还没设过"，布尔值没有"空"）。
+     *
+     * 一旦写成"每次启动都硬开"，用户关掉的开关会在下次冷启时**自己弹回来**，
+     * 而他在界面上找不到原因 —— 这种"设置不生效"的 bug 最难查。
+     *
+     * 所以真正要守的是：**`enableCapabilities = false` 时，一个 bit 都不许动。**
+     */
+    @Test
+    fun capabilities_laterRuns_neverOverrideTheUsersChoice() {
+        installChannel()
+        val cfg = DfwxBuiltinChannel.current()
+        val (userProvider, userModel) = userProvider()
+        val userTurnedItOff = Settings().copy(
+            providers = listOf(userProvider),
+            chatModelId = userModel.id,
+            assistants = Settings().assistants.map {
+                if (it.id == DEFAULT_ASSISTANT_ID) {
+                    it.copy(enableMemory = false, enableRecentChatsReference = false)
+                } else {
+                    it
+                }
+            },
+        )
+
+        val after = DfwxBuiltinChannel.buildSyncedSettings(
+            userTurnedItOff,
+            cfg,
+            enableCapabilities = false,
+        )
+        val a = after.assistants.first { it.id == DEFAULT_ASSISTANT_ID }
+
+        assertFalse("用户手动关掉的「记忆」不许在下次启动时自己弹回来", a.enableMemory)
+        assertFalse("用户手动关掉的「翻聊天记录」不许自己弹回来", a.enableRecentChatsReference)
+    }
+
+    /**
+     * 重复同步必须**零变化**。
+     *
+     * 这个类的注释里已经写明："`next == settings` 永远为假 → 每次启动都白写一遍 DataStore"。
+     * 能力开关如果写成每次都给新对象，就会重新引入这个问题。
+     */
+    @Test
+    fun capabilities_areIdempotent() {
+        installChannel()
+        val cfg = DfwxBuiltinChannel.current()
+        val (userProvider, userModel) = userProvider()
+        val base = Settings().copy(providers = listOf(userProvider), chatModelId = userModel.id)
+
+        val once = DfwxBuiltinChannel.buildSyncedSettings(base, cfg, enableCapabilities = true)
+        val twice = DfwxBuiltinChannel.buildSyncedSettings(once, cfg, enableCapabilities = true)
+
+        assertEquals(
+            "第二次同步必须与第一次完全相同（否则每次启动都白写一遍 DataStore）",
+            once,
+            twice,
+        )
+    }
+
+    /**
+     * 用户自己接的渠道，一个开关都不许碰 —— 与「人设只给内置渠道」是同一条红线。
+     *
+     * 用户明确要求过：「别人对接新 API 站的时候用他们默认的」。
+     */
+    @Test
+    fun capabilities_neverTouchAssistantsBoundToOtherProviders() {
+        installChannel()
+        val cfg = DfwxBuiltinChannel.current()
+        val (userProvider, userModel) = userProvider()
+        // 把默认助手显式指到用户自己的渠道 —— 这时它就不该再被我们"播种"。
+        val onUserProvider = Settings().copy(
+            providers = listOf(userProvider),
+            chatModelId = userModel.id,
+            assistants = Settings().assistants.map {
+                if (it.id == DEFAULT_ASSISTANT_ID) it.copy(chatModelId = userModel.id) else it
+            },
+        )
+
+        val after = DfwxBuiltinChannel.buildSyncedSettings(
+            onUserProvider,
+            cfg,
+            enableCapabilities = true,
+        )
+        val a = after.assistants.first { it.id == DEFAULT_ASSISTANT_ID }
+
+        assertFalse(
+            "助手被显式指到用户自己的渠道后，能力开关也不该由我们打开",
+            a.enableMemory,
+        )
+        assertFalse(
+            "同上，「翻聊天记录」也不许动",
+            a.enableRecentChatsReference,
+        )
+    }
+
 }

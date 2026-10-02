@@ -147,7 +147,11 @@ object DfwxAssistantProfile {
      * 所以这里只在 `useBuiltin` 为真时把 `useAssistantAvatar` 打开 ——
      * 用户自己接的渠道仍然走模型图标，一个像素都不动。
      */
-    fun applyDefaults(settings: Settings, useBuiltin: (me.rerere.rikkahub.data.model.Assistant) -> Boolean): Settings {
+    fun applyDefaults(
+        settings: Settings,
+        useBuiltin: (me.rerere.rikkahub.data.model.Assistant) -> Boolean,
+        enableCapabilities: Boolean = false,
+    ): Settings {
         var changed = false
 
         val assistants = settings.assistants.map { assistant ->
@@ -155,6 +159,32 @@ object DfwxAssistantProfile {
             var next = assistant
             if (next.name.isBlank()) { next = next.copy(name = ASSISTANT_NAME); changed = true }
             if (next.systemPrompt.isBlank()) { next = next.copy(systemPrompt = SYSTEM_PROMPT); changed = true }
+            /*
+             * [DFW-114 2026-10-02] 把内置助手的能力开关打开。
+             *
+             * 用户要求「东方助手要非常强大」，但 RikkaHub 这些能力**默认全关**
+             * （`Assistant.kt:29` enableMemory=false、`:31` enableRecentChatsReference=false），
+             * 所以开箱即用的助手其实"没有记忆、也翻不了聊天记录"。
+             *
+             * ## 为什么需要 enableCapabilities 这个开关，而不是一直开着
+             *
+             * 这两个字段是 **Boolean、默认 false**，没有"空值"这个状态 ——
+             * 也就是说**分不出「用户主动关掉了」和「从来没设置过」**。
+             * 字符串/头像可以靠 `isBlank()` / `Avatar.Dummy` 判断"还没设过"，
+             * 布尔值做不到。
+             *
+             * 所以这里不猜：由调用方传一个**一次性标记**（见 DfwxCapabilityDefaults），
+             * 只在"升级后第一次启动"时为 true。之后用户手动关掉就永远尊重他 ——
+             * 既满足"开能力"，也满足"用户改过就不覆盖"。
+             *
+             * 注意位置：**必须放在下面头像那段之前**。头像分支里有一句
+             * `if (next.useAssistantAvatar) return@map next` 会提前返回，
+             * 放到它后面就会漏掉"头像已是我们的且开关已开"这一类助手（正是默认状态）。
+             */
+            if (enableCapabilities && !(next.enableMemory && next.enableRecentChatsReference)) {
+                next = next.copy(enableMemory = true, enableRecentChatsReference = true)
+                changed = true
+            }
             // 只填"还没设过"的头像：用户自己选过的（Emoji / 图片）一律不动。
             if (next.avatar == Avatar.Dummy) {
                 next = next.copy(avatar = AI_AVATAR, useAssistantAvatar = true)

@@ -329,3 +329,74 @@ APK 里只有自己服务器的地址 + 一个应用令牌。用户明确接受"
 **验证**：`DfwxBuiltinChannelJvmTest`（播种幂等 / 已有渠道不被改模型 / 身份识别 / 付费门）。
 真机验证项：装全新包 → AI 页模型选择器里出现「内置渠道 · deepseek-v4.1-flash」→ 能正常流式对话；
 未付费时点它弹引导窗（「关闭」/「知道了」）；AI 设置 → 渠道列表里看不到内置渠道。
+
+## P40（DFW-114）内置助手能力开关：记忆 + 翻聊天记录，只开一次
+
+**问题**：用户 2026-10-02 要求「东方助手要非常强大」，并问「为什么提示词和能力被清空了」。
+RikkaHub 这些能力**早就实现了，但默认全关**：
+
+- `app/src/main/java/me/rerere/rikkahub/data/model/Assistant.kt:29` `enableMemory = false`
+- `:31` `enableRecentChatsReference = false`
+- `:42` `enableWebSearch = false`（网络搜索见 DFW-111，本补丁不涉及）
+
+所以开箱即用的「东方助手」其实**记不住任何事、也答不了「我们上次聊了什么」** ——
+而界面上完全看不出来（它照样能正常聊天）。
+
+### 改动（3 个文件）
+
+1. **`dfwx/DfwxAssistantProfile.kt`**（自有文件）——
+   `applyDefaults()` 增加第三个参数 `enableCapabilities: Boolean = false`。
+   为 true 时给"走内置渠道"的助手 `copy(enableMemory = true, enableRecentChatsReference = true)`。
+   默认 false，所以**现有调用方行为不变**。
+
+2. **`dfwx/DfwxBuiltinChannel.kt`**（自有文件）——
+   - `buildSyncedSettings()` 增加 `enableCapabilities` 参数并透传；
+   - `syncIfNeeded()` 增加 `context` 参数，用 SharedPreferences
+     （`dfwx_builtin_channel` / `capabilities_v1_done`）做**一次性标记**；
+   - 新增 `lastContext`（存 `applicationContext`，**不是 Activity** —— 静态持有 Activity 会泄漏），
+     供 `syncNow()` 复用。
+
+3. **`RikkaHubApp.kt:125`** —— `syncIfNeeded(this, ...)` 多传一个 `this`。
+
+### ⚠️ 为什么必须用"一次性标记"，而不是每次启动都硬开
+
+`enableMemory` / `enableRecentChatsReference` 是 **`Boolean`、默认 `false`**，
+**没有"空值"这个状态** —— 也就是说**分不出「用户主动关掉了」和「从来没设置过」**。
+字符串/头像可以靠 `isBlank()` / `Avatar.Dummy` 判断"还没设过"，布尔值做不到。
+
+如果每次启动都硬开，用户关掉的开关会在**下次冷启时自己弹回来**，
+而他在界面上找不到原因 —— 这类"设置不生效"最难查。
+
+所以：**升级后第一次启动**开一次并写下标记，**之后永远不动**。
+标记写在 `store.update()` 成功之后，失败不写、下次自然重试
+（与 `DfwxBuiltinProviderCleanup` 同一套语义）。
+
+### 两个容易写错的地方（都踩过）
+
+- **能力代码必须放在头像分支之前**。头像那段里有一句
+  `if (next.useAssistantAvatar) return@map next` 会提前返回，
+  放到它后面就会漏掉"头像已是我们的且开关已开"这一类助手 —— **那正是默认状态**。
+- **`applyDefaults` 的调用不能用尾随 lambda**。Kotlin 的尾随 lambda 绑定的是**最后一个**参数，
+  而现在最后一个是 `enableCapabilities: Boolean` → 报 `Too many arguments`。
+  必须写成 `useBuiltin = { ... }, enableCapabilities = ...` 的具名形式。
+
+### 同步上游时
+
+1/2 都是**自有文件**，直接重放；3 是最小改行。若上游给 `Assistant` 加了新能力字段，
+先确认它是否同样是"Boolean 默认 false"——是的话就要一起纳入这次一次性迁移，
+**不要**另开一个标记（否则用户会遇到两次"设置自己变回去"）。
+
+### 验证
+
+`DfwxBuiltinChannelTest` 新增 4 条（`:rikkahub-app` 290 → 294 条）：
+
+- `capabilities_firstRun_enablesMemoryAndRecentChatsForTheBuiltinAssistant`
+- `capabilities_laterRuns_neverOverrideTheUsersChoice` ← **最关键的一条**
+- `capabilities_areIdempotent`（防止重新引入"每次启动白写一遍 DataStore"）
+- `capabilities_neverTouchAssistantsBoundToOtherProviders`
+
+**反向探针已验证**：把 `if (enableCapabilities && ...)` 改成无条件开
+→ `capabilities_laterRuns_neverOverrideTheUsersChoice` FAILED，还原后转绿。
+
+**未做真机验证**：需要在真机上确认「AI 设置 → 助手 → 记忆」开关确实是开的，
+并且手动关掉后冷启不会自己弹回来。
