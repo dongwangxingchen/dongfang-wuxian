@@ -100,10 +100,17 @@
   return "skinned";
 })();
 
-/* ── 提交检测 ─────────────────────────────────────────────────────────
-   FlowUs 提交成功后会给出提示或清空表单。这里两种信号都认，
-   一旦命中就调 Android 侧的回调，由 App 弹出**我们自己的**紫色提示
-   （而不是把 FlowUs 那句英文 toast 直接甩给用户）。只触发一次。 */
+/* ── 提交检测（**事件驱动，绝不轮询**）───────────────────────────────
+ *
+ * [DFW-97 修正] 这里原来是 `setInterval(detectSubmitted, 1200)`。
+ * 那是个性能灾难：`document.body.innerText` **会强制整页同步重排（reflow）**，
+ * 每 1.2 秒来一次、永远不停 —— 用户反馈的"页面又卡又慢、图片加载很慢"
+ * 有它一份。SPA 越大越明显。
+ *
+ * 改成：只在用户**点了页面**之后查一次（提交必然伴随点击）。
+ * 代价是从"点完立刻弹"变成"点完最多等 1 秒"，收益是页面不再被持续拖慢。
+ * 而且加了次数上限，绝不可能变成事实上的轮询。
+ */
 function detectSubmitted() {
   if (window.__dfwxSubmitted) return;
   var body = (document.body && document.body.innerText) || "";
@@ -112,7 +119,16 @@ function detectSubmitted() {
   window.__dfwxSubmitted = true;
   try { if (window.DFWX && window.DFWX.onSubmitted) window.DFWX.onSubmitted(); } catch (e) {}
 }
-setInterval(detectSubmitted, 1200);
+
+(function () {
+  var tries = 0;
+  document.addEventListener("click", function () {
+    // 一次点击最多查 3 次（1s / 2s / 3s），查完就彻底安静
+    if (window.__dfwxSubmitted || tries >= 3) return;
+    tries++;
+    setTimeout(detectSubmitted, 1000 * tries);
+  }, true);
+})();
 
 /* 给注入方一个可断言的返回值（evaluateJavascript 能拿到），便于排查"到底跑没跑"。 */
 "dfwx-dark-mode-ok";

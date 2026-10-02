@@ -98,7 +98,6 @@ class FeedbackEntryAndSkinJvmTest {
     fun theWebViewIsHardened() {
         for (need in listOf(
             "setAllowFileAccess(false)",
-            "setAllowContentAccess(false)",
             "setAllowFileAccessFromFileURLs(false)",
             "setAllowUniversalAccessFromFileURLs(false)",
             "setGeolocationEnabled(false)",
@@ -106,10 +105,35 @@ class FeedbackEntryAndSkinJvmTest {
         )) {
             assertTrue("WebView 安全基线缺了 $need", page.contains(need))
         }
+        /*
+         * [DFW-97 修正] `setAllowContentAccess` 从 false 改成 **true** —— 这不是"安全基线被削弱"。
+         *
+         * 系统文件选择器返回的不是文件路径，而是 `content://` URI。
+         * 关掉它，WebView 就读不了用户选中的文件 —— 用户实测的现象正是「上传文件点不动」。
+         * 这仍是最小必要权限：网页只能读用户**亲手选中的那一个** URI，
+         * 设备文件系统依然读不到（`setAllowFileAccess(false)` 还在）。
+         */
+        assertTrue(
+            "必须允许 content://（文件选择器返回的就是它）—— 关掉会导致选完文件没反应",
+            page.contains("setAllowContentAccess(true)"),
+        )
         assertTrue("JS 是必须的（FlowUs 是 SPA）", page.contains("setJavaScriptEnabled(true)"))
+        /*
+         * [DFW-97] 用正则而不是逐字匹配：注解单独成行是**项目规范**
+         * （AGENTS.md 铁律 10「注释永远独立成行」的同类要求），
+         * 逐字匹配会在换行时假红 —— 门禁假红的代价是没人再信它。
+         */
         assertTrue(
             "暴露给网页的桥必须只有一个「提交成功」信号，不许有读写能力",
-            page.contains("@JavascriptInterface public void onSubmitted()"),
+            Regex("@JavascriptInterface\\s+public void onSubmitted\\(\\)").containsMatchIn(page),
+        )
+        assertTrue(
+            "提交成功后必须给用户一句话（用户原话：提示用户提交完成，请留意邮箱）",
+            page.contains("提交完成，请留意邮箱"),
+        )
+        assertTrue(
+            "提交成功后必须回主页面（用户原话：返回到主页面）",
+            Regex("onSubmitted[\\s\\S]{0,600}::finish").containsMatchIn(page),
         )
     }
 
@@ -239,16 +263,19 @@ class FeedbackEntryAndSkinJvmTest {
      * 现在：顶栏容器自带状态栏占位，WebView 从「状态栏 + 顶栏」之下开始。
      */
     @Test
-    fun theTopBarDoesNotCollideWithTheStatusBar() {
-        assertTrue("顶栏必须有状态栏占位", page.contains("statusBarInset()"));
-        assertTrue("WebView 必须下移到顶栏之下", page.contains("FrameLayout.LayoutParams webParams()"))
-        assertTrue(
-            "下移量必须等于「状态栏 + 顶栏」",
-            page.contains("lp.topMargin = statusBarInset() + dp(48);"),
-        )
+    fun theBackButtonSitsBelowTheStatusBar() {
+        /*
+         * [DFW-97 修正] 自绘顶栏已经**整块删掉**了（用户：「只留下网页和暗夜模式，
+         * 别搞乱七八糟的」），所以这条测试不再验顶栏，改验唯一剩下的那点壳 —— 返回键。
+         * 它必须落在状态栏之下，否则会被系统图标压住（这正是用户截图里那个叠字问题）。
+         */
+        assertTrue("返回键必须避开状态栏", page.contains("lp.topMargin = statusBarInset();"))
+        assertTrue("返回键必须用全站约定的矢量图标", page.contains("R.drawable.ic_back"))
+        assertFalse("不许再用字体字符 ‹（字形光学重心不等于布局中心，看着会偏）", page.contains("\"‹\""))
+        assertTrue("必须有无障碍描述", page.contains("setContentDescription(\"返回\")"))
         assertFalse(
-            "顶栏参数里不该再单独加 topMargin（占位已经进到容器里了，重复加会顶两次）",
-            Regex("topBarParams[\\s\\S]{0,200}topMargin").containsMatchIn(page),
+            "自绘顶栏必须已经删干净（用户明确要求「不要打一堆补丁」）",
+            page.contains("buildTopBar") || page.contains("buildThanksBar"),
         )
     }
 
