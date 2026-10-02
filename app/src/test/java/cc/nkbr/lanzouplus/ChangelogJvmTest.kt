@@ -180,12 +180,43 @@ class ChangelogJvmTest {
         for (item in history) {
             assertTrue("必须列出 v${item.versionName}", texts.any { it == "v${item.versionName}" })
             assertTrue("必须列出日期 ${item.date}", texts.contains(item.date))
-            assertTrue("必须列出改动条目「${item.highlights}」", texts.contains(item.highlights))
+            /*
+             * [DFW-97] 条目现在**自动编号**（用户要求「用数字列出来」），
+             * 所以渲染出来的是「1、原文」而不是原文本身 —— 断言要跟着放宽，
+             * 但仍然要求"原文一字不少"（编号只是前缀，不许把内容改掉）。
+             */
+            assertTrue(
+                "必须列出改动条目「${item.highlights}」（现在带自动编号前缀）",
+                texts.any { it.contains(item.highlights) },
+            )
         }
         // 按后台排序（新→旧）原样展示
         val order = history.map { texts.indexOf("v${it.versionName}") }
         assertEquals("必须按新→旧排列（后台 sort=-id）", order.sorted(), order)
         assertTrue("顺序不能是「都没找到」的假绿", order.all { it >= 0 })
+    }
+
+    /**
+     * [DFW-97] **条目必须自动编号。** 用户 2026-10-02：
+     * 「每次更新都应该让普通人能看懂，还用数字列出来」。
+     *
+     * 在客户端编而不是让后台写「1. 2. 3.」：后台以后加条目的人不用记着编号，
+     * 少一个会出错的手工步骤。空行自动跳过。
+     */
+    @Test
+    fun entriesAreNumberedAutomatically() {
+        val a = activity()
+        val multi = entry("1.0.9", "2026-10-09", "第一件事\n\n第二件事\n第三件事")
+        a.showChangelogDialog("更新记录", "", listOf(multi))
+        shadowOf(Looper.getMainLooper()).idle()
+        val dialog = ShadowAlertDialog.getLatestAlertDialog()
+        val texts = textsIn(shadowOf(dialog).view!!)
+        val body = texts.firstOrNull { it.contains("第一件事") }
+        assertNotNull("改动条目必须渲染出来", body)
+        assertTrue("必须带编号 1", body!!.contains("1、第一件事"))
+        assertTrue("必须带编号 2", body.contains("2、第二件事"))
+        assertTrue("必须带编号 3（空行要跳过，不能跳号）", body.contains("3、第三件事"))
+        assertFalse("空行不许占一个号", body.contains("4、"))
     }
 
     @Test
@@ -200,18 +231,30 @@ class ChangelogJvmTest {
         val view = shadowOf(dialog).view
         assertNotNull(view)
         assertTrue("内容必须包在可滚动容器里（不然长历史看不到）", view is android.widget.ScrollView)
-        assertEquals("30 条历史一条都不能少", 30, textsIn(view!!).count { it.startsWith("v1.0.") })
+        // [DFW-97] 30 条后台历史 + 1 条内置的「公测开始」= 31
+        assertEquals("历史一条都不能少（30 条后台 + 1 条内置）", 31, textsIn(view!!).count { it.startsWith("v1.0.") })
     }
 
     @Test
-    fun emptyHistory_showsAPlaceholderInsteadOfAnEmptyDialog() {
+    fun emptyHistory_stillShowsThePublicBetaOpening() {
+        /*
+         * [DFW-97] 行为变了：用户 2026-10-02 要求「更新记录，你现在改成『公测开始』」。
+         *
+         * 后台没配、或者用户此刻网络不通时，更新记录**不该是一片空白** ——
+         * 第一条就应该是"这个软件从哪开始的"。所以现在**内置一条 1.0.0「公测开始」**，
+         * 无论后台有没有数据都会显示。
+         * 原来那条「暂时读不到更新记录」的占位**保留为兜底**（万一有人把内置条目删了）。
+         */
         val a = activity()
         a.showChangelogDialog("更新记录", "", emptyList())
         shadowOf(Looper.getMainLooper()).idle()
         val dialog = ShadowAlertDialog.getLatestAlertDialog()
         assertNotNull(dialog)
         val texts = textsIn(shadowOf(dialog).view!!)
-        assertTrue("没记录时要说清楚，不能给个空壳", texts.any { it.contains("暂时读不到更新记录") })
+        assertTrue(
+            "后台没有数据时也必须显示内置的「公测开始」，不能给个空壳",
+            texts.any { it.contains("公测开始") },
+        )
     }
 
     // ── 常驻入口 ──────────────────────────────────────────────────────────

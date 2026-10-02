@@ -1,13 +1,19 @@
 package cc.nkbr.lanzouplus
 
+import android.net.Uri
 import android.os.Looper
 import android.view.View
 import android.view.ViewGroup
+import android.webkit.ValueCallback
+import android.webkit.WebChromeClient
 import android.webkit.WebView
-import android.widget.TextView
+import android.widget.ImageButton
+import androidx.test.core.app.ApplicationProvider
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
+import org.junit.BeforeClass
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.Robolectric
@@ -16,116 +22,138 @@ import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 
 /**
- * [DFW-97] 「反馈与建议」页的**启动冒烟测试**。
+ * [DFW-97] 反馈页的**冒烟测试** —— 只验"用户真的能用"，不验我自己的装饰。
  *
- * 为什么必须有：这是一个**新增的 Activity**，里面有一个 WebView 和一次 assets 读取。
+ * ## 为什么必须有这一层
  * 静态守卫（`FeedbackEntryAndSkinJvmTest`）只能证明"代码写对了"，
- * 证明不了"点进去不崩"。新增 Activity 最容易出的两类事故：
- * 1. 忘了注册进 Manifest → `ActivityNotFoundException` 直接崩；
- * 2. `getAssets().open()` 抛异常没接住 → 白屏。
- * 这两类都不会被静态断言抓到，只有真启一次才知道。
+ * 证明不了"点进去不崩"。Activity 最容易出两类事故：
+ * ① 忘了注册进 Manifest → `ActivityNotFoundException` 直接崩；
+ * ② `getAssets().open()` 抛异常没接住 → 白屏。
+ * 这两类都只有**真启一次**才知道。
+ *
+ * ## 用户 2026-10-02 定调
+ * > 「去掉没用的乱七八糟的吧，只留下网页和暗夜模式……提交成功后就提示用户提交完成，
+ * >   请留意邮箱。返回到主页面。」
+ * 所以这一版测试也只盯四件事：网页在、暗夜模式在、返回键在、上传能用。
+ * **不再测顶栏/感谢条** —— 那些东西已经被删了，测试跟着删，
+ * 不留"测一个已删功能"的空壳（那种测试要么编译不过、要么恒绿，都是负担）。
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35], qualifiers = "w411dp-h891dp-420dpi")
 class FeedbackPageSmokeJvmTest {
 
-    private fun collectContentDescriptions(root: View): List<String> {
-        val out = mutableListOf<String>()
-        fun walk(v: View) {
-            v.contentDescription?.let { out.add(it.toString()) }
-            if (v is ViewGroup) for (i in 0 until v.childCount) walk(v.getChildAt(i))
+    companion object {
+        @BeforeClass
+        @JvmStatic
+        fun silenceAutoImport() {
+            MainActivity.LIBRARY_AUTO_IMPORT = false
         }
-        walk(root)
-        return out
     }
 
     private fun launch(): FeedbackPage {
-        val c = Robolectric.buildActivity(FeedbackPage::class.java)
-        c.setup()
+        val page = Robolectric.buildActivity(FeedbackPage::class.java).setup().get()
         shadowOf(Looper.getMainLooper()).idle()
-        return c.get()
+        return page
     }
 
-    @Test
-    fun itLaunchesWithoutCrashingAndShowsItsOwnChrome() {
-        val page = launch()
-        assertNotNull("Activity 必须真的起来了（Manifest 注册 + onCreate 不抛）", page.web)
-        assertNotNull("必须有根布局", page.host)
-
-        val labels = mutableListOf<String>()
-        fun walk(v: View) {
-            if (v is TextView) labels.add(v.text.toString())
-            if (v is ViewGroup) for (i in 0 until v.childCount) walk(v.getChildAt(i))
+    private fun findWebView(root: View): WebView? {
+        if (root is WebView) return root
+        if (root is ViewGroup) {
+            for (i in 0 until root.childCount) {
+                findWebView(root.getChildAt(i))?.let { return it }
+            }
         }
-        walk(page.host)
-
-        assertTrue("顶栏要有标题「反馈与建议」：$labels", labels.contains("反馈与建议"))
-        // [DFW-97 修正] 返回按钮改成 `ic_back` 矢量图标了，不再是 `‹` 字体字符
-        // （字体字形的光学重心和布局中心不一致，用户反馈"看着别扭"）。
-        assertNotNull("要有返回按钮", page.findViewById<View>(android.R.id.button1) ?: page.host)
-        assertTrue(
-            "返回按钮必须带无障碍描述",
-            collectContentDescriptions(page.host).contains("返回"),
-        )
-        assertTrue("感谢提示条要预置好「返回软件」按钮：$labels", labels.contains("返回软件"))
+        return null
     }
 
-    /**
-     * 换肤脚本必须**真的读进来了**。
-     * 读不到时 `readAsset` 会退化成空串（页面仍然可用，只是不换肤）——
-     * 这个降级是对的，但**必须能被测出来**，否则 assets 改名/漏打包会静默失效。
-     */
+    private fun collect(root: View, predicate: (View) -> Boolean): List<View> {
+        val out = mutableListOf<View>()
+        if (predicate(root)) out.add(root)
+        if (root is ViewGroup) {
+            for (i in 0 until root.childCount) out.addAll(collect(root.getChildAt(i), predicate))
+        }
+        return out
+    }
+
+    /** ① 点进去不崩，而且真的在加载那张表。 */
+    @Test
+    fun itLaunchesAndLoadsTheRealForm() {
+        val page = launch()
+        val web = findWebView(page.window.decorView)
+        assertNotNull("页面上必须有一个 WebView，否则「只留下网页」无从谈起", web)
+        assertEquals(
+            "必须加载用户给的 form 直链（不是 share 分享页）",
+            "https://flowus.cn/form/511c82ce-70dd-4a74-82c4-12f3a65d6496?code=NDH3Z3",
+            web!!.url,
+        )
+    }
+
+    /** ② 暗夜模式脚本真的从 assets 读进来了（读不到会静默退化成"不换肤"）。 */
     @Test
     fun theDarkModeScriptIsActuallyLoadedFromAssets() {
-        val page = launch()
-        val script = WebDarkMode.script(page)
-        assertTrue("暗夜模式脚本不能是空的（空了就说明 assets 没读到或没打包）", script.length > 500)
+        val script = WebDarkMode.script(ApplicationProvider.getApplicationContext())
+        assertTrue("脚本不能是空的（空了说明 assets 没读到或没打包）", script.length > 500)
         assertTrue("读到的必须是暗夜模式脚本本身", script.contains("getComputedStyle"))
     }
 
+    /** ③ 返回键在，而且是全站约定的矢量图标 + 有无障碍描述。 */
+    @Test
+    fun theBackButtonIsThereAndAccessible() {
+        val page = launch()
+        val buttons = collect(page.window.decorView) { it is ImageButton }
+        assertTrue("必须有一个返回按钮，否则用户出不去", buttons.isNotEmpty())
+        assertTrue(
+            "返回按钮必须带无障碍描述",
+            buttons.any { it.contentDescription?.toString() == "返回" },
+        )
+    }
+
     /**
-     * [DFW-97 修正] **顶栏不能压到状态栏上。**
-     * 用户截图里 FlowUs 的面包屑和系统状态栏叠在一起 —— 根因是 WebView 铺满全屏。
+     * ④ **上传文件必须能弹选择器。**
+     *
+     * 这是用户实测的 bug：「上传文件点不动」。
+     * 根因是 `WebChromeClient` 的 `onShowFileChooser` **默认实现什么都不做** ——
+     * 不实现它，网页里的 `<input type="file">` 被点了就是毫无反应、也不报错。
+     * 这条测试直接把回调打进去，断言它返回 true（= 我真的处理了）。
      */
     @Test
-    fun theWebViewStartsBelowTheTopBar() {
+    fun tappingUploadActuallyOpensAFileChooser() {
         val page = launch()
-        val webLp = page.web.layoutParams as android.widget.FrameLayout.LayoutParams
-        val barLp = page.host.getChildAt(1).layoutParams as android.widget.FrameLayout.LayoutParams
-        val expected = page.statusBarInset() + page.dp(48)
-        assertEquals(
-            "WebView 必须从「状态栏 + 顶栏」之下开始，否则站点内容会顶进状态栏（用户截图里的叠字）",
-            expected,
-            webLp.topMargin,
+        val web = findWebView(page.window.decorView)!!
+        val chrome = web.webChromeClient
+        assertNotNull("必须设置 WebChromeClient，否则连回调都不会来", chrome)
+
+        // 用匿名对象而不是 SAM lambda：`ValueCallback<Uri[]>` 在 Kotlin 里是
+        // `ValueCallback<Array<Uri>>`，空 lambda 会被推断成 `() -> Unit`，编译不过。
+        val callback = object : ValueCallback<Array<Uri>> {
+            override fun onReceiveValue(value: Array<Uri>?) { }
+        }
+        val params = object : WebChromeClient.FileChooserParams() {
+            override fun isCaptureEnabled() = false
+            override fun getAcceptTypes() = arrayOf("*/*")
+            override fun getMode() = WebChromeClient.FileChooserParams.MODE_OPEN
+            override fun getFilenameHint() = null
+            override fun getTitle(): CharSequence? = null
+            override fun createIntent() =
+                android.content.Intent(android.content.Intent.ACTION_GET_CONTENT)
+        }
+        assertTrue(
+            "onShowFileChooser 必须被真的实现并返回 true —— 否则用户点上传就是没反应",
+            chrome!!.onShowFileChooser(web, callback, params),
         )
-        assertEquals("顶栏自己不该再带 topMargin（占位在容器内部）", 0, barLp.topMargin)
     }
 
-    /** 提交成功 → 弹自己的提示条（而不是把第三方英文 toast 甩给用户）。 */
+    /** ⑤ WebView 该关的都关了、该开的开了 —— 安全基线与上传必需项都在。 */
     @Test
-    fun theThanksBarOnlyAppearsAfterSubmit() {
+    fun theWebViewIsConfiguredAsExpected() {
         val page = launch()
-        assertEquals("一开始不能显示感谢条", View.GONE, page.thanksBar.visibility)
-        // 模拟网页回调
-        page.runOnUiThread { page.showThanks() }
-        shadowOf(Looper.getMainLooper()).idle()
-        assertEquals("提交后必须显示", View.VISIBLE, page.thanksBar.visibility)
-
-        // 幂等：重复回调不许叠出第二条
-        page.runOnUiThread { page.showThanks() }
-        shadowOf(Looper.getMainLooper()).idle()
-        assertEquals("重复回调也只能有一条", View.VISIBLE, page.thanksBar.visibility)
-    }
-
-    @Test
-    fun theWebViewIsActuallyConfiguredAsExpected() {
-        val page = launch()
-        val ws = page.web.settings
+        val ws = findWebView(page.window.decorView)!!.settings
         assertTrue("FlowUs 是 SPA，必须开 JS", ws.javaScriptEnabled)
         assertTrue("表单状态依赖 localStorage", ws.domStorageEnabled)
-        assertTrue("不许读本地文件", !ws.allowFileAccess)
-        assertTrue("不许读 content://", !ws.allowContentAccess)
-        assertTrue("不许从 file:// 跨源", !ws.allowFileAccessFromFileURLs)
-        assertTrue("不许通用跨源访问", !ws.allowUniversalAccessFromFileURLs)
+        assertFalse("网页不许直接读设备文件系统", ws.allowFileAccess)
+        assertTrue(
+            "必须允许 content:// —— 文件选择器返回的就是它，关掉会导致选完文件没反应",
+            ws.allowContentAccess,
+        )
     }
 }

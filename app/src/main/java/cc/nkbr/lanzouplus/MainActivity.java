@@ -1277,6 +1277,28 @@ FrameLayout.LayoutParams tp=new FrameLayout.LayoutParams(Math.max(dp(1),Math.min
       hint.setPadding(0,0,0,dp(6));
       body.addView(hint,new LinearLayout.LayoutParams(-1,-2));
     }
+    /*
+     * [DFW-97] **内置第一条「公测开始」**。用户 2026-10-02：
+     * 「更新记录，你现在改成『公测开始』」。
+     *
+     * 为什么放在客户端而不是只靠后台：
+     * ① 后台没配、或者用户此刻网络不通时，更新记录**不该是一片空白** ——
+     *    第一条就是"这个软件从哪开始的"，那是最该被看到的一句；
+     * ② 后续每次发新版，后台加的新条目会**排在它前面**（后台按新→旧排序），
+     *    所以它天然永远是"最早的那一条"，不需要任何人去维护它的位置。
+     */
+    java.util.List<RemoteConfigClient.Changelog> all=new java.util.ArrayList<>();
+    all.add(new RemoteConfigClient.Changelog(
+        "builtin-1.0.0","1.0.0","2026-10-02",
+        "公测开始：东方无限正式开放公测。\n"
+        + "搜索更快了：一次搜完所有软件库源，不用干等。\n"
+        + "搜索页底部不再有一块黑色空白。\n"
+        + "从搜索返回主页有了淡出动画，不再是硬切。\n"
+        + "下载完成或失败会明确告诉你，并写清是哪个文件。\n"
+        + "设置页新增「反馈与建议」，有问题可以直接填表告诉我。\n"
+        + "内置网页统一暗夜模式，晚上看不刺眼。"));
+    if(entries!=null)all.addAll(entries);
+    entries=all;
     if(entries==null||entries.isEmpty()){
       TextView empty=text("暂时读不到更新记录（后台没配或网络不通）",13,MUTED);
       empty.setGravity(Gravity.CENTER);
@@ -1312,7 +1334,25 @@ FrameLayout.LayoutParams tp=new FrameLayout.LayoutParams(Math.max(dp(1),Math.min
     head.addView(date,new LinearLayout.LayoutParams(-2,dp(26)));
     block.addView(head,new LinearLayout.LayoutParams(-1,dp(26)));
     if(!entry.highlights.isEmpty()){
-      TextView lines=text(entry.highlights,13,TEXT);
+      /*
+       * [DFW-97] **自动编号**。用户 2026-10-02：
+       * 「每次更新都应该让普通人能看懂，还用数字列出来」。
+       *
+       * 为什么在客户端编而不是让后台写「1. 2. 3.」：
+       * 后台以后加条目的人（包括我）不用记着编号 —— 少一个会出错的手工步骤。
+       * 一行一条，空行自动跳过；编号用全角「、」结尾，中文排版更自然。
+       */
+      String[] raw=entry.highlights.split("\\r?\\n");
+      StringBuilder numbered=new StringBuilder();
+      int index=0;
+      for(String line:raw){
+        String item=line.trim();
+        if(item.isEmpty())continue;
+        index++;
+        if(numbered.length()>0)numbered.append('\n');
+        numbered.append(index).append("、").append(item);
+      }
+      TextView lines=text(numbered.length()==0?entry.highlights:numbered.toString(),13,TEXT);
       lines.setLineSpacing(dp(4),1f);
       lines.setPadding(0,dp(6),0,0);
       block.addView(lines,new LinearLayout.LayoutParams(-1,-2));
