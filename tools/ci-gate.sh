@@ -10,6 +10,7 @@
 # 用法：
 #   tools/ci-gate.sh unit      # JVM 测试门禁（host + vendor + common）
 #   tools/ci-gate.sh apk       # unsigned release 构建 + ABI + 资产命名/权限断言
+#   tools/ci-gate.sh lint      # Android Lint（emptyRelease 变体，0 error）[DFW-123]
 #   tools/ci-gate.sh all       # 以上全部
 #   tools/ci-gate.sh docs      # 文档/仓库卫生门禁（不依赖 Android SDK 的静态检查）
 #
@@ -137,6 +138,42 @@ gate_unit() {
   echo "✅ JVM 测试门禁通过"
 }
 
+# ---------------------------------------------------------------- Lint
+#
+# [DFW-123 2026-10-02] lint 从"跑了但没人接"接进门禁。
+#
+# 为什么**单独一层**、不并进 `unit`：
+#  1. `unit` 是本地最常跑的一层（一天十几次）。lint 要编译 **release** 变体，
+#     而测试跑的是 **emptyDebug** 变体 —— 两者**不共享编译产物**，
+#     并进去等于给每次迭代白加一段 release 编译；
+#  2. 失败语义不同：`unit` 红 = "测试挂了"，lint 红 = "静态检查挂了"。
+#     混在一起，"红的是什么"要翻日志才知道；
+#  3. 单独一层才能在 CI 里开**独立 job 并行跑**（见 .github/workflows/ci-gates.yml），
+#     几乎不增加关键路径耗时。
+#
+# ⚠️ 任务名是 `lintEmptyRelease`：项目 release 变体叫 `emptyRelease`（同 gate_apk），
+#    任务名里**只有 Release、没有 Debug**，满足 AGENTS.md 二的发版红线。
+#    **绝对不要**为了跑得快而改成 Debug 变体。
+#
+# ⚠️ warning 不拦（现状 100+ 条），只拦 error —— AGP 的 `abortOnError` 默认就是 true，
+#    任务自己会因为 error 失败，这里不需要再解析报告去数数。
+#    但若哪天有人把 `abortOnError` 改成 false，这条门禁会静默失效，
+#    所以下面补了一道**兜底断言**：直接数 XML 里的 `severity="Error"`。
+gate_lint() {
+  step "Lint 门禁：emptyRelease 变体（0 error；warning 不拦）"
+  ./gradlew "${GRADLE_ARGS[@]}" :app:lintEmptyRelease
+
+  # 兜底：确认报告真的存在、且 error 数为 0。
+  # 这一道防的是"任务假成功"—— 上面那条命令的退出码只反映 AGP 配置，不反映报告内容。
+  local report="app/build/reports/lint-results-emptyRelease.xml"
+  [[ -f "$report" ]] || fail "lint 报告不存在：${report}\n（任务可能没真的跑起来）"
+  local errors
+  errors="$(grep -c 'severity="Error"' "$report" || true)"
+  [[ "$errors" == "0" ]] || fail "lint 报告里还有 ${errors} 条 error：${report}\n→ 逐条处置见 docs/plan/lint-triage.md"
+
+  echo "✅ Lint 门禁通过（0 error）"
+}
+
 # ---------------------------------------------------------------- APK 产物
 gate_apk() {
   step "构建 unsigned release（签名由本地发版流程负责，CI 不碰 keystore）"
@@ -201,7 +238,8 @@ gate_apk() {
 case "${1:-all}" in
   docs) gate_docs ;;
   unit) gate_unit ;;
+  lint) gate_lint ;;
   apk)  gate_apk ;;
-  all)  gate_docs; gate_unit; gate_apk ;;
-  *) echo "用法：$0 [docs|unit|apk|all]" >&2; exit 2 ;;
+  all)  gate_docs; gate_unit; gate_lint; gate_apk ;;
+  *) echo "用法：$0 [docs|unit|lint|apk|all]" >&2; exit 2 ;;
 esac

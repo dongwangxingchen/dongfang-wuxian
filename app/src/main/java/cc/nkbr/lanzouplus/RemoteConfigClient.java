@@ -480,6 +480,30 @@ final class RemoteConfigClient {
 
   /** 简单 GET → JSON。固定 host，不跟随跨域跳转（与 UpdateClient 同款保守策略）。 */
   private static JSONObject get(String endpoint) throws IOException {
+    /*
+     * [DFW-124 2026-10-02] 单元测试里**不发真实网络请求**，直接当作"服务器不可达"。
+     *
+     * 这里是全部远程读取的**唯一咽喉**：`fetch()` / `fetch(Raw)` 都经此。
+     * 不在这里拦的话，每一个创建 `MainActivity` 的 Robolectric 用例都会**真的打生产服务器**——
+     * `MainActivity:305/309/310` 那三个 `ui.post` 启动任务（查更新 / 维护 / 公告）都是异步的，
+     * 回调什么时候落地取决于本机网速，于是：
+     *
+     *   - **测试不确定**：同一份代码连跑会随机红（DFW-113 记录的就是这个）；
+     *   - 回调会**改被测对象的字段**：`maybeFetchNotices` 的网络回调会走到
+     *     `maybePopupNotices()` → `showNoticeDialog()` → 覆盖 `MainActivity.noticeDialog`，
+     *     于是 `assertNull(a.noticeDialog)` 在"请求刚好这时回来"时必然失败
+     *     （2026-10-02 实测复现：`NoticeFlowJvmTest.kt:135`，约 1/6 概率）；
+     *   - **测试有副作用**：往生产服务器发请求，还会被服务器上的真实数据牵着走
+     *     （线上真有一条 `popupMode=once` 的公告，会主动弹窗）。
+     *
+     * 抛 `IOException` 而不是返回 null，是为了让调用方走它们**本来就有的失败分支**：
+     * 这条链路每一层都是 fail-open（`catch (Exception ignored)` 后按"拉不到"处理），
+     * 所以测试看到的就是线上"服务器挂了"的确定性行为，语义与生产完全一致。
+     *
+     * 判据用「Robolectric 在不在 classpath 上」（同 `App.isJvmUnitTest()`）：
+     * 发布 APK 里没有 Robolectric，恒为 false，不需要开关，也不引入任何依赖。
+     */
+    if (App.isJvmUnitTest()) throw new IOException("单元测试不发真实网络请求（DFW-124）");
     URL url = new URL(endpoint);
     String expectedHost = url.getHost().toLowerCase(Locale.ROOT);
     HttpURLConnection connection = (HttpURLConnection) url.openConnection();

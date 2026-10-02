@@ -122,7 +122,17 @@ public class SupportActivity extends Activity {
     finish();
   }
 
-  /** 系统返回（边缘滑动 / 返回键）也走同一个退场，保证两条路径观感一致。 */
+  /**
+   * 系统返回（边缘滑动 / 返回键）也走同一个退场，保证两条路径观感一致。
+   *
+   * `@SuppressLint("GestureBackNavigation")` 是**误报抑制**，理由（DFW-123）：
+   *  - `onBackPressed()` 在返回键与三键导航下仍然有效，本类要的正是这两条路径的退场转场；
+   *  - 项目对这个 issue 已有两处同样处置：`FeedbackPage.java:282`、`LanzouWebActivity.java:93`。
+   *    第三条若单独改成 `OnBackPressedDispatcher`，就会出现"同类页面三种返回实现"；
+   *  - 迁移会改动返回动画行为（用户可见），属方案选型，不该塞进"lint 清零"里做。
+   *    该限制已在 `docs/plan/risk-register.md` 记为 R-22（预测性返回手势）。
+   */
+  @android.annotation.SuppressLint("GestureBackNavigation")
   @Override public void onBackPressed(){
     closePage();
   }
