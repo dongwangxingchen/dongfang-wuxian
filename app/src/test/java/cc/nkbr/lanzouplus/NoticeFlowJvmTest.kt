@@ -50,6 +50,22 @@ class NoticeFlowJvmTest {
     private fun activity(): MainActivity {
         val a = Robolectric.buildActivity(MainActivity::class.java).setup().get()
         shadowOf(Looper.getMainLooper()).idle()
+        /*
+         * [DFW-124 2026-10-02] **先把启动路径自己弹的公告关掉。**
+         *
+         * `MainActivity` 起来之后会走 `maybePopupNotices()`（MainActivity.java:2156）：
+         * 只要 `noticeCenter()` 里还有该弹的公告，它就自己弹一个。
+         *
+         * 于是本类里"自己调 `showNoticeDialog()` 再断言"的测试会**和它抢同一个 `noticeDialog` 字段**：
+         * 如果启动路径那个弹窗晚一步出现，断言看到的就不是自己弹的那个 ——
+         * 实测表现为 `assertNull("点「知道了」必须关掉弹窗", a.noticeDialog)` 随机失败，
+         * **单跑这个类 4 次的结果是 0 / 1 / 0 / 1**。
+         *
+         * 这里先显式关掉，让"被测的那一个弹窗"是唯一的 —— 测的仍然是我们想测的东西
+         * （点「知道了」只关窗、不跳页），只是把不相干的启动路径排除掉。
+         */
+        a.dismissNoticeDialog()
+        shadowOf(Looper.getMainLooper()).idle()
         return a
     }
 
