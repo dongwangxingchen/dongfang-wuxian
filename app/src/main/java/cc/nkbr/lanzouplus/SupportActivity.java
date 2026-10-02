@@ -272,7 +272,7 @@ public class SupportActivity extends Activity {
     // 真胶囊：`solidShape` 的半径量化会把 24 压成 26（做出来是圆角方块而不是胶囊），
     // 所以直接走 PremiumSurface.pill（半径 = 高度一半）。高度也统一到 56dp。
     confirm.setBackground(ripple(PremiumSurface.pill(PRIMARY,dp(56),0,0,PremiumSurface.HIGHLIGHT)));
-    confirm.setContentDescription("诚信付费，解锁全部下载权限；不付费也可以完整使用其它功能");
+    confirm.setContentDescription("诚信付费，解锁内置 AI 使用权限；不付费也可以完整使用其它功能");
     // [BRAND-001] 防连点：解锁会整页重建，连点两次会在重建途中再触发一次，
     // 表现为按钮闪一下/白屏一帧。解锁是本地幂等写，但重建不是幂等的。
     confirm.setOnClickListener(v->{
@@ -332,7 +332,7 @@ public class SupportActivity extends Activity {
     page.addView(badgeWrap,badgeLp);
     long paidAt=Support.paidAt(this);
     String date=paidAt>0?android.text.format.DateFormat.getDateFormat(this).format(new java.util.Date(paidAt)):"";
-    TextView detail=text(date.isEmpty()?"全部下载权限已开放":"解锁于 "+date+" · 全部下载权限已开放",13,MUTED);
+    TextView detail=text(date.isEmpty()?"内置 AI 使用权限已开放":"解锁于 "+date+" · 内置 AI 使用权限已开放",13,MUTED);
     detail.setGravity(Gravity.CENTER);detail.setPadding(0,dp(10),0,0);
     page.addView(detail,new LinearLayout.LayoutParams(-1,dp(30)));
     TextView footnote=text("本软件承诺永久更新 · 绝不停更\n这份支持会变成继续更新的底气",11,MUTED);
@@ -384,7 +384,7 @@ public class SupportActivity extends Activity {
     unlockInvocations++;
     Support.unlock(this);
     renderThankYou();
-    MainActivity.showSupportNotice(this,"已解锁全部下载权限 · 谢谢你");
+    MainActivity.showSupportNotice(this,"已解锁内置 AI 使用权限 · 谢谢你");
   }
 
   /** 解锁反馈：克制的单次缩放+淡入（无循环；MotionScale 门控在系统动画关闭时跳过）。

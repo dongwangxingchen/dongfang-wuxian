@@ -60,7 +60,21 @@ public final class FeedbackPage extends Activity {
   FrameLayout host;
   LinearLayout thanksBar;
   String skinScript = "";
+  boolean backCallbackRegistered;
   int BG, SURFACE, TEXT, MUTED, DIV, PRIMARY;
+
+  /**
+   * [DFW-97] 预测性返回（DFW-17 同款，照抄 `LanzouWebActivity`）。
+   *
+   * 为什么必须做：本 App 的 targetSdk 是 37，**`enableOnBackInvokedCallback` 的默认值就是 true**，
+   * 也就是系统会走"预测性返回"。此时如果页面不注册 `OnBackInvokedCallback`，
+   * 系统会**直接结束 Activity**，`onBackPressed()` 根本不会被调用 ——
+   * 结果是"在网页里翻了几层之后按返回，直接退出了反馈页，而不是退回上一页"。
+   *
+   * 语义与 `LanzouWebActivity` 一致：网页还能后退 → 注册回调自己处理；
+   * 已经在网页历史起点 → 注销回调，把返回交回系统，于是"退出本页"这一步恢复预览动画。
+   */
+  final android.window.OnBackInvokedCallback backCallback = this::handleBack;
 
   @Override public void onCreate(Bundle state) {
     super.onCreate(state);
@@ -82,6 +96,7 @@ public final class FeedbackPage extends Activity {
         return leaveApp(url == null ? "" : url);
       }
       @Override public void onPageFinished(WebView v, String url) {
+        syncBackCallback();
         // 每次页面加载完都注入一次：FlowUs 是 SPA，内部跳转不会重新触发 onPageFinished，
         // 但刷新/重进时需要重新换肤。
         injectSkin();
@@ -272,9 +287,31 @@ public final class FeedbackPage extends Activity {
 
   // ── 返回 ─────────────────────────────────────────────────────────────
 
-  @Override public void onBackPressed() {
+  void syncBackCallback() {
+    if (Build.VERSION.SDK_INT < 33) return;
+    boolean canGoBack = web != null && web.canGoBack();
+    if (canGoBack == backCallbackRegistered) return;
+    try {
+      if (canGoBack) {
+        getOnBackInvokedDispatcher().registerOnBackInvokedCallback(
+            android.window.OnBackInvokedDispatcher.PRIORITY_DEFAULT, backCallback);
+        backCallbackRegistered = true;
+      } else {
+        getOnBackInvokedDispatcher().unregisterOnBackInvokedCallback(backCallback);
+        backCallbackRegistered = false;
+      }
+    } catch (Exception error) {
+      android.util.Log.w("FeedbackPage", "syncBackCallback: " + error.getMessage(), error);
+    }
+  }
+
+  void handleBack() {
     if (web != null && web.canGoBack()) web.goBack();
-    else super.onBackPressed();
+    else finish();
+  }
+
+  @SuppressLint("GestureBackNavigation") @Override public void onBackPressed() {
+    handleBack();
   }
 
   @Override protected void onDestroy() {

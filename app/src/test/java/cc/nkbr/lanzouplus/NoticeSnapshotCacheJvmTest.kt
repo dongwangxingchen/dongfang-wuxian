@@ -69,6 +69,64 @@ class NoticeSnapshotCacheJvmTest {
         .put("popupMode", popupMode)
         .put("enabled", enabled)
 
+    /**
+     * [DFW-97 审计] **部分集合拉取失败，绝不许把已缓存的公告冲掉。**
+     *
+     * 这是一个真实存在过的静默失效：`storeCache` 原来是"新建 JSONObject、把非 null 的集合塞进去、
+     * 整串写回"，而调用方只要 `snapshot.reachable`（= **四个集合里任意一个**拉到了）就落盘。
+     * 于是"公告接口抖一下、其余三路正常"就会把缓存写成**没有公告**的版本 ——
+     * 用户下次启动读到的缓存里公告凭空消失，红点和弹窗全没，**日志里一个字都没有**。
+     *
+     * 修法：写缓存时先用旧缓存铺底，**只覆盖这次真正拿到的集合**。
+     */
+    @Test
+    fun aPartialFetchMustNotWipeTheCachedNotices() {
+        // 第一次：公告拉到了
+        RemoteConfigClient.storeCache(
+            ctx,
+            raw(
+                notices = JSONArray().put(noticeJson(id = "keep-me")).toString(),
+                control = JSONArray().put(JSONObject().put("id", "c1").put("enabled", true)).toString(),
+            ),
+        )
+        assertEquals(
+            "前置条件：第一次必须存进去了",
+            1,
+            RemoteConfigClient.loadCache(ctx)!!.notices().size,
+        )
+
+        // 第二次：只有 control 成功，公告接口这次是 null（抖动）
+        RemoteConfigClient.storeCache(
+            ctx,
+            raw(control = JSONArray().put(JSONObject().put("id", "c1").put("enabled", true)).toString()),
+        )
+
+        val after = RemoteConfigClient.loadCache(ctx)
+        assertNotNull("缓存不该被写坏", after)
+        assertEquals(
+            "公告接口抖一下就把已缓存的公告抹掉了 —— 红点和弹窗会凭空消失，且日志里没有任何痕迹",
+            1,
+            after!!.notices().size,
+        )
+        assertEquals("留下的必须还是原来那条", "keep-me", after.notices()[0].id)
+    }
+
+    /** 反向：这次**拿到了**公告，就必须覆盖掉旧的，不能因为"合并"而永远留着旧公告。 */
+    @Test
+    fun aSuccessfulFetchStillReplacesTheCachedNotices() {
+        RemoteConfigClient.storeCache(
+            ctx,
+            raw(notices = JSONArray().put(noticeJson(id = "old")).toString()),
+        )
+        RemoteConfigClient.storeCache(
+            ctx,
+            raw(notices = JSONArray().put(noticeJson(id = "new")).toString()),
+        )
+        val after = RemoteConfigClient.loadCache(ctx)!!
+        assertEquals("拿到新公告就必须覆盖旧的", 1, after.notices().size)
+        assertEquals("new", after.notices()[0].id)
+    }
+
     @Test
     fun storeThenLoad_roundTripsTheNotice() {
         RemoteConfigClient.storeCache(ctx, raw(notices = JSONArray().put(noticeJson()).toString()))

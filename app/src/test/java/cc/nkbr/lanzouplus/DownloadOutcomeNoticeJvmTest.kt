@@ -123,12 +123,29 @@ class DownloadOutcomeNoticeJvmTest {
         // 喂一段假的：必须能抓出"没有 stateChanged 保护"和"缺 uiState 同步"这两种坏代码
         assertFalse(
             "坏代码（没有 stateChanged 保护）不该被误判成合格",
-            Regex("if\\(stateChanged\\)noteDownloadOutcome\\(entry\\)")
-                .containsMatchIn("for(DownloadEntry entry:changed){noteDownloadOutcome(entry);}"),
+            guardsOnStateChanged("for(DownloadEntry entry:changed){noteDownloadOutcome(entry);}"),
+        )
+        assertTrue(
+            "修好的代码必须被认出来",
+            guardsOnStateChanged("for(DownloadEntry entry:changed){if(stateChanged)noteDownloadOutcome(entry);}"),
         )
         assertFalse(
             "坏代码（恢复时没同步 uiState）不该被误判成合格",
-            "entry.savedState=entry.state;entry.savedPercent=1;".contains("entry.uiState=entry.state"),
+            syncsUiStateOnRestore("entry.savedState=entry.state;entry.savedPercent=1;"),
+        )
+        assertTrue(
+            "修好的代码必须被认出来",
+            syncsUiStateOnRestore("entry.savedState=entry.state;entry.uiState=entry.state;"),
         )
     }
+
+    /**
+     * 守卫本体抽成函数，**反向探针才能把坏代码真的喂进来**。
+     *
+     * ⚠️ 原来那版第二条探针是 `"…".contains("…")` 字面量自比，编译期恒真、零鉴别力。
+     */
+    private fun guardsOnStateChanged(src: String): Boolean =
+        Regex("if\\(stateChanged\\)noteDownloadOutcome\\(entry\\)").containsMatchIn(src)
+
+    private fun syncsUiStateOnRestore(src: String): Boolean = src.contains("entry.uiState=entry.state")
 }

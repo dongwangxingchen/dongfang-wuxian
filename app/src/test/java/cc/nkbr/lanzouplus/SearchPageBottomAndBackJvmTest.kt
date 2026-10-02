@@ -155,14 +155,48 @@ class SearchPageBottomAndBackJvmTest {
         assertFalse("不许出现自造的硬编码时长", Regex("setDuration\\(\\d").containsMatchIn(body))
     }
 
-    /** 反向探针：确认上面的源码断言真的能识别坏代码。 */
+    /**
+     * 守卫本体抽成函数，**反向探针才能把坏代码真的喂进来**。
+     *
+     * ⚠️ 原来那版探针是 `badGap.contains("-dp(64)")` 这种字面量自比，
+     * **编译期恒真**，跟产品代码毫无关系，等于"假装验过了"。
+     */
+    private fun subtractsTheSixtyFourDp(src: String): Boolean = src.contains("vh-dp(64)")
+
+    private fun usesCrossFadeForExit(src: String): Boolean =
+        src.contains("crossFadeHomeSection(homeHistory,homeLibsBand);")
+
+    private fun hasHardCodedDuration(src: String): Boolean =
+        Regex("setDuration\\(\\d").containsMatchIn(src)
+
+    /** 反向探针：**把坏代码真的喂进守卫函数**，确认它会变红。 */
     @Test
     fun theSourceChecksActuallyDetectBadCode() {
-        val badGap = "return Math.max(dp(240),vh-dp(64));"
-        assertTrue("坏代码（又扣 64dp）必须能被识别", badGap.contains("-dp(64)"))
-        val badBack = "if(homeHistory!=null)homeHistory.setVisibility(View.GONE);if(homeLibsBand!=null)homeLibsBand.setVisibility(View.VISIBLE);"
-        assertFalse("坏代码（硬切）不该被当成走了交叉淡化", badBack.contains("crossFadeHomeSection"))
-        assertTrue("锚点必须真的在源码里", main.contains("crossFadeHomeSection(homeHistory,homeLibsBand);"))
+        // ① 又扣 64dp —— 必须被抓
+        assertTrue(
+            "坏代码（又扣 64dp）必须能被识别",
+            subtractsTheSixtyFourDp("return Math.max(dp(240),vh-dp(64));"),
+        )
+        assertFalse("修好的代码不该被误判", subtractsTheSixtyFourDp("return Math.max(dp(240),vh);"))
+
+        // ② 硬切 —— 必须不被认成走了交叉淡化
+        val hardCut = "if(homeHistory!=null)homeHistory.setVisibility(View.GONE);" +
+            "if(homeLibsBand!=null)homeLibsBand.setVisibility(View.VISIBLE);"
+        assertFalse("坏代码（硬切）不该被当成走了交叉淡化", usesCrossFadeForExit(hardCut))
+        assertTrue("修好的代码必须被认出来", usesCrossFadeForExit(main))
+
+        // ③ 自造硬编码时长 —— 必须被抓（全站动效 token 铁律）
+        assertTrue(
+            "坏代码（硬编码时长）必须被识别",
+            hasHardCodedDuration("v.animate().alpha(0f).setDuration(180).start();"),
+        )
+        assertFalse(
+            "用 DUR_* 常量的代码不该被误判",
+            hasHardCodedDuration("v.animate().alpha(0f).setDuration(DUR_EXIT_FAST).start();"),
+        )
+
+        // ④ 锚点必须真的在源码里，否则上面全在自说自话
+        assertTrue("锚点必须真的在源码里", usesCrossFadeForExit(main))
     }
 
     /**

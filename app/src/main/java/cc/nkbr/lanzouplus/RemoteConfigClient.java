@@ -257,10 +257,42 @@ final class RemoteConfigClient {
   private static final String CACHE_PREFS = "remote_config_cache-v1";
 
   /** 把这一次成功拉到的原始 JSON 落盘（下次启动先用它，网络回来再覆盖）。 */
+  /**
+   * 写缓存 —— **按集合合并，绝不整串覆盖**。
+   *
+   * [DFW-97 审计发现的静默失效] 原来这里是"新建一个 JSONObject，把非 null 的集合塞进去，
+   * 然后整串写回"。而调用方（`MainActivity.maybeFetchNotices`）只要
+   * `snapshot.reachable` 为真就落盘，**而 reachable 的定义是"四个集合里任意一个拉到了"**
+   * （见 `:341` 附近的赋值）。
+   *
+   * 于是最坏情况：公告接口抖一下、其余三路正常 →
+   * 新 Raw 里 `notice == null` → 写回去的缓存**没有公告** →
+   * 用户下次启动读到的缓存是"没有公告"的版本，红点和弹窗全没了，
+   * **而且日志里一个字都没有**（整个方法包在 catch 里，覆盖写本身也不报错）。
+   *
+   * 这与"公告拉不到"那条 NPE 是同一类问题：**错误被静默吞掉，表现为功能凭空消失**。
+   *
+   * 现在改成：先把旧缓存读出来，**只覆盖这次真正拿到的集合**，其余原样保留。
+   */
   static void storeCache(android.content.Context ctx, Raw raw) {
     if (ctx == null || raw == null) return;
     try {
       JSONObject o = new JSONObject();
+      // 旧缓存先铺底：这次没拿到的集合沿用上次的，而不是被抹成"没有"
+      String previous = ctx.getSharedPreferences(CACHE_PREFS, android.content.Context.MODE_PRIVATE)
+          .getString("raw", "");
+      if (!previous.isEmpty()) {
+        try {
+          JSONObject old = new JSONObject(previous);
+          java.util.Iterator<String> keys = old.keys();
+          while (keys.hasNext()) {
+            String key = keys.next();
+            JSONArray value = old.optJSONArray(key);
+            if (value != null) o.put(key, value);
+          }
+        } catch (Exception ignored) { /* 旧缓存坏了就当没有，用这次的 */ }
+      }
+      // 这次真正拿到的集合覆盖上去
       if (raw.control != null) o.put("control", raw.control);
       if (raw.release != null) o.put("release", raw.release);
       if (raw.notice != null) o.put("notice", raw.notice);

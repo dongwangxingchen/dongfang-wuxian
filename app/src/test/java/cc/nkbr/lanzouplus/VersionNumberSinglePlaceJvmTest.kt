@@ -41,12 +41,25 @@ class VersionNumberSinglePlaceJvmTest {
     private val checkUpdateRow =
         "settingsAction(R.drawable.ic_refresh,\"检查更新\",BuildConfig.VERSION_NAME,v->manualCheckForUpdates())"
 
+    /**
+     * 守卫本体抽成函数，**反向探针才能把坏代码真的喂进来**。
+     *
+     * ⚠️ 原来那版第一条探针是 `bad.contains("BuildConfig.VERSION_NAME") && bad.contains("text(")`——
+     * 两个操作数都是字符串字面量，**编译期恒真**，跟产品代码毫无关系，等于"假装验过了"。
+     * 正确写法见 `RenderFolderNullSafetyJvmTest.theGuardActuallyDetectsAnUnguardedCall`。
+     */
+    private fun linesRenderingTheVersion(src: String): List<String> =
+        src.lines().filter { it.contains("BuildConfig.VERSION_NAME") && it.contains("text(") }
+
+    private fun hardCodesVersionName(src: String): Boolean =
+        Regex("versionName = \"\\d+\\.\\d+\\.\\d+\"").containsMatchIn(src)
+
     @Test
     fun versionNameIsRenderedInExactlyOnePlace() {
         assertTrue("设置页「检查更新」必须把版本号放在右侧（DFW-91）", main.contains(checkUpdateRow))
 
         // 版本号不许再被 text(...) 直接渲染成 UI 文本。
-        val rendered = main.lines().filter { it.contains("BuildConfig.VERSION_NAME") && it.contains("text(") }
+        val rendered = linesRenderingTheVersion(main)
         assertTrue(
             "版本号只允许在「检查更新」那一行出现；这几行又在渲染它了：" +
                 rendered.joinToString(" | ") { it.trim().take(90) },
@@ -172,22 +185,28 @@ class VersionNumberSinglePlaceJvmTest {
     /** 反向探针：确认上面的检查真的能识别坏代码，不是永远为真。 */
     @Test
     fun theChecksActuallyDetectBadCode() {
-        // ① 别处又渲染版本号 —— 必须被 rendered 检查抓到
-        val bad = "TextView v=text(PRODUCT_NAME+\" \"+BuildConfig.VERSION_NAME,12,MUTED);"
+        // ① 别处又渲染版本号 —— 必须被真守卫抓出来
         assertTrue(
             "坏代码（别处又渲染版本号）必须被识别",
-            bad.contains("BuildConfig.VERSION_NAME") && bad.contains("text("),
+            linesRenderingTheVersion(
+                "TextView v=text(PRODUCT_NAME+\" \"+BuildConfig.VERSION_NAME,12,MUTED);",
+            ).isNotEmpty(),
+        )
+        assertTrue(
+            "好代码（只是把版本号当参数传给设置项，没有 text() 渲染）不该被误判",
+            linesRenderingTheVersion(
+                "settingsAction(R.drawable.ic_refresh,\"检查更新\",BuildConfig.VERSION_NAME,v->x())",
+            ).isEmpty(),
         )
         // ② versionName 又写死成字符串 —— 必须被正则抓到
         assertTrue(
             "坏代码（versionName 写死）必须被识别",
-            Regex("versionName = \"\\d+\\.\\d+\\.\\d+\"").containsMatchIn("""  versionName = "1.0.22""""),
+            hardCodesVersionName("""  versionName = "1.0.22""""),
         )
         // ③ 好代码不该被误判
         assertFalse(
             "好代码（由 buildCode 推导）不该被误判成写死",
-            Regex("versionName = \"\\d+\\.\\d+\\.\\d+\"")
-                .containsMatchIn("""  versionName = "${'$'}{buildCode / 10000}.x""""),
+            hardCodesVersionName("""  versionName = "${'$'}{buildCode / 10000}.x""""),
         )
         // ④ 唯一那处 UI 的锚点字符串必须真的在源码里，否则上面全在自说自话
         assertEquals(

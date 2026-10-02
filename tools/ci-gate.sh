@@ -86,6 +86,28 @@ gate_unit() {
   step "JVM 测试门禁：common（脱敏等共享逻辑）"
   ./gradlew "${GRADLE_ARGS[@]}" :common:testDebugUnitTest
 
+  # [DFW-97 审计] vendor 侧**其余 9 个有测试的模块**原来从不进任何门禁。
+  #
+  # 实测（2026-10-02）：门禁只跑 3 个模块 = 1064 例，
+  # 而 :ai/:highlight/:speech/:workspace/:search/:oauth/:document/:material3/:web
+  # 合计还有 336 例（占全仓 24%）**从来没被跑过**。
+  # 这不是"少跑一点"—— `:ai` 真的踩到过：`bbf689d DFW-8` 改了它 4 个 SSE 文件，
+  # 而 `:ai` 的测试结果停在 09-28，没人发现。
+  #
+  # 一处跑全部，别一个个写（少写一个就是永久缺口）：
+  # 这些模块都没有 flavor，任务名统一是 testDebugUnitTest。
+  step "JVM 测试门禁：vendor 其余模块（ai/highlight/speech/workspace/search/oauth/document/material3/web）"
+  ./gradlew "${GRADLE_ARGS[@]}" \
+    :ai:testDebugUnitTest \
+    :highlight:testDebugUnitTest \
+    :speech:testDebugUnitTest \
+    :workspace:testDebugUnitTest \
+    :search:testDebugUnitTest \
+    :oauth:testDebugUnitTest \
+    :document:testDebugUnitTest \
+    :material3:testDebugUnitTest \
+    :web:testDebugUnitTest
+
   echo "✅ JVM 测试门禁通过"
 }
 

@@ -60,22 +60,43 @@ class UpdateVerificationPolicyJvmTest {
 
     private val verify by lazy { bodyOf("Uri verifyArchiveUpdate(Uri uri,String expectedVersion)") }
 
+    /**
+     * 守卫本体抽成函数，**反向探针才能把坏代码真的喂进来**。
+     *
+     * ⚠️ 原来那版反向探针是 `badOld.contains("version.equals(...)")` —— 两个操作数都是
+     * 字符串字面量，**编译期恒真**，跟产品代码毫无关系，等于"假装验过了"。
+     * 正确写法见 `RenderFolderNullSafetyJvmTest.theGuardActuallyDetectsAnUnguardedCall`。
+     */
+    private fun requiresExactVersionNameMatch(src: String): Boolean =
+        src.contains("version.equals(archive.versionName)") || src.contains("更新包版本不一致")
+
+    private fun verifiesPackageName(src: String): Boolean =
+        src.contains("!getPackageName().equals(archive.packageName)")
+
+    private fun verifiesSignature(src: String): Boolean =
+        src.contains("signatureDigests(current).equals(signatureDigests(archive))")
+
+    private fun verifiesVersionCodeIncrease(src: String): Boolean =
+        src.contains("archiveCode<=currentCode")
+
+    private fun gatesOnStrictSemver(src: String): Boolean = src.contains(".matches(")
+
     @Test
     fun theVersionNameMustMatchRuleIsGone() {
         assertFalse(
             "「后台写的版本名必须和包里的一字不差」这条必须删掉（DFW-90）",
-            verify.contains("version.equals(archive.versionName)"),
+            requiresExactVersionNameMatch(verify),
         )
-        assertFalse("那条校验的报错文案也该消失", verify.contains("更新包版本不一致"))
+        assertFalse("那条校验的报错文案也该消失", requiresExactVersionNameMatch(verify))
     }
 
     @Test
     fun theThreeRealSafetyChecksAllRemain() {
-        assertTrue("包名必须校验", verify.contains("!getPackageName().equals(archive.packageName)"))
-        assertTrue("签名必须校验（这条是防假冒安装包的唯一防线）", verify.contains("signatureDigests(current).equals(signatureDigests(archive))"))
+        assertTrue("包名必须校验", verifiesPackageName(verify))
+        assertTrue("签名必须校验（这条是防假冒安装包的唯一防线）", verifiesSignature(verify))
         assertTrue(
             "真实版本序号必须校验（否则用户会陷入「下载→安装→还是旧版→又提示」的循环）",
-            verify.contains("archiveCode<=currentCode"),
+            verifiesVersionCodeIncrease(verify),
         )
         assertTrue("校验通过后仍然要封存再安装", verify.contains("temporary.renameTo(verified)"))
     }
@@ -103,7 +124,7 @@ class UpdateVerificationPolicyJvmTest {
     fun theVersionFormatGateNoLongerBlocksFreeText() {
         assertFalse(
             "不许再拿严格 x.y.z 正则卡住整个更新",
-            verify.contains(".matches("),
+            gatesOnStrictSemver(verify),
         )
         assertTrue("只要非空就够了", verify.contains("if(version.isEmpty())throw new IOException(\"更新包版本信息无效\")"))
         assertTrue(
@@ -118,7 +139,7 @@ class UpdateVerificationPolicyJvmTest {
         val entry = bodyOf("void requestVerifiedUpdateDownload(Models.Item item,String version)")
         assertFalse(
             "入口处不许再有严格 x.y.z 正则（后台版本名是自由文本）",
-            entry.contains(".matches("),
+            gatesOnStrictSemver(entry),
         )
         assertTrue("入口只校验非空", entry.contains("if(expected.isEmpty())"))
     }
@@ -126,17 +147,27 @@ class UpdateVerificationPolicyJvmTest {
     /** 反向探针：确认上面的检查真的能识别坏代码。 */
     @Test
     fun theChecksActuallyDetectBadCode() {
-        val badOld = "if(!version.equals(archive.versionName))throw new IOException(\"更新包版本不一致\");"
+        // ① 坏代码：版本名一致校验又回来了 —— 必须被抓
         assertTrue(
             "坏代码（版本名一致校验又回来了）必须被识别",
-            badOld.contains("version.equals(archive.versionName)"),
+            requiresExactVersionNameMatch("if(!version.equals(archive.versionName))throw new IOException(\"x\");"),
         )
+        assertFalse("修好的代码不该被误判", requiresExactVersionNameMatch(verify))
+
+        // ② 坏代码：只剩包名校验、丢了签名与版本序号 —— 两条守卫都必须变红
         val badNoSafety = "if(archive==null||!getPackageName().equals(archive.packageName))throw new IOException(\"x\");"
-        assertFalse(
-            "坏代码（只剩包名校验、丢了签名与版本序号）不该被判成合格",
-            badNoSafety.contains("signatureDigests") && badNoSafety.contains("archiveCode<=currentCode"),
+        assertTrue("包名校验还在，这条该绿", verifiesPackageName(badNoSafety))
+        assertFalse("签名校验没了，必须被抓", verifiesSignature(badNoSafety))
+        assertFalse("版本序号校验没了，必须被抓", verifiesVersionCodeIncrease(badNoSafety))
+
+        // ③ 坏代码：又拿严格 x.y.z 正则卡整个更新
+        assertTrue(
+            "坏代码（严格 x.y.z 正则）必须被识别",
+            gatesOnStrictSemver("if(!version.matches(\"(?:0|[1-9][0-9]*)\\.\"))throw new IOException(\"x\");"),
         )
-        // 锚点必须真的在源码里，否则上面全在自说自话
-        assertTrue("签名校验的锚点必须与源码逐字一致", verify.contains("signatureDigests(current).equals(signatureDigests(archive))"))
+
+        // ④ 锚点必须真的在源码里，否则上面全在自说自话
+        assertTrue("签名校验的锚点必须与源码逐字一致", verifiesSignature(verify))
+        assertTrue("版本序号校验的锚点必须与源码逐字一致", verifiesVersionCodeIncrease(verify))
     }
 }
