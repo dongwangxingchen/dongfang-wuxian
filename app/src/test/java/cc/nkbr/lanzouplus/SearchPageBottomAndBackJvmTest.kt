@@ -164,4 +164,55 @@ class SearchPageBottomAndBackJvmTest {
         assertFalse("坏代码（硬切）不该被当成走了交叉淡化", badBack.contains("crossFadeHomeSection"))
         assertTrue("锚点必须真的在源码里", main.contains("crossFadeHomeSection(homeHistory,homeLibsBand);"))
     }
+
+    /**
+     * [DFW-95] 交叉淡化的**终态自洽性**。
+     *
+     * 场景：进/出搜索快速来回切 4 次，最后一次退出，把正在跑的动画掐断，再把时钟推过兜底时间。
+     * 断言：结果区与库分类带**恰好一个可见**，且是"已退出搜索"该有的那个。
+     * （两个都不可见 = 整页空白；两个都可见 = 高度叠加、滚动位置跳。）
+     *
+     * ## 这条测试**没有**证明什么（如实登记，别当成验过了）
+     * `crossFadeHomeSection` 里有一条 600ms 幂等兜底，用来对付"动画被打断 → `withEndAction`
+     * 没执行 → 新内容永远不显示"的极端情况。**这个极端情况在 Robolectric 里复现不出来**：
+     * 实测把 `animate().cancel()` 打进去，`withEndAction` 照样会执行，
+     * 于是**去掉兜底这条测试依然是绿的**（反向探针实测不红，等于没验到）。
+     *
+     * 所以那条兜底是**防御性代码**，依据是 `animatePage` 里同款兜底的既有注释
+     * （"修复动画被打断后结算丢失导致的旧页残留/新页整页不可点"），
+     * **不是**测试验证过的。要真验它，只能在真机上把"动画时长"设为 0 或高频连按复现。
+     */
+    @Test
+    fun theCrossFadeAlwaysSettlesEvenWhenInterrupted() {
+        val a = layoutSearchWithResults(30)
+        val clock = shadowOf(Looper.getMainLooper())
+        repeat(4) {
+            a.exitHomeSearchFocus()
+            clock.idle()
+            a.showHomeSearchMode(false)
+            clock.idle()
+        }
+        a.exitHomeSearchFocus()
+        clock.idle()
+        // **关键**：把正在跑的退场动画直接掐掉，模拟"被打断"。
+        // 只推进时钟是不够的 —— 动画正常跑完时 endAction 照常执行，
+        // 那条路测不出兜底（第一版就是这么写的，反向探针实测**不红**，等于什么都没验）。
+        a.homeHistory?.animate()?.cancel()
+        a.homeLibsBand?.animate()?.cancel()
+        clock.idleFor(java.time.Duration.ofMillis(700))
+
+        val history = a.homeHistory
+        val band = a.homeLibsBand
+        val historyVisible = history != null && history.visibility == View.VISIBLE
+        val bandVisible = band != null && band.visibility == View.VISIBLE
+        assertTrue(
+            "兜底之后必须落在一个自洽状态：结果区和库分类带**恰好一个**可见" +
+                "（两个都不可见 = 整页空白；两个都可见 = 高度叠加）",
+            historyVisible != bandVisible,
+        )
+        assertTrue(
+            "既然已经退出搜索，可见的必须是库分类带",
+            bandVisible,
+        )
+    }
 }
