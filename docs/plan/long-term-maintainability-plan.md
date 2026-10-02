@@ -90,7 +90,7 @@ docs/adr/ 或 docs/decisions/    MISSING
 
 | 对象 | 证据 | 说明 |
 |---|---|---|
-| `tools/*.ps1` 7 个 | `git ls-files tools/`：`count_catch.ps1`、`fix_catch_batch1/3.ps1`、`fix_catch_main.ps1`、`fix_route_region.ps1`、`list_catch_ctx.ps1`、`splice_routeactivity.ps1`；全仓 `grep -rl` 无任何 md/sh/yml 引用；最后一次提交 `2275502`（2026-09-15） | Windows 时代一次性脚本，Mac 上不可执行（`lessons.md:94` 自己也标注"仅回 Windows 适用"） |
+| ~~`tools/*.ps1` 7 个~~ **已删除** | `git ls-files tools/`：`count_catch.ps1`、`fix_catch_batch1/3.ps1`、`fix_catch_main.ps1`、`fix_route_region.ps1`、`list_catch_ctx.ps1`、`splice_routeactivity.ps1`；全仓 `grep -rl` 无任何 md/sh/yml 引用；最后一次提交 `2275502`（2026-09-15） | **2026-10-02 由 DFW-122 第 7 条 `git rm` 删除**（7 个，未归档 —— git 历史即归档；删除前 `git grep -E '7 个名字'` 全仓唯一命中就是本行）。原判：Windows 时代一次性脚本，Mac 上不可执行（`lessons.md:94` 自己也标注"仅回 Windows 适用"） |
 | `tools/B3ToolsTest.java`、`ConvertToolsTest.java`、`TextStatsTest.java` | 在 `tools/` 而不是 `app/src/test/`，无任何构建脚本引用 | 不在任何 test 源集里，等于不跑 |
 | `tools/parked-tests/`（6 个） | `lessons.md:67` 说明 paparazzi 与 AGP9 不兼容已停泊 | 停泊是有意为之，但停在 `tools/` 顶层会让人以为是活代码 |
 | `android-build.yml` | 只在 `workflow_dispatch` 触发；`gh run list` 中**从未出现过名为 `android-build` 的运行** | 与 `lanzouplus-empty.yml` 的冒烟编译职责重叠，且它连 `setup-android` 都没有（依赖 runner 预装 SDK） |
@@ -233,8 +233,13 @@ Keep a Changelog 的第一条原则就是"Changelogs are *for humans*, not machi
 
 #### G-7｜Windows 时代死脚本与孤儿测试（等级 A）
 
-**现状**：见 §1.4。`tools/` 下 7 个 `.ps1`（无任何引用，最后动于 2026-09-15）、
+**现状**：见 §1.4。`tools/` 下 ~~7 个 `.ps1`~~（**2026-10-02 已按 DFW-122 第 7 条 `git rm` 删除**）、
 3 个孤儿 `.java` 测试、`tools/parked-tests/` 6 个。
+
+> ✅ **执行状态（2026-10-02，DFW-122）**：G-7 里的 **7 个 `.ps1` 已删除**；
+> 3 个孤儿测试与 `tools/parked-tests/` 不在本卡范围。删除方式选用 `git rm` 而非本文 P5 原本建议的
+> `git mv` 归档（见 §P5）——理由是项目已有 `git` 历史作为归档，且 DFW-122 验收要求
+> "文档里不再有指向已删除文件的引用"。下方"为什么需要清理"的判断仍然成立。
 
 **为什么这个仓库需要清理**：
 `lessons.md:68` 自己标注"命令速查（**Windows 时代**，仅回 Windows 适用）"，`lessons.md:94` 标注 PowerShell 坑"仅回 Windows 适用"，
@@ -406,7 +411,11 @@ GitHub runner 上是否可下载**尚未验证**（本机可下载不等于 runn
 ### P5｜仓库清理（对应 G-7、G-8）
 
 **改动文件**：
-- `git mv tools/*.ps1 docs/archive/windows-era/`（7 个）——**归档不删除**，符合 `docs/archive/README.md:13` 的"不删除历史证据"；
+- ~~`git mv tools/*.ps1 docs/archive/windows-era/`（7 个）——**归档不删除**，符合 `docs/archive/README.md:13` 的"不删除历史证据"；~~
+  ✅ **实际执行（2026-10-02，DFW-122 第 7 条）：改为 `git rm` 直接删除，未归档。**
+  原建议的归档方案没有采纳，理由：`git` 历史本身就是不可删除的归档（`git show 2275502:tools/count_catch.ps1` 永远可取回），
+  而 `docs/archive/` 按 `docs/archive/README.md` 的定位是**文档**归档；把这 7 个 Windows 时代脚本搬进去，
+  等于把"误导下一位接手者"的东西从 `tools/` 挪到了另一个他会看到的地方。删除前已 `git grep` 全仓确认零引用。
 - `git mv tools/{B3ToolsTest,ConvertToolsTest,TextStatsTest}.java tools/parked-tests/`；
 - 删除 `.github/workflows/android-build.yml`（从未运行、与冒烟工作流重复）；
 - `tools/` 下另加一行 `README.md`，写清"入口只有 `ci-gate.sh` / `release.sh` / `dfwx-publish-apk.sh`"。
@@ -625,6 +634,7 @@ issue 模板同理：0 个 issue。
 
 **做完这一整套，仓库里新增 3 个文件**（`CHANGELOG.md`、`docs/plan/tech-debt.md`、`app/lint-baseline.xml`）
 **+ 1–3 个守卫测试**（纯新增测试文件，不是新机制），**同时删除/归档 11 个以上**（7 个 `.ps1` + 3 个孤儿测试 + 1 个重复 workflow）。
+（其中 **7 个 `.ps1` 已于 2026-10-02 由 DFW-122 删除**，其余待做。）
 这是刻意的：**规范化的目标是让下一个接手者更快开工，不是让目录更好看。**
 
 ---
