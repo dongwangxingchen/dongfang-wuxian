@@ -60,10 +60,29 @@ class FeedbackPageSmokeJvmTest {
      * 这个降级是对的，但**必须能被测出来**，否则 assets 改名/漏打包会静默失效。
      */
     @Test
-    fun theSkinScriptIsActuallyLoadedFromAssets() {
+    fun theDarkModeScriptIsActuallyLoadedFromAssets() {
         val page = launch()
-        assertTrue("换肤脚本不能是空的（空了就说明 assets 没读到或没打包）", page.skinScript.length > 500)
-        assertTrue("读到的必须是换肤脚本本身", page.skinScript.contains("getComputedStyle"))
+        val script = WebDarkMode.script(page)
+        assertTrue("暗夜模式脚本不能是空的（空了就说明 assets 没读到或没打包）", script.length > 500)
+        assertTrue("读到的必须是暗夜模式脚本本身", script.contains("getComputedStyle"))
+    }
+
+    /**
+     * [DFW-97 修正] **顶栏不能压到状态栏上。**
+     * 用户截图里 FlowUs 的面包屑和系统状态栏叠在一起 —— 根因是 WebView 铺满全屏。
+     */
+    @Test
+    fun theWebViewStartsBelowTheTopBar() {
+        val page = launch()
+        val webLp = page.web.layoutParams as android.widget.FrameLayout.LayoutParams
+        val barLp = page.host.getChildAt(1).layoutParams as android.widget.FrameLayout.LayoutParams
+        val expected = page.statusBarInset() + page.dp(48)
+        assertEquals(
+            "WebView 必须从「状态栏 + 顶栏」之下开始，否则站点内容会顶进状态栏（用户截图里的叠字）",
+            expected,
+            webLp.topMargin,
+        )
+        assertEquals("顶栏自己不该再带 topMargin（占位在容器内部）", 0, barLp.topMargin)
     }
 
     /** 提交成功 → 弹自己的提示条（而不是把第三方英文 toast 甩给用户）。 */

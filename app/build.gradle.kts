@@ -53,7 +53,7 @@ android {
   // 以前这里要改两行（10022 和 "1.0.22"），改漏一行 `VersionSchemeJvmTest` 立刻变红；
   // 而改漏 versionCode 的后果最阴——用户永远收不到更新，界面上完全看不出来。
   // 用户原话："你每次更新都得改一堆地方" → 把"一堆"压成"一个"。
-  val buildCode = 10026
+  val buildCode = 10027
   versionCode = buildCode
   versionName = "${buildCode / 10000}.${(buildCode / 100) % 100}.${buildCode % 100}"
  }
