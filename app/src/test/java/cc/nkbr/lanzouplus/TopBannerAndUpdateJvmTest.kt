@@ -190,7 +190,20 @@ class TopBannerAndUpdateJvmTest {
         val src = source("app/src/main/java/cc/nkbr/lanzouplus/MainActivity.java")
         val start = src.indexOf("void showTopBanner(")
         assertTrue(start > 0)
-        val block = src.substring(start, minOf(src.length, start + 700))
+        /*
+         * [2026-10-02 Lead 修正] 这里原来写死「从方法名往后 700 个字符」——**是个脆弱锚点**。
+         *
+         * 判空那行当时在偏移 679 处，**离窗口边界只剩 21 个字符**。
+         * 于是任何人往这个方法里加几行注释，测试就会假红 —— 当天就真的踩到了
+         * （给面包屑埋点补注释，把判空挤到 909，测试立刻红）。
+         *
+         * 一条会因为"加了注释"就变红的测试，守不住任何东西，只会让人不信任门禁。
+         * 改成**取整个方法体**：从方法名往后，到下一个「两个空格缩进的非空白字符」为止 ——
+         * 那要么是方法自己的收尾大括号，要么是下一个同层成员声明，两种情况都对。
+         */
+        val rest = src.substring(start)
+        val nextDecl = Regex("\\n  \\S").find(rest, 1)
+        val block = if (nextDecl != null) rest.substring(0, nextDecl.range.first) else rest
         assertTrue("必须先判容器是否可用再建通知条", block.contains("if(container==null)return;"))
     }
 }
