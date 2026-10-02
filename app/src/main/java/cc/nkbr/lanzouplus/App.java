@@ -155,8 +155,14 @@ public class App extends me.rerere.rikkahub.RikkaHubApp {
         MainThreadStallWatchdog.start();
     }
 
-    /** 是否跑在 JVM 单元测试（Robolectric）里。见 {@link #installEventLog()} 里那段说明。 */
-    private static boolean isJvmUnitTest() {
+    /**
+     * 是否跑在 JVM 单元测试（Robolectric）里。见 {@link #installEventLog()} 里那段说明。
+     *
+     * [DFW-124 2026-10-02] 由 `private` 放开为包内可见：`RemoteConfigClient.get()` 也要用它
+     * 拦掉测试里的真实网络请求。**判据只有这一处实现**，不要在别处再抄一份
+     * （抄了就会分叉：改了一个忘了另一个，表现是"某些测试又开始偷偷联网"）。
+     */
+    static boolean isJvmUnitTest() {
         try {
             Class.forName("org.robolectric.Robolectric");
             return true;

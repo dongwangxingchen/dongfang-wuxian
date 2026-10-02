@@ -1465,6 +1465,29 @@ final class ToolHost {
     action(actions,"开始测量",()->act.requestToolMicPermission(()->{
       if(running.get())return;
       try{
+        /*
+         * [DFW-123] 本地再查一次 RECORD_AUDIO，不再依赖"上游一定已经授权"这个非局部保证。
+         *
+         * 上面的 requestToolMicPermission 确实会在未授权时弹窗并 return，但**权限可能在
+         * "用户点同意"和这一行之间被撤销**（系统设置里撤、或系统自动回收）。原来这里只靠
+         * 下面的 catch(Exception) 兜底 —— 那是"出事之后再提示"，而这里能"不出事"。
+         * lint 的 MissingPermission 认这个 checkSelfPermission 守卫，所以这条 error 是
+         * 真问题（护栏没落到本地），不是误报。
+         *
+         * 刻意拆成两个独立的 if：lint 认的是
+         * `if (checkSelfPermission(...) != PERMISSION_GRANTED) { ... return; }`
+         * 这个规范形状；写成 `ctx==null || ctx.checkSelfPermission(...)!=GRANTED` 一句，
+         * 它不一定能顺着 `||` 走出来（那样白改，lint 照旧报）。
+         */
+        android.content.Context micCtx=act.context();
+        if(micCtx==null){
+          act.showNotice("没有麦克风权限，无法测量",true);
+          return;
+        }
+        if(micCtx.checkSelfPermission(android.Manifest.permission.RECORD_AUDIO)!=android.content.pm.PackageManager.PERMISSION_GRANTED){
+          act.showNotice("没有麦克风权限，无法测量",true);
+          return;
+        }
         int rate=44100,min=android.media.AudioRecord.getMinBufferSize(rate,android.media.AudioFormat.CHANNEL_IN_MONO,android.media.AudioFormat.ENCODING_PCM_16BIT);
         android.media.AudioRecord r=new android.media.AudioRecord(android.media.MediaRecorder.AudioSource.MIC,rate,android.media.AudioFormat.CHANNEL_IN_MONO,android.media.AudioFormat.ENCODING_PCM_16BIT,Math.max(min,rate)*2);
         if(r.getState()!=android.media.AudioRecord.STATE_INITIALIZED){r.release();act.showNotice("麦克风初始化失败",true);return;}

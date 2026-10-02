@@ -10,7 +10,14 @@
 # 分层设计：
 #   docs  → 静态检查（秒级）：文档一致性、仓库卫生、清单明文开关。任何 push/PR 都跑。
 #   unit  → JVM 测试（数分钟）：host + vendor + common 三套。任何 push/PR 都跑。
+#   lint  → Android Lint（数分钟）：emptyRelease 变体，0 error [DFW-123]。任何 push/PR 都跑。
 #   apk   → release 构建门禁（十几分钟）：unsigned 构建 + ABI + 权限 + 清单开关断言。
+#
+# 依赖链：docs → {unit, lint} → apk
+#   `lint` 刻意只 `needs: docs`（而不是 `needs: unit`），这样它与 `unit` **并发**跑，
+#   耗时可完全藏在 `unit` 后面；`apk` 仍只等 `unit`，关键路径**不加长**。
+#   [DFW-123] lint 报的是权限/API 版本/受限 API 这类"编译能过、运行时才炸"的问题，
+#   按 PR 跑才有意义；只在 push 上跑会放过 PR 阶段。
 #
 # 隐私与红线：
 #   · 本工作流**不接触任何签名材料**（CI 无 keystore），只做 unsigned 构建与断言；
@@ -83,7 +90,51 @@ jobs:
           retention-days: 7
           if-no-files-found: ignore
 
-  # ---------- 第三层：release 产物门禁（unsigned；断言 ABI/权限/清单/版本） ----------
+  # ---------- 第三层：Android Lint（与 unit 并发；0 error 才算过）[DFW-123] ----------
+  #
+  # 为什么独立成 job 而不是塞进 unit：
+  #   lint 跑的是 **emptyRelease** 变体，测试跑的是 **emptyDebug** 变体，两者**不共享编译产物**；
+  #   混在 unit 里会让"红的是测试还是静态检查"变模糊。
+  # 为什么 `needs: docs` 而不是 `needs: unit`：这样它与 unit 并发，不落在关键路径上。
+  lint:
+    name: Lint 门禁（emptyRelease，0 error）
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    needs: docs
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+
+      - name: Set up Android SDK (platform 37 / build-tools 37.0.0)
+        uses: android-actions/setup-android@v4
+        with:
+          packages: 'platforms;android-37.0 build-tools;37.0.0'
+
+      - name: Run lint gate
+        run: |
+          chmod +x gradlew tools/ci-gate.sh
+          tools/ci-gate.sh lint
+
+      # lint 报告是排查的全部依据；失败时一定要传上去，否则只有一行"有 N 条 error"。
+      - name: Upload lint reports (on failure)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lint-reports
+          path: |
+            app/build/reports/lint-results-*.html
+            app/build/reports/lint-results-*.xml
+            app/build/reports/lint-results-*.txt
+          retention-days: 7
+          if-no-files-found: ignore
+
+  # ---------- 第四层：release 产物门禁（unsigned；断言 ABI/权限/清单/版本） ----------
   apk:
     name: release 产物门禁（unsigned + ABI/权限/清单断言）
     runs-on: ubuntu-latest

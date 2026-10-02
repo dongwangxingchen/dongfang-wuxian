@@ -218,9 +218,21 @@ loadSearchSettings();applyUserAgentSettings();detectWeakDevice();installBackAnim
     }
   }
   @Override protected void onNewIntent(Intent intent){super.onNewIntent(intent);setIntent(intent);handleExternalAction(intent);}
-  /** [DFWX PATCH P16] 内嵌 AI 页的音量键滚动：上游音量键监听挂在 RouteActivity 实例上，
-      内嵌态（AppRoutes 跑在本 Activity 的 ComposeView 里）拿不到该实例，故经进程级
-      VolumeKeyBridge 注册与分发。仅在 AI 页（pageKind==5）且监听者消费时才拦截。 */
+  /**
+   * [DFWX PATCH P16] 内嵌 AI 页的音量键滚动：上游音量键监听挂在 RouteActivity 实例上，
+   * 内嵌态（AppRoutes 跑在本 Activity 的 ComposeView 里）拿不到该实例，故经进程级
+   * VolumeKeyBridge 注册与分发。仅在 AI 页（pageKind==5）且监听者消费时才拦截。
+   *
+   * `@SuppressLint("RestrictedApi")` 是**误报抑制**，理由（DFW-123）：
+   *  - 报的是 androidx 的 `@RestrictTo(LIBRARY_GROUP_PREFIX)` 内部策略标记，**不是运行期限制**；
+   *  - 覆盖一个 public 方法并调 `super` 是标准 Java 用法，而且这里**不调 super 才是 bug** ——
+   *    `ComponentActivity.dispatchKeyEvent` 负责把返回键喂给 `OnBackPressedDispatcher`，
+   *    去掉它等于把返回键处理弄坏；
+   *  - 本覆盖是 PATCH P16 明确引入的，有别处替代不了的需求（音量键桥）。
+   * 不写进 `lint.xml` 是因为它的粒度是"文件+issue"，会把本文件**将来所有** RestrictedApi 一起静音；
+   * 写在这里只影响这一个方法，且读代码的人立刻看得到理由。
+   */
+  @android.annotation.SuppressLint("RestrictedApi")
   @Override public boolean dispatchKeyEvent(android.view.KeyEvent event){
     if(pageKind==5&&event.getAction()==android.view.KeyEvent.ACTION_DOWN){
       int code=event.getKeyCode();
@@ -950,7 +962,17 @@ FrameLayout.LayoutParams tp=new FrameLayout.LayoutParams(Math.max(dp(1),Math.min
     LinearLayout loading=new LinearLayout(this);loading.setOrientation(LinearLayout.VERTICAL);loading.setGravity(Gravity.CENTER);android.widget.ProgressBar aiLoadingBar=new android.widget.ProgressBar(this);aiLoadingBar.setIndeterminate(true);loading.addView(aiLoadingBar,new LinearLayout.LayoutParams(-2,dp(36)));TextView aiLoadingText=text("正在初始化 AI 对话…",13,MUTED);aiLoadingText.setGravity(Gravity.CENTER);loading.addView(aiLoadingText,new LinearLayout.LayoutParams(-2,-2));root.addView(loading,new LinearLayout.LayoutParams(-1,-1));
     LinearLayout aiTarget=root;ui.post(()->{if(pageKind!=5){if(loading.getParent()==aiTarget)aiTarget.removeView(loading);return;}try{android.view.View v=aiComposeView();android.view.ViewGroup p=(android.view.ViewGroup)v.getParent();if(p!=null)p.removeView(v);if(loading.getParent()==aiTarget)aiTarget.removeView(loading);aiTarget.addView(v,new LinearLayout.LayoutParams(-1,-1));v.setVisibility(View.VISIBLE);}catch(Throwable t){android.util.Log.w("MainActivity","showAiEmbedded lazy: "+t.getMessage(),t);if(loading.getParent()==aiTarget)aiTarget.removeView(loading);TextView err=text("AI 界面初始化失败，可返回重试",13,MUTED);err.setGravity(Gravity.CENTER);aiTarget.addView(err,new LinearLayout.LayoutParams(-1,-2));}});
   }
-  /** v1.20.0：按目标 ime 值构造派发用 insets（只改 ime，其余类型沿用来源） */
+  /**
+   * v1.20.0：按目标 ime 值构造派发用 insets（只改 ime，其余类型沿用来源）。
+   *
+   * [DFW-123] `@RequiresApi(30)` 不是消音，是**如实声明契约**：本方法体里的
+   * `WindowInsets.Builder` / `Insets.of` / `build` 要 API 29，`setInsets` / `Type.ime` 要 API 30。
+   * 唯一调用点在 `aiComposeView()` 的 `if(Build.VERSION.SDK_INT>=30)` 之内（本文件 `:971` → `:979`），
+   * 所以运行期本来就是安全的 —— lint 报它，只是因为 `NewApi` 的 SDK_INT 检查**不跨方法传播**。
+   * 加了注解之后 lint 会把检查推到调用点：将来谁在没守卫的地方调它，照样会红，鉴别力保留。
+   * 用 `@SuppressLint("NewApi")` 就做不到这一点（那才是消音）。
+   */
+  @androidx.annotation.RequiresApi(30)
   private static android.view.WindowInsets dfwxImeInsets(android.view.WindowInsets src,int imeBottom){return new android.view.WindowInsets.Builder(src).setInsets(android.view.WindowInsets.Type.ime(),android.graphics.Insets.of(0,0,0,imeBottom)).build();}
   android.view.View aiComposeView(){if(aiComposeView==null){
     // ime 重算包装：ime insets 是窗口绝对值，而 ComposeView 底边悬在 host 底部 padding（导航条）之上，
@@ -2021,6 +2043,18 @@ FrameLayout.LayoutParams tp=new FrameLayout.LayoutParams(Math.max(dp(1),Math.min
     window.addFlags(android.view.WindowManager.LayoutParams.FLAG_DIM_BEHIND);
     window.setDimAmount(GlassSurface.dimAmount(blur));
     if(!blur)return;
+    /*
+     * [DFW-123] 把"只在 API 31+ 才调模糊 API"这件事**落到本方法里**。
+     *
+     * 改之前也能不出事，但那是**跨 2 个文件 3 个方法**的保证：
+     *   GlassSurface.blurApiAvailable()（GlassSurface.java:92-94）→ isBlurEnabled() 返回 false
+     *   → 本文件 :1844 算出 blur=false → 上面那行提前 return → 这两行不可达。
+     * 问题是签名里的 `boolean blur` 对**任何新调用方都是敞开的**：谁哪天传个 true 进来，
+     * API 26 设备上这两行就是 NoSuchMethodError，而它们**没有 try/catch 兜底**。
+     * 加这一行之后运行期语义完全不变（低版本本来就到不了），但方法自身变成"谁调都安全"。
+     * **方法签名一个字没动**，调用点数量不变。
+     */
+    if(Build.VERSION.SDK_INT<31)return;
     window.addFlags(android.view.WindowManager.LayoutParams.FLAG_BLUR_BEHIND);
     window.setBackgroundBlurRadius(GlassSurface.backgroundBlurPx(density));
     android.view.WindowManager.LayoutParams lp=window.getAttributes();
@@ -2058,6 +2092,16 @@ FrameLayout.LayoutParams tp=new FrameLayout.LayoutParams(Math.max(dp(1),Math.min
     java.util.function.Consumer<Boolean> listener=noticeBlurListener;
     noticeBlurListener=null;
     if(listener==null)return;
+    /*
+     * [DFW-123] 与 applyNoticeWindowGlass 同一个病：能不出事，靠的是"别人先挡了一道"。
+     *
+     * 原来低版本安全，是因为 noticeBlurListener 只在 registerNoticeBlurListener 的
+     * `if(!GlassSurface.blurApiAvailable()...)return;` 之后才会被赋值，于是这里恒为 null、
+     * 上面那行提前返回。同方法里两行代码，读者只看一处判断不出安全 —— 现在补上本地守卫。
+     * 这一条另外还有下面的 catch(Throwable) 兜底，风险本来就低于 applyNoticeWindowGlass，
+     * 但两处该用同一套写法。**方法签名一个字没动**，两个调用点（:1974/:2038 附近）行为不变。
+     */
+    if(Build.VERSION.SDK_INT<31)return;
     try{
       android.view.WindowManager manager=(android.view.WindowManager)getSystemService(WINDOW_SERVICE);
       if(manager!=null)manager.removeCrossWindowBlurEnabledListener(listener);
