@@ -63,3 +63,8 @@ hs_err_pid*.log
 /support_test_log5.txt
 /support_test_log6.txt
 /unit_compile_log.txt
+
+# [DFW-97 审计] 交接文档是**本机现场**，故意不入库（AGENTS.md 明示）。
+# 只靠"记得别 add"是不够的：本次 `git add -A -- docs` 就误加了 5 个文件。
+# 用 ignore 规则把这条约定变成物理约束。
+docs/handover/
