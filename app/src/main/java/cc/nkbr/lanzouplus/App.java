@@ -129,7 +129,40 @@ public class App extends me.rerere.rikkahub.RikkaHubApp {
             // 公共目录只是"方便用户拿"，拿不到就算了
         }
         DfLog.install(primary, mirror);
+        /*
+         * [DFW-124 2026-10-02] JVM 单元测试里**不启动**看门狗。
+         *
+         * 理由是它在测试环境里**必然误报**，不是"可能误报"：
+         *
+         * 看门狗的判据是「往主线程消息队列 post 一个打卡任务，超时还没跑到 = 主线程卡死」。
+         * 而 Robolectric 的 Looper 默认是 **PAUSED** 模式 —— 队列里的任务**根本不会自己跑**，
+         * 除非测试显式调 `shadowOf(Looper.getMainLooper()).idle()`。
+         * 于是打卡永远不会完成 → 每个活得超过 5 秒的测试类都会被判成"主线程卡死" →
+         * 白写一份现场：`DfLog.scene()` 会抓 **10 条线程栈**（`DfLog.MAX_SCENE_THREADS`），
+         * 在一个已经有几百条线程的测试 JVM 里，这个开销不小。
+         *
+         * 这不是"测试环境的小毛病"：它会往日志里灌**假事故**，
+         * 而这份日志的用途恰恰是"用户报问题时留下真实现场"——假的会把真的挤掉。
+         *
+         * 注意：看门狗本身的行为**没有失去覆盖** ——
+         * `MainThreadStallWatchdogJvmTest` 是直接调 `start(阈值, 冷却)` 来测的，
+         * 不经过 `App`。这里只是不在测试里**自动全量启用**它。
+         *
+         * 判据用「Robolectric 类在不在 classpath 上」：线上 APK 里没有它，天然为 false，
+         * 不引入任何依赖，也不需要额外开关。
+         */
+        if (isJvmUnitTest()) return;
         MainThreadStallWatchdog.start();
+    }
+
+    /** 是否跑在 JVM 单元测试（Robolectric）里。见 {@link #installEventLog()} 里那段说明。 */
+    private static boolean isJvmUnitTest() {
+        try {
+            Class.forName("org.robolectric.Robolectric");
+            return true;
+        } catch (Throwable ignored) {
+            return false;
+        }
     }
 
     /** 测试专用入口：暴露给 JVM 测试验证并发写不交错（生产代码走 installCrashLogger 的处理器）。 */
