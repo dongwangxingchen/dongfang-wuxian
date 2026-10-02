@@ -46,6 +46,10 @@ jobs:
         run: |
           yes | sdkmanager --licenses > /dev/null || true
           sdkmanager "platforms;android-37.0" "build-tools;37.0.0" > /dev/null
+          # 显式补可执行位：gradlew 在 git 里的模式曾经是 100644（无可执行位），
+          # 检出后直接 `./gradlew: Permission denied`（exit 126）——
+          # 这就是 CI 长期全红的真凶之一。索引里的模式已修正，这里再兜一层。
+          chmod +x gradlew
           ./gradlew :app:assembleEmptyDebug --no-daemon
 
       - name: Upload APK artifact
