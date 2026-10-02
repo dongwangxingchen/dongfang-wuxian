@@ -231,8 +231,37 @@ class ChangelogJvmTest {
         val view = shadowOf(dialog).view
         assertNotNull(view)
         assertTrue("内容必须包在可滚动容器里（不然长历史看不到）", view is android.widget.ScrollView)
-        // [DFW-97] 30 条后台历史 + 1 条内置的「公测开始」= 31
-        assertEquals("历史一条都不能少（30 条后台 + 1 条内置）", 31, textsIn(view!!).count { it.startsWith("v1.0.") })
+        /*
+         * [DFW-97] 后台有数据时**不再追加内置条目** —— 用户实测发现更新记录里出现了
+         * 两条 v1.0.0（后台一条、内置一条）。所以内置那条只在后台**完全没有**时才兜底。
+         * 这里后台给了 30 条，就应该是 30 条，一条不多一条不少。
+         */
+        assertEquals("历史一条都不能少（后台 30 条，不追加内置）", 30, textsIn(view!!).count { it.startsWith("v1.0.") })
+    }
+
+    /**
+     * [DFW-97] **后台已经有 1.0.0 时，不许再出现第二条 v1.0.0。**
+     *
+     * 用户 2026-10-02 截图：「你看看咋多了，应该只有 1.0.0 啊」——
+     * 更新记录里出现了两条 v1.0.0，因为内置那条原来是无条件追加的。
+     */
+    @Test
+    fun theBetaEntryIsNeverDuplicated() {
+        val a = activity()
+        val backend = listOf(entry("1.0.0", "2026-10-01", "后台自己的公测说明"))
+        a.showChangelogDialog("更新记录", "", backend)
+        shadowOf(Looper.getMainLooper()).idle()
+        val dialog = ShadowAlertDialog.getLatestAlertDialog()
+        val texts = textsIn(shadowOf(dialog).view!!)
+        assertEquals(
+            "后台已经有 1.0.0 时，只许出现一条 v1.0.0",
+            1,
+            texts.count { it == "v1.0.0" },
+        )
+        assertTrue(
+            "必须用后台那条的内容，不许被内置的顶掉",
+            texts.any { it.contains("后台自己的公测说明") },
+        )
     }
 
     @Test
