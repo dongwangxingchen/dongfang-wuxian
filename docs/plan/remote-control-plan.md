@@ -182,7 +182,7 @@ Material 3 建议对话框最多 3 个动作，四个按钮的**最优排布**�
 | 权限 | 公开**只读**；写需超管令牌。**外网实测写/改/删全部 405 拒绝** ✅ |
 | nginx 反代 | `:80` 新增 `location /pb/` → `127.0.0.1:8090`；**改前已备份** `/root/dfwx-nginx-backup-20260930-133605.conf`；`nginx -t` 通过后 `reload` |
 | 外网验证 | `/pb/api/health`、`/pb/api/collections/{control,release,changelog}/records` 全部 **HTTP 200** |
-| 既有功能 | `/health`、`/api/version.json` **未受影响**（HTTP 200） |
+| 既有功能 | `/health` **未受影响**（HTTP 200）。`/api/version.json` **已于 2026-10-02 停更**：它返回的是 2026-09-30 那批数据（`latest.versionName = "1.0.21"`），响应体里自带 `"deprecated": true`。**当前唯一的更新源是 PocketBase 的 `release` 集合**（`/pb/api/collections/release/records?perPage=1&sort=-id`）。这份静态文件只剩考古价值，别再拿它当事实源 —— 见 DFW-122 |
 | APK 分发 | v1.22.19 已就位，**sha256 与服务端逐一比对一致** |
 | **下载速度** | **36.6MB / 1.73 秒（21 MB/s）** ✅ |
 
