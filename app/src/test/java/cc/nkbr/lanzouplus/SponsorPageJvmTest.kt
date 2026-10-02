@@ -156,7 +156,16 @@ class SponsorPageJvmTest {
         shadowOf(Looper.getMainLooper()).idle()
         assertTrue(a.thankYouMode)
         val texts = textsIn(a.root)
-        assertTrue("感谢页要说清解锁了什么", texts.any { it.contains("全部下载权限已开放") })
+        // [DFW-97] 文案修正：赞助解锁的是**内置 AI 使用权限**，不是下载权限。
+        // 用户 2026-10-02 原话：「诚心付费点击后，它显示成功解锁所有下载权限，
+        // 请你修改，现在咱们这赞助功能是获取的内置 AI 使用权限。」
+        // 代码事实：`Support.unlocked` 全仓只被 `BuiltinAiChannel.java:46-48` 读取，
+        // 跟下载没有任何关系。
+        assertTrue("感谢页要说清解锁了什么", texts.any { it.contains("内置 AI 使用权限已开放") })
+        assertFalse(
+            "不许再写回「下载权限」—— 赞助解锁的是内置 AI，跟下载无关",
+            texts.any { it.contains("下载权限") },
+        )
         assertTrue("还要有感谢页的标题", texts.any { it.contains("已解锁") })
         // 返回控件必须和付费页长得一样：同一个左上角「←」
         val back = find(a.root) { it.contentDescription?.toString() == "返回" }

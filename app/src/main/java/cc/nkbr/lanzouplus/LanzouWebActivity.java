@@ -59,5 +59,18 @@ public final class LanzouWebActivity extends Activity{
     }catch(Exception error){android.util.Log.w("LanzouWebActivity","syncBackCallback: "+error.getMessage(),error);}
   }
   void handleBack(){if(web!=null&&web.canGoBack())web.goBack();else finish();}
+  /* [DFW-97 审计] 整个类原来**没有 onDestroy()** —— 有 WebView 却不销毁，是明确的资源泄漏：
+     WebView 持有 Activity 引用、自带线程与定时器，不 destroy 会让整页无法回收。
+     全仓库 `web.destroy()` 原本只在 FeedbackPage 一处，这是唯一漏掉的网页页。
+     先摘出视图再 destroy，避免"View 已 detach 但 WebView 仍在画"的告警。 */
+  @Override protected void onDestroy(){
+    if(web!=null){
+      android.view.ViewParent parent=web.getParent();
+      if(parent instanceof android.view.ViewGroup)((android.view.ViewGroup)parent).removeView(web);
+      web.destroy();
+      web=null;
+    }
+    super.onDestroy();
+  }
   @SuppressLint("GestureBackNavigation") public void onBackPressed(){handleBack();}
   int dp(int v){return(int)(v*getResources().getDisplayMetrics().density+.5f);} }

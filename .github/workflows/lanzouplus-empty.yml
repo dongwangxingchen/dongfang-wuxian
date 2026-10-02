@@ -40,12 +40,12 @@ jobs:
           java-version: '21'
 
       - name: Set up Android SDK (platform 37)
-        uses: android-actions/setup-android@v3
+        uses: android-actions/setup-android@v4
 
       - name: Assemble (empty debug)
         run: |
           yes | sdkmanager --licenses > /dev/null || true
-          sdkmanager "platforms;android-37" "build-tools;37.0.0" > /dev/null
+          sdkmanager "platforms;android-37.0" "build-tools;37.0.0" > /dev/null
           ./gradlew :app:assembleEmptyDebug --no-daemon
 
       - name: Upload APK artifact

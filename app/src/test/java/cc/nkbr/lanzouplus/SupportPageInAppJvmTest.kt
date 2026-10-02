@@ -212,7 +212,12 @@ class SupportPageInAppJvmTest {
             "感谢页要在同一个站内页里换内容（pageKind 不变，不跳窗口）",
             a.pageKind == MainActivity.PAGE_KIND_SUPPORT,
         )
-        assertTrue("感谢页文案要在", textsIn(a.supportBody).any { it.contains("全部下载权限已开放") })
+        // [DFW-97] 同上：解锁的是内置 AI 使用权限，不是下载权限。
+        assertTrue("感谢页文案要在", textsIn(a.supportBody).any { it.contains("内置 AI 使用权限已开放") })
+        assertFalse(
+            "不许再写回「下载权限」",
+            textsIn(a.supportBody).any { it.contains("下载权限") },
+        )
 
         cta.performClick()
         cta.performClick()

@@ -1,0 +1,108 @@
+# 《东方无限》交接文档（2026-09-28 凌晨 · **已过时，仅作追溯**）
+
+> **本文件是当天凌晨的历史快照**：其中"STAB-001 半成品在途 / 2.5.5 import 未做 / HEAD db0bb17"等描述均已过时。**当前有效版是同目录 `20260928-handover.md`**，事实以它与 `docs/plan/current-state.md` 为准。
+> 交接对象：下一个接手本项目的 AI 会话/团队成员。读完本文可直接续作，无需重考古。
+> 证据等级：A（全部结论出自本机实测命令输出）。
+> 本文档位置：`docs/handover/20260928-handover-early-morning.md`（2026-09-28 晚由 `20260928-handover.md` 改名让位给新版后保留）。
+> **注意：本文件是本地 untracked 文件，故意不提交不 push**（用户 2026-09-28 拍板：交接文档不上 GitHub）。git status 里看到它是预期状态，别"顺手入库"；GitHub 仓库里若有 docs/handover 痕迹说明有人犯了同样的错，revert 掉。
+
+## 〇、新会话快速上手（3 步开始干活）
+
+1. **读本文档全文**，重点：第三节用户规矩、第四节在途半成品（必处置）、第五节发版红线。
+2. **核对现场**：`cd /Users/<用户名><仓库根> && git status --short && git log --oneline -3`——对照第四节，如果半成品还在就是没处置，如果不在说明已被处置，读最新 commit 了解怎么处置的。
+3. **按第七节下一步顺序干活**：处置 STAB-001 → ADB-001 → 发 v1.22.7。开工前按 AGENTS.md 惯例读 `docs/tasks/` 对应任务卡。
+
+**项目一句话**：《东方无限》是东方的 Android App（`dfwx.dongdang`，蓝奏云网盘工具 + 内嵌 AI 聊天），双区结构：`rikkahub/` 是 vendor 区（开源 RikkaHub 的 Kotlin/Compose 代码 + 东方无限补丁层），其余是宿主区（纯 Java 程序化 View，MainActivity.java 约 1978 行）。目标队列是 23 张 DFWX-* 任务卡，治理文档全在 `docs/plan/`。
+
+## 一、项目坐标
+
+| 项 | 值 |
+|---|---|
+| 源码根 | `/Users/<用户名><仓库根>`（分支 `test`） |
+| 当前 HEAD | `db0bb17`（v1.22.6 版本号提交，已 push） |
+| 发版仓库 | `dongwangxingchen/dongfang-wuxian`（GitHub Release） |
+| 最新发版 | **v1.22.6**（2026-09-28 凌晨，asset `dongfang-wuxian-v1.22.6.apk` 35M arm64） |
+| 工作区 | **不干净——有 STAB-001 半成品**（见第四节，处理前必读） |
+| 构建 | `JAVA_HOME=/Users/<用户名>/sdk/jdk-21.0.11.jdk/Contents/Home ./gradlew -p <本地目录>/src :app:assembleEmptyRelease` |
+| 任务体系 | `AGENTS.md` → `docs/plan/`（总计划/current-state/decisions/risk-register）→ `docs/tasks/README.md`（23 张卡队列） |
+
+## 二、接手以来完成的工作全景
+
+### 时间线（commit 均已入库并 push，remote 名 `backup`）
+
+| 时间 | commit | 内容 |
+|---|---|---|
+| 09-27 晚 | `70cc665` | SEC-001 下载/安装安全边界（前置会话完成） |
+| 09-27 晚 | `f1bb21c` | 治理底座：23 张任务卡 + 全仓审计报告入库（前置会话） |
+| 09-27 23时 | `8336720` | **AI-002 设计报告**（AppRoutes 顶层化 + 窄 wrapper + 返回桥栈深守卫，`docs/tasks/DFWX-AI-002-report.md`） |
+| 09-27 23时 | `baf9356` | v1.22.5 版本号 → **发版 v1.22.5**（SEC-001 搭 AI-002 报告） |
+| 09-28 00时 | `9ce46af` | **AI-003 数据保护层**：`SettingsDataGuard`（保守身份证明/悬空引用修复/迁移不变量门）+ 12 项契约测试 |
+| 09-28 00时 | `4f27df8` | **NET-001 AI 地址 HTTPS-only**：`AiUrlPolicy` + 拦截器 + DNS rebinding 防线（18 用例），AI 专用 client 派生 |
+| 09-28 00时 | `468fb48` | **SEC-003 签名 fail-closed**：删硬编码 "heiyao2026" 回退，缺配置构建失败；`-Pdfwx.unsigned` CI 开关保留 |
+| 09-28 00时 | `871b690` | **台账治理**：PATCHES.md 补 P20/P21/P24 + 修 P18 + P13 标废弃；RikkaHubEmbed.kt 三处 GBK 乱码修复 |
+| 09-28 01时 | `db0bb17` | v1.22.6 版本号 + current-state.md 全面同步 → **发版 v1.22.6** |
+
+### 卡片完成度（23 张队列）
+
+已完成 8 张：BASE-001 / AI-001 / SEC-001 / AI-002（设计）/ AI-003 / NET-001 / SEC-003 / 台账治理（伴生）
+在途 1 张：**STAB-001（半成品，见第四节）**
+剩余 14 张：ADB-001（前置 STAB）→ TEST-001 → BRAND-001/002 → UI-001~004 → ARCH-001 → DEP-001 / CI-001 / RELEASE-001；AI-004a/004b/005 + SEC-004（动 AI 体验，开工前须向用户简报）
+
+## 三、用户拍板的协作规矩（违反=返工）
+
+1. **批处理模式**：小任务/基础卡打包排队连续做，不逐卡审批；只在动用户可感知的东西（UI/AI 行为/数据）时停下来简报。
+2. **发版规矩**：每完成一大批发 GitHub Release——标题纯 `vX.Y.Z`（禁描述性后缀），asset 名 `dongfang-wuxian-vX.Y.Z.apk`，给用户真机测试。发版流程必须先加载技能 `dfwx-release`。
+3. **发链接铁律**：下载链接**单独成行、纯 URL**，说明文字另起一行。混排会被渲染成一个坏链接（2026-09-28 用户明确批评，已写进记忆）。
+4. **低风险验证豁免**：下载/安装类功能不找用户真机验证（用户原话：以前测过那么多次）。
+5. **团队方式工作**：队长（总控/审核/发版）+ named 子代理干活。已验证可行：architect（AI-002 报告）、dev-ai（NET-001）、dev-build（SEC-003+台账）成功交付；dev-vendor（AI-003）断线后队长收尾。
+6. 提问用正文文字选项，不用按钮组件。
+
+## 四、当前在途半成品：STAB-001（重要，处理前必读）
+
+dev-host2 成员执行中产出，**门禁未通过，未提交**。处理方式二选一：修完提交，或 `git checkout -- app/src/main/java/cc/nkbr/lanzouplus/MainActivity.java && rm` 掉 4 个新文件重来。
+
+### 盘上改动（`git status`）
+
+| 文件 | 状态 | 内容 |
+|---|---|---|
+| `app/src/main/java/cc/nkbr/lanzouplus/MainActivity.java` | M（+31/-15） | DownloadEntry 增 `transferOwnedBy`/`transferOwnerIs` generation 防竞态判定；删旧 `downloadPersistIo` 线程池，改用 DownloadHistoryStore；onCreate 相应调整 |
+| `app/src/main/java/cc/nkbr/lanzouplus/DownloadHistoryStore.java` | 新增 | 下载历史原子写入存储（serialize → SharedPreferences "download_history"） |
+| `app/src/test/java/cc/nkbr/lanzouplus/DownloadHistoryStoreTest.java` | 新增 | 原子写入/中断恢复测试 |
+| `app/src/test/java/cc/nkbr/lanzouplus/DownloadEntryTransferTest.java` | 新增 | generation 防竞态测试 |
+| `app/src/test/java/cc/nkbr/lanzouplus/TransferTerminalTest.java` | 新增 | 终态线性化测试 |
+
+### 质量判定（本机实测）
+
+- **设计思路正确**：generation+owner 双重校验防旧回调覆盖新状态（对应任务卡核心诉求），cancelled 回调单独放行的注释解释合理。
+- **门禁失败**：`:app:testEmptyDebugUnitTest` BUILD FAILED，**5 个截图测试挂**（HomeShotsJvmTest×3 + ToolsShotsJvmTest×1 + 另 1 个 AssertionError），错误含 UnsatisfiedLinkError / FileSystemAlreadyExistsException。
+- **定性证据（stash 对照法）**：stash 全部改动后干净树真跑 HomeShotsJvmTest → BUILD SUCCESSFUL（3m3s）；恢复改动再跑 → 挂。**结论：回归由这批改动引入**，大概率是 DownloadHistoryStore 字段初始化器（onCreate 路径上）在 Robolectric 截图测试环境下行为异常。
+- **排查方向**：看 DownloadHistoryStore 构造/首次写入是否在字段初始化时同步碰文件系统或触发 SharedPreferences commit（旧实现是 lazy 的 `ScheduledThreadPoolExecutor`）。40 tests completed, 5 failed。
+
+### ADB-001 未开工（前置 STAB-001 完成提交后做）
+
+重点：`AdbShellManager.java:52-62,69` 无 generation 防竞态（审计 H-P1-4）。
+
+## 五、发版红线速记（详见技能 dfwx-release，发版前必读）
+
+- 严禁任务名含 "Debug" 的构建出 release 包（ABI 翻转事故根因）
+- aapt 断言 `native-code: arm64-v8a` + versionCode/versionName 一致
+- push 走 SSH over 443，**remote 名是 `backup` 不是 origin**；`gh release create --target` 用分支名 `test`（短 SHA 会 422）
+- 版本号：v1.22.6=1039026，递增 +1，改 `app/build.gradle.kts:31-32`
+- APK 上传走 uploads.github.com；本地归档 `<本地目录>/黑曜/03-构建产物/东方无限-vX.Y.Z.apk`
+
+## 六、本会话踩坑记录（复用价值）
+
+1. **zsh 多文件 Bash grep 结果不可信** → 用 Grep 工具复核
+2. **测试"污染"假象**：全量跑挂、单跑过 ≠ JVM 污染，先查同 JVM 里谁先炸（AI-003 收尾实录：quickjs native 加载连坐）
+3. **UP-TO-DATE 缓存掩盖测试失败**：门禁显示绿可能只是缓存绿，代码改动后会真跑暴露问题（本次 5 个截图测试即此情况；发版门禁建议对 test 任务加 `--rerun-tasks` 或接受此风险已知）
+4. **子代理断线处置**：先 `git status` 看盘上遗产，跑编译+单测定性，再决定收尾或重派；半成品直接扔掉前先看 diff 质量
+5. **Agent 工具返回空输出 ≠ 没跑**：dev-host2 返回空但实际产出了 4 个文件（工作区验证为准）
+
+## 七、下一步（按优先级）
+
+1. **处置 STAB-001 半成品**：按第四节排查方向修 5 个截图测试失败（或推倒重来），修完跑全量门禁 → 提交 → 接着做 ADB-001
+2. STAB-001+ADB-001 双卡完成后发 **v1.22.7**
+3. 再往后：TEST-001 → 批次 B（AI-004a/004b/005+SEC-004，**动 AI 体验，开工前给用户简报**）
+4. 每完成一批：更新 `docs/plan/current-state.md` + 记忆文件 + 发版
+
+（完）

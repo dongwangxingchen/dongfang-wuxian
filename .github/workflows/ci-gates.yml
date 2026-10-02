@@ -62,9 +62,9 @@ jobs:
           cache: gradle
 
       - name: Set up Android SDK (platform 37 / build-tools 37.0.0)
-        uses: android-actions/setup-android@v3
+        uses: android-actions/setup-android@v4
         with:
-          packages: 'platforms;android-37,build-tools;37.0.0'
+          packages: 'platforms;android-37.0 build-tools;37.0.0'
 
       - name: Run unit gate
         run: |
@@ -102,9 +102,9 @@ jobs:
           cache: gradle
 
       - name: Set up Android SDK (platform 37 / build-tools 37.0.0)
-        uses: android-actions/setup-android@v3
+        uses: android-actions/setup-android@v4
         with:
-          packages: 'platforms;android-37,build-tools;37.0.0'
+          packages: 'platforms;android-37.0 build-tools;37.0.0'
 
       - name: Run APK gate (unsigned, no keystore in CI)
         env:

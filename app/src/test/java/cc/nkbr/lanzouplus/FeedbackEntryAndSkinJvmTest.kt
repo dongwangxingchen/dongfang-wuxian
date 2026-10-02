@@ -114,17 +114,43 @@ class FeedbackEntryAndSkinJvmTest {
      * 换肤的**三条铁律**：只改颜色与可见性，绝不改布局、绝不改 `pointer-events`。
      * 改布局会让 FlowUs 自己的表单逻辑错位，改 `pointer-events` 会让用户点不动。
      */
+    /**
+     * 守卫本体抽成函数 —— 这样"反向探针"才能**真的把坏代码喂进来**。
+     *
+     * ⚠️ 这里有一个本项目实际踩过的假绿教训：第一版的反向探针写成
+     * `assertTrue("pointer-events: none".contains("pointer-events"))` ——
+     * 两个操作数都是字面量，**编译期就恒真**，跟被测代码一点关系都没有。
+     * 结果是"守卫配了反向探针"这条检查项看起来已满足，实际零鉴别力。
+     * 正确写法见 `RenderFolderNullSafetyJvmTest.theGuardActuallyDetectsAnUnguardedCall`。
+     */
+    private fun skinTouchesPointerEvents(src: String): Boolean =
+        src.contains("pointer-events") || src.contains("pointerEvents")
+
+    private fun skinSetsLayoutProperty(src: String, prop: String): Boolean =
+        Regex("style\\.setProperty\\(\\s*[\"']" + prop).containsMatchIn(src)
+
+    /** 剥掉注释再查 —— 文件里解释"为什么不用类名选择器"的那句本身含 `[class*=`。 */
+    private fun stripJsComments(src: String): String = src.lines()
+        .filterNot {
+            val t = it.trimStart()
+            t.startsWith("*") || t.startsWith("//") || t.startsWith("/*")
+        }
+        .joinToString("\n")
+
+    private fun skinUsesClassSelectors(src: String): Boolean =
+        Regex("\\[class\\*=").containsMatchIn(stripJsComments(src))
+
     @Test
     fun theSkinOnlyTouchesColorsAndVisibility() {
         assertTrue("换肤脚本必须存在且非空", skin.length > 500)
         assertFalse(
             "不许碰 pointer-events（碰了用户就点不动表单）—— CSS 与 JS 两种写法都算",
-            skin.contains("pointer-events") || skin.contains("pointerEvents"),
+            skinTouchesPointerEvents(skin),
         )
         for (bad in listOf("display", "position", "width", "height", "margin", "padding", "transform")) {
             assertFalse(
                 "换肤不许改布局属性 `$bad`（只允许改颜色）",
-                Regex("style\\.setProperty\\(\\s*[\"']" + bad).containsMatchIn(skin),
+                skinSetsLayoutProperty(skin, bad),
             )
         }
         assertTrue("必须真的在重映射背景色", skin.contains("background-color"))
@@ -143,14 +169,9 @@ class FeedbackEntryAndSkinJvmTest {
             "必须用 MutationObserver 跟上动态内容（FlowUs 是 SPA，内容随时重建）",
             skin.contains("MutationObserver"),
         )
-        // 先剥掉注释再查 —— 文件里那句"为什么不用类名选择器"的解释本身含 `[class*=`，
-        // 不剥注释的话守卫会命中自己的说明文字（本次实际踩到）。
-        val code = skin.lines()
-            .filterNot { it.trimStart().startsWith("*") || it.trimStart().startsWith("//") || it.trimStart().startsWith("/*") }
-            .joinToString("\n")
         assertFalse(
             "不许再出现靠类名猜的 CSS 选择器（第一版翻车的原因）",
-            Regex("\\[class\\*=").containsMatchIn(code),
+            skinUsesClassSelectors(skin),
         )
     }
 
@@ -168,20 +189,49 @@ class FeedbackEntryAndSkinJvmTest {
         )
     }
 
-    /** 反向探针：确认上面的检查真的能识别坏代码。 */
+    /**
+     * 反向探针：**把坏代码真的喂进守卫函数**，确认它会变红。
+     *
+     * 这一版是重写的 —— 原来那版是字面量自比，恒真，等于没验（见上面 `skinTouchesPointerEvents` 的注释）。
+     */
     @Test
     fun theChecksActuallyDetectBadCode() {
-        // 两种写法都要能被识别（CSS 里是 `pointer-events`，JS 里是 `pointerEvents`）
-        assertTrue("坏代码（CSS 写法）必须被识别", "pointer-events: none".contains("pointer-events"))
-        assertTrue("坏代码（JS 写法）必须被识别", "el.style.pointerEvents='none'".contains("pointerEvents"))
+        // ① 碰 pointer-events：CSS 与 JS 两种写法都必须被抓
         assertTrue(
-            "坏代码（改布局属性）必须被识别",
-            Regex("style\\.setProperty\\(\\s*[\"']" + "display").containsMatchIn("""el.style.setProperty("display","none")"""),
+            "坏代码（CSS 写法）必须被守卫抓出来",
+            skinTouchesPointerEvents("html { pointer-events: none !important; }"),
         )
         assertTrue(
-            "坏代码（靠类名猜选择器）必须被识别",
-            Regex("\\[class\\*=").containsMatchIn("""[class*="banner"] { display:none }"""),
+            "坏代码（JS 写法）必须被守卫抓出来",
+            skinTouchesPointerEvents("el.style.pointerEvents = 'none';"),
         )
-        assertTrue("锚点必须真的在源码里", skin.contains("getComputedStyle"))
+        assertFalse("干净代码不该被误伤", skinTouchesPointerEvents("el.style.color = '#fff';"))
+
+        // ② 改布局属性必须被抓
+        assertTrue(
+            "坏代码（改 display）必须被抓出来",
+            skinSetsLayoutProperty("""el.style.setProperty("display","none")""", "display"),
+        )
+        assertTrue(
+            "坏代码（改 margin）必须被抓出来",
+            skinSetsLayoutProperty("""el.style.setProperty('margin','0')""", "margin"),
+        )
+        assertFalse(
+            "改颜色不该被误伤",
+            skinSetsLayoutProperty("""el.style.setProperty("color","#fff")""", "display"),
+        )
+
+        // ③ 靠类名猜选择器必须被抓，但**注释里的解释文字不算**
+        assertTrue(
+            "坏代码（类名选择器）必须被抓出来",
+            skinUsesClassSelectors("""[class*="banner"] { display: none }"""),
+        )
+        assertFalse(
+            "注释里解释「为什么不用类名选择器」不该被误判成坏代码（本次实际踩到过）",
+            skinUsesClassSelectors(" * 靠 `[class*=\"banner\"]` 这种猜法迟早失效"),
+        )
+
+        // ④ 锚点必须真的在源码里，否则上面全在自说自话
+        assertTrue("锚点必须与源码逐字一致", skin.contains("getComputedStyle"))
     }
 }

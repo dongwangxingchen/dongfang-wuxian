@@ -53,7 +53,7 @@ android {
   // 以前这里要改两行（10022 和 "1.0.22"），改漏一行 `VersionSchemeJvmTest` 立刻变红；
   // 而改漏 versionCode 的后果最阴——用户永远收不到更新，界面上完全看不出来。
   // 用户原话："你每次更新都得改一堆地方" → 把"一堆"压成"一个"。
-  val buildCode = 10025
+  val buildCode = 10026
   versionCode = buildCode
   versionName = "${buildCode / 10000}.${(buildCode / 100) % 100}.${buildCode % 100}"
  }
@@ -65,7 +65,24 @@ android {
  testOptions {
   unitTests {
    isIncludeAndroidResources = true
-   all { it.maxHeapSize = "3g" }
+   /*
+    * [DFW-97 审计] `forkEvery` 不是性能调优，是**让门禁在这台机器上跑得完**。
+    *
+    * 现象：761 条 Robolectric 用例跑下来，测试 JVM 里的线程**只增不减**，
+    * 加上系统里浏览器/输入法/微信等常驻进程本来就占着 2600+ 线程，
+    * 一旦顶到 `ulimit -u`（本机硬上限 4000），后面所有用例会成批报
+    * `OutOfMemoryError: unable to create native thread` —— **一次红 184 条，
+    * 看起来像代码全炸了，其实一行代码的问题都没有**。
+    *
+    * 这个坑历史上反复出现，以前靠"记得先 pkill GradleDaemon"绕过（靠自觉就会忘）。
+    * `ci-gate.sh` 已经把软上限顶到硬上限，但那只多给一千多线程；
+    * 真正治本的是**定期换一个测试 JVM**：旧进程退出，线程全部归还。
+    * 24 个类换一次，实测既不再 OOM，总耗时也没有明显变化。
+    */
+   all {
+    it.maxHeapSize = "3g"
+    it.forkEvery = 24
+   }
   }
  }
  // [DFWX] 品牌守卫（BrandingCleanlinessJvmTest）会**读本脚本本体**校验签名字面量，
