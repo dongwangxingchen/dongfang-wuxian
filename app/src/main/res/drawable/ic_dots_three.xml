@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 三点「更多」图标（Phosphor Icons regular，MIT）：下载页全局操作行的「更多」菜单入口。
+     原来借用的 ic_expand（下折角）在 14dp 下看着像一个对勾，容易被读成「已完成」。
+     源与转换口径见工作区参考库 06-开源参考库/01-图标库.md。
+     注意：res/ 下的文件受 BrandingCleanlinessJvmTest 守卫，不许出现旧品牌词，
+     所以这里只能写参考库内的相对路径，不写它的父目录名。 -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="24dp" android:height="24dp" android:viewportWidth="256" android:viewportHeight="256"><path android:pathData="M140,128a12,12,0,1,1-12-12A12,12,0,0,1,140,128Zm56-12a12,12,0,1,0,12,12A12,12,0,0,0,196,116ZM60,116a12,12,0,1,0,12,12A12,12,0,0,0,60,116Z" android:fillColor="#FFFFFFFF"/></vector>
