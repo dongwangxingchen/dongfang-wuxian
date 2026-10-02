@@ -205,10 +205,22 @@ cmd_build() {
   mkdir -p "$ARCHIVE_DIR"
   local target="$ARCHIVE_DIR/dongfang-wuxian-v${name}.apk"
   # [DFW-115] 铁律是「不删旧包」。原来直接 cp 会**静默覆盖**同名归档，
-  # 如果那份正是已经发出去的字节，就再也无法比对复现了。已存在就停下来让人决定。
-  [[ -e "$target" ]] && fail "归档已存在：${target}
-静默覆盖会丢掉已发布的那份字节（铁律：不删旧包）。
-要重发同一版本，请先把旧的那份改名（例如加 -prev-$(date +%Y%m%d-%H%M%S)）再重跑。"
+  # 如果那份正是已经发出去的字节，就再也无法比对复现了。
+  #
+  # [2026-10-03] **不 fail，改成自动加时间戳后缀。**
+  # 原因：测试期版本号固定是 1.0.0（用户明确要求「不要改成新版本」），
+  # 但会发很多个 tag（test-20261003-xx），每次重建的产物名都一样。
+  # 这里如果直接 fail，就变成「每次发版都要先手工给旧包改名」——
+  # 那种摩擦最终一定会被人用裸 `cp` 绕过去，**保护反而失效**。
+  # 自动改名同时满足两件事：一个字节都不丢，且不需要人工介入。
+  # 注意：后缀只加在**本地归档名**上；GitHub 资产名仍是纯
+  # `dongfang-wuxian-v${name}.apk`（发版红线：资产名必须 ASCII 且不带描述性后缀）。
+  if [[ -e "$target" ]]; then
+    local stamp; stamp="$(date +%Y%m%d-%H%M%S)"
+    local stamped="$ARCHIVE_DIR/dongfang-wuxian-v${name}-${stamp}.apk"
+    printf 'ℹ️  同名归档已存在，改存为带时间戳的名字（旧包原样保留）：\n    %s\n' "$stamped"
+    target="$stamped"
+  fi
   cp "$apk" "$target"
   local sha; sha="$(shasum -a 256 "$target" | awk '{print $1}')"
   local size; size="$(stat -f%z "$target" 2>/dev/null || stat -c%s "$target")"

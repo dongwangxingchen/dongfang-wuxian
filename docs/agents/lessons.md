@@ -249,6 +249,34 @@ assertFalse(skinTouchesPointerEvents(skin))   // 好代码必须为假
 **教训**：反向探针必须**跨过被测边界**。只要断言里没有出现"被测对象"，
 它就只是自我安慰。
 
+**第二种假探针：红了，但红的原因是错的（2026-10-02 DFW-124 实测）**
+
+同一个坑的另一面。我给 `RemoteConfigClient` 的网络守卫写反向探针，
+把守卫注释掉之后**它确实红了** —— 看上去探针有效：
+
+```
+x theNetworkChokePoint_isActivelyRefused_notJustUnreachable:
+    java.lang.RuntimeException: Method toString in org.json.JSONObject not mocked
+```
+
+**但红的原因不是我的断言**，是 `org.json` 走了 AGP 的桩、`toString()` 崩了。
+后果：同一个测试类里**第二条**用例（`fetch()` 应报「不可达」）在删掉守卫后**依然绿** ——
+因为桩一崩就被 `fetch()` 内部的 `catch (Exception ignored)` 吞掉，它照样返回「不可达」。
+**一条真红的用例，掩护了一条假绿的用例。**
+
+**判据**：反向探针跑完，不要只看"红了"，要看**红在哪一行、报的是什么**：
+
+| 报错内容 | 判定 |
+|---|---|
+| 出现**你自己写的断言消息** | ✅ 有效 |
+| 框架 / 桩 / 环境抛的异常 | ❌ **无效**，得先把测试环境修成真的 |
+
+本例的修法：给测试挂上 `@RunWith(RobolectricTestRunner::class)`，让 `org.json` 变成真实现。
+修好后再跑探针，报错变成了我自己的断言消息，而且**直接打印出真读到的生产数据**
+（`公告 1 条 / 版本 1.0.0`）—— 那才是因果证据。
+
+> **一句话**：探针的价值不在"变红"，在于**红是你造成的**。
+
 ### 3. Robolectric 里测不出"动画被打断"
 
 给 `crossFadeHomeSection` 补了 600ms 幂等结算兜底，并写了一条"快速来回切 + 推进时钟"的测试。
