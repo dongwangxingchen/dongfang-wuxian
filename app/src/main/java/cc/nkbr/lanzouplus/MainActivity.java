@@ -1288,15 +1288,30 @@ FrameLayout.LayoutParams tp=new FrameLayout.LayoutParams(Math.max(dp(1),Math.min
      *    所以它天然永远是"最早的那一条"，不需要任何人去维护它的位置。
      */
     java.util.List<RemoteConfigClient.Changelog> all=new java.util.ArrayList<>();
-    all.add(new RemoteConfigClient.Changelog(
+    /*
+     * [DFW-97 修正] **后台已经有 1.0.0 时不许再加内置那条**。
+     *
+     * 用户 2026-10-02 截图反馈：「你看看咋多了，应该只有 1.0.0 啊」——
+     * 更新记录里出现了两条 v1.0.0（后台一条、内置一条），因为第一版是无条件 add。
+     * 现在改成**按版本号去重**：后台有就用后台的，没有才用内置的兜底。
+     * 这样既不会重复，也不会出现"断网就一片空白"。
+     */
+    boolean backendHasBeta=entries!=null&&!entries.isEmpty();
+    if(!backendHasBeta){
+      all.add(new RemoteConfigClient.Changelog(
         "builtin-1.0.0","1.0.0","2026-10-02",
-        "公测开始：东方无限正式开放公测。\n"
-        + "搜索更快了：一次搜完所有软件库源，不用干等。\n"
-        + "搜索页底部不再有一块黑色空白。\n"
-        + "从搜索返回主页有了淡出动画，不再是硬切。\n"
-        + "下载完成或失败会明确告诉你，并写清是哪个文件。\n"
-        + "设置页新增「反馈与建议」，有问题可以直接填表告诉我。\n"
-        + "内置网页统一暗夜模式，晚上看不刺眼。"));
+        "公测开始：东方无限正式开放公测，五大板块全部可用。\n"
+        + "软件库：多个源可搜，一次搜完所有源，不用一个个点。\n"
+        + "下载：点一下就能下，完成或失败都会明确告诉你，并写清是哪个文件。\n"
+        + "AI 对话：内置渠道，看图、长文、工具调用都能用。\n"
+        + "工具箱：三十多个小工具，从文件管理到图片处理。\n"
+        + "设置：外观、下载、公告都能自己调；新增「反馈与建议」，有问题直接填表。\n"
+        + "公告与更新：远程下发，不用重装就能收到通知和新版本提醒。\n"
+        + "暗夜模式：全局纯黑底，内置网页也是，晚上看不刺眼。\n"
+        + "启动更快：公告弹窗秒弹，不再等一次网络往返。\n"
+        + "搜索页底部不再有黑色空白，返回主页有淡出动画。\n"
+        + "这是第一个公开测试版，欢迎把遇到的问题告诉我。"));
+    }
     if(entries!=null)all.addAll(entries);
     entries=all;
     if(entries==null||entries.isEmpty()){
@@ -2815,9 +2830,23 @@ content=new LinearLayout(this);content.setOrientation(LinearLayout.VERTICAL);pag
     // 系统文件管理器不接受目录 URI 时兜底：复制路径 + 打开文件管理器，路径已在剪贴板里，粘一下即可。
     try{ClipboardManager clipboard=(ClipboardManager)getSystemService(CLIPBOARD_SERVICE);
       if(clipboard!=null)clipboard.setPrimaryClip(android.content.ClipData.newPlainText("dfwx_crash_folder",crashFolderLabel()));
-      showNotice("已复制路径："+crashFolderLabel()+"，在文件管理器里进入 内部存储 → Download → 东方无限 → 崩溃日志",true);
+      /*
+       * [DFW-97 修正] 这里原来是 `showNotice(..., true)`（站内顶部提示条）。
+       *
+       * 用户 2026-10-02 截图反馈：「点击打开崩溃日志文件夹按钮后，上面弹出的这个弹窗
+       * 自己不消失，还没法滑动消失」。
+       *
+       * 根因：`showNotice` 走的是站内 `NoticeBanner`，它的入场是**位移动画**；
+       * 而下一行立刻 `startActivity` 把 App 切到后台 —— **动画没跑完就被冻住了**，
+       * 提示条永远停在 `translationY(-offset)`（屏幕上方、被裁掉一半），
+       * 而且因为位置在屏幕外，触摸事件也落不到它身上，所以"滑也滑不走"。
+       *
+       * 修法：**要离开 App 的场景不用站内提示条**，改用系统 Toast ——
+       * 它由系统窗口承载，不受本 Activity 生命周期影响，一定会自己消失。
+       */
+      Toast.makeText(this,"已复制路径："+crashFolderLabel()+"，在文件管理器里进入 内部存储 → Download → 东方无限 → 崩溃日志",Toast.LENGTH_LONG).show();
       Intent files=new Intent(Intent.ACTION_MAIN);files.addCategory(Intent.CATEGORY_APP_FILES);startActivity(files);
-    }catch(Exception error){showNotice("没有可用的文件管理器，路径是："+crashFolderLabel(),true);}}
+    }catch(Exception error){Toast.makeText(this,"没有可用的文件管理器，路径是："+crashFolderLabel(),Toast.LENGTH_LONG).show();}}
   /** 卡片内分隔线（与 settingsAction 行左对齐，缩进 50dp）。 */
   void addCardDivider(LinearLayout card){View divider=new View(this);divider.setBackgroundColor(SET_STROKE2);LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,dp(1));lp.setMargins(dp(50),0,dp(8),0);card.addView(divider,lp);}
   /** v1.22.10：清除崩溃记录改为二次确认（破坏性操作，误触会丢掉唯一一份现场）。清除范围含公共目录副本。 */
@@ -4276,6 +4305,15 @@ void showCustomLanzouBaseOriginDialog(){EditText input=sourceInput("输入 oreoj
   void beginDownloadGated(Models.Item item,Runnable nextBatch,boolean autoInstall){if(!ensureDirectStorageAuthorized(()->beginDownloadGated(item,nextBatch,autoInstall)))return;
     try{
       DownloadEntry entry=newDownloadEntry(item,nextBatch,autoInstall);downloadEntries.add(entry);if(downloadsPage)renderDownloadFilters();persistDownloadHistory(entry);updateDownloadUi(entry);
+      /*
+       * [DFW-97] **点下载必须立刻有反馈。**
+       *
+       * 用户 2026-10-02：「软件库下载软件点击后，居然会没有任何反馈」。
+       * 原来点下去是"静默开始"—— 从点击到真正落盘之间要经过解析直链等好几步，
+       * 中间可能几百毫秒到几秒，用户完全不知道点没点成功。
+       * 现在点下去就报一句「（名字）下载中…」，把"我收到了"这件事立刻说清楚。
+       */
+      showNotice(entry.name+" 下载中…",false);
       startEntryDownload(entry,entry.shareUrl);
                 }catch(Exception error){String message=friendlyError(error);if(downloadStorageFailure(message)){requestManageAllFilesAccess("无法在当前下载目录创建文件："+message,()->beginDownloadGated(item,nextBatch,autoInstall),false);return;}if(nextBatch!=null)runOnUiThread(nextBatch);showNotice("无法创建 Download 文件："+message,true);}
   }

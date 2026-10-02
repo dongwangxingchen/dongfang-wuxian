@@ -52,6 +52,9 @@ final class NoticeBanner {
   private final int topMargin;
 
   private final FrameLayout overlay;
+  /** 硬兜底的额外宽限：动画最长也就 ENTER_MS，再给 1.5 秒足够。 */
+  private static final int HARD_FALLBACK_MS = 1500;
+
   private final Runnable autoDismiss;
 
   private float startX, startY;
@@ -109,6 +112,23 @@ final class NoticeBanner {
     dismissed = false;
     container.addView(overlay);
 
+    /*
+     * [DFW-97] **入场动画必须能"被打断后仍然收尾"。**
+     *
+     * 用户 2026-10-02 实测：点「打开崩溃日志文件夹」后，顶部提示条卡在屏幕上方
+     * （被裁掉一半）、不消失、也滑不走。
+     *
+     * 根因：`showNotice` 之后下一行就 `startActivity` 把 App 切到后台 ——
+     * 位移动画刚开始就被冻住，提示条永远停在 `translationY(-offset)`，
+     * 位置在屏幕外所以触摸也落不到它身上。
+     * （那一处调用点已改用系统 Toast；这里补的是**通用兜底**，
+     *  让"任何原因导致动画没跑完"都不会留下一条永远收不掉的提示。）
+     *
+     * 两条保障：
+     * ① 动画用 `withEndAction` 强制落到终态 —— 即使被 cancel 也会归位；
+     * ② 自动消失**不再挂在动画回调里**，而是独立排程，并且再加一道硬兜底：
+     *    到点无条件把 overlay 从容器里摘掉。
+     */
     banner.post(() -> {
       float offset = banner.getHeight() > 0 ? banner.getHeight() + topMargin : dp(600);
       if (!motionEnabled) {
@@ -118,10 +138,25 @@ final class NoticeBanner {
         banner.setTranslationY(-offset);
         banner.setAlpha(0f);
         banner.animate().translationY(0f).alpha(1f)
-            .setDuration(ENTER_MS).setInterpolator(standard()).start();
+            .setDuration(ENTER_MS).setInterpolator(standard())
+            .withEndAction(() -> {
+              // 动画被 cancel 时 withEndAction 不保证触发，这里再兜一次终态
+              banner.setTranslationY(0f);
+              banner.setAlpha(1f);
+            })
+            .start();
       }
-      if (autoDismissMs > 0) banner.postDelayed(autoDismiss, autoDismissMs);
     });
+
+    if (autoDismissMs > 0) {
+      banner.postDelayed(autoDismiss, autoDismissMs);
+      // 硬兜底：即使 autoDismiss 因为任何原因没生效，也必须把 overlay 摘掉。
+      // 宁可少显示一会儿，也绝不留下一条收不掉的提示（那会挡住整个界面）。
+      banner.postDelayed(() -> {
+        if (!dismissed) dismiss();
+        if (overlay.getParent() != null) container.removeView(overlay);
+      }, autoDismissMs + HARD_FALLBACK_MS);
+    }
   }
 
   void dismiss() {
