@@ -64,7 +64,7 @@ android {
   // 覆盖安装照常。
   //
   // 改版本时**只改 `buildCode` 这一个数字**（`tools/bump-version.sh` 就是干这个的）。
-  val buildCode = 10032
+  val buildCode = 10033
   versionCode = buildCode
   versionName = "1.0.0"
  }

@@ -65,6 +65,19 @@ public class App extends me.rerere.rikkahub.RikkaHubApp {
         // [DFW-73] 内置渠道配置必须赶在 super.onCreate() 之前注入：RikkaHub 的 Application.onCreate
         // 会立刻触发渠道同步，晚一步这一轮就同步不到配置（下一次启动才生效）。
         BuiltinAiChannel.install(this);
+        /*
+         * [DFW-88 2026-10-02] 注册 WAF 求解器所需的 Context。
+         *
+         * 蓝奏云的下载链路有一道阿里云 WAF 的 JS 挑战（`acw_sc__v2`）。
+         * 项目自己实现的算法**已经算错了**（阿里云改过算法，社区常量失效，有实测证据），
+         * 导致算出的 cookie 不被接受、下载永远停在「解析中」。
+         * 现在改用隐藏 WebView 让它自己算 —— 但 WebView 要 Context，
+         * 而 LanzouCore 全是静态方法，所以在这里注册一次。
+         *
+         * 放在 super.onCreate() 之前：注册本身零开销（只存一个引用），
+         * 早注册可以保证**任何**路径（含 RikkaHub 侧触发的下载）都能用上。
+         */
+        LanzouCore.installWafSolver(this);
         try {
             super.onCreate();
         } catch (Throwable t) {

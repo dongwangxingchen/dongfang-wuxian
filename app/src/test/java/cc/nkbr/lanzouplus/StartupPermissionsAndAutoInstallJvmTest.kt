@@ -40,6 +40,11 @@ class StartupPermissionsAndAutoInstallJvmTest {
      * `assertTrue("...".contains("..."))`（两个操作数都是字面量），
      * 编译期恒真、跟产品代码毫无关系，等于没有探针。见 docs/agents/lessons.md 八-2。
      */
+    /** 去掉行注释与块注释，只留代码 —— 否则"注释里提到过某写法"会被误判成"代码里有"。 */
+    private fun stripJavaComments(src: String): String =
+        src.replace(Regex("/\\*[\\s\\S]*?\\*/"), " ")
+            .replace(Regex("//[^\\n]*"), " ")
+
     private fun asksForStorageOnStartup(src: String): Boolean =
         src.contains("requestStartupPermissions") &&
             src.contains("requestManageAllFilesAccess(") &&
@@ -114,6 +119,60 @@ class StartupPermissionsAndAutoInstallJvmTest {
         assertTrue(
             "低版本系统没有这个权限，必须跳过而不是硬要（否则在 Android 12 上会抛）",
             Regex("requestStartupNotificationPermission[\\s\\S]{0,400}SDK_INT<33").containsMatchIn(activity),
+        )
+    }
+
+    // ── ③ 崩溃日志页：一个 Intent 都跳不出去时，只许提示一次 ──────────────
+
+    /**
+     * [DFW-97] 用户 2026-10-02 截图：点一下按钮**连弹两条提示**
+     * （先「已复制路径」，紧接着「没有可用的文件管理器」）——
+     * 明明手机里有文件管理器，只是不认那两个较新的入口。
+     *
+     * 根因是**异常驱动的两级 try/catch**：每一级失败都弹一次。
+     * 现在改成先用 `resolveActivity` 探测能力，能处理才跳，全都不行才提示一次。
+     */
+    @Test
+    fun openingTheCrashFolderProbesCapabilitiesInsteadOfThrowing() {
+        assertTrue(
+            "必须先探测能不能处理，而不是 startActivity 抛异常再兜底",
+            activity.contains("resolveActivity(getPackageManager())"),
+        )
+        assertTrue(
+            "要按兼容性依次试多个入口（系统下载界面 / 文件管理器分类 / 目录 URI）",
+            activity.contains("ACTION_VIEW_DOWNLOADS") && activity.contains("CATEGORY_APP_FILES"),
+        )
+        /*
+         * 查之前先**剥掉注释** —— 本次实际踩到：我在注释里写了这段历史
+         * （"先弹「已复制路径」、再弹「没有可用的文件管理器」"），
+         * 结果守卫把注释当成了代码，假红。
+         * 同类教训见 docs/agents/lessons.md 八-2：守卫必须跨过被测边界，
+         * 而注释不是被测边界。
+         */
+        assertFalse(
+            "不许再出现「每个 catch 各弹一条」的双提示结构（代码里，注释不算）",
+            Regex("已复制路径[\\s\\S]{0,600}没有可用的文件管理器")
+                .containsMatchIn(stripJavaComments(activity)),
+        )
+    }
+
+    // ── ④ 解析日志必须能导出（否则埋点等于没加）────────────────────────────
+
+    /**
+     * [DFW-88] 解析链路写了 `download.log` 埋点，注释说"用户导出时能一并取走"，
+     * 但**那句话一直没兑现**：全仓库除了写它的几行，再没地方碰过它 ——
+     * 用户根本没有入口把它取出来。埋点加了却拿不到，等于没加。
+     */
+    @Test
+    fun theDownloadTraceIsActuallyExportable() {
+        assertTrue(
+            "崩溃报告里必须带上 download.log，否则用户取不到解析现场",
+            Regex("buildCrashReport[\\s\\S]{0,3000}download\\.log").containsMatchIn(activity),
+        )
+        assertTrue(
+            "解析侧必须真的在写这个文件",
+            read("app/src/main/java/cc/nkbr/lanzouplus/DirectLinkResolver.java")
+                .contains("\"download.log\""),
         )
     }
 

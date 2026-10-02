@@ -2826,38 +2826,70 @@ content=new LinearLayout(this);content.setOrientation(LinearLayout.VERTICAL);pag
     card.addView(path,new LinearLayout.LayoutParams(-1,-2));
     card.addView(detail,new LinearLayout.LayoutParams(-1,-2));
     return card;}
-  /** 直接用文件管理器打开崩溃日志目录（用户找不到文件夹时点这里）。 */
+  /**
+   * 直接用文件管理器打开崩溃日志目录（用户找不到文件夹时点这里）。
+   *
+   * ## [DFW-97 修正] 为什么改成"先问系统谁能处理，能处理才跳"
+   *
+   * 用户 2026-10-02 截图反馈：**点一下按钮连弹两条提示** ——
+   * 先「已复制路径：…」，紧接着「没有可用的文件管理器，路径是：…」。
+   *
+   * 根因：原实现是**异常驱动**的两级 try/catch：
+   * ① 先 `startActivity(ACTION_VIEW + 目录 URI)`；vivo 的系统没接这个 intent → 抛；
+   * ② 落到兜底里，先弹「已复制路径」，再 `startActivity(CATEGORY_APP_FILES)`；
+   *    **这个较新的分类入口 vivo 也没注册** → 又抛 → 弹第二条。
+   * 于是用户看到"两条提示、而且第二条说没有文件管理器"——
+   * 明明手机里有文件管理器，只是不认这两个入口。
+   *
+   * 现在改成**能力探测**：用 `resolveActivity` 先问系统"谁能处理"，
+   * 按兼容性从新到旧依次试（目录 URI → 系统下载界面 → 文件管理器分类 → 任意能看目录的），
+   * **只在真的一个都没有时**才提示，且只提示一次（并附上路径，因为路径已经复制好了）。
+   */
   void openCrashFolder(){
     if(!storageAccessGranted()){requestManageAllFilesAccess("打开崩溃日志文件夹需要“管理所有文件”权限。",this::openCrashFolder,false);return;}
     if(!ensureCrashFolder()){showNotice("文件夹创建失败，请确认已授予“管理所有文件”权限",true);return;}
-    try{
-      // 公共下载目录的 DocumentsContract 文档 ID 形如 "primary:Download/东方无限/崩溃日志"
-      android.net.Uri uri=new android.net.Uri.Builder().scheme("content")
-        .authority("com.android.externalstorage.documents").appendPath("document")
-        .appendPath("primary:"+crashFolderLabel()).build();
-      Intent view=new Intent(Intent.ACTION_VIEW);view.setDataAndType(uri,"vnd.android.document/directory");
-      view.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);startActivity(view);return;
-    }catch(Exception ignored){android.util.Log.w("MainActivity","openCrashFolder intent failed: "+ignored.getMessage(),ignored);}
-    // 系统文件管理器不接受目录 URI 时兜底：复制路径 + 打开文件管理器，路径已在剪贴板里，粘一下即可。
+    if(openCrashFolderWithBestApp())return;
+    // 一个都没有：把路径复制好，只提示一次，说清楚"手动进去也能到"。
+    Toast.makeText(this,"路径已复制："+crashFolderLabel()+"（手机里没有可用的文件管理器，可在任意文件管理 App 里粘贴打开）",Toast.LENGTH_LONG).show();
+  }
+
+  /**
+   * 依次尝试各代文件管理器入口，**能处理才跳**；成功跳转返回 true。
+   *
+   * 顺序按"兼容性从旧到新"排，而不是反过来：
+   * 越老的入口被越多机器注册，先试它成功率最高、也最不容易出现"跳过去是空页面"。
+   */
+  boolean openCrashFolderWithBestApp(){
+    java.util.List<Intent> candidates=new java.util.ArrayList<>();
+    // ① 系统"下载"界面（Android 8+ 标配，绝大多数机器都有；能直接看到 东方无限 这个文件夹）
+    candidates.add(new Intent(android.app.DownloadManager.ACTION_VIEW_DOWNLOADS));
+    // ② 文件管理器分类入口（较新，部分国产 ROM 没注册 —— 这次踩的就是它）
+    Intent files=new Intent(Intent.ACTION_MAIN);files.addCategory(Intent.CATEGORY_APP_FILES);candidates.add(files);
+    // ③ DocumentsUI 目录 URI（标准做法，但需要对方声明接受 vnd.android.document/directory）
+    android.net.Uri uri=new android.net.Uri.Builder().scheme("content")
+      .authority("com.android.externalstorage.documents").appendPath("document")
+      .appendPath("primary:"+crashFolderLabel()).build();
+    Intent view=new Intent(Intent.ACTION_VIEW);view.setDataAndType(uri,"vnd.android.document/directory");
+    view.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);candidates.add(view);
+    // ④ 兜底：让用户自己挑一个能打开"文件夹"的 App
+    Intent pick=new Intent(Intent.ACTION_GET_CONTENT);pick.setType("vnd.android.document/directory");
+    candidates.add(pick);
+
+    // 先复制路径：无论最后跳到哪个 App，用户都能直接粘贴，不用手打一长串。
     try{ClipboardManager clipboard=(ClipboardManager)getSystemService(CLIPBOARD_SERVICE);
-      if(clipboard!=null)clipboard.setPrimaryClip(android.content.ClipData.newPlainText("dfwx_crash_folder",crashFolderLabel()));
-      /*
-       * [DFW-97 修正] 这里原来是 `showNotice(..., true)`（站内顶部提示条）。
-       *
-       * 用户 2026-10-02 截图反馈：「点击打开崩溃日志文件夹按钮后，上面弹出的这个弹窗
-       * 自己不消失，还没法滑动消失」。
-       *
-       * 根因：`showNotice` 走的是站内 `NoticeBanner`，它的入场是**位移动画**；
-       * 而下一行立刻 `startActivity` 把 App 切到后台 —— **动画没跑完就被冻住了**，
-       * 提示条永远停在 `translationY(-offset)`（屏幕上方、被裁掉一半），
-       * 而且因为位置在屏幕外，触摸事件也落不到它身上，所以"滑也滑不走"。
-       *
-       * 修法：**要离开 App 的场景不用站内提示条**，改用系统 Toast ——
-       * 它由系统窗口承载，不受本 Activity 生命周期影响，一定会自己消失。
-       */
-      Toast.makeText(this,"已复制路径："+crashFolderLabel()+"，在文件管理器里进入 内部存储 → Download → 东方无限 → 崩溃日志",Toast.LENGTH_LONG).show();
-      Intent files=new Intent(Intent.ACTION_MAIN);files.addCategory(Intent.CATEGORY_APP_FILES);startActivity(files);
-    }catch(Exception error){Toast.makeText(this,"没有可用的文件管理器，路径是："+crashFolderLabel(),Toast.LENGTH_LONG).show();}}
+      if(clipboard!=null)clipboard.setPrimaryClip(android.content.ClipData.newPlainText("dfwx_crash_folder",crashFolderLabel()));}catch(Exception ignored){}
+
+    for(Intent candidate:candidates){
+      try{
+        if(candidate.resolveActivity(getPackageManager())==null)continue;
+        startActivity(candidate);
+        return true;
+      }catch(Exception ignored){
+        // 这一个不行就试下一个，不打扰用户
+      }
+    }
+    return false;
+  }
   /** 卡片内分隔线（与 settingsAction 行左对齐，缩进 50dp）。 */
   void addCardDivider(LinearLayout card){View divider=new View(this);divider.setBackgroundColor(SET_STROKE2);LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,dp(1));lp.setMargins(dp(50),0,dp(8),0);card.addView(divider,lp);}
   /** v1.22.10：清除崩溃记录改为二次确认（破坏性操作，误触会丢掉唯一一份现场）。清除范围含公共目录副本。 */
@@ -2898,7 +2930,32 @@ content=new LinearLayout(this);content.setOrientation(LinearLayout.VERTICAL);pag
   void confirmClearCrashLog(){AlertDialog dialog=new AlertDialog.Builder(this).setTitle("清除崩溃记录？").setMessage("会删掉最近一次崩溃的堆栈、crash.log 历史，以及 "+crashFolderLabel()+" 里已导出的报告文件。清除后无法恢复。").setNegativeButton("取消",null).setPositiveButton("清除",(d,w)->{clearCrashArtifacts();showNotice("崩溃记录已清除",false);pageDirection=0;showCrashLogPage();}).create();dialog.setCanceledOnTouchOutside(false);showRounded(dialog);}
   void clearCrashArtifacts(){me.rerere.rikkahub.utils.CrashHandler.INSTANCE.clearCrashed(this);deleteQuietly(privateCrashLogFile());try{if(storageAccessGranted()){deleteQuietly(App.publicCrashLogFile());for(java.io.File file:crashReportFiles())deleteQuietly(file);}}catch(Exception ignored){android.util.Log.w("MainActivity","MainActivity Exception: "+ignored.getMessage(),ignored);}}
   /** 崩溃报告正文：最近一次堆栈 + crash.log 历史 + 环境诊断。环境段统一取 App.diagnostics()，避免两处各写各的。 */
-  String buildCrashReport(){StringBuilder report=new StringBuilder();String latest=me.rerere.rikkahub.utils.CrashHandler.INSTANCE.getStackTrace(this);if(latest!=null&&!latest.trim().isEmpty())report.append("── 最近一次崩溃（最新） ──\n").append(latest.trim()).append("\n\n");String history=crashLogTail();if(!history.isEmpty())report.append("── crash.log 历史（最多最近 12K） ──\n").append(history).append("\n\n");if(report.length()==0)return "";report.append("── 环境诊断 ──\n").append(App.diagnostics());return report.toString();}
+  String buildCrashReport(){StringBuilder report=new StringBuilder();String latest=me.rerere.rikkahub.utils.CrashHandler.INSTANCE.getStackTrace(this);if(latest!=null&&!latest.trim().isEmpty())report.append("── 最近一次崩溃（最新） ──\n").append(latest.trim()).append("\n\n");String history=crashLogTail();if(!history.isEmpty())report.append("── crash.log 历史（最多最近 12K） ──\n").append(history).append("\n\n");if(report.length()==0)return "";report.append("── 环境诊断 ──\n").append(App.diagnostics());
+    /*
+     * [DFW-88] **把下载解析日志也带进报告。**
+     *
+     * 用户连续 5 个版本报「下载一直显示解析中」，排查全靠猜 ——
+     * 后来在解析链路加了埋点写 `Download/东方无限/崩溃日志/download.log`，
+     * 注释里写着"用户在「崩溃日志」页导出时能一并取走"。
+     *
+     * **但那句话一直没兑现**：`download.log` 只写不读，全仓库除了写它的那几行，
+     * 再没有任何地方碰过它 —— 用户根本没有入口把它取出来发给我。
+     * 埋点加了却拿不到，等于没加。
+     *
+     * 现在接进报告：导出崩溃报告 = 连解析日志一起拿走，用户只要点一次「导出」。
+     */
+    try{
+      java.io.File downloadLog=new java.io.File(android.os.Environment.getExternalStorageDirectory(),"Download/东方无限/崩溃日志/download.log");
+      if(downloadLog.isFile()&&downloadLog.length()>0){
+        report.append("\n── 下载解析日志（DFW-88 定位用） ──\n");
+        report.append(CrashLogStore.readTail(downloadLog));
+        report.append("\n");
+      }else{
+        report.append("\n── 下载解析日志 ──\n（还没有记录：说明本次没有走过解析流程，或者解析根本没开始）\n");
+      }
+    }catch(Throwable ignored){
+      // 报告本身绝不能因为附加上下文而失败
+    };return report.toString();}
   /** 报告文件名用纯 ASCII（时间 + 版本号）：中文名在分享/保存链路上会被截断（同 v1.22.8 发版资产名事故根因）。 */
   /** DFW-29：实现已迁到 {@link CrashLogStore}；此处保留转发，外部调用点不变。 */
   String crashReportFileName(){return CrashLogStore.reportFileName(BuildConfig.VERSION_NAME);}

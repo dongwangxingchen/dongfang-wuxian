@@ -15,7 +15,7 @@ import java.util.zip.GZIPInputStream;
 final class LanzouCore {
   static final int UA_PRESET_MOBILE_CHROME=0,UA_PRESET_DESKTOP_CHROME=1,UA_PRESET_DESKTOP_EDGE=2,UA_PRESET_MOBILE_HUAWEI=3,UA_PRESET_MOBILE_FIREFOX=4;
   static final int UA_SCOPE_FILE_LIST=1,UA_SCOPE_DIRECTORY_SEARCH=2,UA_SCOPE_API_SEARCH=4,UA_SCOPE_DIRECT=8,UA_SCOPE_ALL=UA_SCOPE_FILE_LIST|UA_SCOPE_DIRECTORY_SEARCH|UA_SCOPE_API_SEARCH|UA_SCOPE_DIRECT;
-  private static final String ANDROID_UA="Mozilla/5.0 (Linux; Android 14; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Mobile Safari/537.36";
+  static final String ANDROID_UA="Mozilla/5.0 (Linux; Android 14; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Mobile Safari/537.36";
   /**
    * [DFW-105 2026-10-01] **原样照抄社区成熟项目的 UA**，不是我编的。
    *
@@ -569,7 +569,23 @@ final class LanzouCore {
   }
 
 
-  private static String directTransferHref(String html){String transfer=cap(html,"(?is)<a(?=[^>]*id=[\"']downurl[\"'])(?=[^>]*href=[\"']([^\"']+)[\"'])[^>]*>");if(transfer.isEmpty())transfer=cap(html,"(?is)<a(?=[^>]*href=[\"']([^\"']+)[\"'])(?=[^>]*id=[\"']downurl[\"'])[^>]*>");if(transfer.isEmpty())transfer=cap(html,"(?is)<a[^>]+href=[\"']([^\"']*/tp/[^\"']+)");if(transfer.isEmpty())transfer=cap(html,"(?is)<iframe(?=[^>]*class=[\"'][^\"']*n_downlink[^\"']*[\"'])(?=[^>]*src=[\"']([^\"']*/?fn[?][^\"']+)[\"'])[^>]*>");if(transfer.isEmpty())transfer=cap(html,"(?is)<iframe[^>]+src=[\"']([^\"']*/?fn[?][^\"']+)[\"']");return transfer;}
+  // 从单文件页里取出「下载入口」的相对地址。
+  //
+  // [DFW-88 2026-10-02 修正] 新版入口必须从 JS 里取，不能从 HTML 的 a 标签里取。
+  // 实测该页 HTML 里确实有一个 /tp/ 开头的 a 标签，但它是举报链接（href="/tp/#5738522"，占位符），
+  // 真入口在下面的 script 里：link.href = "/tp/文件ID?webtp=..."
+  // 原来的正则会优先命中举报链接，于是拿着 /tp/#5738522 去解析 —— 必然失败。
+  // 所以：① 先找 JS 里的 link.href；② HTML 兜底时必须带 ?webtp=（举报链接没有这个参数）。
+  private static String directTransferHref(String html){
+      String transfer=cap(html,"(?is)<a(?=[^>]*id=[\"']downurl[\"'])(?=[^>]*href=[\"']([^\"']+)[\"'])[^>]*>");
+      if(transfer.isEmpty())transfer=cap(html,"(?is)<a(?=[^>]*href=[\"']([^\"']+)[\"'])(?=[^>]*id=[\"']downurl[\"'])[^>]*>");
+      // [DFW-88] 新版入口：真链接在 JS 里，不在 HTML 里
+      if(transfer.isEmpty())transfer=cap(html,"(?is)link\\.href\\s*=\\s*[\"']([^\"']*/tp/[^\"']+)[\"']");
+      // [DFW-88] HTML 兜底必须带 ?webtp=（举报链接 /tp/#xxxxx 没有这个参数，天然被排除）
+      if(transfer.isEmpty())transfer=cap(html,"(?is)<a[^>]+href=[\"']([^\"']*/tp/[^\"']*\\?webtp=[^\"']+)");
+      if(transfer.isEmpty())transfer=cap(html,"(?is)<iframe(?=[^>]*class=[\"'][^\"']*n_downlink[^\"']*[\"'])(?=[^>]*src=[\"']([^\"']*/?fn[?][^\"']+)[\"'])[^>]*>");
+      if(transfer.isEmpty())transfer=cap(html,"(?is)<iframe[^>]+src=[\"']([^\"']*/?fn[?][^\"']+)[\"']");
+      return transfer;}
   private static boolean directShareNeedsLanzouxMirror(String html){String value=html==null?"":html.toLowerCase(Locale.ROOT);if(value.contains("acw_sc__v2")||value.contains("aliyun_waf_")||value.contains("captchav2"))return true;return directTransferHref(html).isEmpty()&&value.contains("<html")&&!value.contains("ajaxm.php")&&!value.contains("downprocess");}
     private static List<String> lanzouxDirectMirrors(String raw){ArrayList<String> out=new ArrayList<>();try{URL url=new URL(raw);String host=url.getHost();if(host==null||!LANZOU_HOST.matcher(host).matches())return out;String file=url.getFile();LinkedHashSet<String> origins=new LinkedHashSet<>();origins.add(url.getProtocol()+"://"+host.toLowerCase(Locale.ROOT));Collections.addAll(origins,LANZOU_BASE_ORIGINS);for(String origin:origins)out.add(new URL(new URL(origin),file).toString());}catch(Exception ignored){android.util.Log.w("LanzouCore", "LanzouCore Exception: "+ignored.getMessage(), ignored);}return out;}
 
@@ -637,8 +653,59 @@ final class LanzouCore {
       }
       throw new DirectRetryException("蓝奏重定向次数过多",1000,false);
     }
+    /**
+     * 走一次"引导页 → 真实 CDN 地址"的跳转，中途可能要过阿里云 WAF 的 `acw_sc__v2` 挑战。
+     *
+     * [DFW-88 2026-10-02] **自算路径失效后改用 WebView 求解。**
+     *
+     * 原来这里只用 {@link LanzouCore#acwCookie} 自己算 cookie，重试 3 轮。
+     * 实测证明那个算法已经算错了（阿里云改过算法，社区常量失效），
+     * 于是 3 轮全废 → 抛「蓝奏 ACW 验证未完成」→
+     * **而界面上什么都不显示**，下载项永远停在「解析中」。
+     *
+     * 现在的顺序：**先自算（快、免费、毫秒级）→ 不行再让 WebView 算（约 1 秒、必定正确）**。
+     */
     DirectLink getBootstrap(String url,String referer)throws Exception{
-      String current=url;DirectLink page=getBootstrapOnce(current,referer);for(int round=0;round<3;round++){if(page.redirected)return page;String value=acwCookie(page.html);if(value.isEmpty())return page;current=page.url==null||page.url.isEmpty()?current:page.url;put(new URL(current).getHost(),"acw_sc__v2",value);page=getBootstrapOnce(current,referer);}if(page.redirected)return page;if(!acwCookie(page.html).isEmpty())throw new DirectRetryException("蓝奏 ACW 验证未完成",1000,false);return page;
+      String current=url;DirectLink page=getBootstrapOnce(current,referer);for(int round=0;round<3;round++){if(page.redirected)return page;String value=acwCookie(page.html);if(value.isEmpty())return page;current=page.url==null||page.url.isEmpty()?current:page.url;put(new URL(current).getHost(),"acw_sc__v2",value);page=getBootstrapOnce(current,referer);}
+      if(page.redirected)return page;
+      if(!acwCookie(page.html).isEmpty()){
+        DirectLink solved=solveBootstrapWithWebView(current,referer);
+        if(solved!=null)return solved;
+        throw new DirectRetryException("蓝奏 ACW 验证未完成",1000,false);
+      }
+      return page;
+    }
+
+    /**
+     * 用隐藏 WebView 解出 `acw_sc__v2`，再拿它重走一次引导跳转。
+     * 返回 null = 求解器不可用或没解开，调用方按原失败路径走（**求解器是增强，不是新的失败点**）。
+     */
+    private DirectLink solveBootstrapWithWebView(String url,String referer){
+      try{
+        if(wafContext==null)return null;
+        String cookie=WafCookieSolver.solve(wafContext,url);
+        if(cookie==null||cookie.isEmpty())return null;
+        wafLog("getBootstrap：WebView 解出 WAF cookie，带 cookie 重试 url="+url);
+        put(new URL(url).getHost(),"acw_sc__v2",acwCookieFrom(cookie));
+        DirectLink retry=getBootstrapOnce(url,referer);
+        if(retry.redirected)return retry;
+        if(acwCookie(retry.html).isEmpty())return retry;
+        wafLog("getBootstrap：带上 WebView cookie 后仍是挑战页");
+        return null;
+      }catch(Throwable error){
+        wafLog("getBootstrap：WebView 求解失败 "+error);
+        return null;
+      }
+    }
+
+    /** 从一整套 cookie 头里取出 `acw_sc__v2` 的值（没有就返回空串）。 */
+    private static String acwCookieFrom(String cookieHeader){
+      if(cookieHeader==null)return"";
+      for(String part:cookieHeader.split(";")){
+        String item=part.trim();
+        if(item.startsWith("acw_sc__v2="))return item.substring("acw_sc__v2=".length()).trim();
+      }
+      return"";
     }
     private DirectLink getBootstrapOnce(String url,String referer)throws Exception{
       HttpURLConnection c=(HttpURLConnection)new URL(url).openConnection();try{c.setInstanceFollowRedirects(false);applyTimeouts(c);c.setRequestProperty("User-Agent",userAgent);c.setRequestProperty("Accept-Encoding","gzip");if(!referer.isEmpty())c.setRequestProperty("Referer",referer);String cookie=cookies(new URL(url).getHost());if(!cookie.isEmpty())c.setRequestProperty("Cookie",cookie);
@@ -1666,14 +1733,104 @@ final class LanzouCore {
   private static void requireActiveShare(DirectLink page)throws IOException{String html=page==null||page.html==null?"":page.html;if(isCancelledShareText(html))throw new ShareCancelledException();if(isWafChallengePage(html))throw new WafChallengeException(page==null?null:page.url);if(isDirectorySharePage(html)||isSingleFileSharePage(html)||pageTemplate(html)!=TEMPLATE_UNKNOWN)return;if(isUnavailableShareShell(html))throw new PageCapabilityException("当前 UA 返回不可解析的蓝奏中间页");throw new PageCapabilityException("当前 UA 未返回可解析的蓝奏分享页");}
   private static DirectLink getGuarded(String url,long deadline)throws Exception{return getGuarded(url,deadline,ANDROID_UA);}
   private static DirectLink getGuarded(String url,long deadline,String userAgent)throws Exception{return getGuarded(url,deadline,userAgent,"");}
+  /**
+   * [DFW-88 2026-10-02] **自己算不动时，交给 WebView 算。**
+   *
+   * 原来这里只做一件事：用 {@link #acwCookie} 把挑战页里的 `arg1` 算成 `acw_sc__v2`，
+   * 重试 3 轮。**2026-10-02 实测证明那个算法已经算错了** ——
+   * 阿里云改过 `acw_sc__v2` 的算法，社区流传多年的 `POS`/`MASK` 常量失效：
+   *
+   * ```
+   * 输入 arg1 : F77233DFEDA62054F49DC87FA10FB5F66BA7C277
+   * 我们的算法: 6abf7392de1a1081a42f758c3c621cd2d4ffbf12
+   * 浏览器真值: 6abf74188c6f4d858f38dc65def97ab45998323d
+   * ```
+   *
+   * 于是算出的 cookie 不被接受 → 3 轮用完 → 抛「蓝奏 ACW 验证未完成」，
+   * 而**这个异常在界面上什么都不显示**，下载项就永远停在「解析中」。
+   *
+   * 修法不是去追新常量（那是打地鼠，阿里云一改我们又全挂），
+   * 而是**让 WebView 自己算** —— 这段脚本本来就是给浏览器执行的，
+   * 真实 JS 引擎永远算得出正确结果，且**不需要用户点任何东西**。
+   *
+   * 保留原有的自算路径作为**快速路径**：它不要钱、不要 WebView、毫秒级返回；
+   * 只有当它算完还是挑战页时，才动用 WebView（约 1 秒）。
+   */
   private static DirectLink getGuarded(String url,long deadline,String userAgent,String initialCookie)throws Exception{
     String current=url,cookie=initialCookie==null?"":initialCookie;DirectLink page=null;
     for(int round=0;round<3;round++){
       page=getPage(current,cookie,deadline,userAgent);String value=acwCookie(page.html);if(value.isEmpty())return page;
       current=page.url==null||page.url.isEmpty()?current:page.url;cookie=mergeCookie(page.cookie,"acw_sc__v2",value);
     }
-    if(page!=null&&!acwCookie(page.html).isEmpty())throw new IOException("蓝奏 ACW 验证未完成");
+    if(page!=null&&!acwCookie(page.html).isEmpty()){
+      // 自算路径没解开 —— 走 WebView 求解（实测 1 秒内出结果）
+      DirectLink solved=resolveWithWebViewCookie(current,deadline,userAgent);
+      if(solved!=null)return solved;
+      throw new IOException("蓝奏 ACW 验证未完成");
+    }
     return page;
+  }
+
+  /**
+   * 用隐藏 WebView 解出 `acw_sc__v2`，再拿它去换真正的页面。
+   *
+   * 返回 null 表示"求解器不可用或没解开"，调用方按原来的失败路径走 ——
+   * **求解器是增强，不是新的失败点**。
+   */
+  private static DirectLink resolveWithWebViewCookie(String url,long deadline,String userAgent){
+    try{
+      if(wafContext==null)return null;
+      String cookie=WafCookieSolver.solve(wafContext,url);
+      if(cookie==null||cookie.isEmpty())return null;
+      wafLog("WebView 解出 WAF cookie，带 cookie 重抓 url="+url);
+      DirectLink page=getPage(url,cookie,deadline,userAgent);
+      if(page!=null&&!acwCookie(page.html).isEmpty()){
+        wafLog("带上 WebView cookie 后仍是挑战页");
+        return null;
+      }
+      wafLog("WebView 路线成功 -> "+(page==null?"(null)":page.url));
+      return page;
+    }catch(Throwable error){
+      // 求解失败绝不能把原有异常吞掉变成另一种崩法
+      wafLog("WebView 求解失败："+error);
+      return null;
+    }
+  }
+
+  /**
+   * 求解器需要的 Context。**在 {@code App.onCreate} 里注册一次**。
+   *
+   * 为什么用静态字段而不是构造参数：{@link LanzouCore} 全是静态方法，
+   * 而调用链（搜索/下载/解析）散落在各处，把 Context 一路传下去会改动几十处签名 ——
+   * 那是"为了传一个 Context 而重写半个模块"。这里注册一次、全局只读，改动面最小。
+   */
+  private static volatile android.content.Context wafContext;
+
+  /**
+   * 解析链路的诊断出口。
+   *
+   * 为什么不直接用 `android.util.Log` 了事：用户报"下载卡在解析中"时**拿不到 logcat**，
+   * 只能看界面上有没有提示。所以关键节点既写 logcat，也写进
+   * `Download/东方无限/崩溃日志/download.log`（用户从「崩溃日志」页导出即可取走）。
+   */
+  private static void wafLog(String message){
+    android.util.Log.i("LanzouCore",message);
+    try{
+      java.io.File dir=new java.io.File(android.os.Environment.getExternalStorageDirectory(),"Download/东方无限/崩溃日志");
+      if(!dir.exists()&&!dir.mkdirs())return;
+      java.io.File file=new java.io.File(dir,"download.log");
+      if(file.exists()&&file.length()>256*1024)file.delete();
+      String line=new java.text.SimpleDateFormat("MM-dd HH:mm:ss.SSS",java.util.Locale.US).format(new java.util.Date())+"  "+message+"\n";
+      java.io.FileOutputStream out=new java.io.FileOutputStream(file,true);
+      try{out.write(line.getBytes(java.nio.charset.StandardCharsets.UTF_8));}finally{out.close();}
+    }catch(Throwable ignored){
+      // 埋点绝不能影响主流程
+    }
+  }
+
+  /** 注册 WebView 求解器所需的 Context（App 启动时调一次）。 */
+  static void installWafSolver(android.content.Context context){
+    wafContext=context==null?null:context.getApplicationContext();
   }
   /**
    * [DFW-107 2026-10-01] 补齐**浏览器指纹头** —— 照抄社区活跃项目的做法，不是我发明的。
