@@ -732,6 +732,22 @@ function histPagerHtml(){
 
 function renderRelease(p){
   const r = cache.release;
+  /*
+   * [DFW-106] 「版本序号」预填的是**当前值本身**，不是"当前值加一"。
+   *
+   * 这是 fail-safe：万一读不出安装包里的真实序号，输入框停在当前值上，
+   * 守卫会把它当成「序号相等」**硬拦**下来 —— 而不是静默发一个猜出来的高序号
+   * （那正是 DFW-82「能下到新包但永远不提示更新」的形态）。
+   *
+   * ⚠️ 所以下面这句提示必须**跟着当前值动态生成**：既不能写死数字，也不能再承诺
+   * 「已经替你把序号加好了」—— DFW-118 路线 B 把预填从 `last + 1` 改成 `last` 时
+   * 漏改了这句，文案一直和真实行为不符（用户照做会被守卫拦下，显得"说了帮忙却没帮"）。
+   */
+  const curCode = Number(r && r.versionCode) || 0;
+  const vcHint = (curCode > 0
+      ? `软件就是拿这个数字比大小的：<b>必须比现在（${curCode}）大</b>，否则用户永远收不到更新。`
+      : `软件就是拿这个数字比大小的：<b>必须是个正整数</b>，而且以后每次发版都得比上一版大。`)
+    + `点「保存并发布」时会先用安装包里的真实序号覆盖这里（没选包就直接用你填的值）。`;
   pendingApk = null;
   p.innerHTML = `
   <div class="card">
@@ -747,7 +763,7 @@ function renderRelease(p){
 
     <label for="vc">③ 版本序号（versionCode）—— 决定软件会不会提示更新</label>
     <input id="vc" type="number" min="1" value="${Number(r && r.versionCode) || 0}">
-    <p class="hint">软件就是拿这个数字比大小的：<b>必须比现在大，否则用户永远收不到更新</b>。已经帮你填好「现在 +1」。</p>
+    <p class="hint">${vcHint}</p>
 
     <label for="um">④ 更新方式</label>
     <select id="um">

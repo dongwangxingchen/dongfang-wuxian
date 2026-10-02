@@ -167,6 +167,88 @@ check("正常记录原样取出", () => {
   assertEq(f.updateMode, "force", "updateMode");
 });
 
+/* ---------------- 「版本序号」预填值 与 提示文案 必须一致 ---------------- */
+/*
+ * 来历：DFW-118 路线 B 把预填从 `last + 1` 改成 `last`（fail-safe：读不到包里的序号时
+ * 保持 = 当前值，好让守卫按「序号相等」硬拦，而不是静默发一个猜出来的高序号），
+ * 但**漏改了下面那句提示**，文案一直写着「已经帮你填好现在 +1」。
+ * 用户照做 → 输入框其实是当前值 → 被守卫硬拦 → 显得"说了帮忙却没帮"。
+ *
+ * 这里把它锁住：提示里的数字和输入框里的数字**必须来自同一个表达式**，
+ * 而且提示里不许再出现「帮你加好了」这种和真实行为不符的承诺。
+ */
+console.log("\n「版本序号」预填值与提示文案一致性");
+
+const vcInputExpr = (() => {
+  const m = html.match(/<input id="vc"[^>]*value="\$\{([^}]*)\}"/);
+  if (!m) throw new Error("找不到 #vc 输入框的 value 表达式");
+  return m[1];
+})();
+const curCodeExpr = (() => {
+  const m = html.match(/const curCode = ([^;]+);/);
+  if (!m) throw new Error("找不到 curCode 的定义");
+  return m[1];
+})();
+const vcHintSrc = (() => {
+  const start = html.indexOf("const vcHint =");
+  if (start < 0) throw new Error("找不到 vcHint 的定义");
+  return html.slice(start, html.indexOf("pendingApk = null;", start));
+})();
+/* 把 vcHint 还原成一个 r => 字符串 的函数：**断言渲染出来的文案**，
+   而不是在源码里做字符串匹配 —— 否则注释里提一句旧文案就会误报。 */
+const vcHintExpr = vcHintSrc.replace(/^const vcHint =/, "").trim().replace(/;\s*$/, "");
+const hintFn = new Function("r", "const curCode = (" + curCodeExpr + "); return (" + vcHintExpr + ");");
+
+/*
+ * 断言必须落在**真正渲染出来的那个 <p class="hint">** 上，而不是只断言 vcHint 这个变量：
+ * 否则有人把过时的那句话作为兄弟文本塞回段落里（`<p class="hint">${vcHint} 已经帮你填好…</p>`），
+ * 变量本身没变，测试却会漏掉。这一条是被反向探针逼出来的。
+ */
+const hintParaSrc = (() => {
+  const m = html.match(/<p class="hint">([^<]*\$\{vcHint\}[^<]*)<\/p>/);
+  if (!m) throw new Error('找不到 #vc 下面那段 <p class="hint">${vcHint}</p>');
+  return m[1];
+})();
+const renderHint = r => hintParaSrc.replace("${vcHint}", hintFn(r));
+
+/** 把两个表达式都变成 r => number 的函数，然后逐例比对。 */
+const toFn = expr => {
+  const fn = new Function("r", "return (" + expr + ");");
+  return r => fn(r);
+};
+const inputFn = toFn(vcInputExpr);
+const curCodeFn = toFn(curCodeExpr);
+
+check("提示里的数字与输入框预填值来自同一个表达式（逐个样例比对）", () => {
+  for (const r of [{ versionCode: 10000 }, { versionCode: 1 }, { versionCode: 12345 }, null, {}]) {
+    assertEq(curCodeFn(r), inputFn(r), "r=" + JSON.stringify(r) + " 时 hint 值 vs 输入框值");
+  }
+});
+check("渲染出来的提示里，当前值是动态的、且与预填值一致", () => {
+  for (const code of [10000, 1, 10023]) {
+    const text = renderHint({ versionCode: code });
+    assertIncludes(text, "必须比现在（" + code + "）大");
+  }
+  if (/必须比现在（\d{3,}）/.test(html)) throw new Error("提示里出现了写死的数字");
+});
+check("提示里不再有「已经帮你加好了」这种与真实行为不符的承诺", () => {
+  for (const r of [{ versionCode: 10000 }, null]) {
+    const text = renderHint(r);
+    for (const stale of ["已经帮你填好", "现在 +1", "帮你填好", "已自动 +1", "自动 +1"]) {
+      if (text.includes(stale)) throw new Error("渲染出来的文案里还有过时承诺：" + stale + " → " + text);
+    }
+  }
+});
+check("预填是当前值本身，不是 +1（fail-safe 设计）", () => {
+  if (/\+\s*1/.test(vcInputExpr)) throw new Error("#vc 预填表达式里出现了 +1：" + vcInputExpr);
+  assertEq(inputFn({ versionCode: 10000 }), 10000, "r.versionCode=10000 时的预填值");
+});
+check("没有当前版本时（r=null）预填为 0，提示走「必须是正整数」那一支", () => {
+  assertEq(inputFn(null), 0, "r=null 时的预填值");
+  assertEq(curCodeFn(null), 0, "r=null 时的 curCode");
+  assertIncludes(renderHint(null), "必须是个正整数");
+});
+
 /* ---------------- 输出 ---------------- */
 console.log(results.join("\n"));
 console.log("\n文件：" + htmlPath);
