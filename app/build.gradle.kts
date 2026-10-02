@@ -83,7 +83,7 @@ android {
   // 10000 < 10034，安卓会把新包当**降级**直接拒绝安装。
   // 所以切换后的**第一版必须卸载重装**，之后就永远对齐了：
   //   1.0.0 → 10000   1.0.1 → 10001   1.1.0 → 10100   2.0.0 → 20000
-  val appVersionName = "1.0.1"
+  val appVersionName = "1.0.0"
   versionName = appVersionName
   versionCode = appVersionName.split(".").let { parts ->
     require(parts.size == 3) { "版本名必须是 major.minor.patch 三段，当前是：$appVersionName" }
