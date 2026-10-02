@@ -49,13 +49,24 @@ android {
   // 为什么可以归零：用户会卸载旧版重装（无老用户需要兼容升级）。
   // 若将来想改回大数字：只需保证**新的 versionCode 大于所有已发布过的值**。
   //
-  // [DFW-91] **只写这一个数字**：versionName 由它自动算出来。
-  // 以前这里要改两行（10022 和 "1.0.22"），改漏一行 `VersionSchemeJvmTest` 立刻变红；
-  // 而改漏 versionCode 的后果最阴——用户永远收不到更新，界面上完全看不出来。
-  // 用户原话："你每次更新都得改一堆地方" → 把"一堆"压成"一个"。
-  val buildCode = 10027
+  // [DFW-91 + DFW-97] **只写这一个数字**：versionCode 由它来，versionName 固定。
+  //
+  // 用户 2026-10-02 原话：
+  // > 「改成 1.0.0 版本啊，我还没发布正式版呢，咱们做的一直是测试版，所以一直改为 1.0.0 好吧？」
+  //
+  // ## 为什么 versionName 固定成 1.0.0，而 versionCode 还要继续涨
+  // 这两件事**必须分开**，合在一起会出事：
+  //   · `versionName`（1.0.0）是**给人看的**，测试期一直叫 1.0.0 完全没问题；
+  //   · `versionCode`（10027→10028…）是**给安卓看的**，系统靠它判断"能不能覆盖安装"。
+  // 如果把 versionCode 也跟着退回 10000，用户机器上装着 10027 的话，
+  // 新包会被系统当成**降级**直接拒绝安装（提示"应用未安装"），必须卸载重装才行。
+  // 所以：显示的名字固定，内部的序号只增不减 —— 用户看到的永远是 1.0.0，
+  // 覆盖安装照常。
+  //
+  // 改版本时**只改 `buildCode` 这一个数字**（`tools/bump-version.sh` 就是干这个的）。
+  val buildCode = 10028
   versionCode = buildCode
-  versionName = "${buildCode / 10000}.${(buildCode / 100) % 100}.${buildCode % 100}"
+  versionName = "1.0.0"
  }
  compileOptions { sourceCompatibility = JavaVersion.VERSION_17; targetCompatibility = JavaVersion.VERSION_17 }
  packaging {
