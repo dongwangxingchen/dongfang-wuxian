@@ -37,51 +37,48 @@ class VersionSchemeJvmTest {
          * > 「改成 1.0.0 版本啊，我还没发布正式版呢，咱们做的一直是测试版，
          * >   所以一直改为 1.0.0 好吧？」
          *
-         * 于是 versionName 固定 "1.0.0"（给人看的），versionCode 继续递增（给安卓看的）。
-         * **原来那条"versionName 必须能反算出 versionCode"的断言随之作废** ——
-         * 它编码的是旧规则，继续留着只会逼人把 versionName 改回去。
+         * 中间那段历史（DFW-97「测试期 versionName 固定 1.0.0」）已作废：
+         * 那是拿"版本名不动、序号手写"顶了一阵，代价就是序号必然忘改 ——
+         * 已经实际出过一次（DFW-117：后台填 10028 而手机装着 10034，更新弹窗永远不出现）。
          *
-         * 现在真正要守的不变量换成了：**versionCode 只增不减**。
-         * 理由：安卓靠 versionCode 判断"能不能覆盖安装"。
-         * 一旦它比用户机器上的小，新包会被当成降级、直接拒绝安装（提示"应用未安装"），
-         * 而界面上完全看不出来 —— 这是最阴的一类事故。
+         * [DFW-118 2026-10-02] 用户选路线 B，于是这条**又成立**了，而且比原来更强。
+         * 原话：
+         * > 「版本序号能不能和版本号一样？都是 1.0.0，然后 1.0.1，这样不断叠加下去？」
+         * > 「路线 B 吧，底子打得好是很好的。」
+         *
+         * 现在 `versionName` 是**唯一数字源**，`versionCode` 由它推导
+         * （见 `app/build.gradle.kts` 里 `appVersionName.split(".")` 那段），
+         * 所以两者必须严丝合缝 —— 反算得出来才算对。
          */
         assertEquals(
-            "测试期 versionName 固定为 1.0.0（用户 2026-10-02 指定）：实际 ${BuildConfig.VERSION_NAME}",
-            "1.0.0",
-            BuildConfig.VERSION_NAME,
-        )
-        assertTrue(
-            "versionCode 必须 ≥ 归零起点 10000：实际 ${BuildConfig.VERSION_CODE}",
-            BuildConfig.VERSION_CODE >= 10000,
-        )
-        // 已发布过的最高内部码（v1.0.27 = 10027）。**这一行只许往上改**：
-        // 它是"不许悄悄把内部码调小"的最后一道闸 —— 调小了用户就装不上。
-        assertTrue(
-            "versionCode 不许低于已发布过的最高值 10027（调小 = 用户覆盖安装会被系统拒绝）：" +
-                "实际 ${BuildConfig.VERSION_CODE}",
-            BuildConfig.VERSION_CODE >= 10027,
+            "versionCode 必须等于由 versionName 推出的值（路线 B：versionName 是唯一数字源）：" +
+                "versionName=${BuildConfig.VERSION_NAME} versionCode=${BuildConfig.VERSION_CODE}",
+            codeFromName(BuildConfig.VERSION_NAME),
+            BuildConfig.VERSION_CODE,
         )
     }
 
-    /** 归零后的起点必须是 1.0.0 / 10000（用户 2026-09-30 决定）。 */
+    /**
+     * 新方案（路线 B）下**已发布过的最高版本名**。
+     *
+     * **这一行只许往上改**：它是"不许悄悄把版本调小"的最后一道闸。
+     * 调小了安卓会把新包当降级、直接拒绝安装（提示「应用未安装」），界面上完全看不出来 ——
+     * 这是最阴的一类事故，也正是 DFW-117 那次"发了版却不弹更新"的同一个根。
+     *
+     * ⚠️ 切换路线 B 的第一版（1.0.0 = 10000）**比用户机上装的旧计数器 10034 小**，
+     * 必须卸载重装一次 —— 用户已知情并同意（「我完全不怕重新安装一个呀」）。
+     * 这一行记的是**新方案**的已发布版本，别再混进旧计数器的数字。
+     */
+    private val highestReleased = "1.0.0"
+
+    /** 版本只许往上走 —— 用户机器上装着的版本永远不能比新包更高。 */
     @Test
-    fun startsFromOneZeroZero() {
-        /*
-         * 2026-09-30 归零：从 1.0.0 / 10000 重新计数（见 docs/plan/current-state.md §1）。
-         *
-         * **这里不能写死当前版本。** 旧版断言的是 `"1.0.0"` / `10000` 两个字面量，
-         * 等于"永远不许升版本" —— 2026-10-01 升到 1.0.2 时本类立刻变红。
-         * 该守的是**不变量**：归零之后内部码只许往上走。
-         * （"版本号与版本名一一对应"那条随 DFW-97 作废：用户要求测试期 versionName 固定 1.0.0。）
-         */
+    fun neverGoesBackwards() {
+        val floor = codeFromName(highestReleased)
         assertTrue(
-            "归零起点是 1.0.0 / 10000，之后只许往上走：当前 ${BuildConfig.VERSION_NAME} / ${BuildConfig.VERSION_CODE}",
-            BuildConfig.VERSION_CODE >= 10000,
-        )
-        assertTrue(
-            "测试期 versionName 固定 1.0.0（DFW-97，用户 2026-10-02 指定）：实际 ${BuildConfig.VERSION_NAME}",
-            BuildConfig.VERSION_NAME == "1.0.0",
+            "版本不许低于已发布过的 ${highestReleased}（内部序号 ${floor}）：" +
+                "实际 ${BuildConfig.VERSION_NAME} / ${BuildConfig.VERSION_CODE}",
+            BuildConfig.VERSION_CODE >= floor,
         )
         val major = BuildConfig.VERSION_NAME.substringBefore('.').toInt()
         assertTrue("major 至少是 1（换 major 意味着又一次重排，要显式决定）", major >= 1)

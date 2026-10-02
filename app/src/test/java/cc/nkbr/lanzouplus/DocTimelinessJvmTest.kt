@@ -51,12 +51,14 @@ class DocTimelinessJvmTest {
         if (!handover.isFile) return   // CI / 换机器时不存在，属正常
 
         val text = handover.readText(Charsets.UTF_8)
-        // [DFW-97] 直接读 `versionName = "x.y.z"`，**不再从 buildCode 反推**：
-        // 用户 2026-10-02 要求测试期 versionName 固定 1.0.0，而 buildCode 继续递增，
-        // 两者已经解耦（名字给人看，序号给系统看）。
+        // [DFW-118 路线 B] 只读 `val appVersionName = "x.y.z"` 这一处，
+        // versionCode 由它推导（major*10000 + minor*100 + patch）——
+        // 与 app/build.gradle.kts 里的推导规则保持同一份算术。
         val gradle = read("app/build.gradle.kts")
-        val versionName = Regex("versionName = \"([0-9.]+)\"").find(gradle)!!.groupValues[1]
-        val buildCode = Regex("val buildCode = (\\d+)").find(gradle)!!.groupValues[1]
+        val versionName = Regex("val appVersionName = \"([0-9.]+)\"").find(gradle)!!.groupValues[1]
+        val buildCode = versionName.split(".")
+            .let { (major, minor, patch) -> major.toInt() * 10000 + minor.toInt() * 100 + patch.toInt() }
+            .toString()
 
         assertTrue(
             "交接文档抬头必须写着当前版本 $versionName（内部序号 $buildCode）（这是「30 秒接手」的第一句话，" +

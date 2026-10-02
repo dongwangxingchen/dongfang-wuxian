@@ -61,17 +61,19 @@ cmd_verify() {
   ok "任务名 $RELEASE_TASK"
 
   step "版本号一致性：build.gradle.kts / current-state.md 同步"
-  # [DFW-91 + DFW-97] 版本有**两个值、一个来源**：
-  #   · `val buildCode`（内部序号，只增不减）→ versionCode
-  #   · `versionName = "x.y.z"`（给人看的名字）→ versionName
-  # 用户 2026-10-02 要求测试期 versionName 固定 1.0.0，所以**名字不再从序号反推**，
-  # 而是各自读各自的那一行（原来那条 `name=$(( code / 10000 ))…` 的推导已作废）。
-  # 仍然只有一处可改：改版本只动 `buildCode`。
+  # [DFW-91 + DFW-118 路线 B] 版本有**两个值、一个来源**：
+  #   · `val appVersionName = "x.y.z"`（**唯一可改的数字**）
+  #   · versionName ← 直接用它；versionCode ← 由它推导（major*10000+minor*100+patch）
+  # 这里把两个值都从那一行算出来，**不读第二处**（读了就会出现"两处不一致"）。
+  #
+  # 旧方案（DFW-97）是 `val buildCode` 手写计数器 + 固定 versionName "1.0.0"，
+  # 已作废：计数器靠人记得加，DFW-117 就是这么出的（后台填 10028、手机装着 10034，
+  # 软件判定"这更新比我还旧"，更新弹窗永远不出现）。
   local code name
-  code="$(grep -oE 'val buildCode = [0-9]+' app/build.gradle.kts | head -1 | grep -oE '[0-9]+')"
-  [[ -n "${code}" ]] || fail "读不到 val buildCode（DFW-91 后版本号的唯一来源）"
-  name="$(grep -oE 'versionName = "[0-9.]+"' app/build.gradle.kts | head -1 | grep -oE '[0-9.]+')"
-  [[ -n "${name}" ]] || fail "读不到 versionName = \"x.y.z\""
+  name="$(grep -oE 'val appVersionName = "[0-9]+\.[0-9]+\.[0-9]+"' app/build.gradle.kts | head -1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')"
+  [[ -n "${name}" ]] || fail "读不到 val appVersionName = \"x.y.z\"（DFW-118 路线 B 后版本号的唯一来源）"
+  code="$(awk -F. '{ printf "%d", $1 * 10000 + $2 * 100 + $3 }' <<<"$name")"
+  [[ -n "${code}" ]] || fail "versionCode 推导失败：${name}"
   ok "build.gradle.kts: versionCode=$code versionName=$name"
 
   # 事实页必须跟上版本号（v1.22.9 曾出现"版本号改了、事实页没改"，导致接手者读到旧状态）。
