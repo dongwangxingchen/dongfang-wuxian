@@ -400,3 +400,70 @@ RikkaHub 这些能力**早就实现了，但默认全关**：
 
 **未做真机验证**：需要在真机上确认「AI 设置 → 助手 → 记忆」开关确实是开的，
 并且手动关掉后冷启不会自己弹回来。
+
+## P41（DFW-111）内置助手打开「网络搜索」——用自带必应，不需要 API key
+
+**问题**：用户 2026-10-02 要求「东方助手要非常强大」。上一条 P40 打开了记忆与翻聊天记录，
+但**网络搜索**（`Assistant.kt:42` `enableWebSearch = false`）还关着 ——
+关着的话助手只能靠训练数据回答，问它"最新版是什么""帮我查一下"就开始编。
+
+### 为什么选自带必应（`SearchServiceOptions.BingLocalOptions`）
+
+`SearchService.kt` 里 `SearchServiceOptions.DEFAULT = BingLocalOptions()`，
+实现是 Jsoup 抓 `www.bing.com/search?q=...`（`BingSearchService.kt:46-74`）。
+
+**2026-10-02 实测可用**（这是选它的唯一理由 —— **不需要任何 API key**）：
+
+```
+$ curl -sL -A "<Chrome UA>" -H "Accept-Language: zh-CN,zh" \
+       "https://www.bing.com/search?q=东方无限"
+http=200  size=97485
+final=https://cn.bing.com/search?q=...     ← 国内 302 到 cn.bing.com
+
+li.b_algo  出现 10 次
+h2         出现 10 次
+.b_caption 出现 10 次
+```
+
+按代码里那三个选择器（`li.b_algo` → `h2 > a[href]` → `.b_caption p`）逐条解析，
+10 条全部能取出标题/链接/摘要。**选择器没有失效。**
+
+备选方案（智谱 / 博查 / Tavily / Exa / Serper）都要 API key，且 key 打进 APK 会被扒 ——
+所以只要自带必应还能用，就不引入外部依赖。
+
+### 改动
+
+与 P40 同一处，只多一个参数：
+
+- `DfwxAssistantProfile.applyDefaults()` 增加 `enableWebSearch: Boolean = false`，
+  为 true 时给走内置渠道的助手 `copy(enableWebSearch = true)`。
+- `DfwxBuiltinChannel.buildSyncedSettings()` 透传；
+  `syncIfNeeded()` 多读一个标记 `web_search_v1_done`。
+
+### ⚠️ 必须用**独立标记**，不能复用 P40 那个
+
+`capabilities_v1_done`（记忆/翻聊天记录）**已经随 1.0.0 发出去过一次**，
+用户机器上可能已经是 `true`。如果搜索复用它，
+**已经升过级的用户永远拿不到搜索** —— 而且没有任何报错，只是"搜不了"，极难发现。
+
+所以两个标记各管各的：`capabilities_v1_done` 与 `web_search_v1_done`。
+
+### 同步上游时
+
+若上游换了 `SearchServiceOptions.DEFAULT` 或改了 Bing 的 HTML 结构，
+先重跑上面那段 `curl` 确认 `li.b_algo` 还在，再决定是修选择器还是换搜索源。
+**不要**因为"Bing 可能失效"就提前引入带 key 的搜索服务。
+
+### 验证
+
+`DfwxBuiltinChannelTest` 新增 3 条（`:rikkahub-app` 294 → 297 条）：
+
+- `webSearch_firstRun_enablesItForTheBuiltinAssistant`
+- **`webSearch_isNotBlockedByTheCapabilitiesMarkerHavingAlreadyRun`** ← 守"标记必须独立"
+- `webSearch_laterRuns_neverOverrideTheUsersChoice`
+
+**反向探针已验证**：把 `if (enableWebSearch && ...)` 改成复用 `enableCapabilities`
+→ 上面第 1、2 条双双 FAILED，还原后转绿。
+
+**未做真机验证**：需在真机上问助手一个需要联网的问题（比如"今天有什么新闻"），
+确认它真的去搜了而不是编。

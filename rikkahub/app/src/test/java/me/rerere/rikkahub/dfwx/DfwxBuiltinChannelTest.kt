@@ -730,4 +730,91 @@ class DfwxBuiltinChannelTest {
         )
     }
 
+    // ── [DFW-111] 网络搜索：自带必应，不需要 API key ──────────────────────
+
+    /**
+     * 首次同步必须给内置助手打开「网络搜索」。
+     *
+     * 搜索源是 RikkaHub 自带的必应本地抓取（`SearchServiceOptions.DEFAULT`
+     * = `BingLocalOptions()`，见 `SearchService.kt`），**不需要任何 API key**。
+     * 已实测 `www.bing.com` 在国内 302 到 `cn.bing.com`，返回 200，
+     * `li.b_algo` / `h2 > a` / `.b_caption p` 选择器全部命中（10 条结果）。
+     *
+     * 不开这个开关，助手就只能靠训练数据回答，问它"最新版是什么"会开始编。
+     */
+    @Test
+    fun webSearch_firstRun_enablesItForTheBuiltinAssistant() {
+        installChannel()
+        val cfg = DfwxBuiltinChannel.current()
+        val (userProvider, userModel) = userProvider()
+        val base = Settings().copy(providers = listOf(userProvider), chatModelId = userModel.id)
+
+        val after = DfwxBuiltinChannel.buildSyncedSettings(base, cfg, enableWebSearch = true)
+        val a = after.assistants.first { it.id == DEFAULT_ASSISTANT_ID }
+
+        assertTrue("首次同步必须打开「网络搜索」，否则助手只能靠训练数据瞎猜", a.enableWebSearch)
+    }
+
+    /**
+     * 搜索用**独立标记**，不能被"能力开关已经跑过"这件事挡掉。
+     *
+     * 这是本次最容易做错的地方：`enableCapabilities`（记忆/翻聊天记录）已经随 1.0.0
+     * 发出去过一次，用户机器上的 `capabilities_v1_done` 可能已经是 true。
+     * 如果搜索复用同一个标记，**已经升过级的用户永远拿不到搜索** ——
+     * 而且没有任何报错，只是"搜不了"，极难发现。
+     *
+     * 所以这条断言守的是：**两个标记互不影响** ——
+     * `enableCapabilities = false`（标记已写过）时，`enableWebSearch = true` 仍然必须生效。
+     */
+    @Test
+    fun webSearch_isNotBlockedByTheCapabilitiesMarkerHavingAlreadyRun() {
+        installChannel()
+        val cfg = DfwxBuiltinChannel.current()
+        val (userProvider, userModel) = userProvider()
+        val base = Settings().copy(providers = listOf(userProvider), chatModelId = userModel.id)
+
+        val after = DfwxBuiltinChannel.buildSyncedSettings(
+            base,
+            cfg,
+            // 模拟"能力标记已经写过"：这一次不再动记忆/翻聊天记录
+            enableCapabilities = false,
+            // 但搜索是第一次
+            enableWebSearch = true,
+        )
+        val a = after.assistants.first { it.id == DEFAULT_ASSISTANT_ID }
+
+        assertTrue(
+            "能力标记跑过之后，搜索仍然必须能开 —— 两个标记是独立的",
+            a.enableWebSearch,
+        )
+        assertFalse(
+            "而且不能顺手把用户没要的记忆开关也打开（那正是「用户改过就不覆盖」要防的）",
+            a.enableMemory,
+        )
+    }
+
+    /** 之后每次启动都不许再把用户关掉的搜索开关弹回来。 */
+    @Test
+    fun webSearch_laterRuns_neverOverrideTheUsersChoice() {
+        installChannel()
+        val cfg = DfwxBuiltinChannel.current()
+        val (userProvider, userModel) = userProvider()
+        val userTurnedItOff = Settings().copy(
+            providers = listOf(userProvider),
+            chatModelId = userModel.id,
+            assistants = Settings().assistants.map {
+                if (it.id == DEFAULT_ASSISTANT_ID) it.copy(enableWebSearch = false) else it
+            },
+        )
+
+        val after = DfwxBuiltinChannel.buildSyncedSettings(
+            userTurnedItOff,
+            cfg,
+            enableWebSearch = false,
+        )
+        val a = after.assistants.first { it.id == DEFAULT_ASSISTANT_ID }
+
+        assertFalse("用户手动关掉的「网络搜索」不许在下次启动时自己弹回来", a.enableWebSearch)
+    }
+
 }
