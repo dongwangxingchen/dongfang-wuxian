@@ -122,13 +122,28 @@ class VersionNumberSinglePlaceJvmTest {
             "版本号必须只有一个数字来源：`val buildCode = <数字>`（DFW-91）",
             Regex("val buildCode = \\d+").containsMatchIn(gradle),
         )
+        /*
+         * [DFW-97] 规则变了：用户 2026-10-02 要求测试期 versionName 固定 1.0.0
+         * （「我还没发布正式版呢，咱们做的一直是测试版」）。
+         *
+         * 所以原来那条"versionName 必须由 buildCode 算出来"作废了 ——
+         * 继续留着只会逼人把版本名改回去。
+         *
+         * 真正要守的换成两条：
+         * ① **仍然只有一个数字来源**（`val buildCode`），改版本只改它一个；
+         * ② versionName 固定为 1.0.0，且 versionCode 由 buildCode 提供（只增不减，见 VersionSchemeJvmTest）。
+         */
         assertTrue(
-            "versionName 必须由 buildCode 算出来，不许再写死字符串",
-            gradle.contains("versionName = \"\${buildCode / 10000}."),
+            "versionName 必须固定为 1.0.0（DFW-97 测试期约定）",
+            gradle.contains("versionName = \"1.0.0\""),
+        )
+        assertTrue(
+            "versionCode 必须仍然由 buildCode 提供（只改一个数字，DFW-91）",
+            gradle.contains("versionCode = buildCode"),
         )
         assertFalse(
-            "build.gradle.kts 里不许再出现写死的 versionName = \"x.y.z\"",
-            Regex("versionName = \"\\d+\\.\\d+\\.\\d+\"").containsMatchIn(gradle),
+            "不许把 buildCode 直接写进 versionName（那会退回到「测试期版本名乱跳」）",
+            gradle.contains("versionName = \"\${buildCode"),
         )
     }
 

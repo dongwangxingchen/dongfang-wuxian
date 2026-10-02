@@ -51,12 +51,15 @@ class DocTimelinessJvmTest {
         if (!handover.isFile) return   // CI / 换机器时不存在，属正常
 
         val text = handover.readText(Charsets.UTF_8)
-        val versionName = read("app/build.gradle.kts")
-            .let { Regex("val buildCode = (\\d+)").find(it)!!.groupValues[1].toInt() }
-            .let { "${it / 10000}.${(it / 100) % 100}.${it % 100}" }
+        // [DFW-97] 直接读 `versionName = "x.y.z"`，**不再从 buildCode 反推**：
+        // 用户 2026-10-02 要求测试期 versionName 固定 1.0.0，而 buildCode 继续递增，
+        // 两者已经解耦（名字给人看，序号给系统看）。
+        val gradle = read("app/build.gradle.kts")
+        val versionName = Regex("versionName = \"([0-9.]+)\"").find(gradle)!!.groupValues[1]
+        val buildCode = Regex("val buildCode = (\\d+)").find(gradle)!!.groupValues[1]
 
         assertTrue(
-            "交接文档抬头必须写着当前版本 $versionName（这是「30 秒接手」的第一句话，" +
+            "交接文档抬头必须写着当前版本 $versionName（内部序号 $buildCode）（这是「30 秒接手」的第一句话，" +
                 "写错会让人一开始就按错误的版本认知开工）：" +
                 text.lines().take(20).joinToString(" | ") { it.trim().take(60) },
             text.lines().take(20).any { it.contains(versionName) },

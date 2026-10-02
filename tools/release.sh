@@ -61,12 +61,17 @@ cmd_verify() {
   ok "任务名 $RELEASE_TASK"
 
   step "版本号一致性：build.gradle.kts / current-state.md 同步"
-  # [DFW-91] 版本号现在**只有一处**：build.gradle.kts 里的 `val buildCode`。
-  # versionName 由它算出来，所以这里也只读那一个数字，再按同一条规则反推名字。
+  # [DFW-91 + DFW-97] 版本有**两个值、一个来源**：
+  #   · `val buildCode`（内部序号，只增不减）→ versionCode
+  #   · `versionName = "x.y.z"`（给人看的名字）→ versionName
+  # 用户 2026-10-02 要求测试期 versionName 固定 1.0.0，所以**名字不再从序号反推**，
+  # 而是各自读各自的那一行（原来那条 `name=$(( code / 10000 ))…` 的推导已作废）。
+  # 仍然只有一处可改：改版本只动 `buildCode`。
   local code name
   code="$(grep -oE 'val buildCode = [0-9]+' app/build.gradle.kts | head -1 | grep -oE '[0-9]+')"
-  [[ -n "$code" ]] || fail "读不到 val buildCode（DFW-91 后版本号的唯一来源）"
-  name="$(( code / 10000 )).$(( (code / 100) % 100 )).$(( code % 100 ))"
+  [[ -n "${code}" ]] || fail "读不到 val buildCode（DFW-91 后版本号的唯一来源）"
+  name="$(grep -oE 'versionName = "[0-9.]+"' app/build.gradle.kts | head -1 | grep -oE '[0-9.]+')"
+  [[ -n "${name}" ]] || fail "读不到 versionName = \"x.y.z\""
   ok "build.gradle.kts: versionCode=$code versionName=$name"
 
   # 事实页必须跟上版本号（v1.22.9 曾出现"版本号改了、事实页没改"，导致接手者读到旧状态）。

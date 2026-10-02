@@ -32,11 +32,35 @@ class VersionSchemeJvmTest {
 
     @Test
     fun versionNameAndCodeAgree() {
+        /*
+         * [DFW-97] 规则变了 —— 用户 2026-10-02：
+         * > 「改成 1.0.0 版本啊，我还没发布正式版呢，咱们做的一直是测试版，
+         * >   所以一直改为 1.0.0 好吧？」
+         *
+         * 于是 versionName 固定 "1.0.0"（给人看的），versionCode 继续递增（给安卓看的）。
+         * **原来那条"versionName 必须能反算出 versionCode"的断言随之作废** ——
+         * 它编码的是旧规则，继续留着只会逼人把 versionName 改回去。
+         *
+         * 现在真正要守的不变量换成了：**versionCode 只增不减**。
+         * 理由：安卓靠 versionCode 判断"能不能覆盖安装"。
+         * 一旦它比用户机器上的小，新包会被当成降级、直接拒绝安装（提示"应用未安装"），
+         * 而界面上完全看不出来 —— 这是最阴的一类事故。
+         */
         assertEquals(
-            "versionCode 与 versionName 必须符合编号规则（改了名字没改号 = 用户收不到更新）：" +
-                "versionName=${BuildConfig.VERSION_NAME}, versionCode=${BuildConfig.VERSION_CODE}",
-            codeFromName(BuildConfig.VERSION_NAME),
-            BuildConfig.VERSION_CODE,
+            "测试期 versionName 固定为 1.0.0（用户 2026-10-02 指定）：实际 ${BuildConfig.VERSION_NAME}",
+            "1.0.0",
+            BuildConfig.VERSION_NAME,
+        )
+        assertTrue(
+            "versionCode 必须 ≥ 归零起点 10000：实际 ${BuildConfig.VERSION_CODE}",
+            BuildConfig.VERSION_CODE >= 10000,
+        )
+        // 已发布过的最高内部码（v1.0.27 = 10027）。**这一行只许往上改**：
+        // 它是"不许悄悄把内部码调小"的最后一道闸 —— 调小了用户就装不上。
+        assertTrue(
+            "versionCode 不许低于已发布过的最高值 10027（调小 = 用户覆盖安装会被系统拒绝）：" +
+                "实际 ${BuildConfig.VERSION_CODE}",
+            BuildConfig.VERSION_CODE >= 10027,
         )
     }
 
@@ -48,16 +72,16 @@ class VersionSchemeJvmTest {
          *
          * **这里不能写死当前版本。** 旧版断言的是 `"1.0.0"` / `10000` 两个字面量，
          * 等于"永远不许升版本" —— 2026-10-01 升到 1.0.2 时本类立刻变红。
-         * 该守的是**不变量**：归零之后只许往上走，且版本号与版本名始终一一对应。
+         * 该守的是**不变量**：归零之后内部码只许往上走。
+         * （"版本号与版本名一一对应"那条随 DFW-97 作废：用户要求测试期 versionName 固定 1.0.0。）
          */
         assertTrue(
             "归零起点是 1.0.0 / 10000，之后只许往上走：当前 ${BuildConfig.VERSION_NAME} / ${BuildConfig.VERSION_CODE}",
             BuildConfig.VERSION_CODE >= 10000,
         )
-        assertEquals(
-            "版本号必须与版本名一一对应（否则更新检测会错乱）",
-            codeFromName(BuildConfig.VERSION_NAME),
-            BuildConfig.VERSION_CODE,
+        assertTrue(
+            "测试期 versionName 固定 1.0.0（DFW-97，用户 2026-10-02 指定）：实际 ${BuildConfig.VERSION_NAME}",
+            BuildConfig.VERSION_NAME == "1.0.0",
         )
         val major = BuildConfig.VERSION_NAME.substringBefore('.').toInt()
         assertTrue("major 至少是 1（换 major 意味着又一次重排，要显式决定）", major >= 1)
