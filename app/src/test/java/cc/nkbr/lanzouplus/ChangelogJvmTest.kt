@@ -94,7 +94,20 @@ class ChangelogJvmTest {
         a.getPreferences(0).edit().putLong("last_update_stamp", -1L).apply()
         a.showSettings()
         shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofMillis(3000))
-        assertNull("更新后不许再自动弹更新记录", ShadowAlertDialog.getLatestAlertDialog())
+        /*
+         * [DFW-97] 断言收窄到「不许弹**更新记录**」，而不是「不许有任何弹窗」。
+         *
+         * 为什么改：用户 2026-10-02 要求「一开软件就要存储权限和通知权限」，
+         * 首启会弹一个**权限说明**弹窗（那是他要的）。原来那句
+         * `assertNull(getLatestAlertDialog())` 会把权限弹窗也算成违规，属于误伤 ——
+         * 它真正要守的是"更新记录不许自己弹出来"，不是"启动后一个弹窗都不许有"。
+         */
+        val dialog = ShadowAlertDialog.getLatestAlertDialog()
+        val title = if (dialog == null) "" else shadowOf(dialog).title?.toString().orEmpty()
+        assertFalse(
+            "更新后不许再自动弹更新记录（实际弹出的标题：$title）",
+            title.contains("更新记录"),
+        )
     }
 
     @Test

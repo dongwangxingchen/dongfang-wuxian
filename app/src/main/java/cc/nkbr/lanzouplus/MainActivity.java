@@ -102,7 +102,7 @@ public final class MainActivity extends androidx.activity.ComponentActivity impl
   void rememberImageFailure(String url){if(url==null)return;synchronized(imageFailureLock){imageFailures.put(url,System.currentTimeMillis());}}
   final LruCache<String,Bitmap> imageCache=new LruCache<String,Bitmap>(Math.max(1024,Math.min(8192,(int)(Runtime.getRuntime().maxMemory()/1024/24)))){@Override protected int sizeOf(String key,Bitmap value){return Math.max(1,value.getByteCount()/1024);}};
   final Object imageLock=new Object(); final Map<String,List<java.lang.ref.WeakReference<ImageView>>> imageWaiters=new HashMap<>(); final ArrayDeque<ImageDelivery> imageDeliveries=new ArrayDeque<>(); boolean imageDeliveryPosted; private static final java.util.regex.Pattern WEB_URL_CJK=java.util.regex.Pattern.compile("(?i)(?<![A-Z0-9._%+-])(?:(?:https?|ftp)://)?(?:[A-Z0-9-]+\\.)+[A-Z]{2,63}(?::[0-9]{1,5})?(?:/[A-Z0-9._~%!$&'()*+,;=:@/?#-]*)?(?![A-Z0-9._%+-])"),LANZOU_CLOUD_HOST=java.util.regex.Pattern.compile("^(?:[a-z0-9-]+[.])*(?:lanzou[a-z0-9]?|lanzov)[.]com$");
-  static final String ACTION_WEB_DOWNLOAD="w",ACTION_OPEN_DOWNLOADS="h"; static final int DELETE_PERMISSION=-2,DELETE_FAILED=-1,DELETE_MISSING=0,DELETE_OK=1,STORAGE_PERMISSION=62,IMPORT_RULES=64,EXPORT_RULES=65,STARTUP_STORAGE_PERMISSION=66,DIRECT_STORAGE_PERMISSION=67,FOLDER_PULL_THRESHOLD_DP=52,FOLDER_PULL_SETTLE_DP=56,FOLDER_PULL_MAX_DP=72,DEFAULT_TRANSFER_PARALLELISM=0,DEFAULT_INSTALL_PARALLELISM=0,DEFAULT_SOURCE_PROBE_PARALLELISM=0,SOURCE_LIST_MIN_DISPLAY=32,SEARCH_WINDOW=64,SEARCH_RENDER_CHUNK=64,IMAGE_UI_CHUNK=12,SOURCE_SELECT_LIST=0,SOURCE_SELECT_CUSTOM=1,SOURCE_SELECT_CHILD=2,SOURCE_SELECT_SOFTWARE=3,TOOL_PICK_IMAGE=68,TOOL_PICK_IMAGE2=69,TOOL_MIC_PERMISSION=70,AI_PERMISSION=71; static final long DOWNLOAD_PERSIST_INTERVAL_MS=1200L,DOWNLOAD_PERSIST_DEBOUNCE_MS=750L,DOWNLOAD_UI_INTERVAL_MS=100L; static final String DOWNLOAD_WAITING="等待中",DOWNLOAD_RESOLVING="解析中",DOWNLOAD_RUNNING="下载中",DOWNLOAD_PAUSED="已暂停",DOWNLOAD_CANCELLED="已取消",DOWNLOAD_COMPLETED="已完成",DOWNLOAD_FAILED="失败",ENTRY_DOWNLOAD="download",DOWNLOAD_SOURCE_LANZOU=DownloadSourcePolicy.LANZOU,DOWNLOAD_SOURCE_EXTERNAL=DownloadSourcePolicy.EXTERNAL,DOWNLOAD_SOURCE_UPDATE=DownloadSourcePolicy.UPDATE,DOWNLOAD_SOURCE_LEGACY=DownloadSourcePolicy.LEGACY; static final java.util.regex.Pattern SIZE_VALUE=java.util.regex.Pattern.compile("(?i)([0-9]+(?:\\.[0-9]+)?)\\s*([KMGT]?)"); Models.Item pendingPermissionDownload; boolean pendingPermissionAutoInstall; Runnable pendingToolColorImagePick,pendingMicAction; PendingRetry pendingRetryDownload; DownloadEntry pendingInstallEntry; List<Models.Item> pendingPermissionBatch; final List<DownloadEntry> downloadEntries=new CopyOnWriteArrayList<>(); final Set<DownloadEntry> dirtyDownloadUi=Collections.newSetFromMap(new IdentityHashMap<>()); final Map<DownloadEntry,LinearLayout> downloadActions=new IdentityHashMap<>(); final Map<DownloadEntry,View> downloadRows=new IdentityHashMap<>(); final Map<DownloadEntry,TextView> downloadLabels=new IdentityHashMap<>(); final Map<DownloadEntry,ProgressBar> downloadBars=new IdentityHashMap<>(); final Map<String,TextView> batchDownloadLabels=new HashMap<>(); final Map<String,ProgressBar> batchDownloadBars=new HashMap<>(); final Map<String,View> batchDownloadRows=new HashMap<>(); final Map<String,CheckBox> batchDownloadChecks=new HashMap<>();  boolean downloadUiFramePosted,crashFolderEnsured;
+  static final String ACTION_WEB_DOWNLOAD="w",ACTION_OPEN_DOWNLOADS="h"; static final int STARTUP_NOTIFICATION_PERMISSION=4310,DELETE_PERMISSION=-2,DELETE_FAILED=-1,DELETE_MISSING=0,DELETE_OK=1,STORAGE_PERMISSION=62,IMPORT_RULES=64,EXPORT_RULES=65,STARTUP_STORAGE_PERMISSION=66,DIRECT_STORAGE_PERMISSION=67,FOLDER_PULL_THRESHOLD_DP=52,FOLDER_PULL_SETTLE_DP=56,FOLDER_PULL_MAX_DP=72,DEFAULT_TRANSFER_PARALLELISM=0,DEFAULT_INSTALL_PARALLELISM=0,DEFAULT_SOURCE_PROBE_PARALLELISM=0,SOURCE_LIST_MIN_DISPLAY=32,SEARCH_WINDOW=64,SEARCH_RENDER_CHUNK=64,IMAGE_UI_CHUNK=12,SOURCE_SELECT_LIST=0,SOURCE_SELECT_CUSTOM=1,SOURCE_SELECT_CHILD=2,SOURCE_SELECT_SOFTWARE=3,TOOL_PICK_IMAGE=68,TOOL_PICK_IMAGE2=69,TOOL_MIC_PERMISSION=70,AI_PERMISSION=71; static final long DOWNLOAD_PERSIST_INTERVAL_MS=1200L,DOWNLOAD_PERSIST_DEBOUNCE_MS=750L,DOWNLOAD_UI_INTERVAL_MS=100L; static final String DOWNLOAD_WAITING="等待中",DOWNLOAD_RESOLVING="解析中",DOWNLOAD_RUNNING="下载中",DOWNLOAD_PAUSED="已暂停",DOWNLOAD_CANCELLED="已取消",DOWNLOAD_COMPLETED="已完成",DOWNLOAD_FAILED="失败",ENTRY_DOWNLOAD="download",DOWNLOAD_SOURCE_LANZOU=DownloadSourcePolicy.LANZOU,DOWNLOAD_SOURCE_EXTERNAL=DownloadSourcePolicy.EXTERNAL,DOWNLOAD_SOURCE_UPDATE=DownloadSourcePolicy.UPDATE,DOWNLOAD_SOURCE_LEGACY=DownloadSourcePolicy.LEGACY; static final java.util.regex.Pattern SIZE_VALUE=java.util.regex.Pattern.compile("(?i)([0-9]+(?:\\.[0-9]+)?)\\s*([KMGT]?)"); Models.Item pendingPermissionDownload; boolean pendingPermissionAutoInstall; Runnable pendingToolColorImagePick,pendingMicAction; PendingRetry pendingRetryDownload; DownloadEntry pendingInstallEntry; List<Models.Item> pendingPermissionBatch; final List<DownloadEntry> downloadEntries=new CopyOnWriteArrayList<>(); final Set<DownloadEntry> dirtyDownloadUi=Collections.newSetFromMap(new IdentityHashMap<>()); final Map<DownloadEntry,LinearLayout> downloadActions=new IdentityHashMap<>(); final Map<DownloadEntry,View> downloadRows=new IdentityHashMap<>(); final Map<DownloadEntry,TextView> downloadLabels=new IdentityHashMap<>(); final Map<DownloadEntry,ProgressBar> downloadBars=new IdentityHashMap<>(); final Map<String,TextView> batchDownloadLabels=new HashMap<>(); final Map<String,ProgressBar> batchDownloadBars=new HashMap<>(); final Map<String,View> batchDownloadRows=new HashMap<>(); final Map<String,CheckBox> batchDownloadChecks=new HashMap<>();  boolean downloadUiFramePosted,crashFolderEnsured;
   /**
    * [DFW-101 2026-10-01] 解析看门狗：记录每个下载项**进入「解析中」的时刻**。
    *
@@ -309,6 +309,17 @@ loadSearchSettings();applyUserAgentSettings();detectWeakDevice();installBackAnim
     // DFW-61：公告与未读红点。同样异步拉取，不阻塞首屏。
     ui.post(this::maybeFetchNotices);}
     @Override protected void onResume(){super.onResume();if(adbShell!=null)adbShell.refresh();
+      /*
+       * [DFW-97] **一开软件就要存储权限和通知权限。**
+       * 用户 2026-10-02：「一开软件就要『存储权限』和『通知权限』，其他的按照需要打开，明白不。」
+       *
+       * 为什么放在 onResume + postDelayed 而不是 onCreate：
+       * ① onCreate 时窗口还没画出来，系统权限弹窗会被"应用正在启动"的状态盖住，
+       *    用户看到的是"卡了一下"而不是"它在问我要权限"；
+       * ② 延后 700ms 让首屏先出来，用户知道自己在哪个页面被问的，不会觉得突兀。
+       * 只问一次（askedStartupPermissions），后面进出页面不再骚扰。
+       */
+      if(!askedStartupPermissions){askedStartupPermissions=true;ui.postDelayed(this::requestStartupPermissions,700);}
     // v1.22.11：用户可能在系统设置里自己开了"管理所有文件"（不走我们的引导），回来时补建一次崩溃目录。
     // 幂等且放后台线程，避免每次回前台都在主线程做文件 IO。
     if(!crashFolderEnsured&&storageAccessGranted()){crashFolderEnsured=true;io.execute(this::ensureCrashFolder);}if(manageAllFilesSettingsPending&&Build.VERSION.SDK_INT>=30){manageAllFilesSettingsPending=false;boolean startup=manageAllFilesStartupFlow;manageAllFilesStartupFlow=false;if(Environment.isExternalStorageManager()){ensureCrashFolder();runPendingStorageAccessActions();}else{pendingStorageAccessActions.clear();showNotice("未获得管理所有文件权限；下载、更新、删除和自定义路径可能不可用",true);}if(startup)ui.post(this::maybeRequestBatteryExemption);}if(pendingInstallEntry!=null&&(Build.VERSION.SDK_INT<26||getPackageManager().canRequestPackageInstalls())){DownloadEntry ready=pendingInstallEntry;pendingInstallEntry=null;ui.post(()->installEntryWithSystemInstaller(ready));}}
@@ -4199,6 +4210,48 @@ content=new LinearLayout(this);content.setOrientation(LinearLayout.VERTICAL);pag
   boolean storageAccessGranted(){try{if(Build.VERSION.SDK_INT>=30)return Environment.isExternalStorageManager();return checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE)==PackageManager.PERMISSION_GRANTED;}catch(Throwable error){return false;}}
   void runPendingStorageAccessActions(){ArrayList<Runnable> actions=new ArrayList<>();while(!pendingStorageAccessActions.isEmpty())actions.add(pendingStorageAccessActions.removeFirst());for(Runnable action:actions)ui.post(action);}
   void requestManageAllFilesAccess(String detail,Runnable action,boolean startup){runOnUiThread(()->{if(storageAccessGranted()){ensureDefaultDownloadFolder();if(action!=null)ui.post(action);if(startup)ui.post(this::maybeRequestBatteryExemption);return;}if(action!=null)pendingStorageAccessActions.addLast(action);if(Build.VERSION.SDK_INT<30){if(startup)requestPermissions(new String[]{Manifest.permission.READ_EXTERNAL_STORAGE,Manifest.permission.WRITE_EXTERNAL_STORAGE},STARTUP_STORAGE_PERMISSION);else requestPermissions(new String[]{Manifest.permission.READ_EXTERNAL_STORAGE,Manifest.permission.WRITE_EXTERNAL_STORAGE},DIRECT_STORAGE_PERMISSION);return;}if(storageAccessPromptShowing)return;storageAccessPromptShowing=true;String reason=detail==null||detail.trim().isEmpty()?"下载、更新、删除本地文件和自定义保存路径需要管理所有文件权限。":detail.trim();AlertDialog prompt=new AlertDialog.Builder(this).setTitle("允许管理所有文件？").setMessage(reason+"\n\n授权后应用会直接使用真实文件路径，不使用 SAF 目录授权。若暂不授权，下次启动仍会再次询问。").setNegativeButton("暂不",(d,w)->{storageAccessPromptShowing=false;pendingStorageAccessActions.clear();if(startup)ui.post(this::maybeRequestBatteryExemption);}).setPositiveButton("前往授权",(d,w)->{storageAccessPromptShowing=false;manageAllFilesSettingsPending=true;manageAllFilesStartupFlow=startup;try{startActivity(new Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION,Uri.parse("package:"+getPackageName())));}catch(Exception first){try{startActivity(new Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION));}catch(Exception second){manageAllFilesSettingsPending=false;manageAllFilesStartupFlow=false;pendingStorageAccessActions.clear();showNotice("无法打开管理所有文件权限设置",true);if(startup)ui.post(this::maybeRequestBatteryExemption);}}}).create();prompt.setCanceledOnTouchOutside(false);prompt.setOnCancelListener(d->{storageAccessPromptShowing=false;pendingStorageAccessActions.clear();if(startup)ui.post(this::maybeRequestBatteryExemption);});showRounded(prompt);});}
+  /** 首启权限引导是否已经问过（只问一次，之后不再打扰）。 */
+  boolean askedStartupPermissions;
+
+  /**
+   * [DFW-97] **首启只问两件事：存储 + 通知。** 其余（录音/相机/电池优化）用到再问。
+   *
+   * 用户 2026-10-02：「一开软件就要『存储权限』和『通知权限』，其他的按照需要打开。」
+   *
+   * 顺序有讲究 —— **先存储后通知**：
+   * 存储是这个 App 的命脉（没它下载直接失败），用户如果只肯给一个，应该是它；
+   * 通知只是"看得见进度"，晚一步问，即使用户拒绝也不影响核心功能。
+   *
+   * 存储走的是现成的 `requestManageAllFilesAccess(..., startup=true)`：
+   * Android 11+ 要跳系统设置页给「管理所有文件」，11 以下才是普通运行时权限。
+   */
+  void requestStartupPermissions(){
+    if(isFinishing()||isDestroyed())return;
+    if(!storageAccessGranted()){
+      requestManageAllFilesAccess(
+          "下载软件需要把文件保存到「下载/东方无限」。授权后下载才能正常开始。",
+          this::requestStartupNotificationPermission,true);
+      return;
+    }
+    requestStartupNotificationPermission();
+  }
+
+  /**
+   * 通知权限（Android 13+ 才是运行时权限，低版本系统直接跳过）。
+   *
+   * 为什么值得单独问：下载进度、公告、更新提醒都靠通知；
+   * 用户拒绝了也不影响下载本身，只是"看不到进度"，所以**拒绝不阻断任何流程**。
+   */
+  void requestStartupNotificationPermission(){
+    if(Build.VERSION.SDK_INT<33)return;
+    if(checkSelfPermission("android.permission.POST_NOTIFICATIONS")==PackageManager.PERMISSION_GRANTED)return;
+    try{
+      requestPermissions(new String[]{"android.permission.POST_NOTIFICATIONS"},STARTUP_NOTIFICATION_PERMISSION);
+    }catch(Exception ignored){
+      // 极少数定制系统会在这里抛，权限只是"看不到进度"，不该影响启动
+    }
+  }
+
   boolean ensureDirectStorageAuthorized(Runnable retry){if(storageAccessGranted())return true;requestManageAllFilesAccess("当前操作需要读取和写入下载目录。",retry,false);return false;}
   void requestDownloadStorageRecovery(DownloadEntry entry,String detail,Runnable action){requestManageAllFilesAccess(detail,action,false);}
   boolean downloadStorageFailure(String message){String value=message==null?"":message.toLowerCase(Locale.ROOT);return value.contains("permission")||value.contains("eacces")||value.contains("operation not permitted")||value.contains("无法写入")||value.contains("不可写")||value.contains("保存路径")||value.contains("存储权限")||value.contains("管理所有文件")||value.contains("read-only file system");}
@@ -4283,8 +4336,23 @@ void showCustomLanzouBaseOriginDialog(){EditText input=sourceInput("输入 oreoj
   void applyResolvedLanzouList(int request,String normalized,Models.Source source){if(request!=navigationSession||activeSource==null||!normalized.equals(activeSource.url)||content==null)return;FolderPageState state=currentFolderState();if(state==null)return;copySource(source,state.source);activeFolderState=state;activeSource=state.source;renderFolder(core.compositeSnapshot(activeSource));}
   void applyResolvedLanzouDirectory(int request,String normalized,Models.Source directory){if(request!=navigationSession||activeSource==null||!normalized.equals(activeSource.url)||content==null)return;FolderPageState state=currentFolderState();if(state==null)return;copySource(directory,state.source);activeFolderState=state;activeSource=state.source;openFolder(activeSource,true);}
 
+  /**
+   * 软件库里点一个条目 = 下载它。
+   *
+   * [DFW-97] **默认下载完自动跳安装界面**。用户 2026-10-02：
+   * > 「默认改为下载好自动跳转安装界面。」
+   *
+   * 历史：DFW-93 曾经删掉过"下载完成后自动安装"，那是当时用户的决定；
+   * 现在用户明确要回来，所以这里传 `true`。
+   *
+   * 安全性没有降低：真正决定"能不能自动装"的是
+   * {@link DownloadSourcePolicy#allowsAutomaticInstall} —— 它按**来源**判断，
+   * 蓝奏云（LANZOU）放行，**外部链接与来源不明的历史记录仍然 fail-closed 需要确认**
+   * （见 `DownloadSourcePolicy.requiresInstallConfirmation`）。
+   * 也就是说"自动安装"只对可信来源生效，不是无差别放开。
+   */
   void beginDownload(Models.Item item){
-    beginDownload(item,null,false);
+    beginDownload(item,null,true);
   }
     void requestItemDownload(Models.Item item,boolean autoInstall){beginDownload(item,null,autoInstall);}
     void requestVerifiedUpdateDownload(Models.Item item,String version){String expected=version==null?"":version.trim();if(expected.isEmpty()){showNotice("更新版本信息无效",true);return;}beginVerifiedUpdateDownload(item,expected);}
