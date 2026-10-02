@@ -63,10 +63,37 @@ android {
   // 所以：显示的名字固定，内部的序号只增不减 —— 用户看到的永远是 1.0.0，
   // 覆盖安装照常。
   //
-  // 改版本时**只改 `buildCode` 这一个数字**（`tools/bump-version.sh` 就是干这个的）。
-  val buildCode = 10034
-  versionCode = buildCode
-  versionName = "1.0.0"
+  // ── [DFW-118 2026-10-02] **改成「只写版本名，序号自动算」**（用户选路线 B）──
+  //
+  // 用户原话：
+  // > 「版本序号能不能和版本号一样？都是 1.0.0，然后 1.0.1，这样不断叠加下去？」
+  // > 「路线 B 吧，底子打得好是很好的。反正你都能可以给我新包，我完全不怕重新安装一个呀。」
+  //
+  // 上面那条规则（major*10000 + minor*100 + patch）本来就写在注释里，
+  // 只是**实现没跟上** —— buildCode 一直是个手写计数器，于是必然出现
+  // "版本名涨了、序号忘了涨"或"序号填得比用户装的还小"这类错。
+  // 用户上一次发布就踩了：后台填 10028 而手机装着 10034，
+  // 软件判定"这更新比我还旧"，更新弹窗永远不出现。
+  //
+  // 现在**只有一个数字要改**：下面的 `appVersionName`。
+  // `versionCode` 由它自动推导，改不出错。`tools/bump-version.sh` 就是改这一行的。
+  //
+  // ## ⚠️ 从旧方案切过来必须重装一次（用户已知情并同意）
+  // 用户手机上装着旧计数器的 **10034**，而新方案 1.0.0 算出来是 **10000**。
+  // 10000 < 10034，安卓会把新包当**降级**直接拒绝安装。
+  // 所以切换后的**第一版必须卸载重装**，之后就永远对齐了：
+  //   1.0.0 → 10000   1.0.1 → 10001   1.1.0 → 10100   2.0.0 → 20000
+  val appVersionName = "1.0.0"
+  versionName = appVersionName
+  versionCode = appVersionName.split(".").let { parts ->
+    require(parts.size == 3) { "版本名必须是 major.minor.patch 三段，当前是：$appVersionName" }
+    val major = parts[0].toInt()
+    val minor = parts[1].toInt()
+    val patch = parts[2].toInt()
+    // 上限是为了防"进位串号"：minor=100 会算出和 major 进位后一样的数
+    require(minor < 100 && patch < 100) { "minor/patch 必须小于 100，当前是：$appVersionName" }
+    major * 10000 + minor * 100 + patch
+  }
  }
  compileOptions { sourceCompatibility = JavaVersion.VERSION_17; targetCompatibility = JavaVersion.VERSION_17 }
  packaging {

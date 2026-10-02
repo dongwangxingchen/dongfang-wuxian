@@ -118,32 +118,34 @@ class VersionNumberSinglePlaceJvmTest {
     @Test
     fun versionNameIsDerivedFromASingleNumber() {
         val gradle = read("app/build.gradle.kts")
-        assertTrue(
-            "版本号必须只有一个数字来源：`val buildCode = <数字>`（DFW-91）",
-            Regex("val buildCode = \\d+").containsMatchIn(gradle),
-        )
         /*
-         * [DFW-97] 规则变了：用户 2026-10-02 要求测试期 versionName 固定 1.0.0
-         * （「我还没发布正式版呢，咱们做的一直是测试版」）。
+         * [DFW-118 2026-10-02] 用户选路线 B：**只写版本名，内部序号自动算**。
          *
-         * 所以原来那条"versionName 必须由 buildCode 算出来"作废了 ——
-         * 继续留着只会逼人把版本名改回去。
+         * 原话：
+         * > 「版本序号能不能和版本号一样？都是 1.0.0，然后 1.0.1，这样不断叠加下去？」
+         * > 「路线 B 吧，底子打得好是很好的。」
          *
-         * 真正要守的换成两条：
-         * ① **仍然只有一个数字来源**（`val buildCode`），改版本只改它一个；
-         * ② versionName 固定为 1.0.0，且 versionCode 由 buildCode 提供（只增不减，见 VersionSchemeJvmTest）。
+         * DFW-91 立的规矩是"版本号只有一个数字来源"，这条**没变**；
+         * 变的只是那个数字从 `val buildCode`（手写计数器）换成了 `val appVersionName`（版本名）。
+         * 换的理由：计数器纯靠手写，忘改没人拦得住 —— DFW-117 就是这么出的
+         * （后台填 10028 而手机装着 10034，软件判定"这更新比我还旧"，更新弹窗永远不出现）。
+         * 现在 versionCode 由版本名推导，**物理上改不错**。
          */
         assertTrue(
-            "versionName 必须固定为 1.0.0（DFW-97 测试期约定）",
-            gradle.contains("versionName = \"1.0.0\""),
+            "版本号必须只有一个数字来源：`val appVersionName = \"x.y.z\"`（DFW-118 路线 B）",
+            Regex("val appVersionName = \"\\d+\\.\\d+\\.\\d+\"").containsMatchIn(gradle),
         )
         assertTrue(
-            "versionCode 必须仍然由 buildCode 提供（只改一个数字，DFW-91）",
-            gradle.contains("versionCode = buildCode"),
+            "versionName 必须取自那个唯一来源（不许再写第二个字面量）",
+            gradle.contains("versionName = appVersionName"),
+        )
+        assertTrue(
+            "versionCode 必须由 appVersionName 推导（路线 B 的核心：序号自动算）",
+            gradle.contains("versionCode = appVersionName.split(\".\")"),
         )
         assertFalse(
-            "不许把 buildCode 直接写进 versionName（那会退回到「测试期版本名乱跳」）",
-            gradle.contains("versionName = \"\${buildCode"),
+            "手写计数器必须消失 —— 它正是 DFW-117「发了版却不弹更新」的根因",
+            Regex("val buildCode").containsMatchIn(gradle),
         )
     }
 
@@ -154,7 +156,10 @@ class VersionNumberSinglePlaceJvmTest {
     @Test
     fun releaseScriptAutoSyncsTheFactPage() {
         val sh = read("tools/release.sh")
-        assertTrue("release.sh 必须从 buildCode 读版本号（唯一来源）", sh.contains("val buildCode = [0-9]+"))
+        assertTrue(
+            "release.sh 必须从 appVersionName 读版本号（DFW-118 路线 B 后的唯一来源）",
+            sh.contains("val appVersionName"),
+        )
         assertTrue(
             "release.sh 必须**自动写入** current-state.md，而不是只做校验后报错",
             sh.contains("SED_INPLACE") && sh.contains("current-state.md 已同步到 \${name}（自动写入）"),
