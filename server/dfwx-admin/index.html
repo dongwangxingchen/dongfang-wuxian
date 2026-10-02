@@ -100,6 +100,22 @@ button:active{transform:scale(.975)}
 "use strict";
 const API = "/pb/api/collections";
 const AUTH = "/pb/api/collections/_superusers/auth-with-password";
+/**
+ * [DFW-109 2026-10-02] **用户名别名。**
+ *
+ * 用户反馈原话：「他当时让我填的时候，只让我填了密码，可没有问我什么用户名，所以我很纳闷。」
+ *
+ * 根因：登录框的「管理员邮箱」是**写死在 HTML 里预填好的**（value="<管理员账号>"），
+ * 用户只看到一个密码框，压根不知道还有个用户名 —— 这是个设计缺陷，不是用户记错。
+ *
+ * 现在：用户名框**留空**、标签写清楚，用户填「东方」即可。
+ * PocketBase 的 _superusers 底层要求邮箱格式，所以这里做一层映射，用户不用记邮箱。
+ */
+const USER_ALIAS = { "\u4e1c\u65b9": "<管理员账号>" };
+function resolveIdentity(u){
+  const key = String(u == null ? "" : u).trim();
+  return USER_ALIAS[key] || key;
+}
 let token = localStorage.getItem("dfwx_token") || "";
 /**
  * 管理员身份与口令，**只放在内存里**（不写 localStorage）：
@@ -137,7 +153,7 @@ async function api(path, opts={}){
 }
 async function auth(pass, user){
   const r = await fetch(AUTH, { method:"POST", headers:{ "Content-Type":"application/json" },
-    body: JSON.stringify({ identity:user, password:pass }) });
+    body: JSON.stringify({ identity:resolveIdentity(user), password:pass }) });
   const j = await r.json().catch(()=>({}));
   if (!r.ok) throw new Error(j.message || "邮箱或密码不正确");
   return j.token;
@@ -151,8 +167,8 @@ function renderLogin(){
     <h1>东方无限 · 控制台</h1>
     <p class="sub">登录后即可发布公告、修改版本与维护状态</p>
     <div class="card">
-      <label for="u">管理员邮箱</label>
-      <input id="u" type="text" value="<管理员账号>" autocomplete="username">
+      <label for="u">用户名</label>
+      <input id="u" type="text" placeholder="请输入用户名" autocomplete="username">
       <label for="p">密码</label>
       <input id="p" type="password" placeholder="请输入密码" autocomplete="current-password">
       <div style="height:16px"></div>
@@ -163,11 +179,12 @@ function renderLogin(){
   const submit = async () => {
     const b = $("#go");
     const u = $("#u").value.trim(), p = $("#p").value;
+    if (!u) { toast("请输入用户名", "err"); return; }
     if (!p) { toast("请输入密码", "err"); return; }
     b.disabled = true; b.innerHTML = '<span class="spin"></span> 登录中…';
     try {
       token = await auth(p, u);
-      adminUser = u; adminPass = p;   // 上传安装包时要复用这套凭据
+      adminUser = resolveIdentity(u); adminPass = p;   // 上传安装包要复用真实身份，不是别名
       localStorage.setItem("dfwx_token", token);
       toast("登录成功", "ok");
       await boot();
