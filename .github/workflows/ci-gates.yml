@@ -42,7 +42,7 @@ jobs:
       - uses: actions/checkout@v4
       - name: Run docs gate
         run: |
-          chmod +x tools/ci-gate.sh
+          chmod +x gradlew tools/ci-gate.sh
           JAVA_HOME="${JAVA_HOME:-}" tools/ci-gate.sh docs
 
   # ---------- 第二层：JVM 测试（三套：host / vendor / common） ----------
@@ -68,7 +68,7 @@ jobs:
 
       - name: Run unit gate
         run: |
-          chmod +x tools/ci-gate.sh
+          chmod +x gradlew tools/ci-gate.sh
           tools/ci-gate.sh unit
 
       - name: Upload test reports (on failure)
@@ -110,7 +110,7 @@ jobs:
         env:
           DFWX_UNSIGNED: '1'
         run: |
-          chmod +x tools/ci-gate.sh
+          chmod +x gradlew tools/ci-gate.sh
           tools/ci-gate.sh apk
 
       # [DFWX DFW-52] 防"unsigned 包被误当发布物"：
