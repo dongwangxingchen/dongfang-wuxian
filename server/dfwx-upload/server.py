@@ -64,7 +64,7 @@ class Handler(BaseHTTPRequestHandler):
             self._json(200, {
                 "ok": True, "name": name, "size": written,
                 "sha256": digest.hexdigest(),
-                "url": "http://39.106.33.135/apk/" + name,
+                "url": "https://39.106.33.135/apk/" + name,
             })
         except Exception as error:                      # noqa: BLE001
             try:

@@ -161,10 +161,53 @@ final class UpdateClient {
 
   private static String lastPathSegment(String path){int slash=path.lastIndexOf('/');return slash<0?path:path.substring(slash+1);}
 
-  /** Redirect allowlist used by SegmentDownloader's direct update entry point. */
+  /**
+   * [2026-10-03] **自有服务器**的主机名 —— 从 {@link RemoteConfigClient#BASE} 推导，不在这里另抄一份。
+   *
+   * ## 为什么必须推导而不是写死
+   * 这正是本次要修的 bug 的形态：**"服务器在哪"这个事实被写在两个地方**——
+   * `RemoteConfigClient.BASE` 是 `39.106.33.135`，而下面那张下载白名单里**根本没有它**。
+   * 于是后台记录里的 apkUrl 指向自己的服务器，App 却判定"不受信任"直接拒绝，
+   * 用户看到的是「该源已失效或跳转异常」——**而服务器上那个文件明明好好的**。
+   *
+   * 抄两份就会分叉（改了一处忘了另一处，表现就是"某些下载又开始莫名其妙失败"）。
+   * 所以这里**只推导，不复制**：哪天换服务器/换域名，只改 `BASE` 一处。
+   */
+  private static String ownServerHost(){
+    try{return new URL(RemoteConfigClient.BASE).getHost().toLowerCase(Locale.ROOT);}catch(Exception error){return "";}
+  }
+
+  /**
+   * Redirect allowlist used by SegmentDownloader's direct update entry point.
+   *
+   * ## [2026-10-03] 自有服务器为什么**不要求 https**
+   * 这是本次唯一一处刻意放宽的地方，理由必须写清楚，否则下一个人会以为是漏了：
+   *
+   * 1. **平台层本来就放行了明文。** `network_security_config.xml` 的 base-config 拒绝明文，
+   *    但**专门给 `39.106.33.135` 开了一条 `cleartextTrafficPermitted="true"`** ——
+   *    那是一个有记录的决定，不是疏忽。
+   * 2. **要求 https 只是"看起来更安全"。** 版本元数据（versionCode / sha256 / apkUrl）
+   *    本身就是从同一台服务器的 `http://39.106.33.135/pb` 读来的。能改包的人**早就能改元数据**，
+   *    给下载单独上 https 挡不住他。
+   * 3. **真正的安全边界在下载之后**：`verifyUpdateApk()` 会校验
+   *    sha256 + 包名 + **签名证书**（`MainActivity:2383`）。签名对不上就装不上——
+   *    这条与走 http 还是 https 无关，它才是拦得住伪造的那一道。
+   * 4. **IP 证书的信任面不可控**：服务器用的是 Let's Encrypt 的**短期 IP 证书**
+   *    （链：leaf → YE2 → ISRG Root YE → ISRG Root X2）。ISRG Root X2 自 2022 年中
+   *    才进 Android 信任库，`Root YE` 更是**不在任何系统信任库里**（靠交叉签名工作）。
+   *    把更新这条路**吊死在"设备一定信得过这张 IP 证书"上**，风险大于收益。
+   *
+   * 注意放宽是**有界**的：只认 `BASE` 里那一个**精确主机名**，不是后缀匹配、不是通配。
+   * 其余主机仍然一律要求 https + 端口 443（下面那行）。
+   */
   static boolean isAllowedDownloadUrl(URL url){
-    if(url==null||!"https".equalsIgnoreCase(url.getProtocol())||url.getUserInfo()!=null||!defaultHttpsPort(url))return false;
-    String host=url.getHost().toLowerCase(Locale.ROOT);
+    if(url==null||url.getUserInfo()!=null)return false;
+    String protocol=url.getProtocol()==null?"":url.getProtocol().toLowerCase(Locale.ROOT);
+    if(!"http".equals(protocol)&&!"https".equals(protocol))return false;
+    String host=url.getHost()==null?"":url.getHost().toLowerCase(Locale.ROOT);
+    String own=ownServerHost();
+    if(!own.isEmpty()&&host.equals(own))return true;
+    if(!"https".equals(protocol)||!defaultHttpsPort(url))return false;
     return host.equals("github.com")||host.equals("githubusercontent.com")||host.endsWith(".githubusercontent.com")||host.endsWith(".nkbr.cc");
   }
 }

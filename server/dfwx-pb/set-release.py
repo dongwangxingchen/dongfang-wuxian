@@ -80,7 +80,7 @@ def main():
     body = {
         "versionName": ver,
         "versionCode": code,
-        "apkUrl": "http://39.106.33.135/apk/dongfang-wuxian-v%s.apk" % ver,
+        "apkUrl": "https://39.106.33.135/apk/dongfang-wuxian-v%s.apk" % ver,
         "sha256": sha,
         "size": size,
     }
