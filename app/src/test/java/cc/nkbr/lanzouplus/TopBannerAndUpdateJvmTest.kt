@@ -63,15 +63,30 @@ class TopBannerAndUpdateJvmTest {
     }
 
     @Test
-    fun showNotice_replacesInsteadOfStacking() {
+    fun showNotice_keepsOneAtATimeAndQueuesTheRest() {
+        /*
+         * [DFW-137 2026-10-03] 这条原来叫 `showNotice_replacesInsteadOfStacking`，
+         * 断言的是「第二条必须把第一条顶掉」。
+         *
+         * 要求本身是**「同一时刻只留一条，不许叠罗汉」**，顶掉只是当时选的手段。
+         * 那个手段有个实测出来的副作用：新提示一来就把上一条 dismiss 掉，
+         * 两条相隔不到显示时长时**第一条会被当场砍掉，用户一个字都没看到**——
+         * 那正是「话太多」的真实体感（不是字多，是说了等于没说）。
+         *
+         * 现在仍然是「同一时刻只留一条」，但改成**排队**：
+         * 第一条说完，第二条再上。所以这里断言两件事——
+         * ①屏幕上只有一条（不叠罗汉）；②第二条没被丢掉（在队列里等着）。
+         */
         val a = activity()
         a.showNotice("第一条", false)
         shadowOf(Looper.getMainLooper()).idle()
         val first = a.activeNoticeBanner
+        assertNotNull("第一条应该已经在显示", first)
         a.showNotice("第二条", false)
         shadowOf(Looper.getMainLooper()).idle()
         assertNotNull(a.activeNoticeBanner)
-        assertFalse("同一时刻只留一条，不许叠罗汉", first === a.activeNoticeBanner)
+        assertTrue("同一时刻只留一条，不许叠罗汉", first === a.activeNoticeBanner)
+        assertEquals("第二条必须排队等着，不许被丢掉", 1, a.pendingNotices.size)
     }
 
     @Test

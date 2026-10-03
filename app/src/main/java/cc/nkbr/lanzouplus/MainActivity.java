@@ -229,7 +229,7 @@ public final class MainActivity extends androidx.activity.ComponentActivity impl
   // sticky 语义保证延迟期间连接不丢事件。
   void deferredAdbShellStart(){adbShell.start();}
   @Override public void onCreate(Bundle b){super.onCreate(b);ACTIVE_OWNER=this;ACTIVE_INSTANCE=new java.lang.ref.WeakReference<>(this);applySystemColors();deleteSharedPreferences("premium-session-v1");io.execute(()->{try{java.security.KeyStore ks=java.security.KeyStore.getInstance("AndroidKeyStore");ks.load(null);if(ks.containsAlias("cc.nkbr.lanzouplus.premium.v1"))ks.deleteEntry("cc.nkbr.lanzouplus.premium.v1");}catch(Exception ignored){}});// v1.23 优享移除:一次性清理旧版本本机加密会话,不留无法清除的残留
-loadSearchSettings();applyUserAgentSettings();detectWeakDevice();installBackAnimationCallback();core=new LanzouCore(this);core.setDirectoryCachingEnabled(true);core.setIndexPauseSupplier(this::directoryIndexPaused);directResolver=new DirectLinkResolver(this,core);adbShell=new AdbShellManager(this,this::onAdbShellStateChanged);ui.postDelayed(this::deferredAdbShellStart,3000);loadDownloadHistory();loadRecommendations();activeSource=home;getPreferences(0).edit().putBoolean("accepted",true).apply();startMainExperience();if(!getPreferences(0).getBoolean("oldAiNoticed",false)&&!getSharedPreferences("ai_chat_settings",0).getAll().isEmpty()){getPreferences(0).edit().putBoolean("oldAiNoticed",true).apply();ui.post(()->showNotice("AI 对话已全新升级：旧版 AI 配置已停用（不影响其他数据），新版请到 AI 页抽屉底部的设置里添加自己的渠道",true));}handleExternalAction(getIntent());}
+loadSearchSettings();applyUserAgentSettings();detectWeakDevice();installBackAnimationCallback();core=new LanzouCore(this);core.setDirectoryCachingEnabled(true);core.setIndexPauseSupplier(this::directoryIndexPaused);directResolver=new DirectLinkResolver(this,core);adbShell=new AdbShellManager(this,this::onAdbShellStateChanged);ui.postDelayed(this::deferredAdbShellStart,3000);loadDownloadHistory();loadRecommendations();activeSource=home;getPreferences(0).edit().putBoolean("accepted",true).apply();startMainExperience();/* [DFW-137 2026-10-03] 这里原来有一段「AI 对话已全新升级：旧版 AI 配置已停用（不影响其他数据），新版请到 AI 页抽屉底部的设置里添加自己的渠道」的一次性提示（由 oldAiNoticed 标记守着）。**已删除**：那是给老用户看的历史迁移通知，迁移早就完成了，而且它弹的条件里那个 ai_chat_settings 一旦非空就永远满足——留着只会在某次启动时突然冒出来，让人以为刚刚发生了什么事。这正是用户说的「画蛇添足」。 */handleExternalAction(getIntent());}
 
   /**
    * DFW-14：系统内存紧张时主动释放**可重建**的缓存。
@@ -5245,20 +5245,64 @@ else if(isApkEntry(entry))runOnUiThread(()->{if(generation==entry.controlGenerat
    */
   void noteDownloadOutcome(DownloadEntry entry){
     if(entry==null)return;
-    final String name=(entry.name==null||entry.name.trim().isEmpty())?"文件":entry.name.trim();
     final boolean completed=DOWNLOAD_COMPLETED.equals(entry.state),failed=DOWNLOAD_FAILED.equals(entry.state);
     if(!completed&&!failed)return;
-    int sameBatch=0;
-    if(!entry.batchId.isEmpty())for(DownloadEntry other:downloadEntries)
-      if(entry.batchId.equals(other.batchId)&&entry.state.equals(other.state))sameBatch++;
     if(completed){
-      showTopBanner(sameBatch>1?"已下载 "+sameBatch+" 个文件 · 最新："+name:"已下载 · "+name,3200,R.drawable.ic_download);
+      /*
+       * [DFW-137 2026-10-03] **下载成功的提示去抖：一批文件只弹一条。**
+       *
+       * 原来每下完一个文件就弹一条「已下载 · 文件名」。下载列表本身已经在显示状态了，
+       * 再逐条播报就是卡片里说的「画蛇添足 + 重复提醒」——
+       * 下三个文件弹三条，配上「新提示掐掉旧提示」的老行为，屏幕上只剩一片闪。
+       *
+       * 现在等 700ms；期间再来一个就把计时重置，最后只弹一条汇总
+       * （`countSameBatch` 到那时已经数到全部同批，所以条数是对的）。
+       *
+       * ⚠️ **失败提示刻意不去抖** —— 出错要立刻说，
+       * 晚 700ms 都可能让用户以为软件卡住了。
+       */
+      pendingDownloadEntry=entry;
+      if(downloadSummaryRunnable!=null)ui.removeCallbacks(downloadSummaryRunnable);
+      downloadSummaryRunnable=()->{
+        downloadSummaryRunnable=null;
+        DownloadEntry last=pendingDownloadEntry;
+        pendingDownloadEntry=null;
+        flashDownloadSummary(last);
+      };
+      ui.postDelayed(downloadSummaryRunnable,700);
       return;
     }
+    final String name=downloadEntryName(entry);
+    int sameBatch=countSameBatch(entry,DOWNLOAD_FAILED);
     String reason=entry.error==null?"":entry.error.trim();
     if(reason.length()>60)reason=reason.substring(0,60)+"…";
     String head=sameBatch>1?"下载失败 "+sameBatch+" 个 · 最新："+name:"下载失败 · "+name;
     showTopBanner(reason.isEmpty()?head:head+"："+reason,5200,R.drawable.ic_close);
+  }
+
+  /** [DFW-137] 去抖暂存：最后完成的那一条，以及它的计时器。 */
+  DownloadEntry pendingDownloadEntry;
+  Runnable downloadSummaryRunnable;
+
+  /** [DFW-137] 去抖到点后真正弹出的那条汇总。 */
+  private void flashDownloadSummary(DownloadEntry entry){
+    if(entry==null||isFinishing()||isDestroyed())return;
+    final String name=downloadEntryName(entry);
+    int sameBatch=countSameBatch(entry,DOWNLOAD_COMPLETED);
+    showTopBanner(sameBatch>1?"已下载 "+sameBatch+" 个文件 · 最新："+name:"已下载 · "+name,3200,R.drawable.ic_download);
+  }
+
+  private static String downloadEntryName(DownloadEntry entry){
+    return (entry.name==null||entry.name.trim().isEmpty())?"文件":entry.name.trim();
+  }
+
+  /** 同一批次里处于指定状态的条目数（`batchId` 为空返回 0，调用方据此只显示单条文案）。 */
+  private int countSameBatch(DownloadEntry entry,String state){
+    if(entry.batchId.isEmpty())return 0;
+    int n=0;
+    for(DownloadEntry other:downloadEntries)
+      if(entry.batchId.equals(other.batchId)&&state.equals(other.state))n++;
+    return n;
   }
   void advanceBatch(DownloadEntry entry){Runnable next=entry.nextBatch;if(next==null)return;synchronized(entry){if(entry.batchAdvanced)return;entry.batchAdvanced=true;}runOnUiThread(next);}
   boolean isDownloadActive(DownloadEntry entry){return entry!=null&&(entry.state.equals(DOWNLOAD_RESOLVING)||entry.state.equals(DOWNLOAD_WAITING)||entry.state.equals(DOWNLOAD_RUNNING));}
@@ -5406,6 +5450,53 @@ if(motionEnabled()){panel.setAlpha(0f);panel.setTranslationY(-dp(8));panel.anima
   NoticeBanner activeNoticeBanner;
 
   /**
+   * [DFW-137 2026-10-03] 正在显示的那条的文案，用来**丢弃重复请求**。
+   *
+   * 为什么要有：连点两下「复制」，原来会 dismiss 掉第一条再上一条一模一样的，
+   * 屏幕上就是闪一下又闪一下。同一句话正在显示时直接忽略，不计入队列。
+   */
+  String noticeShowingMessage=null;
+
+  /**
+   * [DFW-137 2026-10-03] **等待显示的提示队列。**
+   *
+   * ## 修的是什么
+   * 原来 `showTopBanner` 拿到新提示就**无条件把上一条 dismiss 掉**：
+   * ```
+   * NoticeBanner previous=activeNoticeBanner;
+   * if(previous!=null)previous.dismiss();      ← 上一条当场被砍
+   * ```
+   * 后果：两条提示相隔不到显示时长（短 2500ms / 长 5000ms）时，
+   * **第一条会被当场掐掉，用户一个字都没来得及看**。
+   *
+   * 这才是「话太多」的真实体感 —— 问题不在文案数量，在于**说了等于没说**：
+   * 屏幕上只有一片闪，越闪越显得吵。删文案治不了这个，
+   * 因为它把「能看见的 1 条」变成了「看不见的 3 条」。
+   *
+   * ## 现在的行为
+   * 正在显示时，新提示**排队**，等当前这条自己消失再上。
+   * 上限 {@link #NOTICE_QUEUE_MAX} 条：真来了一串，也不能让用户等十几秒才看完 ——
+   * 超出就挤掉最旧的（最新的信息通常最相关）。
+   */
+  final java.util.ArrayDeque<PendingNotice> pendingNotices=new java.util.ArrayDeque<>();
+
+  /**
+   * 队列上限。
+   *
+   * 取 2 而不是更大，是**权衡过陈旧度**的：排队能解决「看不到」，
+   * 但排得太多就变成「看到的都是过期消息」——那时用户更困惑。
+   * 2 条 × 典型 2.5s ≈ 最多滞后 5 秒，这个量级用户不会觉得是旧闻；
+   * 再多就得开始怀疑"它到底在说刚才那件事还是现在这件事"。
+   */
+  static final int NOTICE_QUEUE_MAX=2;
+
+  /** 排队中的一条提示。三个字段都是一次性的，不需要 getter。 */
+  static final class PendingNotice{
+    final String message;final int durationMs;final int iconRes;
+    PendingNotice(String message,int durationMs,int iconRes){this.message=message;this.durationMs=durationMs;this.iconRes=iconRes;}
+  }
+
+  /**
    * [DFW-73] 顶部通知条的**唯一构造点**（`showNotice` 与 `showUpdateNotice` 共用）。
    *
    * 之所以抽出来：两处原本各写一份卡片构造，改样式时必然只改一处 —— 那正是"两个组件看着不一样"的来源。
@@ -5432,14 +5523,29 @@ if(motionEnabled()){panel.setAlpha(0f);panel.setTranslationY(-dp(8));panel.anima
      * 另外测试侧三处（`DfLogWiringJvmTest.kt:119/130`、`DfLogJvmTest.kt:296`）
      * 都按 `notice` 写，代码这一处是唯一的离群值。
      */
-    DfLog.breadcrumb("ui","notice","msg",msg);
     final ViewGroup container=sheetHost();
     if(container==null)return;
-    // 先把旧条摘下来再 dismiss：dismiss 是带动画的异步过程，它的 onDismissed 回调会在几百毫秒后
-    // 才跑；如果那时才去清引用，会把**这一条新的**清掉（旧条自己都不知道新条已经上来了）。
-    NoticeBanner previous=activeNoticeBanner;
-    activeNoticeBanner=null;
-    if(previous!=null)previous.dismiss();
+    /*
+     * [DFW-137 2026-10-03] **正在显示时进队列，不再把上一条掐断。**
+     *
+     * 原来这里是「无条件 dismiss 上一条再上新的」。两条提示相隔不到显示时长时，
+     * 第一条会被当场砍掉，用户一个字都没看到 —— 那才是「话太多」的真实体感：
+     * 不是字多，是**说了等于没说**，屏幕上只剩一片闪。
+     *
+     * 同一句话正在显示时直接忽略：连点两下「复制」原来会闪两下，现在是延长一次。
+     */
+    if(activeNoticeBanner!=null){
+      if(msg.equals(noticeShowingMessage))return;
+      if(pendingNotices.size()>=NOTICE_QUEUE_MAX)pendingNotices.pollFirst();
+      pendingNotices.addLast(new PendingNotice(msg,durationMs,iconRes));
+      return;
+    }
+    /*
+     * [DFW-137] 埋点挪到「真要显示」这一步。
+     * 排队后被挤掉的那些**从来没对用户说过**，记进面包屑会让时间线与用户实际所见对不上
+     * （这个面包屑的用途就是回答"到底是没提示，还是提示了用户没看懂"）。
+     */
+    DfLog.breadcrumb("ui","notice","msg",msg);
     LinearLayout card=new LinearLayout(this);
     card.setOrientation(LinearLayout.HORIZONTAL);
     card.setGravity(Gravity.CENTER_VERTICAL);
@@ -5466,10 +5572,29 @@ if(motionEnabled()){panel.setAlpha(0f);panel.setTranslationY(-dp(8));panel.anima
     card.setLayoutParams(cardParams);
     final NoticeBanner[] holder=new NoticeBanner[1];
     holder[0]=NoticeBanner.create(this,container,card,
-        ()->{if(activeNoticeBanner==holder[0])activeNoticeBanner=null;},
+        ()->{if(activeNoticeBanner!=holder[0])return;activeNoticeBanner=null;noticeShowingMessage=null;flashNextPendingNotice();},
         motionEnabled(),statusBarInset()+dp(8),durationMs);
     activeNoticeBanner=holder[0];
+    noticeShowingMessage=msg;
     activeNoticeBanner.show();
+  }
+
+  /**
+   * [DFW-137 2026-10-03] 当前这条显示完了，把队列里的下一条放上来。
+   *
+   * 由 `NoticeBanner` 的 onDismissed 驱动 —— 它在动画结束、引用清空之后才跑，
+   * 所以这里开始下一条是安全的（不会和上一条的退场动画打架）。
+   * 队列空就什么都不做。
+   *
+   * ⚠️ `activeNoticeBanner` 的身份判断必须留在调用方（见上面那个 lambda）：
+   * dismiss 是异步的，旧条的回收回调可能在几百毫秒后才跑，
+   * 那时如果无脑清引用，会把**已经上来的新条**清掉。
+   */
+  private void flashNextPendingNotice(){
+    if(isFinishing()||isDestroyed()){pendingNotices.clear();return;}
+    PendingNotice next=pendingNotices.pollFirst();
+    if(next==null)return;
+    showTopBanner(next.message,next.durationMs,next.iconRes);
   }
   void postFolderIconPrefetch(List<Models.Item> items,int start,int limit){if(start>=items.size()||limit<=0)return;int session=navigationSession;List<Models.Item> snapshot=new ArrayList<>(items);ui.postDelayed(()->{if(session!=navigationSession||pageKind!=3)return;for(int i=start;i<Math.min(start+limit,snapshot.size());i++)requestImage(snapshot.get(i).iconUrl,null);},180);}
   void loadImage(String url,ImageView view){if(restoringFolderState){loadCachedFolderImage(url,view);return;}requestImage(url,view);}

@@ -68,14 +68,63 @@ class DownloadOutcomeNoticeJvmTest {
 
     @Test
     fun noticeCarriesTheFileName() {
-        val body = bodyOf(main(), "void noteDownloadOutcome(DownloadEntry entry){")
-        assertTrue("通知必须带上文件名（用户明确要求「写明白啥东西下载好了」）", body.contains("entry.name"))
+        /*
+         * [DFW-137 2026-10-03] 这条原来直接断言 `noteDownloadOutcome` 的方法体里有 `entry.name`。
+         * 这一轮把取名字抽成了 `downloadEntryName()`（因为完成提示要去抖、汇总也要用同一个名字），
+         * 断言就脱靶了 —— 但**要求没变**：用户明确说过「写明白啥东西下载好了，别只写个下载完成」。
+         *
+         * 所以改成**顺着调用链一路验到底**，比原来只看一个方法体更强：
+         * 少了任何一环（取名字 / 汇总用上名字 / 名字拼进文案）都会红。
+         */
+        val src = main()
+        val body = bodyOf(src, "void noteDownloadOutcome(DownloadEntry entry){")
         assertTrue("完成态要单独处理", body.contains("DOWNLOAD_COMPLETED"))
         assertTrue("失败态要单独处理", body.contains("DOWNLOAD_FAILED"))
-        assertTrue("必须走顶部滑下的通知条 showTopBanner", body.contains("showTopBanner("))
+        assertTrue(
+            "失败提示必须走顶部滑下的通知条 showTopBanner",
+            body.contains("showTopBanner("),
+        )
         assertFalse(
             "不许再退回旧的 showNotice 胶囊（用户明确要「从上往下显示的那个」）",
             body.contains("showNotice("),
+        )
+        assertTrue(
+            "完成提示必须经过 flashDownloadSummary（去抖后的唯一出口）",
+            body.contains("flashDownloadSummary("),
+        )
+
+        val summary = bodyOf(src, "private void flashDownloadSummary(DownloadEntry entry){")
+        assertTrue("完成汇总必须走 showTopBanner", summary.contains("showTopBanner("))
+        assertTrue("完成汇总必须带上文件名", summary.contains("downloadEntryName(entry)"))
+        assertTrue("文件名必须真的拼进文案里", summary.contains("\"+\"name") || summary.contains("+name"))
+
+        val helper = bodyOf(src, "private static String downloadEntryName(DownloadEntry entry){")
+        assertTrue(
+            "downloadEntryName 必须真的取 entry.name —— 这是用户「别只写个下载完成」那条要求的落点",
+            helper.contains("entry.name"),
+        )
+    }
+
+    /**
+     * [DFW-137 2026-10-03] **下载完成必须去抖：一批文件只弹一条。**
+     *
+     * 原来每下完一个文件弹一条「已下载 · 文件名」，下三个弹三条；
+     * 配上「新提示把旧提示掐掉」的老行为，屏幕上只剩一片闪。
+     * 现在等 700ms，期间再来就重置计时，最后只弹一条汇总。
+     *
+     * ⚠️ **失败提示刻意不去抖** —— 出错要立刻说，晚 700ms 都可能让用户以为软件卡住了。
+     */
+    @Test
+    fun completedDownloadsAreDebouncedSoABatchShowsOneNotice() {
+        val body = bodyOf(main(), "void noteDownloadOutcome(DownloadEntry entry){")
+        assertTrue(
+            "完成提示必须先把上一次的计时取消（去抖的核心，少了它还是逐个弹）",
+            body.contains("removeCallbacks(downloadSummaryRunnable)"),
+        )
+        assertTrue("必须重新计时", body.contains("postDelayed(downloadSummaryRunnable"))
+        assertFalse(
+            "失败提示不许去抖 —— 出错要立刻说",
+            Regex("DOWNLOAD_FAILED\\s*\\)?\\s*\\{[^}]*postDelayed").containsMatchIn(body),
         )
     }
 
