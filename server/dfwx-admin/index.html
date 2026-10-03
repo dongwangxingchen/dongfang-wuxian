@@ -285,7 +285,7 @@ function esc(s){ return String(s==null?"":s).replace(/[&<>"']/g, c => ({'&':'&am
  * 这一点是量出来的：如果在 `- . _ ? & =` 后面也插，浏览器会贪心地断在最后一个
  * 刚好放得下的 `-` 或 `.` 上，末行只剩 `apk`（实测 20px）；
  * 只在 `/` 后插，断点变少，浏览器只能断在最后那个 `/` 上，得到的是
- *   `https://39.106.33.135/apk/` + `dongfang-wuxian-v1.0.0.apk`
+ *   `http://39.106.33.135/apk/` + `dongfang-wuxian-v1.0.0.apk`
  * 这种两行均衡、一眼能读的形状。
  *
  * 万一某一段本身比整行还长（比如一个超长文件名），CSS 的 `overflow-wrap:anywhere`
