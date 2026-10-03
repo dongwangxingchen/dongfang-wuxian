@@ -37,8 +37,29 @@ class UpdateThrottleJvmTest {
 
     @Test
     fun withinWindow_isNotDue() {
-        val t = UpdateThrottle(FakeStore(now - 60_000L))          // 1 分钟前查过
-        assertFalse("24h 窗口内不得再自动检查", t.isDue(now))
+        val t = UpdateThrottle(FakeStore(now - 30_000L))          // 30 秒前查过
+        assertFalse("窗口内不得再自动检查", t.isDue(now))
+    }
+
+    /**
+     * [2026-10-03] **这条守卫的是"更新能不能及时送达"这件事本身。**
+     *
+     * 用户报的问题：「我发布更新后，打开软件并没有弹出来弹窗让我更新。」
+     * 根因是 DFW-7 定的 24h 节流 —— 用户当天开过一次软件之后，
+     * 再怎么开关都被挡住，发布新版本在当天对他完全不可见。
+     *
+     * 要判断有没有更新就**必须去查**，所以任何以"小时"计的节流都必然把更新推迟到窗口之后。
+     * 这里把上限定死：自动检查的间隔**不得超过 5 分钟**。
+     * 谁要是又把它调回 24h（比如为了"省流量"），这条会立刻变红并说明代价。
+     */
+    @Test
+    fun autoCheckInterval_staysSmallEnoughToDeliverUpdates() {
+        val fiveMinutes = 5L * 60 * 1000
+        assertTrue(
+            "自动检查间隔是 ${UpdateThrottle.INTERVAL_MS} ms —— 太大了。" +
+                "间隔越长，用户越晚看到新版本；24h 意味着最多晚一天。上限 5 分钟。",
+            UpdateThrottle.INTERVAL_MS <= fiveMinutes,
+        )
     }
 
     @Test
@@ -124,10 +145,17 @@ class UpdateThrottleJvmTest {
             source.contains("\"last_auto_ms\""))
     }
 
-    /** 间隔常量必须与 MainActivity 的既有常量一致（避免两份真相源）。 */
+    /**
+     * 间隔常量必须与 MainActivity 的既有常量一致（避免两份真相源）。
+     *
+     * [2026-10-03] 原来这里还有一行 `assertEquals(24L * 60 * 60 * 1000, INTERVAL_MS)`，
+     * 把**具体数值**也钉死了。那是错的锁法：真正要守的不变量是"**两处一致**"（上面那行），
+     * 而不是"必须是 24 小时"。数值本身该由上面那条
+     * `autoCheckInterval_staysSmallEnoughToDeliverUpdates` 按**业务理由**（更新要及时送达）
+     * 给一个上限，而不是在这里抄一遍。
+     */
     @Test
     fun intervalMatchesMainActivityConstant() {
         assertEquals(MainActivity.AUTO_UPDATE_CHECK_INTERVAL_MS, UpdateThrottle.INTERVAL_MS)
-        assertEquals(24L * 60 * 60 * 1000, UpdateThrottle.INTERVAL_MS)
     }
 }

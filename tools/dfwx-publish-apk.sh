@@ -171,7 +171,7 @@ verify_release_record() {
 #   ( source /tmp/probe_public.sh; verify_public_apk 不存在.apk <sha> 1 ); echo $?
 verify_public_apk() {
   local name="$1" want_sha="$2" want_size="$3"
-  local url="http://39.106.33.135/apk/${name}"
+  local url="https://39.106.33.135/apk/${name}"
   local code
   code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 30 "$url" || true)"
   if [[ "$code" != "200" ]]; then

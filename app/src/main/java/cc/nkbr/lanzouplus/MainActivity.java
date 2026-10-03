@@ -61,8 +61,32 @@ public final class MainActivity extends androidx.activity.ComponentActivity impl
   @Override public android.net.Uri toolImageUri(){return toolImageUri;}@Override public void setToolImageUri(android.net.Uri value){toolImageUri=value;}@Override public void setToolImageInfoText(String value){toolImageInfoText=value;}
   
   static final String PRODUCT_NAME="东方无限";
-  /** DFW-7：自动检查更新的最小间隔。冷启动不再每次都打网络，24h 一次足够（用户可随时手动查）。 */
-  static final long AUTO_UPDATE_CHECK_INTERVAL_MS=24L*60*60*1000;
+  /**
+   * [DFW-7 → 2026-10-03 改] 自动检查更新的最小间隔：**24h 收紧到 60 秒**。
+   *
+   * ## 为什么推翻 DFW-7 的 24h
+   * DFW-7 的理由是「冷启动不再每次都打网络，24h 一次足够（用户可随时手动查）」。
+   * 用户 2026-10-03 报的问题说明这个取舍错了：
+   * > 「我发布更新后，打开软件并没有弹出来弹窗让我更新。」
+   *
+   * 用户当天已经开过一次软件（那次检查把时间戳落了盘），**之后再怎么开关都被节流挡住**，
+   * 于是"发布新版本"这件事在当天对他完全不可见 —— 只能靠手动点「检查更新」。
+   *
+   * ## 为什么这个取舍确实该反过来
+   * 1. **收不到更新的代价 ≫ 多打一次网络的代价。** 更新检查是这个 App **唯一**的更新投递通道
+   *    （DFW-82 那个「能下到新包但永远不提示更新」就是这条通道静默失效的形态）。
+   *    而检查本身只是几个几百字节的 JSON GET，服务器在国内。
+   * 2. **要判断有没有更新，就必须去查。** 节流省掉的那次请求，恰好就是唯一能发现更新的那次。
+   *    任何"先节流再看"的设计都必然把更新推迟到节流窗口之后 —— 24h 就是最多推迟一天。
+   * 3. **进程内去重已经把病态情况挡住了**（{@link #STARTUP_UPDATE_CHECKED_IN_PROCESS}）：
+   *    同一次启动只会查一次。跨冷启动本来就不该再挡。
+   *
+   * ## 为什么留 60 秒而不是直接取消
+   * 留一个**极小**的下限，防的是病态循环（比如崩溃重启风暴里 Activity 被反复重建）
+   * 把服务器打爆。60 秒对真实使用**完全无感**（正常用户不会在一分钟内冷启两次），
+   * 但能把最坏情况下的请求量钉在"每分钟一次"。
+   */
+  static final long AUTO_UPDATE_CHECK_INTERVAL_MS=60L*1000;
   static final String UPDATE_CHECK_PREFS="update_check";
   static final String LANZOU_PLUS_REPOSITORY="https://github.com/nekobyran/lanzouplus";
   // 本应用自身开源主页（设置页"开源项目主页"与关于页指向此处）；上游 LanzouPlus 仓库保留在关于页致谢中

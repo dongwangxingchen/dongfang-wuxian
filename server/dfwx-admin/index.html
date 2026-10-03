@@ -504,7 +504,7 @@ function renderAiChannel(p){
 let pendingApk = null;
 /** 安装包对外地址的固定前缀：**故意用 http**——App 走的是明文下载，
  *  改成 https 会因为那张证书不被设备信任而直接下载失败。 */
-const APK_ORIGIN = "http://39.106.33.135";
+const APK_ORIGIN = "https://39.106.33.135";
 
 /**
  * [DFW-106] **发布历史另起一个集合，绝不放进 `release`。**

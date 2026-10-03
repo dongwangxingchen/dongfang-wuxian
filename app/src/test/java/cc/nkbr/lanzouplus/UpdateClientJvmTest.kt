@@ -63,6 +63,40 @@ class UpdateClientJvmTest {
         assertFalse("无关域名必须拒绝", checkUrlAllowed("https://evil.com/dongfang-wuxian-v1.21.4.apk"))
     }
 
+    /**
+     * [2026-10-03] **自有服务器必须放行 —— 这是本次修的 bug。**
+     *
+     * 用户报的：「点击下载 → 下载失败 · dongfang-wuxian-v1.0.1.apk：该源已失效或跳转异常」
+     *
+     * 根因：后台记录里的 apkUrl 指向**我们自己的服务器**（`39.106.33.135`），
+     * 但这张白名单里根本没有它 —— 于是 `SegmentDownloader` 判定"更新下载地址不受信任"
+     * 直接抛错，被 `friendlyError` 显示成「该源已失效或跳转异常」。
+     * **服务器上那个文件明明好好的。**
+     *
+     * 现在主机名从 `RemoteConfigClient.BASE` 推导（只留一处事实源），
+     * 所以这条测试直接照着 BASE 构造 URL —— 换服务器时它会跟着走，不需要改测试。
+     */
+    @Test
+    fun allowsOurOwnServer() {
+        val host = java.net.URL(RemoteConfigClient.BASE).host
+        assertTrue("https 到自有服务器必须放行", checkUrlAllowed("https://$host/apk/dongfang-wuxian-v1.0.0.apk"))
+        assertTrue(
+            "http 到自有服务器也要放行：版本元数据本身就是从这台机器用 http 读来的，" +
+                "给下载单独要求 https 挡不住能改元数据的人；真正的边界是下载后的签名校验",
+            checkUrlAllowed("http://$host/apk/dongfang-wuxian-v1.0.0.apk"),
+        )
+    }
+
+    /** 放宽必须**有界**：只认精确主机名，不能变成后缀/子域通配。 */
+    @Test
+    fun ownServerRelaxation_isExactHostOnly() {
+        val host = java.net.URL(RemoteConfigClient.BASE).host
+        assertFalse("形近域名必须拒绝", checkUrlAllowed("https://$host.evil.com/apk/x.apk"))
+        assertFalse("前置前缀也必须拒绝", checkUrlAllowed("https://evil-$host/apk/x.apk"))
+        assertFalse("非 http(s) 协议必须拒绝", checkUrlAllowed("ftp://$host/apk/x.apk"))
+        assertFalse("带用户信息必须拒绝", checkUrlAllowed("http://user:pw@$host/apk/x.apk"))
+    }
+
     /** 版本比较方向：同版本不提示，旧版本不提示，新版本才提示。 */
     @Test
     fun versionComparisonIsDirectional() {
