@@ -463,6 +463,35 @@ g.setCornerRadius(dp(radius>=24?26:radius>=14?20:radius>=5?8:radius));
 **通用规则**：**`minimumWidth/Height` 只对 `WRAP_CONTENT` 生效**。
 要保证触控区，就得保证**没有任何一层给它固定尺寸**；而"保证"的办法是收成一个方法，不是靠注释提醒。
 
+### 13. `View.getVisibility()` **不看祖先** —— 用它判断"用户看不看得见"必错（2026-10-03 实测）
+
+**现象**：给「多选时行内动作按钮要隐藏」写了一条测试，断言
+`actionButtons().all { it.visibility != View.VISIBLE }`。产品代码明明把动作容器设成了 `GONE`，
+**测试却是红的** —— 一度以为产品没生效，去查产品代码。
+
+**根因**：`View.getVisibility()` 返回的是这个视图**自己**的标志，**完全不看父容器**。
+父容器设成 `GONE` 之后，里面的 `ImageButton` 照样报告 `VISIBLE`。
+
+**做法**：要判断"用户到底看不看得见"，必须**沿父链往上查**：
+
+```kotlin
+fun effectivelyVisible(v: View): Boolean {
+    var cur: View? = v
+    while (cur != null) {
+        if (cur.visibility != View.VISIBLE) return false
+        cur = cur.parent as? View
+    }
+    return true
+}
+```
+
+（`View.isShown()` 也能用，但它额外要求 `mAttachedToWindow`，在 Robolectric 的
+"手工 measure/layout 但不 attach"场景下会给出误导性的 false，所以本项目用上面这个显式版本。）
+
+**通用规则**：**测"隐藏"要测"实际可见性"，不是测自己的 flag**。
+凡是"父容器一关、子里一堆视图都该消失"的结构（多选模式、折叠区、空态切换），
+都容易踩这个 —— 而且踩了之后**看起来像产品 bug**，会白白去查产品代码。
+
 ## 十一、Agent 编排
 
 ### 十一-1 长任务必须用常驻队友，不能用一次性 subagent
