@@ -343,4 +343,116 @@ class RemoteConfigClientJvmTest {
         assertTrue("base-config 仍必须默认拒绝明文（不能因为加白名单就全局放开）",
             config.contains("""cleartextTrafficPermitted="false""""))
     }
+
+    // ── fetch() 的去重（2026-10-03 新增，本类第一次测到 fetch 的行为）──────────
+
+    /**
+     * 造一个"服务器一切正常"的假响应：4 个集合各返回一条。
+     *
+     * 为什么 notice 那条必须有内容：`fetch()` 里 `notice` 那一路是
+     * **无条件**置 `anyOk = true` 的（只要 `items()` 不抛），所以空数组也能让 `anyOk` 为真。
+     * 但为了更接近真实形状，这里给每条都塞一条记录。
+     */
+    private fun okResponder(counter: IntArray): java.util.function.Function<String, JSONObject> =
+        java.util.function.Function { endpoint ->
+            counter[0]++
+            val items = JSONArray()
+            when {
+                endpoint.contains("/control/") -> items.put(
+                    JSONObject().put("id", "c1").put("maintenance", false).put("popupMode", "always"),
+                )
+                endpoint.contains("/release/") -> items.put(
+                    JSONObject()
+                        .put("id", "r1").put("versionName", "1.0.0").put("versionCode", 10000)
+                        .put("apkUrl", "https://example.invalid/a.apk")
+                        .put("sha256", "0".repeat(64)).put("size", 1).put("updateMode", "soft"),
+                )
+                endpoint.contains("/notice/") -> items.put(
+                    JSONObject().put("id", "n1").put("title", "标题").put("body", "正文")
+                        .put("popupMode", "always").put("enabled", true),
+                )
+                else -> items.put(
+                    JSONObject().put("id", "g1").put("versionName", "1.0.0").put("title", "记录"),
+                )
+            }
+            JSONObject().put("items", items)
+        }
+
+    /**
+     * [2026-10-03] **同一进程里 3 秒内的多次 `fetch()` 只该打一轮网络。**
+     *
+     * 冷启动有三路各自调 `fetch()`（查更新 / 维护拦截 / 公告），而一次 `fetch()` 拉 4 个集合
+     * ⇒ 原来每次冷启动最多 **12 个请求**打同一台 2核2G 的 VPS。
+     *
+     * 这条测试直接数"底层被调了几次" —— 4 个集合 × 1 轮 = **4 次**。
+     * 把去重删掉就会变成 12 次，测试变红。
+     */
+    @Test
+    fun fetch_dedupesRepeatedCallsWithinTheMemoWindow() {
+        val counter = intArrayOf(0)
+        RemoteConfigClient.resetFetchMemoForTest()
+        RemoteConfigClient.testResponder = okResponder(counter)
+        try {
+            RemoteConfigClient.fetch()
+            RemoteConfigClient.fetch()
+            RemoteConfigClient.fetch()
+            assertEquals(
+                "3 秒内连续三次 fetch() 只该打一轮网络（4 个集合）；" +
+                    "变多说明去重失效，冷启动又会打 12 个请求",
+                4, counter[0],
+            )
+        } finally {
+            RemoteConfigClient.testResponder = null
+            RemoteConfigClient.resetFetchMemoForTest()
+        }
+    }
+
+    /**
+     * **失败不许被缓存。** 全失败时如果也留下记忆，一次网络抖动会被放大成
+     * "接下来 3 秒连重试都不会发生" —— 而线上完全看不出来（只会表现为"公告偶尔不来"）。
+     */
+    @Test
+    fun fetch_doesNotMemoizeAFailedRound() {
+        val counter = intArrayOf(0)
+        RemoteConfigClient.resetFetchMemoForTest()
+        RemoteConfigClient.testResponder = java.util.function.Function {
+            counter[0]++
+            throw java.io.IOException("模拟网络故障")
+        }
+        try {
+            RemoteConfigClient.fetch()
+            RemoteConfigClient.fetch()
+            assertEquals(
+                "失败的那一轮绝不能进记忆，否则 3 秒内的重试会被吃掉",
+                8, counter[0],
+            )
+        } finally {
+            RemoteConfigClient.testResponder = null
+            RemoteConfigClient.resetFetchMemoForTest()
+        }
+    }
+
+    /**
+     * 带 `Raw` 的调用命中记忆时，**必须把原始 JSON 回填给调用方**。
+     *
+     * `maybeFetchNotices` 靠这个 sink 落盘缓存；如果命中记忆时不回填，
+     * 它就会拿着 `null` 去 `storeCache` —— 表现为"公告能显示，但下次启动没有离线缓存"。
+     */
+    @Test
+    fun fetch_fillsTheRawSinkEvenWhenItComesFromTheMemo() {
+        val counter = intArrayOf(0)
+        RemoteConfigClient.resetFetchMemoForTest()
+        RemoteConfigClient.testResponder = okResponder(counter)
+        try {
+            RemoteConfigClient.fetch()
+            val raw = RemoteConfigClient.Raw()
+            RemoteConfigClient.fetch(raw)
+            assertNotNull("命中记忆时也必须把原始 JSON 回填给 sink", raw.notice)
+            assertNotNull("control 也要回填", raw.control)
+            assertEquals("第二轮应当命中记忆，网络只被打过一轮", 4, counter[0])
+        } finally {
+            RemoteConfigClient.testResponder = null
+            RemoteConfigClient.resetFetchMemoForTest()
+        }
+    }
 }

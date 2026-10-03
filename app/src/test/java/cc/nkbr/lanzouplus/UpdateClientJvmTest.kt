@@ -97,6 +97,23 @@ class UpdateClientJvmTest {
         assertFalse("带用户信息必须拒绝", checkUrlAllowed("http://user:pw@$host/apk/x.apk"))
     }
 
+    /**
+     * [2026-10-03 补] **放宽的边界还包括端口。**
+     *
+     * 原来自有服务器分支是 `host.equals(own)` 直接 `return true` —— 不检查端口，
+     * 于是 `http://<host>:8080/x.apk` 也被放行，与注释自称的「放宽是**有界**的」矛盾。
+     * 2026-10-03 对抗性复查用 JDK 实跑 17 个 URL 时发现了这条。
+     */
+    @Test
+    fun ownServerRelaxation_isAlsoBoundedByPort() {
+        val host = java.net.URL(RemoteConfigClient.BASE).host
+        assertTrue("默认端口（不带 :port）必须放行", checkUrlAllowed("http://$host/apk/x.apk"))
+        assertTrue("显式 :80 必须放行", checkUrlAllowed("http://$host:80/apk/x.apk"))
+        assertTrue("显式 :443 必须放行", checkUrlAllowed("https://$host:443/apk/x.apk"))
+        assertFalse("非标端口必须拒绝 —— 否则「有界」这句话就是假的", checkUrlAllowed("http://$host:8080/apk/x.apk"))
+        assertFalse("非标端口必须拒绝（https 同理）", checkUrlAllowed("https://$host:8443/apk/x.apk"))
+    }
+
     /** 版本比较方向：同版本不提示，旧版本不提示，新版本才提示。 */
     @Test
     fun versionComparisonIsDirectional() {

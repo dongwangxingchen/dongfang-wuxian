@@ -361,9 +361,19 @@ cp "$apk" "$target"
 if code < current:      # 相等时不拦
 ```
 
-CLI 路径允许**重复发布同一个 versionCode**（会原地覆盖记录），
-而控制台（`server/dfwx-admin/index.html` 的 `guardVersionTransition`，publish 模式）
-对相等是**硬拦**的。两条路径规则不一致。
+CLI 路径允许**重复发布同一个 versionCode**（会原地覆盖记录）。
+
+> ⚠️ **[2026-10-03 更正] 下面这句已经过时。** 控制台那个 `guardVersionTransition`
+> **已被删除** —— 用户 2026-10-03 明确要求"别拦我，版本号我自己填"。
+> 现在控制台对"相等"和"变小"都只给一句警告（`versionTransitionWarning`），点了就发。
+>
+> 所以两条路径的不一致**从"控制台更严"变成了"CLI 更严"**：
+> CLI 变小硬拒（除 `ALLOW_DOWNGRADE=1`），控制台只警告。
+> **这带来一条新风险：网页上可以静默发出降级版本**（用户不会看到任何拦截），
+> 建议后续给控制台补上"降级需二次确认 + 写进发布历史"。
+
+原来这里写的是：控制台（`server/dfwx-admin/index.html` 的 `guardVersionTransition`，publish 模式）
+对相等是**硬拦**的，两条路径规则不一致。
 
 CLI 显式传 `CODE`，相等很可能是"重发一个修过的包"的有意行为，所以定级 P3 而不是 P0。
 但建议要么统一，要么在卡/文档里写明「CLI 允许同序号重发，控制台不允许」——
