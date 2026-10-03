@@ -230,15 +230,80 @@ class NoticeBannerJvmTest {
     }
 
     @Test
-    fun showUpdateNotice_replacesPrevious_soNoticesDoNotStack() {
-        // 连点「检查更新」时旧条先撤，避免叠罗汉。
+    fun showUpdateNotice_repeatedClicksDoNotStackOrFlicker() {
+        /*
+         * 连点「检查更新」不许叠罗汉，也不许闪。
+         *
+         * [DFW-137 2026-10-03] 这条测试原来断言的是「第二条必须把第一条顶掉」
+         * （`first !== activeNoticeBanner`）。那是**实现手段**，不是要求 ——
+         * 要求是「同一时刻只留一条，不叠罗汉」。
+         *
+         * 现在更贴合要求：**同一句话正在显示时直接忽略重复请求**。
+         * 顶掉重播的做法有个副作用：用户点了两下，屏幕上闪两下，第二次等于白闪。
+         */
         val a = activity()
         a.showUpdateNotice("正在检查更新…", false)
         shadowOf(Looper.getMainLooper()).idle()
         val first = a.activeNoticeBanner
+        assertNotNull("第一条应该已经在显示", first)
         a.showUpdateNotice("正在检查更新…", false)
         shadowOf(Looper.getMainLooper()).idle()
-        assertNotNull("第二条必须上屏", a.activeNoticeBanner)
-        assertFalse("旧条必须已被替换/关闭", first === a.activeNoticeBanner && first!!.isShowing())
+        assertTrue("同一时刻只许有一条，不许叠罗汉", first === a.activeNoticeBanner)
+        assertTrue("第一条不许被打断，它还在显示", first!!.isShowing())
+        assertEquals("重复的同一句话不该进队列", 0, a.pendingNotices.size)
+    }
+
+    /**
+     * [DFW-137 2026-10-03] **两条不同的话，第一条不许被砍掉。**
+     *
+     * 这是本轮的起因。原来 `showTopBanner` 拿到新提示就无条件 dismiss 上一条，
+     * 于是两条提示相隔不到显示时长（短 2500ms / 长 5000ms）时，
+     * **第一条用户一个字都看不到** —— 屏幕上只剩一片闪。
+     *
+     * 「话太多」的真实体感来自这里：不是文案多，是**说了等于没说**。
+     * 删文案治不了它，反而会把「能看见的 1 条」变成「看不见的 3 条」。
+     */
+    @Test
+    fun aDifferentNoticeWaitsItsTurnInsteadOfCuttingOffTheFirst() {
+        val a = activity()
+        a.showNotice("已复制", false)
+        shadowOf(Looper.getMainLooper()).idle()
+        val first = a.activeNoticeBanner
+        assertNotNull("第一条应该已经在显示", first)
+
+        a.showNotice("已删除", false)
+        shadowOf(Looper.getMainLooper()).idle()
+        assertTrue("第一条必须继续显示完，不许被砍", first === a.activeNoticeBanner)
+        assertEquals("第二条要排队等着，不能被丢掉", 1, a.pendingNotices.size)
+        assertEquals("排队的内容不能串", "已删除", a.pendingNotices.peekFirst()!!.message)
+
+        // 第一条自动消失（2500ms）之后，第二条必须顶上来
+        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(4000))
+        assertNotNull("第一条消失后第二条必须显示", a.activeNoticeBanner)
+        assertFalse("现在显示的应该是第二条，不是第一条", first === a.activeNoticeBanner)
+        assertEquals("队列这时应该空了", 0, a.pendingNotices.size)
+    }
+
+    /**
+     * [DFW-137] 队列**必须有界**：真来了一串提示，不能让用户等十几秒才看完。
+     *
+     * 上限是 2 条，这是**权衡过陈旧度**的：排队解决「看不到」，
+     * 排太多就变成「看到的都是过期消息」，那时用户更困惑。
+     */
+    @Test
+    fun theQueueIsBoundedSoNoticesDoNotGoStale() {
+        val a = activity()
+        a.showNotice("第一条", false)
+        shadowOf(Looper.getMainLooper()).idle()
+        a.showNotice("第二条", false)
+        a.showNotice("第三条", false)
+        a.showNotice("第四条", false)
+        shadowOf(Looper.getMainLooper()).idle()
+        assertEquals(
+            "队列必须封顶，不许无限堆积（否则用户会看到十几秒前的旧消息）",
+            MainActivity.NOTICE_QUEUE_MAX,
+            a.pendingNotices.size,
+        )
+        assertEquals("超出上限时挤掉最旧的，保留最新的", "第四条", a.pendingNotices.peekLast()!!.message)
     }
 }
