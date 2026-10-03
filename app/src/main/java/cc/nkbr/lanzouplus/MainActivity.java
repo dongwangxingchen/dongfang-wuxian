@@ -104,7 +104,7 @@ public final class MainActivity extends androidx.activity.ComponentActivity impl
   java.util.List<String> pendingAiPermissions; int pendingAiIndex; Runnable pendingAiProceed;
     final ExecutorService io=Executors.newFixedThreadPool(Math.max(1,LanzouCore.adaptiveNetworkWorkers(Integer.MAX_VALUE))),imageIo=Executors.newFixedThreadPool(Math.max(1,LanzouCore.adaptiveSourceWorkers(0,Integer.MAX_VALUE))),searchIndexIo=Executors.newSingleThreadExecutor(r->{Thread thread=new Thread(r,"search-index-cache");thread.setDaemon(true);return thread;}); final DownloadHistoryStore downloadHistory=new DownloadHistoryStore(this::serializeDownloadHistory,json->{getSharedPreferences("download_history",MODE_PRIVATE).edit().putString("items",json).commit();}); final Handler ui=new Handler(Looper.getMainLooper()); LanzouCore core; DirectLinkResolver directResolver; AdbShellManager adbShell;
   ScrollView homeScroll; LinearLayout homeColumn;
-  FrameLayout host,pageHost,searchScrollFrame,folderPullFrame; ViewGroup homeStage; ScrollView toastScroll,pageScroll; FolderPullScrollView folderPullScroll; HorizontalScrollView homeRecommendationsScroll; PopupWindow breadcrumbChooser; LinearLayout root,content,toastLayer,downloadList,selectionBar,sourceSelectionBar,downloadSelectionBar,folderPullIndicator,pageHeaderRow,primaryShell,homeBrand,homeHistory,homeRecommendations,homeLibsBand,sourceCategoryStrip,downloadFilterStrip,downloadExtensionStrip,autoInstallDownloadsRow; EditText search,sourceSearch,sourceFilter; ImageButton searchBack,selectionCopyDescription,selectionCategorize,selectionRenameFolder,sourceSelectionRename; LinearLayout downloadGlobalControlButton,downloadPauseControlButton,downloadActionRowView; ImageButton downloadHeaderMenuButton; ProgressBar progress,indexProgressBar; DfwxLoadingRing folderMoreSpinner; Button selectionAllButton,sourceSelectionAllButton,downloadSelectionAllButton,searchPauseButton,indexControlButton; TextView status,statusRight,selectionSummary,sourceSelectionSummary,downloadSelectionSummary,sourceHeading,homeRecommendation,downloadPathText,settingsDownloadPathText,folderPullLabel,adbPermissionState,indexProgressText,indexCurrentText,indexUpdatedText; LumaSwitch adbSilentInstallSwitch; GridLayout itemsGrid,liveGrid,sourceGrid,historyGrid; SearchDragBar searchDragBar; SearchCategoryPicker homeCategoryPicker; View pageFrame,homeSearchBox,homeSearchCategory,folderEmptyState;
+  FrameLayout host,pageHost,searchScrollFrame,folderPullFrame; ViewGroup homeStage; ScrollView toastScroll,pageScroll; FolderPullScrollView folderPullScroll; HorizontalScrollView homeRecommendationsScroll; PopupWindow breadcrumbChooser; LinearLayout root,content,toastLayer,downloadList,selectionBar,sourceSelectionBar,downloadSelectionBar,folderPullIndicator,pageHeaderRow,primaryShell,homeBrand,homeHistory,homeRecommendations,homeLibsBand,sourceCategoryStrip,downloadFilterStrip,downloadExtensionStrip,autoInstallDownloadsRow; EditText search,sourceSearch,sourceFilter; ImageButton searchBack,selectionCopyDescription,selectionCategorize,selectionRenameFolder,sourceSelectionRename;  ImageButton downloadHeaderMenuButton; ProgressBar progress,indexProgressBar; DfwxLoadingRing folderMoreSpinner; Button selectionAllButton,sourceSelectionAllButton,downloadSelectionAllButton,searchPauseButton,indexControlButton; TextView status,statusRight,selectionSummary,sourceSelectionSummary,downloadSelectionSummary,sourceHeading,homeRecommendation,downloadPathText,settingsDownloadPathText,folderPullLabel,adbPermissionState,indexProgressText,indexCurrentText,indexUpdatedText; LumaSwitch adbSilentInstallSwitch; GridLayout itemsGrid,liveGrid,sourceGrid,historyGrid; SearchDragBar searchDragBar; SearchCategoryPicker homeCategoryPicker; View pageFrame,homeSearchBox,homeSearchCategory,folderEmptyState;
   List<Models.Item> current=new ArrayList<>(),folderItems=new ArrayList<>(),homeItems=new ArrayList<>(); List<FolderSearchEntry> folderSearchIndex=new ArrayList<>(),folderSearchCandidates=new ArrayList<>(); final Set<String> liveUrls=new HashSet<>(),currentSourceSearchUrls=new LinkedHashSet<>(),selectedUrls=new LinkedHashSet<>(),selectedSourceUrls=new LinkedHashSet<>(),testingSourceUrls=new HashSet<>(),autoRetriedDirs=new HashSet<>(); final Map<String,CheckBox> selectionChecks=new HashMap<>(),sourceSelectionChecks=new HashMap<>(); final Map<String,View> liveRows=new HashMap<>(); final Map<String,LinkedHashSet<String>> sourceCategories=new LinkedHashMap<>(); final Map<String,String> sourceSearchCorpora=new HashMap<>(); final List<Models.Source> visibleSources=new ArrayList<>(); final boolean[] sourceSelectionKinds={true,true,true,true}; List<Models.Source> sourcePageSources; final Set<DownloadEntry> selectedDownloads=new LinkedHashSet<>(); final Map<DownloadEntry,CheckBox> downloadChecks=new IdentityHashMap<>(); final List<FolderPageState> folderTrail=new ArrayList<>(); final Object sourceSearchLock=new Object(),searchUiLock=new Object(),directoryIndexPauseLock=new Object(); final ArrayDeque<Models.Item> pendingSearchAdds=new ArrayDeque<>(); final LinkedHashMap<String,Models.Item> pendingSearchUpdates=new LinkedHashMap<>(); FolderPageState activeFolderState; Models.Folder activeFolderProfile; Models.Source activeSource; Runnable systemBackAction,sourceSearchRunnable,folderLoadRunnable,folderPullCountdownRunnable; String currentSourceQuery="",folderSearchPreviousQuery="",downloadQuery="",downloadStateFilter="全部",downloadExtensionFilter="全部",activeSourceCategory="全部",folderPullRequestUrl=""; int folderSearchIndexedSize=-1,liveColumns=2,navigationSession,sourceSearchSession,sourceSearchPages,sourceRenderSession,sourceDataRevision,downloadFilterGeneration,sourceFilterGeneration,visible=50,pageDirection=1,folderNextPage=2,lastLayoutWidth,lastHostWidth,lastHostHeight,primaryDestination=-1,pageKind,folderPullRequestSession=-1,folderPullRequestPage,folderAutoExpandInitialRemaining,folderAutoExpandNextRemaining,pendingSearchSession=-1,pendingSearchEpoch=-1,searchFolderCount,searchWindowTarget,searchWindowDirtyFrom; volatile int searchGeneration,searchRenderEpoch; volatile GridLayout searchRenderGrid; GridLayout pendingSearchGrid; long folderNextReadyAt,folderEndNoticeUntil,searchUiTokenAt; double searchUiTokens; boolean profilePresent,folderProfilePending,downloadsPage,selectionMode,sourceSelectionMode,downloadSelectionMode,folderRootSources,folderHasMore,folderLoadingMore,folderRefreshing,primaryNavigationSwitch,homeSearchFocused,homeSearchRequested,homeSearchHistoryOnly,homePrefetchStarted,restoringFolderState,sourceSearchRunning,sourceSearchPaused,searchUiPosted,pendingSearchRefresh,searchWindowPosted,sessionBatchDownloadSingleItem,sessionOpenWebExternal,directoryIndexUserPaused,directoryIndexSearchPaused,directoryIndexResumePending;
   /**
    * DFW-40：图标加载的**失败记忆**（负缓存）。
@@ -1012,7 +1012,7 @@ android.graphics.Insets none=android.graphics.Insets.NONE;android.view.WindowIns
     // 用户走的是"进子页 → 返回"，那时 pageKind 已经是子页的值，于是永远记不到，返回必然回顶
     // （用户 2026-10-01："全部按钮都是啊，点击进去后退出，绝对返回到顶部，这是必然事件"）。
     if(pageKind==4&&pageScroll!=null)settingsScrollY=pageScroll.getScrollY();
-    clearHomeBrandCiallo();navigationSession++;invalidateSearchRenderSurface();synchronized(sourceSearchLock){sourceSearchSession++;sourceSearchRunning=false;sourceSearchPaused=false;sourceSearchLock.notifyAll();}sourceRenderSession++;dismissBreadcrumbChooser();cancelFolderPullWork();systemBackAction=null;liveGrid=null;itemsGrid=null;sourceGrid=null;sourceHeading=null;sourceFilter=null;sourceCategoryStrip=null;searchDragBar=null;searchScrollFrame=null;searchPauseButton=null;progress=null;status=null;statusRight=null;liveUrls.clear();currentSourceSearchUrls.clear();selectedUrls.clear();selectionChecks.clear();selectionMode=false;selectionBar=null;selectionSummary=null;selectionCopyDescription=null;selectionCategorize=null;selectionRenameFolder=null;selectedSourceUrls.clear();sourceSelectionChecks.clear();visibleSources.clear();sourcePageSources=null;sourceSelectionMode=false;sourceSelectionBar=null;sourceSelectionSummary=null;sourceSelectionRename=null;selectedDownloads.clear();downloadChecks.clear();downloadSelectionMode=false;downloadSelectionBar=null;downloadSelectionSummary=null;downloadGlobalControlButton=null;downloadPauseControlButton=null;downloadActionRowView=null;downloadHeaderMenuButton=null;downloadsPage=false;downloadLabels.clear();downloadBars.clear();folderPullFrame=null;folderPullScroll=null;folderPullIndicator=null;folderPullLabel=null;folderMoreSpinner=null;pageHeaderRow=null;settingsDownloadPathText=null;settingsSearchInput=null;settingsSearchEmpty=null;settingsSearchSections.clear();profilePresent=false;folderProfilePending=false;homeSearchFocused=false;homeStage=null;homeBrand=null;homeHistory=null;homeRecommendations=null;homeRecommendationsScroll=null;homeRecommendation=null;homeSearchBox=null;homeSearchCategory=null;homeCategoryPicker=null;homeLibsBand=null;if(sourceSearchRunnable!=null)ui.removeCallbacks(sourceSearchRunnable);if(sourceListFilterRunnable!=null)ui.removeCallbacks(sourceListFilterRunnable);sourceListFilterRunnable=null;if(searchDebounceRunnable!=null)ui.removeCallbacks(searchDebounceRunnable);searchDebounceRunnable=null;downloadRenderGeneration++;View previous=pageFrame;root=new LinearLayout(this);root.setOrientation(LinearLayout.VERTICAL);root.setPadding(dp(16),dp(8),dp(16),dp(16));root.addOnLayoutChangeListener((v,l,t,r,b,ol,ot,or_,ob)->{int width=r-l;if(width>0&&Math.abs(width-lastLayoutWidth)>dp(12)){lastLayoutWidth=width;ui.post(this::refreshAdaptiveLayout);}});
+    clearHomeBrandCiallo();navigationSession++;invalidateSearchRenderSurface();synchronized(sourceSearchLock){sourceSearchSession++;sourceSearchRunning=false;sourceSearchPaused=false;sourceSearchLock.notifyAll();}sourceRenderSession++;dismissBreadcrumbChooser();cancelFolderPullWork();systemBackAction=null;liveGrid=null;itemsGrid=null;sourceGrid=null;sourceHeading=null;sourceFilter=null;sourceCategoryStrip=null;searchDragBar=null;searchScrollFrame=null;searchPauseButton=null;progress=null;status=null;statusRight=null;liveUrls.clear();currentSourceSearchUrls.clear();selectedUrls.clear();selectionChecks.clear();selectionMode=false;selectionBar=null;selectionSummary=null;selectionCopyDescription=null;selectionCategorize=null;selectionRenameFolder=null;selectedSourceUrls.clear();sourceSelectionChecks.clear();visibleSources.clear();sourcePageSources=null;sourceSelectionMode=false;sourceSelectionBar=null;sourceSelectionSummary=null;sourceSelectionRename=null;selectedDownloads.clear();downloadChecks.clear();downloadSelectionMode=false;downloadSelectionBar=null;downloadSelectionSummary=null;downloadHeaderMenuButton=null;downloadsPage=false;downloadLabels.clear();downloadBars.clear();folderPullFrame=null;folderPullScroll=null;folderPullIndicator=null;folderPullLabel=null;folderMoreSpinner=null;pageHeaderRow=null;settingsDownloadPathText=null;settingsSearchInput=null;settingsSearchEmpty=null;settingsSearchSections.clear();profilePresent=false;folderProfilePending=false;homeSearchFocused=false;homeStage=null;homeBrand=null;homeHistory=null;homeRecommendations=null;homeRecommendationsScroll=null;homeRecommendation=null;homeSearchBox=null;homeSearchCategory=null;homeCategoryPicker=null;homeLibsBand=null;if(sourceSearchRunnable!=null)ui.removeCallbacks(sourceSearchRunnable);if(sourceListFilterRunnable!=null)ui.removeCallbacks(sourceListFilterRunnable);sourceListFilterRunnable=null;if(searchDebounceRunnable!=null)ui.removeCallbacks(searchDebounceRunnable);searchDebounceRunnable=null;downloadRenderGeneration++;View previous=pageFrame;root=new LinearLayout(this);root.setOrientation(LinearLayout.VERTICAL);root.setPadding(dp(16),dp(8),dp(16),dp(16));root.addOnLayoutChangeListener((v,l,t,r,b,ol,ot,or_,ob)->{int width=r-l;if(width>0&&Math.abs(width-lastLayoutWidth)>dp(12)){lastLayoutWidth=width;ui.post(this::refreshAdaptiveLayout);}});
     selectionAllButton=null;sourceSelectionAllButton=null;downloadSelectionAllButton=null;if(host==null){host=new FrameLayout(this);host.setBackgroundColor(BG);host.addOnLayoutChangeListener((v,l,t,r,b,ol,ot,or_,ob)->{int width=r-l,height=b-t;if(width>0&&height>0&&(Math.abs(width-lastHostWidth)>dp(2)||Math.abs(height-lastHostHeight)>dp(2))){lastHostWidth=width;lastHostHeight=height;ui.post(this::refreshAdaptiveLayout);ui.post(this::reflowNavBall);}});pageHost=new FrameLayout(this);host.addView(pageHost,new FrameLayout.LayoutParams(-1,-1));toastScroll=new ScrollView(this);toastScroll.setFillViewport(false);toastScroll.setVerticalScrollBarEnabled(false);toastScroll.setVisibility(View.GONE);toastLayer=new LinearLayout(this);toastLayer.setOrientation(LinearLayout.VERTICAL);toastScroll.addView(toastLayer,new ScrollView.LayoutParams(-1,-2));/* [DFW-54] 下载卡的起始位置原来写死 64dp，而顶部通知条占的是
        [状态栏高度+8, 状态栏高度+52] —— 两者会**物理重叠**（有状态栏的机器上必然撞）。
        改成跟着状态栏让位，保证通知条出现时下载卡在它下面。 */
@@ -4040,7 +4040,7 @@ content=new LinearLayout(this);content.setOrientation(LinearLayout.VERTICAL);pag
   }
   Runnable searchDebounceRunnable;int downloadRenderGeneration;
   void renderDownloads(String query){
-    if(downloadList==null)return;downloadQuery=query;refreshDownloadGlobalControl();downloadList.removeAllViews();downloadLabels.clear();downloadBars.clear();downloadActions.clear();selectionHiddenViews.clear();downloadRows.clear();downloadChecks.clear();batchDownloadLabels.clear();batchDownloadBars.clear();batchDownloadRows.clear();batchDownloadChecks.clear();downloadRenderGeneration++;
+    if(downloadList==null)return;downloadQuery=query;refreshDownloadHeaderMenu();downloadList.removeAllViews();downloadLabels.clear();downloadBars.clear();downloadActions.clear();selectionHiddenViews.clear();downloadRows.clear();downloadChecks.clear();batchDownloadLabels.clear();batchDownloadBars.clear();batchDownloadRows.clear();batchDownloadChecks.clear();downloadRenderGeneration++;
     java.util.List<Object> specs=new ArrayList<>();Set<String> renderedBatches=new HashSet<>();
     for(DownloadEntry entry:downloadEntries)if(downloadMatchesCurrentView(entry)){if(sessionBatchDownloadSingleItem&&!entry.batchId.isEmpty()){if(renderedBatches.add(entry.batchId)){List<DownloadEntry> batch=downloadBatchEntries(entry.batchId);boolean any=false;for(DownloadEntry child:batch)if(downloadMatchesCurrentView(child)){any=true;break;}if(any)specs.add(new DownloadRowSpec(entry.batchId,batch));}}else specs.add(entry);}
     if(specs.isEmpty()){
@@ -4055,10 +4055,11 @@ content=new LinearLayout(this);content.setOrientation(LinearLayout.VERTICAL);pag
           noEntries?"在资源页选一个文件就能开始下载，长按可以批量选":"换个关键词，或把上面的筛选切回「全部」");
       /* 空态文案垂直居中：优先用列表区实测高度，量不到才退回估算。
          旧写法把 chrome 写死 286dp，而实测 chrome 只有 225dp（含操作行），文案因此偏上约 30dp。
-         估算值按实测 chrome；[2026-10-03] 两条筛选条高度由 dp(38) 提到 dpText(44)（token §4 胶囊 44–48dp），
-         所以这里的兜底值同步 +12dp。正常路径走 pageScroll 实测高度，不受影响。 */
-      boolean actionRowShown=downloadActionRowView!=null&&downloadActionRowView.getVisibility()==View.VISIBLE;
-      int chrome=actionRowShown?dp(237):dp(193);
+         [2026-10-03 重排] 顶部是 4 条横杠 + 每段 8dp 间距 + 列表前 10dp：
+           页头 56 + 8 + 搜索 48 + 8 + 状态条 44 + 8 + 扩展名条 44 + 10 = **226dp**。
+         注意它现在**不再随"有没有在跑的任务"变化** —— 旧的操作行会上下跳 44dp，
+         这正是本轮把它整行搬进 ⋯ 菜单的原因之一。正常路径走 pageScroll 实测高度，这个值只是首帧兜底。 */
+      int chrome=dp(226);
       int measured=pageScroll==null?0:pageScroll.getHeight();
       int viewport=measured>dp(240)?measured:Math.max(dp(240),getResources().getDisplayMetrics().heightPixels-chrome);
       downloadList.addView(empty,new LinearLayout.LayoutParams(-1,viewport));
@@ -4160,89 +4161,68 @@ content=new LinearLayout(this);content.setOrientation(LinearLayout.VERTICAL);pag
   }
   /** v1.22.3 扩展名胶囊行：整行独占（原先与 4 个全局操作按钮挤同一行 → 360dp 窄屏上留给胶囊仅约 176dp，
    *  「应用程序」等被按钮边界截断，视觉上像"按钮被边距挡住"）。改为胶囊整行可横滚，按钮移到独立行。 */
-  LinearLayout downloadExtensionChipRow(LinearLayout strip){LinearLayout row=new LinearLayout(this);row.setGravity(Gravity.CENTER_VERTICAL);HorizontalScrollView scroll=new HorizontalScrollView(this);scroll.setHorizontalScrollBarEnabled(false);scroll.setFillViewport(false);strip.setOrientation(LinearLayout.HORIZONTAL);strip.setPadding(0,dp(2),dp(8),dp(2));scroll.addView(strip,new HorizontalScrollView.LayoutParams(-2,dpText(44)));row.addView(scroll,new LinearLayout.LayoutParams(-1,dpText(44)));return row;}
-  /** 下载页 UI 优化（2026-10-02）：全局操作按钮改为「图标 + 文字标签」胶囊。
-      改前这排是 5 个裸图标（用户反馈「下载UI界面有点丑」），且「清除分享密码」错用了复制图标 ic_copy。
-      [DFW-113 2026-10-03 重做] 行上从 3 颗减到 **2 颗**（暂停全部 / 取消全部），
-      「更多」已搬进页头做 ⋮ 图标（理由见 showDownloads 里那段注释与用户 2026-10-03 的截图反馈）。
-      这一行现在**只在真有在跑的任务时出现**（见 refreshDownloadGlobalControl）：
-      没有进行中/暂停任务时整行 GONE，把 dpText(44) 一行高度还给 weight=1 的列表。
-      这是"不再挤压列表"的直接手段 —— 用户截图里「更多」骑到列表上，根因就是固定高度的行太多。 */
-  LinearLayout downloadActionRow(){
+  /**
+   * 扩展名胶囊行。
+   *
+   * [2026-10-03] 加**右缘渐隐**。这一行 8 个胶囊在 360dp 上根本放不下（实测算下来约 470dp），
+   * 必然有胶囊被屏幕边缘**切成一半** —— 静态看就是"这个胶囊坏了"，用户 2026-10-03 的
+   * 「按钮都被黑色遮住了…错位了」里有一部分就是它。
+   * 加一层 BG→透明的渐变之后，切边变成「右边还有，可以滑」的暗示，这是通行做法。
+   *
+   * 只加在这一行，不加在状态筛选行：那一行 5 个标签在 360dp 内排得下（实测 274dp ≤ 328dp），
+   * 不会溢出，加渐隐反而会平白压暗一块。
+   */
+  LinearLayout downloadExtensionChipRow(LinearLayout strip){
     LinearLayout row=new LinearLayout(this);
-    row.setGravity(Gravity.END|Gravity.CENTER_VERTICAL);
-    LinearLayout strip=new LinearLayout(this);
-    strip.setOrientation(LinearLayout.HORIZONTAL);
-    strip.setGravity(Gravity.CENTER_VERTICAL);
-    downloadPauseControlButton=downloadActionChip(R.drawable.ic_pause,"暂停全部",20,v->togglePauseAllActive());
-    downloadGlobalControlButton=downloadActionChip(R.drawable.ic_close,"取消全部",20,v->cancelAllActive());
-    strip.addView(downloadPauseControlButton,actionBtnLp(0));
-    strip.addView(downloadGlobalControlButton,actionBtnLp(dp(6)));
-    /* 字体放大到整排放不下时整排可横滚（与上面两条筛选条同款兜底）。 */
+    row.setGravity(Gravity.CENTER_VERTICAL);
     HorizontalScrollView scroll=new HorizontalScrollView(this);
     scroll.setHorizontalScrollBarEnabled(false);
     scroll.setFillViewport(false);
+    strip.setOrientation(LinearLayout.HORIZONTAL);
+    strip.setPadding(0,dp(2),dp(8),dp(2));
     scroll.addView(strip,new HorizontalScrollView.LayoutParams(-2,dpText(44)));
-    /* 宽度 wrap_content：放得下时整排右对齐，放不下时自动占满可用宽并横滚。 */
-    row.addView(scroll,new LinearLayout.LayoutParams(-2,dpText(44)));
-    downloadActionRowView=row;
-    refreshDownloadGlobalControl();
+    FrameLayout box=new FrameLayout(this);
+    box.addView(scroll,new FrameLayout.LayoutParams(-1,-1));
+    View fade=new View(this);
+    fade.setBackground(new android.graphics.drawable.GradientDrawable(
+        android.graphics.drawable.GradientDrawable.Orientation.LEFT_RIGHT,
+        new int[]{0x00000000,BG}));
+    fade.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+    box.addView(fade,new FrameLayout.LayoutParams(dp(32),-1,Gravity.END));
+    row.addView(box,new LinearLayout.LayoutParams(-1,dpText(44)));
     return row;
   }
-  /** 全局操作胶囊：图标 + 文字标签（规范 §6 按钮字重 ≥550 / Label 12sp，§4 胶囊形，§3 按压 0.96 + 触觉）。 */
-  LinearLayout downloadActionChip(int icon,String label,int glyphSize,View.OnClickListener click){
-    LinearLayout chip=new LinearLayout(this);
-    chip.setGravity(Gravity.CENTER);
-    chip.setPadding(dp(9),0,dp(9),0);
-    chip.setClickable(true);
-    chip.setFocusable(true);
-    /* 胶囊形：token §4「Pill = height/2」。胶囊高 44dp ⇒ 理想圆角 22dp。
-       solidShape 会把圆角量化（>=24→26、>=14→20），所以传 24 → 26 → GradientDrawable
-       再按半宽/半高夹到 22dp，**正好等于 height/2**。传 14 只会得到 20dp，差 2dp 不是真 pill。 */
-    GradientDrawable bg=solidShape(SURFACE,24);
-    /* 1dp 描边把「操作」与上面两行「筛选胶囊」分开：同为 SURFACE 面，靠描边分职责（§5 普通描边档）。 */
-    bg.setStroke(dp(1),BORDER);
-    chip.setBackground(filterRipple(bg));
-    chip.setContentDescription(label);
-    chip.setOnClickListener(click);
-    applePressScale(chip,PRESS_SCALE_PILL);
-    ImageView glyph=new ImageView(this);
-    glyph.setImageResource(icon);
-    glyph.setColorFilter(PRIMARY);
-    glyph.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
-    glyph.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
-    chip.addView(glyph,new LinearLayout.LayoutParams(dp(glyphSize),dp(glyphSize)));
-    TextView title=text(label,12,TEXT,560);
-    title.setSingleLine(true);
-    title.setGravity(Gravity.CENTER);
-    title.setPadding(dp(5),0,0,0);
-    chip.addView(title,new LinearLayout.LayoutParams(-2,-1));
-    return chip;
+  /** 给刚加进容器的视图补一个上边距（用于页面纵向节奏）。非 LinearLayout 参数则不动。 */
+  void applyTopGap(View v,int dpValue){
+    if(v==null||!(v.getLayoutParams() instanceof LinearLayout.LayoutParams))return;
+    LinearLayout.LayoutParams lp=(LinearLayout.LayoutParams)v.getLayoutParams();
+    lp.topMargin=dp(dpValue);
+    v.setLayoutParams(lp);
   }
-  /** 全局操作胶囊换装：图标 / 文案 / 可访问描述一起改。
-      这里刻意不做「置灰」——没有可操作对象时整颗胶囊直接隐藏（见 refreshDownloadGlobalControl），
-      不摆一颗点不动的按钮占位。 */
-  void updateDownloadActionChip(LinearLayout chip,int icon,String label){
-    if(chip==null)return;
-    if(chip.getChildCount()>=2){
-      View glyph=chip.getChildAt(0);
-      if(glyph instanceof ImageView)((ImageView)glyph).setImageResource(icon);
-      View title=chip.getChildAt(1);
-      if(title instanceof TextView)((TextView)title).setText(label);
-    }
-    chip.setContentDescription(label);
-  }
-  /** 下载页「更多」菜单：删除全部记录 / 删除全部文件 / 清除保存的分享密码。
-      为什么收进菜单而不是并排放在行上：
-      1. 窄屏可用宽只有 328dp，5 个带文字的胶囊放不下（实测 4 字标签 + 图标要 84dp/个，
-         5 个约 430dp）——硬塞只能把字号压到 9sp 以下，反而更看不清；
-      2. 这三项都动用户数据且低频，与「暂停全部 / 取消全部」并排容易误触；
-      3. 每行沿用设置页的 settingsAction（图标 + 文字标签），全站同一套行语言，不新增组件。 */
+  /**
+   * 下载页「更多操作」菜单（页头 ⋮）。
+   *
+   * ## [2026-10-03 重排] 它现在同时承担原来的「全局操作行」
+   * 「暂停全部 / 继续全部」「取消全部」从列表上方**独立一行**搬到这里，原因是那一行有三个毛病：
+   *   ① 只在有任务时出现 → 列表跟着上下跳 44dp；
+   *   ② 只有两颗胶囊还右对齐 → 左边一大片空，看着像掉在那儿（用户：「错位了」）；
+   *   ③ 它让顶部在有任务时多出**第 5 条横杠**（236dp）。
+   * 搬进来之后顶部**恒定 4 条**，不再随任务增减跳动，而且这两个动作本来就不是高频操作。
+   *
+   * 暂停/取消两项**只在真有对象时才出现** —— 没有在跑的任务却摆一颗点了没反应的按钮是坏设计。
+   */
   void showDownloadMaintenanceMenu(){
     LinearLayout panel=new LinearLayout(this);
     panel.setOrientation(LinearLayout.VERTICAL);
     panel.setPadding(dp(6),dp(4),dp(6),dp(4));
     final AlertDialog[] menu={null};
+    boolean hasActive=false,hasPaused=false;
+    for(DownloadEntry entry:downloadEntries){if(isDownloadActive(entry))hasActive=true;else if(entry.state.equals(DOWNLOAD_PAUSED))hasPaused=true;}
+    if(hasActive||hasPaused){
+      if(hasPaused)panel.addView(settingsAction(R.drawable.ic_play,"继续全部",v->{if(menu[0]!=null)menu[0].dismiss();resumeAllPaused();}),new LinearLayout.LayoutParams(-1,-2));
+      else panel.addView(settingsAction(R.drawable.ic_pause,"暂停全部",v->{if(menu[0]!=null)menu[0].dismiss();togglePauseAllActive();}),new LinearLayout.LayoutParams(-1,-2));
+      if(hasActive)panel.addView(settingsAction(R.drawable.ic_close,"取消全部",v->{if(menu[0]!=null)menu[0].dismiss();cancelAllActive();}),new LinearLayout.LayoutParams(-1,-2));
+    }
     panel.addView(settingsAction(R.drawable.ic_delete_record,"删除全部记录",v->{if(menu[0]!=null)menu[0].dismiss();confirmDeleteAllDownloadRecords();}),new LinearLayout.LayoutParams(-1,-2));
     panel.addView(settingsAction(R.drawable.ic_delete_file,"删除全部文件",v->{if(menu[0]!=null)menu[0].dismiss();confirmDeleteAllDownloadedFiles();}),new LinearLayout.LayoutParams(-1,-2));
     /* DFW-16：分享密码此前明文留在历史里且没有清理入口，这里给一个（只清密码，不动记录）。
@@ -4254,51 +4234,18 @@ content=new LinearLayout(this);content.setOrientation(LinearLayout.VERTICAL);pag
     menu[0]=new AlertDialog.Builder(this).setTitle("更多操作").setView(panel).setNegativeButton("关闭",null).create();
     showRounded(menu[0]);
   }
-  /** 下载页全局操作胶囊的统一尺寸 + 左侧留白；高度走 dpText 随字体缩放（DFW-13），标签才不会被裁。 */
-  LinearLayout.LayoutParams actionBtnLp(int leftMargin){LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-2,dpText(44));lp.leftMargin=leftMargin;return lp;}
-  void refreshDownloadGlobalControl(){
-    if(downloadActionRowView==null)return;
-    boolean hasActive=false,hasPaused=false;
-    for(DownloadEntry entry:downloadEntries){if(isDownloadActive(entry))hasActive=true;else if(entry.state.equals(DOWNLOAD_PAUSED))hasPaused=true;}
-    boolean hasWork=hasActive||hasPaused;
-    /* [DFW-113 2026-10-03 重做] 整行的可见性 = **只跟 hasWork 走**。
-     *
-     * 改前是 `downloadEntries.isEmpty()?GONE:VISIBLE` —— 于是"有历史记录但没在跑的任务"时
-     * 整行 VISIBLE，而里面「暂停全部」「取消全部」各自 GONE，只剩一颗「更多」孤零零贴最右。
-     * 用户 2026-10-03 真机截图：「『更多』两个字的按钮都已经崩坏了，位置都错误了，
-     * 都把我下载的软件挤出去了」——他看到的"崩坏"就是这个形态。
-     *
-     * 现在「更多」已经搬到页头（showDownloads），这一行只剩两颗"对在跑任务才成立"的胶囊，
-     * 所以 hasWork=false 时**整行隐藏**：既没有半空的怪形态，又把 dpText(44) 一行高度
-     * 还给 weight=1 的列表（列表是本页唯一会被压缩的那个，固定行越少它越宽裕）。
-     *
-     * 功能没有丢：删除记录 / 删除文件 / 清除分享密码 全在页头 ⋮ 菜单里，
-     * 不需要任何一条下载记录也能打开（这是它比"藏进操作行"更合理的地方）。 */
-    downloadActionRowView.setVisibility(hasWork?View.VISIBLE:View.GONE);
-    /* 页头 ⋮ 的可见性：空历史时隐藏。
-       沿用本项目一贯的「不摆一颗点不动的按钮」原则 —— 菜单里三项（删除全部记录 / 删除全部文件 /
-       清除保存的分享密码）在零记录时全是空操作，其中「清除分享密码」的计数还直接来自 downloadEntries。 */
+  /**
+   * 刷新下载页页头 ⋯ 的可见性。
+   *
+   * 改前这里管的是列表上方那条**全局操作行**（暂停全部/取消全部/更多）。2026-10-03 重排后
+   * 那一行整行搬进了 ⋯ 菜单（见 `showDownloadMaintenanceMenu`），所以这里只剩一件事：
+   * **空历史时把 ⋯ 藏起来**。
+   *
+   * 为什么空历史要藏：本项目一贯「不摆一颗点不动的按钮」。菜单里的项（暂停/取消全部、
+   * 删除全部记录/文件、清除分享密码）在零记录时全是空操作。
+   */
+  void refreshDownloadHeaderMenu(){
     if(downloadHeaderMenuButton!=null)downloadHeaderMenuButton.setVisibility(downloadEntries.isEmpty()?View.GONE:View.VISIBLE);
-    /* 左胶囊是双向开关（togglePauseAllActive：有进行中就全暂停，否则全继续），
-       标签必须跟着真实动作走。原来写死「暂停全部」，在「全部已暂停」状态下点下去其实是继续 —— 标签与动作不符。
-       两个胶囊的文案现在恒不相同（暂停全部/继续全部 vs 取消全部），不会出现两个同字按钮并排。 */
-    if(downloadPauseControlButton!=null){
-      downloadPauseControlButton.setVisibility(hasWork?View.VISIBLE:View.GONE);
-      if(hasActive){
-        updateDownloadActionChip(downloadPauseControlButton,R.drawable.ic_pause,"暂停全部");
-        downloadPauseControlButton.setOnClickListener(v->togglePauseAllActive());
-      }else if(hasPaused){
-        updateDownloadActionChip(downloadPauseControlButton,R.drawable.ic_play,"继续全部");
-        downloadPauseControlButton.setOnClickListener(v->resumeAllPaused());
-      }
-    }
-    if(downloadGlobalControlButton!=null){
-      downloadGlobalControlButton.setVisibility(hasWork?View.VISIBLE:View.GONE);
-      if(hasWork){
-        updateDownloadActionChip(downloadGlobalControlButton,R.drawable.ic_close,"取消全部");
-        downloadGlobalControlButton.setOnClickListener(v->cancelAllActive());
-      }
-    }
   }
   HorizontalScrollView downloadStateFilterRow(LinearLayout strip){HorizontalScrollView scroll=new HorizontalScrollView(this);scroll.setHorizontalScrollBarEnabled(false);scroll.setFillViewport(false);strip.setOrientation(LinearLayout.HORIZONTAL);strip.setGravity(Gravity.CENTER_VERTICAL);strip.setPadding(dp(6),dp(2),dp(6),dp(2));scroll.addView(strip,new HorizontalScrollView.LayoutParams(-2,dpText(44)));return scroll;}
   // v1.22.3 窄屏修复：删 setMinimumWidth(屏宽-32dp) + CENTER_HORIZONTAL——该组合在内容超宽时把最右标签推到屏幕外（实测「下载完成」被裁成"下载完/"），
@@ -4329,7 +4276,29 @@ content=new LinearLayout(this);content.setOrientation(LinearLayout.VERTICAL);pag
       downloadHeaderMenuButton.setOnClickListener(v->showDownloadMaintenanceMenu());
       /* 48×48：token §4:128 触控区 ≥48dp。改前是 40×48，宽度不达。 */
       pageHeaderRow.addView(downloadHeaderMenuButton,new LinearLayout.LayoutParams(dp(48),dp(48)));
-      sourceFilter=pageSearch(this::renderDownloads,200);downloadFilterStrip=new LinearLayout(this);downloadExtensionStrip=new LinearLayout(this);root.addView(downloadStateFilterRow(downloadFilterStrip),new LinearLayout.LayoutParams(-1,dpText(44)));root.addView(downloadExtensionChipRow(downloadExtensionStrip),new LinearLayout.LayoutParams(-1,dpText(44)));root.addView(downloadActionRow(),new LinearLayout.LayoutParams(-1,dpText(44)));pageScroll=new ScrollView(this);downloadList=new LinearLayout(this);downloadList.setOrientation(LinearLayout.VERTICAL);pageScroll.addView(downloadList);root.addView(draggableList(pageScroll,downloadList,"拖动下载历史"),new LinearLayout.LayoutParams(-1,0,1));renderDownloadFilters();renderDownloads("");
+      sourceFilter=pageSearch(this::renderDownloads,200);
+      downloadFilterStrip=new LinearLayout(this);downloadExtensionStrip=new LinearLayout(this);
+      /* [2026-10-03 重排] 顶部纵向节奏。
+         改前页头/搜索框/状态条/扩展名条**首尾相接、间距为 0**（实测 y 224→392→546→700），
+         四条横杠糊成一坨，用户看到的"挤"和"错位"就是这个。
+         现在每条之间留 8dp，列表与上一条之间留 10dp。
+         `pageSearch` 是**共享方法**（别的页面也在用），所以不改它，只调它刚加进来的那个 box 的外边距。 */
+      applyTopGap(root.getChildAt(root.getChildCount()-1),8);
+      LinearLayout.LayoutParams stateStripLp=new LinearLayout.LayoutParams(-1,dpText(44));
+      stateStripLp.topMargin=dp(8);
+      root.addView(downloadStateFilterRow(downloadFilterStrip),stateStripLp);
+      LinearLayout.LayoutParams extStripLp=new LinearLayout.LayoutParams(-1,dpText(44));
+      extStripLp.topMargin=dp(8);
+      root.addView(downloadExtensionChipRow(downloadExtensionStrip),extStripLp);
+      /* [2026-10-03 重排] 「暂停全部 / 取消全部」那一行**整行搬进页头 ⋯ 菜单**（showDownloadMaintenanceMenu）。
+         原来那一行三个毛病：① 只在有任务时出现，列表会跟着跳 44dp；
+         ② 只有两颗胶囊还右对齐，左边一大片空，看着像掉在那儿（用户：「错位了」）；
+         ③ 它让顶部在有任务时多出**第 5 条横杠**（236dp）。
+         搬走之后顶部**恒定 4 条**，不再随任务增减跳动。 */
+      pageScroll=new ScrollView(this);downloadList=new LinearLayout(this);downloadList.setOrientation(LinearLayout.VERTICAL);pageScroll.addView(downloadList);
+      LinearLayout.LayoutParams listLp=new LinearLayout.LayoutParams(-1,0,1);
+      listLp.topMargin=dp(10);
+      root.addView(draggableList(pageScroll,downloadList,"拖动下载历史"),listLp);renderDownloadFilters();renderDownloads("");
   }
   /** 下载进度条统一样式：轨道回归色板 BORDER，填充 PRIMARY。
       默认样式（progressBarStyleHorizontal）的轨道是中性灰 #363636，是整页唯一的冷灰像素
@@ -4395,6 +4364,12 @@ content=new LinearLayout(this);content.setOrientation(LinearLayout.VERTICAL);pag
     TextView name=text(entry.name,14,TEXT,560);name.setMaxLines(1);name.setEllipsize(android.text.TextUtils.TruncateAt.END);
     TextView label=text(downloadMetrics(entry),11,MUTED);label.setMaxLines(2);label.setEllipsize(android.text.TextUtils.TruncateAt.END);
     ProgressBar bar=downloadProgressBar();bar.setIndeterminate(entry.state.equals(DOWNLOAD_RESOLVING));bar.setProgress(entry.percent);
+    /* [2026-10-03] 已完成 / 排队中**不显示进度条**。
+       改前这两种状态也画一条横杠：已完成时是满格的一条实线，紧贴在文字下方，
+       **读起来就是一条下划线**（看截图的第一反应就是「这条线是什么」）；
+       排队中时是 0% 的空槽，同样只是给卡片添了一条无意义的细线。
+       真正需要它的只有「正在跑 / 暂停 / 失败」——那时进度才有信息量。 */
+    if(entry.state.equals(DOWNLOAD_COMPLETED)||entry.state.equals(DOWNLOAD_WAITING))bar.setVisibility(View.GONE);
     /* 高度全部走 dpText()（DFW-13 适老化，规矩见 :728-737）：
        这些盒子**就是为了装文字**的，用 dp() 的话系统字体一放大、文字变大盒子不变 → 被裁。
        改前是 dp(22)/dp(32)/dp(60)/dp(76)，而**同一页**的操作行 :4251 早就用了 dpText(44) ——
@@ -4840,11 +4815,17 @@ content=new LinearLayout(this);content.setOrientation(LinearLayout.VERTICAL);pag
       if(v!=null)v.setVisibility(hidden?View.GONE:View.VISIBLE);
     }
   }
-  void enterDownloadSelection(){if(downloadSelectionMode)return;downloadSelectionMode=true;setSelectionActionsHidden(true);downloadSelectionSummary=text("已选 0",11,TEXT);downloadSelectionAllButton=toolbarTextButton("全选");downloadSelectionAllButton.setOnClickListener(v->toggleSelectAllDownloads());ImageButton directory=iconButton(R.drawable.ic_folder,"打开保存路径"),more=iconButton(R.drawable.ic_open_with,"更多方式打开所选文件"),copyLink=iconButton(R.drawable.ic_copy,"复制所选原链接"),shareFiles=iconButton(R.drawable.ic_share_file,"分享所选本地文件"),location=iconButton(R.drawable.ic_folder_open,"打开所选文件所在路径"),install=iconButton(R.drawable.ic_install,"静默安装所选 APK"),pause=iconButton(R.drawable.ic_pause,"暂停或继续所选未完成下载任务"),cancel=iconButton(R.drawable.ic_close,"取消所选未完成下载任务"),deleteRecords=iconButton(R.drawable.ic_delete_record,"删除所选记录"),deleteFiles=iconButton(R.drawable.ic_delete_file,"删除所选本地文件"),shareLinks=iconButton(R.drawable.ic_share,"分享所选原链接"),close=iconButton(R.drawable.ic_close,"退出多选");directory.setOnClickListener(downloadDirectoryClick);more.setOnClickListener(v->openSelectedWithMore());copyLink.setOnClickListener(v->copySelectedDownloadLinks());shareFiles.setOnClickListener(v->shareSelectedDownloadedFiles());location.setOnClickListener(v->openSelectedDownloadLocations());install.setOnClickListener(v->installSelectedEntries());pause.setOnClickListener(v->togglePauseSelectedDownloads());cancel.setOnClickListener(v->cancelSelectedDownloads());deleteRecords.setOnClickListener(v->confirmDeleteSelectedRecords());deleteFiles.setOnClickListener(v->confirmDeleteSelectedFiles());shareLinks.setOnClickListener(v->shareSelectedDownloadLinks());close.setOnClickListener(v->exitDownloadSelection());downloadSelectionBar=makeSelectionBar(downloadSelectionSummary,downloadSelectionAllButton,56,48,new String[]{"打开路径","更多打开","复制链接","分享文件","文件位置","安装","暂停继续","取消任务","删除记录","删除文件","分享链接","退出"},directory,more,copyLink,shareFiles,location,install,pause,cancel,deleteRecords,deleteFiles,shareLinks,close);showChecks(downloadChecks,true);updateDownloadSelectionSummary();}
+  void enterDownloadSelection(){if(downloadSelectionMode)return;downloadSelectionMode=true;setSelectionActionsHidden(true);
+    /* [2026-10-03] 悬浮球让位。球默认贴右下角距底 36dp，而选择条从底部升起 160dp ——
+       实测球 x=1015..1211 / y=2478..2674 与选择条 x=56..1204 / y=2240..2800 相交，
+       把最后一列上下两排的图标**全盖掉了**（用户：「按钮都被黑色遮住了，甚至覆盖住其他按钮」）。
+       让位方式与理由见 NavBall.setSuppressed。 */
+    if(navBall!=null)navBall.setSuppressed(true);downloadSelectionSummary=text("已选 0",11,TEXT);downloadSelectionAllButton=toolbarTextButton("全选");downloadSelectionAllButton.setOnClickListener(v->toggleSelectAllDownloads());ImageButton directory=iconButton(R.drawable.ic_folder,"打开保存路径"),more=iconButton(R.drawable.ic_open_with,"更多方式打开所选文件"),copyLink=iconButton(R.drawable.ic_copy,"复制所选原链接"),shareFiles=iconButton(R.drawable.ic_share_file,"分享所选本地文件"),location=iconButton(R.drawable.ic_folder_open,"打开所选文件所在路径"),install=iconButton(R.drawable.ic_install,"静默安装所选 APK"),pause=iconButton(R.drawable.ic_pause,"暂停或继续所选未完成下载任务"),cancel=iconButton(R.drawable.ic_close,"取消所选未完成下载任务"),deleteRecords=iconButton(R.drawable.ic_delete_record,"删除所选记录"),deleteFiles=iconButton(R.drawable.ic_delete_file,"删除所选本地文件"),shareLinks=iconButton(R.drawable.ic_share,"分享所选原链接"),close=iconButton(R.drawable.ic_close,"退出多选");directory.setOnClickListener(downloadDirectoryClick);more.setOnClickListener(v->openSelectedWithMore());copyLink.setOnClickListener(v->copySelectedDownloadLinks());shareFiles.setOnClickListener(v->shareSelectedDownloadedFiles());location.setOnClickListener(v->openSelectedDownloadLocations());install.setOnClickListener(v->installSelectedEntries());pause.setOnClickListener(v->togglePauseSelectedDownloads());cancel.setOnClickListener(v->cancelSelectedDownloads());deleteRecords.setOnClickListener(v->confirmDeleteSelectedRecords());deleteFiles.setOnClickListener(v->confirmDeleteSelectedFiles());shareLinks.setOnClickListener(v->shareSelectedDownloadLinks());close.setOnClickListener(v->exitDownloadSelection());downloadSelectionBar=makeSelectionBar(downloadSelectionSummary,downloadSelectionAllButton,56,48,new String[]{"打开路径","更多打开","复制链接","分享文件","文件位置","安装","暂停继续","取消任务","删除记录","删除文件","分享链接","退出"},directory,more,copyLink,shareFiles,location,install,pause,cancel,deleteRecords,deleteFiles,shareLinks,close);showChecks(downloadChecks,true);updateDownloadSelectionSummary();}
   void toggleDownloadSelection(DownloadEntry entry){if(!downloadSelectionMode)enterDownloadSelection();if(toggleChosen(selectedDownloads,entry,downloadChecks))exitDownloadSelection();else updateDownloadSelectionSummary();}
   void toggleSelectAllDownloads(){List<DownloadEntry> visibleEntries=new ArrayList<>(downloadChecks.keySet());if(visibleEntries.isEmpty()){showNotice("当前没有可选择的下载记录",false);return;}if(allChosen(visibleEntries,selectedDownloads)){exitDownloadSelection();return;}selectedDownloads.clear();selectedDownloads.addAll(visibleEntries);syncChecks(selectedDownloads,downloadChecks);updateDownloadSelectionSummary();}
   void updateDownloadSelectionSummary(){syncBatchDownloadChecks();if(downloadSelectionSummary!=null)downloadSelectionSummary.setText("已选 "+selectedDownloads.size());if(downloadSelectionAllButton!=null)downloadSelectionAllButton.setText(allChosen(downloadChecks.keySet(),selectedDownloads)?"取消全选":"全选");}
-  void exitDownloadSelection(){downloadSelectionMode=false;setSelectionActionsHidden(false);syncBatchDownloadChecks();resetSelection(selectedDownloads,downloadChecks,downloadSelectionBar);downloadSelectionBar=null;downloadSelectionSummary=null;downloadSelectionAllButton=null;}
+  void exitDownloadSelection(){downloadSelectionMode=false;setSelectionActionsHidden(false);
+    if(navBall!=null)navBall.setSuppressed(false);syncBatchDownloadChecks();resetSelection(selectedDownloads,downloadChecks,downloadSelectionBar);downloadSelectionBar=null;downloadSelectionSummary=null;downloadSelectionAllButton=null;}
   void shareSelectedDownloadLinks(){StringBuilder links=new StringBuilder();for(DownloadEntry entry:selectedDownloads)if(!entry.shareUrl.isEmpty()){if(links.length()>0)links.append("\n\n");links.append(entry.shareUrl);if(!entry.password.isEmpty())links.append("\n密码：").append(entry.password);}if(links.length()==0){showNotice("所选记录没有蓝奏链接",false);return;}shareText(links.toString(),"分享蓝奏云链接");}
   void copySelectedDownloadLinks(){StringBuilder links=new StringBuilder();int copied=0;for(DownloadEntry entry:selectedDownloads)if(!entry.shareUrl.isEmpty()){if(links.length()>0)links.append("\n\n");links.append(entry.shareUrl);if(!entry.password.isEmpty())links.append("\n密码：").append(entry.password);copied++;}if(copied==0){showNotice("所选记录没有蓝奏链接",false);return;}((ClipboardManager)getSystemService(CLIPBOARD_SERVICE)).setPrimaryClip(ClipData.newPlainText("蓝奏云原链接",links));showNotice("已复制 "+copied+" 条原链接",false);}
   List<DownloadEntry> selectedReadyDownloads(){List<DownloadEntry> ready=new ArrayList<>();int skipped=0;for(DownloadEntry entry:selectedDownloads){if(entryFileReadable(entry))ready.add(entry);else skipped++;}if(ready.isEmpty()){showNotice("所选记录没有可用的本地文件",false);return ready;}if(skipped>0)showNotice("已跳过 "+skipped+" 个未完成或已缺失文件",false);return ready;}
@@ -5281,7 +5262,7 @@ if(motionEnabled()){panel.setAlpha(0f);panel.setTranslationY(-dp(8));panel.anima
   }
   long downloadUiIntervalMs(){int active=0;for(DownloadEntry entry:downloadEntries)if(isDownloadActive(entry))active++;return active>=64?500L:active>=24?250L:DOWNLOAD_UI_INTERVAL_MS;}
   void drainDownloadUi(){if(isFinishing()||isDestroyed())return;// DFWX-STAB-001：onDestroy close 链期间组件回调排入的晚到 UI 任务一律丢弃
-    List<DownloadEntry> changed;synchronized(dirtyDownloadUi){changed=new ArrayList<>(dirtyDownloadUi);dirtyDownloadUi.clear();downloadUiFramePosted=false;}refreshDownloadGlobalControl();boolean rebuild=false;for(DownloadEntry entry:changed){boolean stateChanged=!entry.state.equals(entry.uiState);entry.uiState=entry.state;if(stateChanged)noteDownloadOutcome(entry);boolean parsing=entry.state.equals(DOWNLOAD_RESOLVING);if(downloadsPage){if(!entry.batchId.isEmpty()){if(stateChanged)rebuild=true;else updateBatchDownloadRow(entry.batchId);}else{boolean shown=downloadLabels.containsKey(entry),matches=downloadMatchesCurrentView(entry);if(shown!=matches)rebuild=true;else if(shown){TextView label=downloadLabels.get(entry);if(label!=null&&label.getParent()!=null)label.setText(downloadMetrics(entry));ProgressBar bar=downloadBars.get(entry);if(bar!=null&&bar.getParent()!=null){bar.setIndeterminate(parsing);if(!parsing){bar.setIndeterminate(false);bar.setProgress(entry.percent);}}if(stateChanged){LinearLayout actions=downloadActions.get(entry);if(actions!=null&&actions.getParent()!=null)bindDownloadActions(entry,actions);View row=downloadRows.get(entry);if(row!=null&&row.getParent()!=null)bindDownloadRowDescription(entry,row);}}}}if(rebuild)renderDownloads(downloadQuery);}}
+    List<DownloadEntry> changed;synchronized(dirtyDownloadUi){changed=new ArrayList<>(dirtyDownloadUi);dirtyDownloadUi.clear();downloadUiFramePosted=false;}refreshDownloadHeaderMenu();boolean rebuild=false;for(DownloadEntry entry:changed){boolean stateChanged=!entry.state.equals(entry.uiState);entry.uiState=entry.state;if(stateChanged)noteDownloadOutcome(entry);boolean parsing=entry.state.equals(DOWNLOAD_RESOLVING);if(downloadsPage){if(!entry.batchId.isEmpty()){if(stateChanged)rebuild=true;else updateBatchDownloadRow(entry.batchId);}else{boolean shown=downloadLabels.containsKey(entry),matches=downloadMatchesCurrentView(entry);if(shown!=matches)rebuild=true;else if(shown){TextView label=downloadLabels.get(entry);if(label!=null&&label.getParent()!=null)label.setText(downloadMetrics(entry));ProgressBar bar=downloadBars.get(entry);if(bar!=null&&bar.getParent()!=null){bar.setIndeterminate(parsing);if(!parsing){bar.setIndeterminate(false);bar.setProgress(entry.percent);}}if(stateChanged){LinearLayout actions=downloadActions.get(entry);if(actions!=null&&actions.getParent()!=null)bindDownloadActions(entry,actions);View row=downloadRows.get(entry);if(row!=null&&row.getParent()!=null)bindDownloadRowDescription(entry,row);}}}}if(rebuild)renderDownloads(downloadQuery);}}
   /**
    * [DFWX] DFW-66：**更新链路专用的顶部通知条**（用户要求"像手机收到的消息一样从顶部滑下来"）。
    *
