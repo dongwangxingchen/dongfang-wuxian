@@ -37,12 +37,33 @@ final class NoticeCenter {
   }
 
   private final Store store;
+  /**
+   * [DFWX] 本机版本名（如 `1.0.0`），用于**公告分版本**过滤。
+   *
+   * 空 = 不过滤（全都显示）。拿不到版本名时**必须**走这一支：
+   * 硬过滤会把所有带适用版本的公告全部吞掉，那是"静默丢内容"，比多显示一条严重得多。
+   */
+  private final String appVersionName;
 
-  NoticeCenter(Store store) { this.store = store; }
+  NoticeCenter(Store store) { this(store, ""); }
 
-  /** 生产构造：绑定 `notice_center` 偏好的 `read_ids`。 */
+  NoticeCenter(Store store, String appVersionName) {
+    this.store = store;
+    this.appVersionName = appVersionName == null ? "" : appVersionName.trim();
+  }
+
+  /** 生产构造：绑定 `notice_center` 偏好的 `read_ids`，并带上本机版本名。 */
+  static NoticeCenter forContext(Context context, String appVersionName) {
+    return new NoticeCenter(contextStore(context), appVersionName);
+  }
+
+  /** 兼容旧调用方：不带版本名 = 不过滤。 */
   static NoticeCenter forContext(Context context) {
-    return new NoticeCenter(new Store() {
+    return forContext(context, "");
+  }
+
+  private static Store contextStore(Context context) {
+    return new Store() {
       private SharedPreferences prefs() {
         return context.getSharedPreferences("notice_center", Context.MODE_PRIVATE);
       }
@@ -60,7 +81,41 @@ final class NoticeCenter {
           prefs().edit().putStringSet("read_ids", new LinkedHashSet<>(ids)).apply();
         } catch (Exception ignored) { /* 记不住只是红点不消，不该影响使用 */ }
       }
-    });
+    };
+  }
+
+  /**
+   * 这条公告适不适用于当前版本。
+   *
+   * ## 规则（2026-10-03 用户批准的「公告分版本」设计）
+   * - 公告**没填**适用版本 → **通用**，所有版本都看。老数据、老 APK 都走这一支。
+   * - 公告**填了** → 只有版本名一致的当前版本才看。用户已确认接受这个后果：
+   *   升级之后，上一个版本的公告不再显示。
+   *
+   * ## 为什么按"版本名"而不是 versionCode
+   * 版本名是用户能看懂、后台能手填的那个（`1.0.0`）；versionCode 是本项目**派生**出来的
+   * （`1.0.0→10000`，见 `app/build.gradle.kts`），让后台手填一个派生值只会填错。
+   *
+   * ## 为什么拿不到本机版本名时不过滤
+   * 拿不到还硬过滤 = 把所有带版本的公告全部吞掉 = **静默丢内容**。
+   * 宁可多显示一条，也不能让用户永远看不到公告。
+   */
+  static boolean appliesTo(String noticeVersion, String appVersionName) {
+    String wanted = normalizeVersion(noticeVersion);
+    if (wanted.isEmpty()) return true;
+    String mine = normalizeVersion(appVersionName);
+    if (mine.isEmpty()) return true;
+    return wanted.equalsIgnoreCase(mine);
+  }
+
+  /** 去掉空白和开头的 `v`/`V`：后台可能填 `v1.0.0`，而版本名是 `1.0.0`，两者必须算同一条。 */
+  static String normalizeVersion(String raw) {
+    if (raw == null) return "";
+    String value = raw.trim();
+    while (!value.isEmpty() && (value.charAt(0) == 'v' || value.charAt(0) == 'V')) {
+      value = value.substring(1).trim();
+    }
+    return value;
   }
 
   /**
@@ -71,12 +126,18 @@ final class NoticeCenter {
    *
    * 没有 id 的公告（后台异常数据）**直接丢弃**：它们既无法被标记已读、也无法被删除追踪，
    * 留着只会让红点永远消不掉。
+   *
+   * [DFWX] **公告分版本**的过滤也收口在这里**一处**（2026-10-03）。
+   * 为什么不散落到调用方：红点数、弹窗、全部已读、已读集合回收**全都**经过本方法，
+   * 收口一处就自动一致；散到四处，早晚会漏掉一处——那种漏法是"某处显示别的版本的公告"，
+   * 而且只在特定版本组合下才复现。
    */
   List<RemoteConfigClient.Notice> visible(RemoteConfigClient.Snapshot snapshot) {
     if (snapshot == null) return Collections.emptyList();
     List<RemoteConfigClient.Notice> out = new ArrayList<>();
     for (RemoteConfigClient.Notice notice : snapshot.notices()) {
       if (notice == null || notice.id.isEmpty()) continue;
+      if (!appliesTo(notice.versionName, appVersionName)) continue;
       out.add(notice);
     }
     Collections.sort(out, (left, right) -> {
@@ -105,6 +166,14 @@ final class NoticeCenter {
    * 本地已读集合，**顺带做垃圾回收**：剔除后台已经没有的公告 id 并落盘。
    * 不做这件事，已读集合会随公告增删只增不减，长期变成无法清理的垃圾。
    * 只在**真的删掉了东西**时才写盘（否则每次算未读都写盘是浪费）。
+   *
+   * ⚠️ [DFWX] 这里的 `alive` **刻意不过滤版本**（2026-10-03 加公告分版本时特意分开的）。
+   *
+   * 本方法判断的是「**后台还有没有这条公告**」，不是「**当前版本要不要显示它**」——
+   * 这两件事不一样。如果拿 {@link #visible} 来建 `alive`，含义就偷偷变成了后者：
+   * 一条「1.0.1 的公告」在 1.0.0 上不显示，它的已读 id 就会被当成垃圾清掉。
+   * 今天看不出问题（用户不会降级），但它把两个概念焊死了，以后任何一处改动
+   * 都会连带影响另一处。所以这里显式地不共用。
    */
   private Set<String> prunedReadIds(RemoteConfigClient.Snapshot snapshot) {
     Set<String> read = store.readIds();
@@ -127,7 +196,10 @@ final class NoticeCenter {
     //   · noticeOk=true 且公告为空 → 后台确实清空了公告 → 正常做垃圾回收。
     if (snapshot == null || !snapshot.noticeOk) return read;
     Set<String> alive = new LinkedHashSet<>();
-    for (RemoteConfigClient.Notice notice : visible(snapshot)) alive.add(notice.id);
+    for (RemoteConfigClient.Notice notice : snapshot.notices()) {
+      if (notice == null || notice.id.isEmpty()) continue;
+      alive.add(notice.id);
+    }
     if (read.retainAll(alive)) store.setReadIds(read);
     return read;
   }

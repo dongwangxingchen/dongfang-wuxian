@@ -146,8 +146,21 @@ final class RemoteConfigClient {
     /** 见类注释；只会是三选一，非法值一律回落到"一次性"（宁可多弹一次，也不要静默漏掉公告）。 */
     final String popupMode;
     final long createdMs;
+    /**
+     * [DFWX] 公告分版本（2026-10-03 用户批准）：这条公告**只对哪个版本**有效。
+     *
+     * 空字符串 = **通用**，所有版本都看。这也是老数据的默认值，
+     * 所以后台没迁移、老 APK 读新数据、新 APK 读老数据，三种情况都不会丢公告。
+     *
+     * 判据放在 {@link NoticeCenter}，不在这里——本类只负责"数据长什么样"。
+     */
+    final String versionName;
 
     Notice(String id, String title, String body, String level, boolean pinned, String popupMode, long createdMs) {
+      this(id, title, body, level, pinned, popupMode, createdMs, "");
+    }
+
+    Notice(String id, String title, String body, String level, boolean pinned, String popupMode, long createdMs, String versionName) {
       this.id = id == null ? "" : id;
       this.title = title == null ? "" : title.trim();
       this.body = body == null ? "" : body.trim();
@@ -155,6 +168,7 @@ final class RemoteConfigClient {
       this.pinned = pinned;
       this.popupMode = normalizeMode(popupMode);
       this.createdMs = createdMs;
+      this.versionName = versionName == null ? "" : versionName.trim();
     }
 
     /** 兼容旧布尔字段的构造：true → 一次性，false → 静默。 */
@@ -560,7 +574,7 @@ final class RemoteConfigClient {
         mode = "";
       }
       out.add(new Notice(o.optString("id", ""), title, body, o.optString("level", "normal"),
-          o.optBoolean("pinned", false), mode, createdMs(o, now)));
+          o.optBoolean("pinned", false), mode, createdMs(o, now), o.optString("versionName", "")));
     }
     // 置顶优先，其余保持后台顺序
     List<Notice> pinned = new ArrayList<>(), rest = new ArrayList<>();

@@ -962,12 +962,24 @@ styleDialogButton(dialog.getButton(AlertDialog.BUTTON_NEGATIVE),false);styleDial
   boolean weakDevice;
   void detectWeakDevice(){boolean weak=false;try{android.app.ActivityManager am=(android.app.ActivityManager)getSystemService(ACTIVITY_SERVICE);if(am!=null){if(am.isLowRamDevice())weak=true;android.app.ActivityManager.MemoryInfo info=new android.app.ActivityManager.MemoryInfo();am.getMemoryInfo(info);if(info.totalMem>0&&info.totalMem<=1536L*1024*1024)weak=true;}}catch(Exception ignored){}weakDevice=weak;}
   View underlineFilter(String label,boolean selected,Runnable action){return underlineFilter(label,selected,action,14);}
-  /** v1.22.3 可调水平内边距：下载页 6 个状态标签在 360dp 窄屏上总宽溢出（14dp 内边距时总宽 426dp > 可用 328dp，
-   *  最右「下载完成」被屏幕右缘裁切）。下载页传 7dp 使 6 项恰好落在 322dp 内，其余调用方沿用 14dp。 */
+  /** v1.22.3 可调水平内边距：下载页状态标签在 360dp 窄屏上会溢出，所以下载页传一个更小的值。
+   *
+   *  ⚠️ [2026-10-03 修正] 这段注释原来的数字**全是错的**：它说「6 个标签 / 14dp 时总宽 426dp /
+   *  下载页传 7dp / 落在 322dp」，而实际代码是 **5 个标签、传 5dp**（见 `renderDownloadFilters`）。
+   *  同一件事在 `renderDownloadFilters` 里还有一份注释，写的是「6 标签 / 改 6dp ≈ 320dp」——
+   *  三个数字（7/6/5）里没一个对，标签数也错。
+   *
+   *  按今天的代码重算（360dp、fontScale 1.0）：可用 328dp，5 标签 16 个汉字 × 12dp = 192，
+   *  加内边距 2×5×5 = 50、右间距 4×5 = 20、strip 内边距 12，合计 **274dp，余 54dp**。
+   *  退回 14dp 是 364dp > 328dp，所以"要传小值"这件事仍然成立，只是理由和数字都要重写。
+   *
+   *  另外「最右被屏幕右缘裁切」这个失败模式**今天已不可能发生**：外层是 HorizontalScrollView，
+   *  超宽时是横滚。真实价值是**可发现性**——5 个标签默认全部可见，不用横滑才发现有「下载失败」。 */
   View underlineFilter(String label,boolean selected,Runnable action,int hPad){FrameLayout tab=new FrameLayout(this);tab.setClickable(true);tab.setFocusable(true);tab.setSelected(selected);tab.setBackground(filterRipple(new ColorDrawable(Color.TRANSPARENT)));TextView title=text(label,12,selected?PRIMARY:MUTED);title.setGravity(Gravity.CENTER);title.setSingleLine(true);title.setSelected(selected);title.setPadding(dp(hPad),0,dp(hPad),dp(3));tab.addView(title,new FrameLayout.LayoutParams(-2,-1,Gravity.CENTER));View underline=new View(this);underline.setBackground(solidShape(PRIMARY,2));underline.setAlpha(selected?1f:0f);underline.setScaleX(selected?1f:0f);FrameLayout.LayoutParams line=new FrameLayout.LayoutParams(-1,dp(2),Gravity.BOTTOM);line.setMargins(dp(Math.max(2,hPad-4)),0,dp(Math.max(2,hPad-4)),dp(1));tab.addView(underline,line);tab.setTag(new FilterTab(title,underline));tab.setContentDescription(label+(selected?"，已选择":""));tab.setOnClickListener(v->{if(v.isSelected())return;transferUnderline((LinearLayout)v.getParent(),v);action.run();});return tab;}
   void transferUnderline(LinearLayout strip,View target){int oldIndex=-1,newIndex=strip.indexOfChild(target);View old=null;for(int i=0;i<strip.getChildCount();i++)if(strip.getChildAt(i).isSelected()){old=strip.getChildAt(i);oldIndex=i;break;}boolean right=oldIndex<newIndex;for(int i=0;i<strip.getChildCount();i++){View tab=strip.getChildAt(i);if(!(tab.getTag() instanceof FilterTab))continue;FilterTab holder=(FilterTab)tab.getTag();boolean active=tab==target;tab.setSelected(active);holder.label.setSelected(active);holder.label.setTextColor(active?PRIMARY:MUTED);tab.setContentDescription(holder.label.getText()+(active?"，已选择":""));holder.underline.animate().cancel();if(!motionEnabled()){holder.underline.setAlpha(active?1f:0f);holder.underline.setScaleX(active?1f:0f);continue;}if(tab==old){holder.underline.setPivotX(right?holder.underline.getWidth():0);holder.underline.animate().alpha(0f).scaleX(0f).setDuration(150).setInterpolator(standardEase()).start();}else if(active){holder.underline.setPivotX(right?0:holder.underline.getWidth());holder.underline.setAlpha(1f);holder.underline.setScaleX(0f);holder.underline.animate().scaleX(1f).setDuration(150).setInterpolator(standardEase()).start();}else{holder.underline.setAlpha(0f);holder.underline.setScaleX(0f);}}}
-  TextView roundedDownloadFilter(String label,boolean selected,Runnable action){TextView filter=text(label,12,selected?BG:MUTED);filter.setGravity(Gravity.CENTER);filter.setPadding(dp(14),0,dp(14),0);filter.setBackground(filterRipple(solidShape(selected?PRIMARY:SURFACE,16)));filter.setClickable(true);filter.setFocusable(true);filter.setSelected(selected);filter.setContentDescription(label+(selected?"，已选择":""));filter.setOnClickListener(v->{if(v.isSelected())return;selectRoundedDownloadFilter((LinearLayout)v.getParent(),filter);action.run();});return filter;}
-  void selectRoundedDownloadFilter(LinearLayout strip,TextView target){for(int i=0;i<strip.getChildCount();i++){TextView filter=(TextView)strip.getChildAt(i);boolean selected=filter==target;filter.setSelected(selected);filter.setTextColor(selected?BG:MUTED);filter.setBackground(filterRipple(solidShape(selected?PRIMARY:SURFACE,16)));filter.setContentDescription(filter.getText()+(selected?"，已选择":""));if(selected&&motionEnabled()){filter.animate().cancel();filter.setScaleX(.92f);filter.setScaleY(.92f);filter.animate().scaleX(1f).scaleY(1f).setDuration(150).setInterpolator(standardEase()).start();}}}
+  /** 扩展名筛选胶囊。圆角传 24 → 量化 26 → 被 GradientDrawable 夹到 height/2 = 真 pill（token §4）。 */
+  TextView roundedDownloadFilter(String label,boolean selected,Runnable action){TextView filter=text(label,12,selected?BG:MUTED);filter.setGravity(Gravity.CENTER);filter.setPadding(dp(14),0,dp(14),0);filter.setBackground(filterRipple(solidShape(selected?PRIMARY:SURFACE,24)));filter.setClickable(true);filter.setFocusable(true);filter.setSelected(selected);filter.setContentDescription(label+(selected?"，已选择":""));filter.setOnClickListener(v->{if(v.isSelected())return;selectRoundedDownloadFilter((LinearLayout)v.getParent(),filter);action.run();});return filter;}
+  void selectRoundedDownloadFilter(LinearLayout strip,TextView target){for(int i=0;i<strip.getChildCount();i++){TextView filter=(TextView)strip.getChildAt(i);boolean selected=filter==target;filter.setSelected(selected);filter.setTextColor(selected?BG:MUTED);filter.setBackground(filterRipple(solidShape(selected?PRIMARY:SURFACE,24)));filter.setContentDescription(filter.getText()+(selected?"，已选择":""));if(selected&&motionEnabled()){filter.animate().cancel();filter.setScaleX(.92f);filter.setScaleY(.92f);filter.animate().scaleX(1f).scaleY(1f).setDuration(150).setInterpolator(standardEase()).start();}}}
   void transitionDownloadFilter(Runnable update){int token=++downloadFilterGeneration;if(downloadList==null){update.run();return;}downloadList.animate().cancel();if(!motionEnabled()){downloadList.setAlpha(1f);update.run();return;}downloadList.animate().alpha(0f).setDuration(100).setInterpolator(standardEase()).withEndAction(()->{if(token!=downloadFilterGeneration)return;update.run();downloadList.setAlpha(0f);downloadList.animate().alpha(1f).setDuration(150).setInterpolator(standardEase()).start();}).start();}
   void transitionSourceFilter(Runnable update){int token=++sourceFilterGeneration;if(sourceGrid==null){update.run();return;}sourceGrid.animate().cancel();if(!motionEnabled()){sourceGrid.setAlpha(1f);update.run();return;}sourceGrid.animate().alpha(0f).setDuration(100).setInterpolator(standardEase()).withEndAction(()->{if(token!=sourceFilterGeneration)return;update.run();sourceGrid.setAlpha(0f);sourceGrid.animate().alpha(1f).setDuration(150).setInterpolator(standardEase()).start();}).start();}
   public TextView primaryHeader(String title){LinearLayout header=new LinearLayout(this);pageHeaderRow=header;header.setGravity(Gravity.CENTER_VERTICAL);TextView heading=text(title,22,TEXT,700);heading.setPadding(dp(4),0,0,0);header.addView(heading,new LinearLayout.LayoutParams(0,dp(52),1));root.addView(header,new LinearLayout.LayoutParams(-1,dp(56)));return heading;}
@@ -1857,7 +1869,8 @@ FrameLayout.LayoutParams tp=new FrameLayout.LayoutParams(Math.max(dp(1),Math.min
 
   NoticeCenter noticeCenter;
   NoticeCenter noticeCenter(){
-    if(noticeCenter==null)noticeCenter=NoticeCenter.forContext(this);
+    /* [DFWX] 公告分版本：把本机版本名交给 NoticeCenter，由它在 visible() 里统一过滤。 */
+    if(noticeCenter==null)noticeCenter=NoticeCenter.forContext(this,BuildConfig.VERSION_NAME);
     return noticeCenter;
   }
   RemoteConfigClient.Snapshot noticeSnapshot;
@@ -3993,19 +4006,59 @@ content=new LinearLayout(this);content.setOrientation(LinearLayout.VERTICAL);pag
   void writeTextUri(Uri uri,String text)throws IOException{try(OutputStream output=getContentResolver().openOutputStream(uri,"wt")){if(output==null)throw new IOException("无法写入规则文件");output.write(text.getBytes(java.nio.charset.StandardCharsets.UTF_8));}}
   /** 2026-09-24 性能审计#2：下载列表分帧渲染——先同步收集可见行规格(纯数据,便宜)，再按目录页
       appendFolderRowsFrame 同款模式逐帧建行；generation/session 双守卫丢弃换页后的残帧。 */
+  /**
+   * 下载页空态：图标 + 标题 + 下一步提示。
+   *
+   * 为什么值得单独一个方法：改前空态是 `text("暂无下载记录",14,MUTED)` 一行灰字居中，
+   * 没有图标、没有引导。空态在"还没用起来"时占满整屏，是「质感」最容易被感知的地方。
+   *
+   * 高度全部走 dpText（DFW-13 适老化，规矩见 :728-737）：这是纯文字容器，字体放大时必须跟着长。
+   */
+  View downloadEmptyState(int icon,String title,String hint){
+    LinearLayout box=new LinearLayout(this);
+    box.setOrientation(LinearLayout.VERTICAL);
+    box.setGravity(Gravity.CENTER);
+    ImageView art=new ImageView(this);
+    art.setImageResource(icon);
+    art.setColorFilter(MUTED);
+    /* 半透明：图标是"视觉锚点"不是"内容"，压暗一档让它退到标题后面去。 */
+    art.setAlpha(.5f);
+    art.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+    LinearLayout.LayoutParams artLp=new LinearLayout.LayoutParams(dp(56),dp(56));
+    artLp.bottomMargin=dp(16);
+    box.addView(art,artLp);
+    TextView headline=text(title,15,TEXT,600);
+    headline.setGravity(Gravity.CENTER);
+    box.addView(headline,new LinearLayout.LayoutParams(-2,dpText(24)));
+    TextView sub=text(hint,12,MUTED);
+    sub.setGravity(Gravity.CENTER);
+    LinearLayout.LayoutParams subLp=new LinearLayout.LayoutParams(-2,dpText(20));
+    subLp.topMargin=dp(8);
+    box.addView(sub,subLp);
+    box.setContentDescription(title+"。"+hint);
+    return box;
+  }
   Runnable searchDebounceRunnable;int downloadRenderGeneration;
   void renderDownloads(String query){
     if(downloadList==null)return;downloadQuery=query;refreshDownloadGlobalControl();downloadList.removeAllViews();downloadLabels.clear();downloadBars.clear();downloadActions.clear();downloadRows.clear();downloadChecks.clear();batchDownloadLabels.clear();batchDownloadBars.clear();batchDownloadRows.clear();batchDownloadChecks.clear();downloadRenderGeneration++;
     java.util.List<Object> specs=new ArrayList<>();Set<String> renderedBatches=new HashSet<>();
     for(DownloadEntry entry:downloadEntries)if(downloadMatchesCurrentView(entry)){if(sessionBatchDownloadSingleItem&&!entry.batchId.isEmpty()){if(renderedBatches.add(entry.batchId)){List<DownloadEntry> batch=downloadBatchEntries(entry.batchId);boolean any=false;for(DownloadEntry child:batch)if(downloadMatchesCurrentView(child)){any=true;break;}if(any)specs.add(new DownloadRowSpec(entry.batchId,batch));}}else specs.add(entry);}
     if(specs.isEmpty()){
-      TextView empty=text(downloadEntries.isEmpty()?"暂无下载记录":"没有匹配的下载记录",14,MUTED);
-      empty.setGravity(Gravity.CENTER);
+      /* 空态（2026-10-03 重做）：改前是一行 14sp 灰字居中 —— 一整屏纯黑中央一行灰字，
+         没有图标、没有下一步引导，就是块"白板"。空态恰恰是"还没用起来"时占满整屏的那一屏，
+         用户对界面「质感」的抱怨最容易落在这里。现在三件：图标 + 标题 + 下一步该做什么。
+         两种文案**刻意分开**（"没有记录"和"被筛掉了"是两件事，下一步动作也不同）——
+         改前这点做对了，保留。 */
+      boolean noEntries=downloadEntries.isEmpty();
+      View empty=downloadEmptyState(noEntries?R.drawable.ic_download:R.drawable.ic_search,
+          noEntries?"暂无下载记录":"没有匹配的下载记录",
+          noEntries?"在资源页选一个文件就能开始下载，长按可以批量选":"换个关键词，或把上面的筛选切回「全部」");
       /* 空态文案垂直居中：优先用列表区实测高度，量不到才退回估算。
          旧写法把 chrome 写死 286dp，而实测 chrome 只有 225dp（含操作行），文案因此偏上约 30dp。
-         估算值改按实测 chrome：显示操作行 225dp / 隐藏操作行 181dp（2026-10-02 截图量得）。 */
+         估算值按实测 chrome；[2026-10-03] 两条筛选条高度由 dp(38) 提到 dpText(44)（token §4 胶囊 44–48dp），
+         所以这里的兜底值同步 +12dp。正常路径走 pageScroll 实测高度，不受影响。 */
       boolean actionRowShown=downloadActionRowView!=null&&downloadActionRowView.getVisibility()==View.VISIBLE;
-      int chrome=actionRowShown?dp(225):dp(181);
+      int chrome=actionRowShown?dp(237):dp(193);
       int measured=pageScroll==null?0:pageScroll.getHeight();
       int viewport=measured>dp(240)?measured:Math.max(dp(240),getResources().getDisplayMetrics().heightPixels-chrome);
       downloadList.addView(empty,new LinearLayout.LayoutParams(-1,viewport));
@@ -4044,32 +4097,32 @@ content=new LinearLayout(this);content.setOrientation(LinearLayout.VERTICAL);pag
   /** [DFW-113 2026-10-03] 批量卡片：与单条卡片用**同一套卡片语言**（面/描边/圆角/间距/高度）。
       改前它也是裸行，且里面同样是 24+44+5=73dp 塞进 70dp 容器（进度条被裁）。 */
   void addBatchDownloadRow(String batchId,List<DownloadEntry> entries){
-    LinearLayout row=new LinearLayout(this);row.setGravity(Gravity.CENTER_VERTICAL);row.setPadding(dp(10),dp(8),dp(6),dp(8));row.setClickable(true);row.setFocusable(true);
+    LinearLayout row=new LinearLayout(this);row.setGravity(Gravity.CENTER_VERTICAL);row.setPadding(dp(8),dp(6),dp(4),dp(6));row.setClickable(true);row.setFocusable(true);
     GradientDrawable cardBg=solidShape(SURFACE,16);
     cardBg.setStroke(dp(1),BORDER);
     row.setBackground(filterRipple(cardBg));
     row.addView(batchDownloadPreview(entries,20),new LinearLayout.LayoutParams(dp(40),dp(40)));
     LinearLayout middle=new LinearLayout(this);middle.setOrientation(LinearLayout.VERTICAL);middle.setPadding(dp(11),0,dp(8),0);
     TextView name=text(batchDownloadTitle(entries),14,TEXT,560);name.setSingleLine(true);name.setEllipsize(android.text.TextUtils.TruncateAt.END);
-    TextView label=text(batchDownloadMetrics(entries),11,MUTED);label.setMaxLines(2);
+    TextView label=text(batchDownloadMetrics(entries),11,MUTED);label.setMaxLines(2);label.setEllipsize(android.text.TextUtils.TruncateAt.END);
     ProgressBar bar=downloadProgressBar();bar.setProgress(batchDownloadPercent(entries));
-    middle.addView(name,new LinearLayout.LayoutParams(-1,dp(22)));
-    middle.addView(label,new LinearLayout.LayoutParams(-1,dp(32)));
+    middle.addView(name,new LinearLayout.LayoutParams(-1,dpText(22)));
+    middle.addView(label,new LinearLayout.LayoutParams(-1,dpText(32)));
     middle.addView(bar,new LinearLayout.LayoutParams(-1,dp(5)));
-    row.addView(middle,new LinearLayout.LayoutParams(0,dp(60),1));
-    ImageButton actions=iconButton(R.drawable.ic_pause,"控制批量下载任务");actions.setOnClickListener(v->showBatchDownloadActions(batchId));
-    row.addView(actions,new LinearLayout.LayoutParams(dp(42),dp(44)));
-    ImageButton details=iconButton(R.drawable.ic_expand,"查看批量下载详情");details.setRotation(-90f);details.setOnClickListener(v->showBatchDownloadDetails(batchId));
-    row.addView(details,new LinearLayout.LayoutParams(dp(38),dp(44)));
+    row.addView(middle,new LinearLayout.LayoutParams(0,dpText(60),1));
+    ImageButton actions=rowIconButton(R.drawable.ic_pause,"控制批量下载任务");actions.setOnClickListener(v->showBatchDownloadActions(batchId));
+    row.addView(actions,rowIconButtonLp());
+    ImageButton details=rowIconButton(R.drawable.ic_expand,"查看批量下载详情");details.setRotation(-90f);details.setOnClickListener(v->showBatchDownloadDetails(batchId));
+    row.addView(details,rowIconButtonLp());
     CheckBox check=new CheckBox(this);check.setClickable(false);check.setChecked(batchDownloadFullySelected(entries));
     check.setVisibility(downloadSelectionMode?View.VISIBLE:View.GONE);
-    row.addView(check,new LinearLayout.LayoutParams(dp(32),dp(44)));
+    row.addView(check,new LinearLayout.LayoutParams(dp(32),dpText(44)));
     row.setContentDescription(batchDownloadTitle(entries)+"，"+batchDownloadMetrics(entries).replace('\n','，'));
     row.setOnClickListener(v->{if(downloadSelectionMode)toggleBatchDownloadSelection(batchId);else showBatchDownloadDetails(batchId);});
     row.setOnLongClickListener(v->{enterDownloadSelection();toggleBatchDownloadSelection(batchId);return true;});
     for(DownloadEntry entry:entries){downloadRows.put(entry,row);CheckBox hidden=new CheckBox(this);hidden.setVisibility(View.GONE);downloadChecks.put(entry,hidden);}
     batchDownloadLabels.put(batchId,label);batchDownloadBars.put(batchId,bar);batchDownloadRows.put(batchId,row);batchDownloadChecks.put(batchId,check);
-    LinearLayout.LayoutParams cardLp=new LinearLayout.LayoutParams(-1,dp(76));
+    LinearLayout.LayoutParams cardLp=new LinearLayout.LayoutParams(-1,dpText(76));
     cardLp.setMargins(dp(4),0,dp(4),dp(6));
     downloadList.addView(row,cardLp);
   }
@@ -4087,14 +4140,23 @@ content=new LinearLayout(this);content.setOrientation(LinearLayout.VERTICAL);pag
   String downloadExtensionCategory(DownloadEntry entry){switch(downloadExtension(entry)){case"APK":case"APKS":case"APKM":case"XAPK":case"AAB":return"安装包";case"EXE":case"MSI":case"MSIX":case"APPX":case"APPXBUNDLE":case"DMG":case"PKG":case"DEB":case"RPM":case"APPIMAGE":case"JAR":return"应用程序";case"ZIP":case"RAR":case"7Z":case"TAR":case"GZ":case"BZ2":case"XZ":case"ZST":case"TGZ":case"TBZ":case"CAB":case"ISO":return"压缩包";case"TXT":case"MD":case"LOG":case"CSV":case"JSON":case"XML":case"YAML":case"YML":case"INI":case"CONF":case"RTF":case"PDF":case"DOC":case"DOCX":case"ODT":case"XLS":case"XLSX":case"PPT":case"PPTX":case"EPUB":case"MOBI":return"文本";case"MP4":case"MKV":case"AVI":case"MOV":case"WMV":case"FLV":case"WEBM":case"M4V":case"TS":case"3GP":case"MPEG":case"MPG":return"视频";case"MP3":case"FLAC":case"WAV":case"AAC":case"M4A":case"OGG":case"OPUS":case"WMA":case"APE":case"MID":case"MIDI":return"音乐";default:return"其他";}}
   boolean matchesDownloadExtension(DownloadEntry entry){return matchesDownloadExtensionValue(entry,downloadExtensionFilter);} boolean matchesDownloadExtensionValue(DownloadEntry entry,String filter){return filter.equals("全部")||downloadExtensionCategory(entry).equals(filter);}
   void renderDownloadFilters(){
-    if(downloadFilterStrip==null||downloadExtensionStrip==null)return;downloadFilterStrip.removeAllViews();downloadExtensionStrip.removeAllViews();for(String label:new String[]{"全部","解析中","下载中","下载完成","下载失败"}){View filter=underlineFilter(label,label.equals(downloadStateFilter),()->{downloadStateFilter=label;transitionDownloadFilter(()->renderDownloads(downloadQuery));},5);LinearLayout.LayoutParams params=new LinearLayout.LayoutParams(-2,dp(38));params.setMargins(0,0,dp(4),0);downloadFilterStrip.addView(filter,params);}for(String label:new String[]{"全部","安装包","应用程序","压缩包","文本","视频","音乐","其他"}){TextView filter=roundedDownloadFilter(label,label.equals(downloadExtensionFilter),()->{downloadExtensionFilter=label;transitionDownloadFilter(()->renderDownloads(downloadQuery));});LinearLayout.LayoutParams params=new LinearLayout.LayoutParams(-2,dp(34));params.setMargins(0,0,dp(6),0);downloadExtensionStrip.addView(filter,params);}
-    // v1.22.3 窄屏适配：状态行 6 标签原用 14dp 内边距 → 总宽 426dp > 360dp 可用宽，最右「下载完成」被屏幕右缘裁成"下载完/"；
-    // 改 6dp 内边距 + 4dp 间距（总宽 ≈320dp 恰好落在 328dp 内），并去掉 setMinimumWidth 强制撑宽
-    // （原 minWidth=屏宽-32dp 配 CENTER_HORIZONTAL，内容再溢出时被推到屏幕外，视觉上就是"被黑边挡住"）
+    if(downloadFilterStrip==null||downloadExtensionStrip==null)return;downloadFilterStrip.removeAllViews();downloadExtensionStrip.removeAllViews();for(String label:new String[]{"全部","解析中","下载中","下载完成","下载失败"}){View filter=underlineFilter(label,label.equals(downloadStateFilter),()->{downloadStateFilter=label;transitionDownloadFilter(()->renderDownloads(downloadQuery));},5);LinearLayout.LayoutParams params=new LinearLayout.LayoutParams(-2,dpText(44));params.setMargins(0,0,dp(4),0);downloadFilterStrip.addView(filter,params);}for(String label:new String[]{"全部","安装包","应用程序","压缩包","文本","视频","音乐","其他"}){TextView filter=roundedDownloadFilter(label,label.equals(downloadExtensionFilter),()->{downloadExtensionFilter=label;transitionDownloadFilter(()->renderDownloads(downloadQuery));});LinearLayout.LayoutParams params=new LinearLayout.LayoutParams(-2,dpText(44));params.setMargins(0,0,dp(6),0);downloadExtensionStrip.addView(filter,params);}
+    /* [2026-10-03 修正注释] 上面两行 v1.22.3 注释里的数字**三个版本互相矛盾，且全部与代码不符**：
+         · 这里说「6 标签 / 14dp 时 426dp / 改 6dp ≈ 320dp」；
+         · `underlineFilter` 的 Javadoc 说「6 个标签 / 下载页传 7dp / 落在 322dp」；
+         · 而实际代码是 **5 个标签、传 5dp**（见上一行的 label 数组与末参数）。
+       2026-10-03 按今天的代码重算（360dp、fontScale 1.0）：可用 328dp；
+       5 个标签共 16 个汉字 × 12dp = 192 + 内边距 2×5×5 = 50 + 右间距 4×5 = 20 + strip 内边距 12 = **274dp，余 54dp**。
+       退回 14dp 是 364dp > 328dp —— **补丁本身仍然必要**，但 426/322/320 这些数一个都算不出来。
+       另外「被屏幕右缘裁切」这个失败模式**今天已不可能发生**：本行外层是 HorizontalScrollView
+       （见 `downloadStateFilterRow`），且 strip 上已无任何 setMinimumWidth，超宽时是**横滚**不是裁切。
+       所以这个 5dp 的真实价值是**可发现性**（5 个标签默认全部可见，不用横滑才发现有「下载失败」），
+       不是可用性。将来调这个数，按"默认全可见"这个目标调，别再背 426dp。
+       [2026-10-03 重做] 标签高度同时由 dp(38) 提到 dpText(44)：token §4:128 要求胶囊高 44–48dp。 */
   }
   /** v1.22.3 扩展名胶囊行：整行独占（原先与 4 个全局操作按钮挤同一行 → 360dp 窄屏上留给胶囊仅约 176dp，
    *  「应用程序」等被按钮边界截断，视觉上像"按钮被边距挡住"）。改为胶囊整行可横滚，按钮移到独立行。 */
-  LinearLayout downloadExtensionChipRow(LinearLayout strip){LinearLayout row=new LinearLayout(this);row.setGravity(Gravity.CENTER_VERTICAL);HorizontalScrollView scroll=new HorizontalScrollView(this);scroll.setHorizontalScrollBarEnabled(false);scroll.setFillViewport(false);strip.setOrientation(LinearLayout.HORIZONTAL);strip.setPadding(0,dp(2),dp(8),dp(2));scroll.addView(strip,new HorizontalScrollView.LayoutParams(-2,dp(38)));row.addView(scroll,new LinearLayout.LayoutParams(-1,dp(38)));return row;}
+  LinearLayout downloadExtensionChipRow(LinearLayout strip){LinearLayout row=new LinearLayout(this);row.setGravity(Gravity.CENTER_VERTICAL);HorizontalScrollView scroll=new HorizontalScrollView(this);scroll.setHorizontalScrollBarEnabled(false);scroll.setFillViewport(false);strip.setOrientation(LinearLayout.HORIZONTAL);strip.setPadding(0,dp(2),dp(8),dp(2));scroll.addView(strip,new HorizontalScrollView.LayoutParams(-2,dpText(44)));row.addView(scroll,new LinearLayout.LayoutParams(-1,dpText(44)));return row;}
   /** 下载页 UI 优化（2026-10-02）：全局操作按钮改为「图标 + 文字标签」胶囊。
       改前这排是 5 个裸图标（用户反馈「下载UI界面有点丑」），且「清除分享密码」错用了复制图标 ic_copy。
       [DFW-113 2026-10-03 重做] 行上从 3 颗减到 **2 颗**（暂停全部 / 取消全部），
@@ -4108,17 +4170,17 @@ content=new LinearLayout(this);content.setOrientation(LinearLayout.VERTICAL);pag
     LinearLayout strip=new LinearLayout(this);
     strip.setOrientation(LinearLayout.HORIZONTAL);
     strip.setGravity(Gravity.CENTER_VERTICAL);
-    downloadPauseControlButton=downloadActionChip(R.drawable.ic_pause,"暂停全部",14,v->togglePauseAllActive());
-    downloadGlobalControlButton=downloadActionChip(R.drawable.ic_close,"取消全部",14,v->cancelAllActive());
+    downloadPauseControlButton=downloadActionChip(R.drawable.ic_pause,"暂停全部",20,v->togglePauseAllActive());
+    downloadGlobalControlButton=downloadActionChip(R.drawable.ic_close,"取消全部",20,v->cancelAllActive());
     strip.addView(downloadPauseControlButton,actionBtnLp(0));
     strip.addView(downloadGlobalControlButton,actionBtnLp(dp(6)));
     /* 字体放大到整排放不下时整排可横滚（与上面两条筛选条同款兜底）。 */
     HorizontalScrollView scroll=new HorizontalScrollView(this);
     scroll.setHorizontalScrollBarEnabled(false);
     scroll.setFillViewport(false);
-    scroll.addView(strip,new HorizontalScrollView.LayoutParams(-2,dpText(36)));
+    scroll.addView(strip,new HorizontalScrollView.LayoutParams(-2,dpText(44)));
     /* 宽度 wrap_content：放得下时整排右对齐，放不下时自动占满可用宽并横滚。 */
-    row.addView(scroll,new LinearLayout.LayoutParams(-2,dpText(36)));
+    row.addView(scroll,new LinearLayout.LayoutParams(-2,dpText(44)));
     downloadActionRowView=row;
     refreshDownloadGlobalControl();
     return row;
@@ -4130,7 +4192,10 @@ content=new LinearLayout(this);content.setOrientation(LinearLayout.VERTICAL);pag
     chip.setPadding(dp(9),0,dp(9),0);
     chip.setClickable(true);
     chip.setFocusable(true);
-    GradientDrawable bg=solidShape(SURFACE,14);
+    /* 胶囊形：token §4「Pill = height/2」。胶囊高 44dp ⇒ 理想圆角 22dp。
+       solidShape 会把圆角量化（>=24→26、>=14→20），所以传 24 → 26 → GradientDrawable
+       再按半宽/半高夹到 22dp，**正好等于 height/2**。传 14 只会得到 20dp，差 2dp 不是真 pill。 */
+    GradientDrawable bg=solidShape(SURFACE,24);
     /* 1dp 描边把「操作」与上面两行「筛选胶囊」分开：同为 SURFACE 面，靠描边分职责（§5 普通描边档）。 */
     bg.setStroke(dp(1),BORDER);
     chip.setBackground(filterRipple(bg));
@@ -4186,7 +4251,7 @@ content=new LinearLayout(this);content.setOrientation(LinearLayout.VERTICAL);pag
     showRounded(menu[0]);
   }
   /** 下载页全局操作胶囊的统一尺寸 + 左侧留白；高度走 dpText 随字体缩放（DFW-13），标签才不会被裁。 */
-  LinearLayout.LayoutParams actionBtnLp(int leftMargin){LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-2,dpText(36));lp.leftMargin=leftMargin;return lp;}
+  LinearLayout.LayoutParams actionBtnLp(int leftMargin){LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-2,dpText(44));lp.leftMargin=leftMargin;return lp;}
   void refreshDownloadGlobalControl(){
     if(downloadActionRowView==null)return;
     boolean hasActive=false,hasPaused=false;
@@ -4231,11 +4296,22 @@ content=new LinearLayout(this);content.setOrientation(LinearLayout.VERTICAL);pag
       }
     }
   }
-  HorizontalScrollView downloadStateFilterRow(LinearLayout strip){HorizontalScrollView scroll=new HorizontalScrollView(this);scroll.setHorizontalScrollBarEnabled(false);scroll.setFillViewport(false);strip.setOrientation(LinearLayout.HORIZONTAL);strip.setGravity(Gravity.CENTER_VERTICAL);strip.setPadding(dp(6),dp(2),dp(6),dp(2));scroll.addView(strip,new HorizontalScrollView.LayoutParams(-2,dp(38)));return scroll;}
+  HorizontalScrollView downloadStateFilterRow(LinearLayout strip){HorizontalScrollView scroll=new HorizontalScrollView(this);scroll.setHorizontalScrollBarEnabled(false);scroll.setFillViewport(false);strip.setOrientation(LinearLayout.HORIZONTAL);strip.setGravity(Gravity.CENTER_VERTICAL);strip.setPadding(dp(6),dp(2),dp(6),dp(2));scroll.addView(strip,new HorizontalScrollView.LayoutParams(-2,dpText(44)));return scroll;}
   // v1.22.3 窄屏修复：删 setMinimumWidth(屏宽-32dp) + CENTER_HORIZONTAL——该组合在内容超宽时把最右标签推到屏幕外（实测「下载完成」被裁成"下载完/"），
   // 改左对齐 + wrap_content：6 标签在 360dp 内排满，仍保留横向滚动兜底（大字体/超窄屏时不裁切）
   void showDownloads(){
-    primaryBase(2);pageKind=2;clearFolderTrail();activeSource=null;downloadsPage=true;systemBackAction=null;primaryHeader("下载历史");String fullPath=downloadDisplayPath();LinearLayout path=new LinearLayout(this);path.setGravity(Gravity.CENTER_VERTICAL);path.setPadding(dp(9),0,dp(12),0);path.setContentDescription("保存路径 "+fullPath+"，点击用文件管理器打开，长按重新选择");path.setClickable(true);path.setFocusable(true);ImageView pathIcon=new ImageView(this);pathIcon.setImageResource(R.drawable.ic_folder);pathIcon.setColorFilter(PRIMARY);pathIcon.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);path.addView(pathIcon,new LinearLayout.LayoutParams(dp(25),dp(25)));TextView pathTitle=text("保存路径",11,PRIMARY);pathTitle.setSingleLine(true);pathTitle.setPadding(dp(7),0,0,0);path.addView(pathTitle,new LinearLayout.LayoutParams(-2,dp(44)));downloadPathText=text(fullPath,9,MUTED);downloadPathText.setSingleLine(true);downloadPathText.setEllipsize(android.text.TextUtils.TruncateAt.START);downloadPathText.setPadding(dp(8),0,0,0);path.addView(downloadPathText,new LinearLayout.LayoutParams(0,dp(44),1));path.setOnClickListener(downloadDirectoryClick);path.setOnLongClickListener(v->{chooseDownloadDirectory();return true;});LinearLayout.LayoutParams pathParams=new LinearLayout.LayoutParams(0,dp(44),1);pathParams.setMargins(dp(4),dp(2),0,dp(2));pageHeaderRow.addView(path,pathParams);/* [DFW-113 2026-10-03] 「更多」从列表上方的操作行**搬进页头**，做成 ⋮ 图标。
+    primaryBase(2);pageKind=2;clearFolderTrail();activeSource=null;downloadsPage=true;systemBackAction=null;
+    /* 页头宽度分配（2026-10-03 实测，不是观感）：标题与路径原来**都是 weight=1**，各分 144dp，
+       而路径内部固定件就占 105dp（内边距 21 + 图标 25 + 「保存路径」文字标签 51 + 左内边距 8），
+       留给路径字符串只剩 **39dp ≈ 4 个 9sp 字** —— 真机截图里的「…ad/东方无限」是几何必然，不是偶发。
+       两处修正：
+         ① 标题改 wrap_content —— 它只需要约 92dp，却占着 144dp；
+         ② 去掉「保存路径」这个文字标签 —— 文件夹图标已经表达了含义，contentDescription 也念得出来。
+       两者合计把路径从 39dp 抬到约 140dp（≈ 12 个字符），配合 START 截断保留末级目录，这才是用户要看的。
+       标题补 singleLine + END 截断：它现在会随字体放大变宽，大字体下必须截断，而不是换行后被 52dp 盒裁掉。 */
+    TextView heading=primaryHeader("下载历史");
+    if(heading!=null){heading.setSingleLine(true);heading.setEllipsize(android.text.TextUtils.TruncateAt.END);LinearLayout.LayoutParams headingLp=(LinearLayout.LayoutParams)heading.getLayoutParams();headingLp.width=LinearLayout.LayoutParams.WRAP_CONTENT;headingLp.weight=0;heading.setLayoutParams(headingLp);}
+    String fullPath=downloadDisplayPath();LinearLayout path=new LinearLayout(this);path.setGravity(Gravity.CENTER_VERTICAL);path.setPadding(dp(6),0,dp(8),0);path.setContentDescription("保存路径 "+fullPath+"，点击用文件管理器打开，长按重新选择");path.setClickable(true);path.setFocusable(true);ImageView pathIcon=new ImageView(this);pathIcon.setImageResource(R.drawable.ic_folder);pathIcon.setColorFilter(PRIMARY);pathIcon.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);path.addView(pathIcon,new LinearLayout.LayoutParams(dp(22),dp(22)));downloadPathText=text(fullPath,11,MUTED);downloadPathText.setSingleLine(true);downloadPathText.setEllipsize(android.text.TextUtils.TruncateAt.START);downloadPathText.setPadding(dp(8),0,0,0);path.addView(downloadPathText,new LinearLayout.LayoutParams(0,dpText(44),1));path.setOnClickListener(downloadDirectoryClick);path.setOnLongClickListener(v->{chooseDownloadDirectory();return true;});LinearLayout.LayoutParams pathParams=new LinearLayout.LayoutParams(0,dpText(44),1);pathParams.setMargins(dp(4),dp(2),0,dp(2));pageHeaderRow.addView(path,pathParams);/* [DFW-113 2026-10-03] 「更多」从列表上方的操作行**搬进页头**，做成 ⋮ 图标。
         为什么必须搬（2026-10-03 实测几何，不是观感）：操作行里三颗胶囊的前两颗是「暂停全部/取消全部」，
         它们只在 hasWork（有进行中或已暂停的任务）时才 VISIBLE；于是**历史里有记录、但没有在跑的任务**时，
         整排只剩一颗「更多」孤零零贴在最右边（实测 chip0=GONE chip1=GONE chip2=VISIBLE），
@@ -4247,8 +4323,9 @@ content=new LinearLayout(this);content.setOrientation(LinearLayout.VERTICAL);pag
         图标沿用 ic_dots_three（原先「更多」胶囊用的就是它，语义不变，只是换了位置与形态）。 */
       downloadHeaderMenuButton=iconButton(R.drawable.ic_dots_three,"更多操作");
       downloadHeaderMenuButton.setOnClickListener(v->showDownloadMaintenanceMenu());
-      pageHeaderRow.addView(downloadHeaderMenuButton,new LinearLayout.LayoutParams(dp(40),dp(48)));
-      sourceFilter=pageSearch(this::renderDownloads,200);downloadFilterStrip=new LinearLayout(this);downloadExtensionStrip=new LinearLayout(this);root.addView(downloadStateFilterRow(downloadFilterStrip),new LinearLayout.LayoutParams(-1,dp(38)));root.addView(downloadExtensionChipRow(downloadExtensionStrip),new LinearLayout.LayoutParams(-1,dp(38)));root.addView(downloadActionRow(),new LinearLayout.LayoutParams(-1,dpText(44)));pageScroll=new ScrollView(this);downloadList=new LinearLayout(this);downloadList.setOrientation(LinearLayout.VERTICAL);pageScroll.addView(downloadList);root.addView(draggableList(pageScroll,downloadList,"拖动下载历史"),new LinearLayout.LayoutParams(-1,0,1));renderDownloadFilters();renderDownloads("");
+      /* 48×48：token §4:128 触控区 ≥48dp。改前是 40×48，宽度不达。 */
+      pageHeaderRow.addView(downloadHeaderMenuButton,new LinearLayout.LayoutParams(dp(48),dp(48)));
+      sourceFilter=pageSearch(this::renderDownloads,200);downloadFilterStrip=new LinearLayout(this);downloadExtensionStrip=new LinearLayout(this);root.addView(downloadStateFilterRow(downloadFilterStrip),new LinearLayout.LayoutParams(-1,dpText(44)));root.addView(downloadExtensionChipRow(downloadExtensionStrip),new LinearLayout.LayoutParams(-1,dpText(44)));root.addView(downloadActionRow(),new LinearLayout.LayoutParams(-1,dpText(44)));pageScroll=new ScrollView(this);downloadList=new LinearLayout(this);downloadList.setOrientation(LinearLayout.VERTICAL);pageScroll.addView(downloadList);root.addView(draggableList(pageScroll,downloadList,"拖动下载历史"),new LinearLayout.LayoutParams(-1,0,1));renderDownloadFilters();renderDownloads("");
   }
   /** 下载进度条统一样式：轨道回归色板 BORDER，填充 PRIMARY。
       默认样式（progressBarStyleHorizontal）的轨道是中性灰 #363636，是整页唯一的冷灰像素
@@ -4278,52 +4355,97 @@ content=new LinearLayout(this);content.setOrientation(LinearLayout.VERTICAL);pag
    * 图标底 = SURFACE2（在 SURFACE 卡面上可辨识），内容高度 22+32+5=59 ≤ 60 装得下，
    * 卡片之间留 6dp 间距让"一条记录 = 一个对象"读得出来。
    */
+  /**
+   * 行内图标按钮：**48dp 触控区 + 22dp glyph**（token §4:128 触控区 ≥48dp、§7:160 glyph 20–22dp）。
+   *
+   * ## 为什么必须单独一个方法（2026-10-03 实测的坑）
+   * `iconButton`（816）里写了 `setMinimumWidth/Height(dp(44))`，**但那个最小值在固定尺寸下不起作用**：
+   * 调用方给的是 `new LinearLayout.LayoutParams(dp(38),dp(42))`，固定尺寸会以
+   * `MeasureSpec.EXACTLY` 测量，`View.getDefaultSize` 在 EXACTLY 分支**直接取 specSize、忽略 minimum**
+   * ⇒ 实际就是 38×42dp，不达 48dp。
+   *
+   * 所以触控区**只能由调用方给的 LayoutParams 决定**。这里把「48dp 视图 + 13dp 内边距 = 22dp glyph」
+   * 钉成一个方法，避免每个调用点各写一个数、又慢慢漂回 38×42。
+   */
+  static final int ROW_ICON_BUTTON_DP=48;
+  ImageButton rowIconButton(int icon,String description){
+    ImageButton b=iconButton(icon,description);
+    b.setPadding(dp(13),dp(13),dp(13),dp(13));
+    return b;
+  }
+  LinearLayout.LayoutParams rowIconButtonLp(){return new LinearLayout.LayoutParams(dp(ROW_ICON_BUTTON_DP),dp(ROW_ICON_BUTTON_DP));}
   void addDownloadRow(DownloadEntry entry){
-    LinearLayout row=new LinearLayout(this);row.setGravity(Gravity.CENTER_VERTICAL);row.setPadding(dp(10),dp(8),dp(6),dp(8));row.setClickable(true);row.setFocusable(true);
-    /* 卡片面：SURFACE 填充 + BORDER 描边。用 filterRipple 包一层，点卡片时涟漪落在卡片范围里。 */
+    LinearLayout row=new LinearLayout(this);row.setGravity(Gravity.CENTER_VERTICAL);row.setPadding(dp(8),dp(6),dp(4),dp(6));row.setClickable(true);row.setFocusable(true);
+    /* 卡片面：SURFACE 填充 + BORDER 描边。用 filterRipple 包一层，点卡片时涟漪落在卡片范围里。
+       圆角走 solidShape 的量化档：传 16 → 实际渲染 20dp = token §4「Card = 20dp」。 */
     GradientDrawable cardBg=solidShape(SURFACE,16);
     cardBg.setStroke(dp(1),BORDER);
     row.setBackground(filterRipple(cardBg));
     ImageView icon=new ImageView(this);icon.setScaleType(ImageView.ScaleType.CENTER_CROP);
-    /* 图标底改成 SURFACE2：原来的 BG 在 BG 页面上是隐形的（见方法注释第 2 条）。 */
-    icon.setBackground(solidShape(SURFACE2,11));icon.setClipToOutline(true);icon.setImageResource(R.drawable.ic_file);
+    /* 图标底：传 24 → 量化成 26dp，而盒子是 40dp，GradientDrawable 会把圆角夹到半宽 = 20dp
+       ⇒ **正好是圆形**，满足 token §4:127「按钮 pill/circle → 图标底 circle」。
+       改前传 11 → 量化成 8dp，是个小圆角方块，不是圆形。 */
+    icon.setBackground(solidShape(SURFACE2,24));icon.setClipToOutline(true);icon.setImageResource(R.drawable.ic_file);
     row.addView(icon,new LinearLayout.LayoutParams(dp(40),dp(40)));loadImage(entry.iconUrl,icon);
     LinearLayout middle=new LinearLayout(this);middle.setOrientation(LinearLayout.VERTICAL);middle.setPadding(dp(11),0,dp(8),0);
     TextView name=text(entry.name,14,TEXT,560);name.setMaxLines(1);name.setEllipsize(android.text.TextUtils.TruncateAt.END);
     TextView label=text(downloadMetrics(entry),11,MUTED);label.setMaxLines(2);label.setEllipsize(android.text.TextUtils.TruncateAt.END);
     ProgressBar bar=downloadProgressBar();bar.setIndeterminate(entry.state.equals(DOWNLOAD_RESOLVING));bar.setProgress(entry.percent);
-    /* 高度自查：22 + 32 + 5 = 59 ≤ 60（容器）。改前是 24 + 44 + 5 = 73 > 70，进度条会被裁。 */
-    middle.addView(name,new LinearLayout.LayoutParams(-1,dp(22)));
-    middle.addView(label,new LinearLayout.LayoutParams(-1,dp(32)));
+    /* 高度全部走 dpText()（DFW-13 适老化，规矩见 :728-737）：
+       这些盒子**就是为了装文字**的，用 dp() 的话系统字体一放大、文字变大盒子不变 → 被裁。
+       改前是 dp(22)/dp(32)/dp(60)/dp(76)，而**同一页**的操作行 :4251 早就用了 dpText(44) ——
+       一页两套规矩，卡片那半边是漏改的。 */
+    middle.addView(name,new LinearLayout.LayoutParams(-1,dpText(22)));
+    middle.addView(label,new LinearLayout.LayoutParams(-1,dpText(32)));
     middle.addView(bar,new LinearLayout.LayoutParams(-1,dp(5)));
-    row.addView(middle,new LinearLayout.LayoutParams(0,dp(60),1));
+    row.addView(middle,new LinearLayout.LayoutParams(0,dpText(60),1));
     LinearLayout actions=new LinearLayout(this);actions.setGravity(Gravity.CENTER_VERTICAL);bindDownloadActions(entry,actions);
-    row.addView(actions,new LinearLayout.LayoutParams(-2,dp(44)));
+    row.addView(actions,new LinearLayout.LayoutParams(-2,dpText(44)));
     CheckBox check=new CheckBox(this);check.setClickable(false);check.setChecked(selectedDownloads.contains(entry));
     check.setVisibility(downloadSelectionMode?View.VISIBLE:View.GONE);
-    row.addView(check,new LinearLayout.LayoutParams(dp(32),dp(44)));
+    row.addView(check,new LinearLayout.LayoutParams(dp(32),dpText(44)));
     downloadChecks.put(entry,check);downloadLabels.put(entry,label);downloadBars.put(entry,bar);downloadActions.put(entry,actions);downloadRows.put(entry,row);bindDownloadRowDescription(entry,row);
-    row.setOnClickListener(v->{if(downloadSelectionMode)toggleDownloadSelection(entry);else if(entry.state.equals(DOWNLOAD_FAILED))requestRetryDownload(entry);else if(entry.state.equals(DOWNLOAD_PAUSED))resumeDownload(entry);else if(entry.state.equals(DOWNLOAD_COMPLETED))installEntry(entry);});
+    /* 行点击：**所有状态都要有反馈**。改前只处理 失败/暂停/完成，
+       等待中、解析中、已取消这三种点了毫无反应（无 toast、无动画、无任何提示），
+       用户会以为"点了没用 / 界面坏了"。 */
+    row.setOnClickListener(v->{if(downloadSelectionMode)toggleDownloadSelection(entry);else if(entry.state.equals(DOWNLOAD_FAILED))requestRetryDownload(entry);else if(entry.state.equals(DOWNLOAD_PAUSED))resumeDownload(entry);else if(entry.state.equals(DOWNLOAD_COMPLETED))installEntry(entry);else if(entry.state.equals(DOWNLOAD_CANCELLED))showNotice("这条记录已取消，右侧可以删除记录",false);else if(entry.state.equals(DOWNLOAD_WAITING))showNotice("排队等待中，轮到它就会自动开始",false);else if(entry.state.equals(DOWNLOAD_RESOLVING))showNotice("正在解析下载地址，稍等一下",false);});
     row.setOnLongClickListener(v->{enterDownloadSelection();toggleDownloadSelection(entry);return true;});
-    /* 卡片间距 6dp：让"一条记录 = 一个对象"读得出来；左右各 4dp 让卡片不贴屏幕边。 */
-    LinearLayout.LayoutParams cardLp=new LinearLayout.LayoutParams(-1,dp(76));
+    /* 卡片间距 6dp：让"一条记录 = 一个对象"读得出来；左右各 4dp 让卡片不贴屏幕边。
+       高度 dpText(76)：卡片里装的是文字（名字+指标），必须随字体缩放，否则大字体下被裁。 */
+    LinearLayout.LayoutParams cardLp=new LinearLayout.LayoutParams(-1,dpText(76));
     cardLp.setMargins(dp(4),0,dp(4),dp(6));
     downloadList.addView(row,cardLp);
   }
-  void bindDownloadActions(DownloadEntry entry,LinearLayout actions){actions.removeAllViews();if(entry.state.equals(DOWNLOAD_COMPLETED)){ImageButton deleteFile=iconButton(R.drawable.ic_delete_file,"删除本地文件并同步删除下载记录"),deleteRecord=iconButton(R.drawable.ic_delete_record,"仅删除下载记录并保留本地文件");deleteFile.setOnClickListener(v->confirmDeleteFile(entry));deleteRecord.setOnClickListener(v->removeDownloadRecord(entry));actions.addView(deleteFile,new LinearLayout.LayoutParams(dp(38),dp(42)));actions.addView(deleteRecord,new LinearLayout.LayoutParams(dp(38),dp(42)));return;}if(isDownloadActive(entry)||entry.state.equals(DOWNLOAD_PAUSED)){ImageButton control=iconButton(entry.state.equals(DOWNLOAD_PAUSED)?R.drawable.ic_play:R.drawable.ic_pause,(entry.state.equals(DOWNLOAD_PAUSED)?"继续下载 ":"暂停下载 ")+entry.name);control.setOnClickListener(v->{if(entry.state.equals(DOWNLOAD_PAUSED))resumeDownload(entry);else pauseDownload(entry);});ImageButton cancel=iconButton(R.drawable.ic_close,"取消下载并清除断点 "+entry.name);cancel.setOnClickListener(v->cancelDownload(entry));actions.addView(control,new LinearLayout.LayoutParams(dp(38),dp(42)));actions.addView(cancel,new LinearLayout.LayoutParams(dp(38),dp(42)));return;}
+  /**
+   * 行内动作按钮。
+   *
+   * ## 尺寸（2026-10-03 重做）
+   * 全部改成 {@link #rowIconButton} 的 **48×48dp**。改前是 `dp(38)×dp(42)` —— 触控区不达
+   * token §4:128 要求的 48dp，而 `iconButton` 里的 `setMinimumWidth/Height(dp(44))` **救不了**
+   * （固定 LayoutParams 走 MeasureSpec.EXACTLY，会忽略 minimum，理由见 {@link #rowIconButton}）。
+   *
+   * ## 层级（token §6：靠颜色做层级，不靠尺寸）
+   * 「删除本地文件」是**不可逆**动作（真的删掉已下载的文件），用 `ERROR_TOKEN` 区分；
+   * 「仅删除记录」只清理列表、保留文件，所以留品牌色。
+   * 改前两者**同尺寸同色**，用户分不出哪个更重 —— 这是"界面看起来没设计"的典型症状。
+   *
+   * 「取消下载」**刻意不染红**：它可恢复（重新下载即可），染红会让整屏在下载期间一直有红色噪音。
+   * 真正不可逆的才配红，这是本页的取舍。
+   */
+  void bindDownloadActions(DownloadEntry entry,LinearLayout actions){actions.removeAllViews();if(entry.state.equals(DOWNLOAD_COMPLETED)){ImageButton deleteFile=rowIconButton(R.drawable.ic_delete_file,"删除本地文件并同步删除下载记录"),deleteRecord=rowIconButton(R.drawable.ic_delete_record,"仅删除下载记录并保留本地文件");deleteFile.setColorFilter(ERROR_TOKEN);deleteFile.setOnClickListener(v->confirmDeleteFile(entry));deleteRecord.setOnClickListener(v->removeDownloadRecord(entry));actions.addView(deleteFile,rowIconButtonLp());actions.addView(deleteRecord,rowIconButtonLp());return;}if(isDownloadActive(entry)||entry.state.equals(DOWNLOAD_PAUSED)){ImageButton control=rowIconButton(entry.state.equals(DOWNLOAD_PAUSED)?R.drawable.ic_play:R.drawable.ic_pause,(entry.state.equals(DOWNLOAD_PAUSED)?"继续下载 ":"暂停下载 ")+entry.name);control.setOnClickListener(v->{if(entry.state.equals(DOWNLOAD_PAUSED))resumeDownload(entry);else pauseDownload(entry);});ImageButton cancel=rowIconButton(R.drawable.ic_close,"取消下载并清除断点 "+entry.name);cancel.setOnClickListener(v->cancelDownload(entry));actions.addView(control,rowIconButtonLp());actions.addView(cancel,rowIconButtonLp());return;}
     /* [DFW-25] 失败 / 已取消：以前这两种状态**一个行内按钮都没有** ——
        失败只能靠点整行重试（界面上没有任何提示说可以点），取消后想清掉记录只能长按多选
        或走全局「全部删除记录」。三种状态的可行动作数分别是 2 / 2 / 0，这正是本卡要治的"状态不统一"。
        现在补上与其它状态对等的行内出口：失败=重试 + 删记录，已取消=删记录。 */
     if(entry.state.equals(DOWNLOAD_FAILED)||entry.state.equals(DOWNLOAD_CANCELLED)){
       if(entry.state.equals(DOWNLOAD_FAILED)){
-        ImageButton retry=iconButton(R.drawable.ic_refresh,"重新下载 "+entry.name);
+        ImageButton retry=rowIconButton(R.drawable.ic_refresh,"重新下载 "+entry.name);
         retry.setOnClickListener(v->requestRetryDownload(entry));
-        actions.addView(retry,new LinearLayout.LayoutParams(dp(38),dp(42)));
+        actions.addView(retry,rowIconButtonLp());
       }
-      ImageButton deleteRecord=iconButton(R.drawable.ic_delete_record,"仅删除下载记录并保留本地文件");
+      ImageButton deleteRecord=rowIconButton(R.drawable.ic_delete_record,"仅删除下载记录并保留本地文件");
       deleteRecord.setOnClickListener(v->removeDownloadRecord(entry));
-      actions.addView(deleteRecord,new LinearLayout.LayoutParams(dp(38),dp(42)));
+      actions.addView(deleteRecord,rowIconButtonLp());
     }}
   void bindDownloadRowDescription(DownloadEntry entry,View row){boolean retryable=entry.state.equals(DOWNLOAD_FAILED);row.setContentDescription(retryable?"下载失败，点击重新下载，右侧可重试或删除记录 "+entry.name:entry.state.equals(DOWNLOAD_CANCELLED)?"下载已取消，断点已清理，右侧可删除记录，长按可多选":entry.state.equals(DOWNLOAD_PAUSED)?"已暂停，点击继续 "+entry.name:entry.name+"，"+entry.state+"，长按可多选");}
   String formatSpeed(long bytesPerSecond){return bytesPerSecond<=0?"测速中":formatSize(bytesPerSecond)+"/s";}

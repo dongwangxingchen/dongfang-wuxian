@@ -320,4 +320,132 @@ class NoticeCenterJvmTest {
             c.isRead("已删除的旧公告"),
         )
     }
+
+    // ── 公告分版本（2026-10-03 用户批准）────────────────────────────────────
+
+    /** 带适用版本的公告。`version=""` 表示通用（所有版本都看）。 */
+    private fun versionedNotice(id: String, version: String, popupMode: String = "once") =
+        RemoteConfigClient.Notice(id, "标题", "正文", "normal", false, popupMode, 0L, version)
+
+    private fun centerFor(appVersion: String, store: FakeStore = FakeStore()) =
+        NoticeCenter(store, appVersion)
+
+    /**
+     * 通用公告（没填适用版本）在任何版本上都看得见。
+     *
+     * 这是**向后兼容的地基**：老数据没有这个字段、老 APK 不认这个字段，
+     * 靠的就是"空 = 通用"这一条。它一旦坏了，后台所有历史公告会集体消失。
+     */
+    @Test
+    fun noticeWithoutVersion_isUniversal() {
+        val c = centerFor("1.0.0")
+        val s = snapshot(versionedNotice("通用", ""))
+        assertEquals(1, c.visible(s).size)
+        assertEquals(1, c.unreadCount(s))
+    }
+
+    /**
+     * 填了适用版本的公告，**只在该版本上显示**。
+     *
+     * 用户明确接受这个后果（原话确认过）：升级之后，上一个版本的公告不再显示。
+     */
+    @Test
+    fun noticeTaggedWithAnotherVersion_isHidden() {
+        val s = snapshot(versionedNotice("旧版公告", "0.9.9"))
+        assertEquals("1.0.0 上不该看到 0.9.9 的公告", 0, centerFor("1.0.0").visible(s).size)
+        assertEquals("0.9.9 上应当看到自己的公告", 1, centerFor("0.9.9").visible(s).size)
+    }
+
+    /**
+     * 后台手填 `v1.0.0`、本机版本名是 `1.0.0` —— **必须算同一条**。
+     *
+     * 这不是吹毛求疵：后台是个手填输入框，`v` 前缀是最容易多打的一个字符。
+     * 不做归一化的话，用户会遇到"公告明明发了却看不到"，而且极难查——
+     * 因为界面上两个字符串看起来就是一样的。
+     */
+    @Test
+    fun vPrefixedVersion_stillMatches() {
+        val s = snapshot(versionedNotice("带v前缀", "v1.0.0"))
+        assertEquals("v1.0.0 与 1.0.0 必须算同一条", 1, centerFor("1.0.0").visible(s).size)
+    }
+
+    /**
+     * 拿不到本机版本名时**不过滤**（fail-open）。
+     *
+     * 反过来的做法（拿不到就全隐藏）会把所有带版本的公告吞掉——那是静默丢内容。
+     * 宁可多显示一条，也不能让用户永远看不到公告。
+     */
+    @Test
+    fun unknownAppVersion_showsEverything() {
+        val s = snapshot(versionedNotice("A", "1.0.0"), versionedNotice("B", "2.0.0"))
+        assertEquals("版本名未知时不该过滤掉任何公告", 2, centerFor("").visible(s).size)
+    }
+
+    /**
+     * 版本过滤必须**同时**作用到红点数和弹窗——它们都走 `visible()`，这里钉死这个收口。
+     *
+     * 如果哪天有人把过滤从 `visible()` 挪到某一个调用方，这条会立刻变红。
+     */
+    @Test
+    fun versionFilterCoversBadgeAndPopupTogether() {
+        val c = centerFor("1.0.0")
+        val s = snapshot(
+            versionedNotice("通用", "", popupMode = "once"),
+            versionedNotice("我的", "1.0.0", popupMode = "once"),
+            versionedNotice("别人的", "9.9.9", popupMode = "always"),
+        )
+        assertEquals("红点数只该算通用 + 本版本", 2, c.unreadCount(s))
+        assertEquals(
+            "弹窗候选也只该是通用 + 本版本（「别人的」还是 always 模式，最容易漏）",
+            listOf("通用", "我的"),
+            c.popupNotices(s).map { it.id },
+        )
+    }
+
+    /**
+     * 「全部已读」**不该**把别的版本的公告也标成已读。
+     *
+     * 看起来无所谓（反正不显示），但它是"过滤是否真的收口在 visible()"的探针：
+     * 如果 `markAllRead` 绕过 `visible()` 直接遍历 `snapshot.notices()`，这条就会红。
+     */
+    @Test
+    fun markAllRead_doesNotTouchOtherVersions() {
+        val store = FakeStore()
+        val c = centerFor("1.0.0", store)
+        c.markAllRead(snapshot(versionedNotice("通用", ""), versionedNotice("别人的", "9.9.9")))
+        assertTrue(c.isRead("通用"))
+        assertFalse("别的版本的公告不该被标记已读", c.isRead("别人的"))
+    }
+
+    /**
+     * 已读集合回收用的是「**后台还有没有**」，不是「**当前版本显不显示**」。
+     *
+     * 两条语义分开的探针：一条「9.9.9 的公告」在 1.0.0 上不显示，
+     * 但它的已读状态**必须留着**（后台还有这条公告）。
+     * 如果实现里图省事拿 `visible()` 去建 alive 集合，这条就会红。
+     */
+    @Test
+    fun pruningKeepsReadStateOfNoticesHiddenByVersion() {
+        val store = FakeStore()
+        val c = centerFor("1.0.0", store)
+        c.markRead("别的版本")
+        c.markRead("后台已删除")
+
+        // 后台现在有：通用 + 别的版本（但没有「后台已删除」）
+        c.unreadCount(snapshot(versionedNotice("通用", ""), versionedNotice("别的版本", "9.9.9")))
+
+        assertTrue("后台还留着的公告，已读状态不该被当垃圾清掉", c.isRead("别的版本"))
+        assertFalse("后台确实删了的，该回收就回收", c.isRead("后台已删除"))
+    }
+
+    /** 归一化本身：空白、大小写、多余的前缀都要处理掉。 */
+    @Test
+    fun normalizeVersion_trimsAndStripsPrefix() {
+        assertEquals("1.0.0", NoticeCenter.normalizeVersion("  1.0.0  "))
+        assertEquals("1.0.0", NoticeCenter.normalizeVersion("v1.0.0"))
+        assertEquals("1.0.0", NoticeCenter.normalizeVersion("V1.0.0"))
+        assertEquals("1.0.0", NoticeCenter.normalizeVersion(" v 1.0.0 "))
+        assertEquals("", NoticeCenter.normalizeVersion(""))
+        assertEquals("", NoticeCenter.normalizeVersion(null))
+    }
 }
