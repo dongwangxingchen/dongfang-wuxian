@@ -170,7 +170,18 @@ public final class MainActivity extends androidx.activity.ComponentActivity impl
   static final class PendingRetry{final DownloadEntry entry;final int generation;final String state;PendingRetry(DownloadEntry entry){this.entry=entry;this.generation=entry.controlGeneration;this.state=entry.state;}}
   static final class FilterTab{final TextView label;final View underline;FilterTab(TextView label,View underline){this.label=label;this.underline=underline;}}
   static final class BulkPreparation{volatile Future<List<Models.Item>> future;volatile LinearLayout panel;volatile TextView label;volatile String progress="正在整理所选项目";}
-  static final class SearchState{final List<Models.Item> items=new ArrayList<>();final Map<String,Models.Item> byUrl=new HashMap<>();String query="",source="",right="";int active,done,total,pages,percent,failures,folderCount;boolean running,nameOnly,indexOnly,paused;}
+  static final class SearchState{final List<Models.Item> items=new ArrayList<>();final Map<String,Models.Item> byUrl=new HashMap<>();String query="",source="",right="";int active,done,total,pages,percent,failures,folderCount;boolean running,nameOnly,indexOnly,paused;
+    /*
+     * [DFW-36 2026-10-03] **失败的是哪些源。**
+     *
+     * 原来只有上面那个 `failures` 整数，用户看到的是「已完成 · 3 源异常」——
+     * 不知道是哪个源、不知道为什么、点不开、重试不了。而源名**一直是有的**：
+     * `Models.Progress.onFailure(String)` 的参数就是源标题（`LanzouCore` 里传的是
+     * `state.source.title`），调用方却把它丢掉了，只做了 `failures++`。
+     *
+     * 用 LinkedHashSet 而不是 List：同一个源可能失败多次，只记一次、且保持首现顺序。
+     */
+    final java.util.LinkedHashSet<String> failedSources=new java.util.LinkedHashSet<>();}
   static final class ItemCard{Models.Item item;final ImageView icon;final TextView title,meta,sourceBadge;final CheckBox check;String iconUrl;boolean folder;ItemCard(Models.Item item,ImageView icon,TextView title,TextView meta,TextView sourceBadge,CheckBox check){this.item=item;this.icon=icon;this.title=title;this.meta=meta;this.sourceBadge=sourceBadge;this.check=check;}}
   static final class FolderSearchEntry{final Models.Item item;final String folded;FolderSearchEntry(Models.Item item){this.item=item;this.folded=item.title.toLowerCase(Locale.ROOT);}}
   static final class ImageDelivery{final String url;final Bitmap bitmap;final List<java.lang.ref.WeakReference<ImageView>> targets;ImageDelivery(String url,Bitmap bitmap,List<java.lang.ref.WeakReference<ImageView>> targets){this.url=url;this.bitmap=bitmap;this.targets=targets;}}
@@ -2867,7 +2878,50 @@ content=new LinearLayout(this);content.setOrientation(LinearLayout.VERTICAL);pag
   int searchViewAllowance(){if(sessionSearchViewRate==0)return SEARCH_RENDER_CHUNK;long now=SystemClock.uptimeMillis();double burst=Math.max(1d,sessionSearchViewRate/30d);searchUiTokens=Math.min(burst,searchUiTokens+Math.max(0,now-searchUiTokenAt)*sessionSearchViewRate/1000d);searchUiTokenAt=now;int allowed=(int)searchUiTokens;if(allowed>0)searchUiTokens-=allowed;return allowed;}
   void drainSearchWindow(int session,int epoch,GridLayout grid){if(!searchSurfaceCurrent(session,epoch,grid))return;searchWindowPosted=false;int desired=Math.min(searchWindowTarget,current.size()),allowance=searchViewAllowance(),created=0,start=Math.min(searchWindowDirtyFrom,Math.min(desired,grid.getChildCount()));boolean blocked=false;for(int i=start;i<desired;i++){Models.Item item=current.get(i);View at=i<grid.getChildCount()?grid.getChildAt(i):null;if(item.url.equals(searchRowUrl(at)))continue;View row=liveRows.get(item.url);if(row!=null&&row.getParent()==grid){int from=grid.indexOfChild(row);grid.removeViewAt(from);grid.addView(row,i,itemLayout(i,liveColumns));continue;}if(created>=allowance){searchWindowDirtyFrom=i;blocked=true;break;}row=itemRow(item);liveRows.put(item.url,row);grid.addView(row,i,itemLayout(i,liveColumns));created++;}while(grid.getChildCount()>desired){View removed=grid.getChildAt(grid.getChildCount()-1);liveRows.remove(searchRowUrl(removed));grid.removeView(removed);}if(!blocked)searchWindowDirtyFrom=desired;visible=grid.getChildCount();for(int i=start;i<visible;i++)grid.getChildAt(i).setLayoutParams(itemLayout(i,liveColumns));if(searchDragBar!=null)searchDragBar.invalidate();if(blocked){searchWindowPosted=true;ui.postDelayed(()->drainSearchWindow(session,epoch,grid),16);}}
   void maybeAppendSearchWindow(){int session=searchGeneration,epoch=searchRenderEpoch,desired=Math.min(searchWindowTarget,current.size());GridLayout grid=searchRenderGrid;if(!searchSurfaceCurrent(session,epoch,grid)||searchWindowTarget>=current.size()||searchWindowDirtyFrom<desired||grid.getChildCount()!=desired)return;searchWindowTarget=Math.min(current.size(),searchWindowTarget+SEARCH_WINDOW);searchWindowDirtyFrom=Math.min(searchWindowDirtyFrom,visible);scheduleSearchWindow(session,epoch,grid);}
-  void refreshSearchUi(int session){if(!searchUiCurrent(session)||status==null||statusRight==null||progress==null)return;String line,right;int percent;boolean running,nameOnly,indexOnly,paused; synchronized(globalSearch){running=globalSearch.running;nameOnly=globalSearch.nameOnly;indexOnly=globalSearch.indexOnly;paused=globalSearch.paused;percent=globalSearch.percent;if(nameOnly)line="名称匹配 "+globalSearch.items.size()+" 个项目";else if(indexOnly)line="仅索引匹配 · 找到 "+globalSearch.items.size()+" 个项目";else line=(running?"正在搜索 "+globalSearch.active+"/"+Math.max(1,globalSearch.total)+" 个源 · ":"")+"已完成 "+globalSearch.done+" · 找到 "+globalSearch.items.size()+(globalSearch.source.isEmpty()?"":" · "+globalSearch.source);right=paused?"已暂停":globalSearch.right.isEmpty()?(running?"实时追加":globalSearch.failures==0?"已完成":"已完成 · "+globalSearch.failures+" 源异常"):globalSearch.right;}progress.setVisibility(running?View.VISIBLE:View.GONE);progress.setIndeterminate(running&&!paused&&percent==0);if(paused||percent>0){progress.setIndeterminate(false);progress.setProgress(percent);}status.setText(line);statusRight.setText(right);if(searchPauseButton!=null){searchPauseButton.setVisibility(running&&!nameOnly&&!indexOnly?View.VISIBLE:View.GONE);searchPauseButton.setText(paused?"继续":"暂停");searchPauseButton.setContentDescription(paused?"继续全源搜索":"暂停全源搜索");}}
+  /*
+   * [DFW-36 2026-10-03] 把「3 源异常」变成「3 源异常：某某源、某某源」。
+   *
+   * ## 为什么这个后缀值得加
+   *
+   * 原来用户拿到的只是一个**数字**。数字回答不了「是哪个源坏了」，
+   * 所以既没法判断要不要处理，也没法去反馈 —— 而源名**在代码里一直是有的**，
+   * 只是被 `onFailure` 丢掉了（见 `SearchState.failedSources` 的注释）。
+   *
+   * ## 为什么只显示前 2 个
+   *
+   * 状态行是**一行文字**，塞不下十几个源名。全源搜索失败多个源是常态
+   * （历史上有一次 UA 被拉黑，84 个源一起挂），全列出来会把状态行撑爆、
+   * 反而什么都看不清。所以只报前 2 个 + 总数，剩下的留给诊断日志。
+   *
+   * 顺序用 `LinkedHashSet` 的首现顺序，所以「前 2 个」是**最先失败的那两个**——
+   * 那通常是根因所在（后面的是被同一个原因连带的）。
+   *
+   * 包内可见而不是 private：让测试能直接喂数据验它的取舍（本仓既有做法，
+   * 见 `LanzouCore.directTransferHref` 的同类处理）。
+   */
+  static String failedSourceSuffix(java.util.LinkedHashSet<String> names){
+    if(names==null||names.isEmpty())return "";
+    StringBuilder sb=new StringBuilder("：");
+    int total=0,shown=0;
+    for(String name:names){
+      /*
+       * 跳过空白名字。调用方（`onFailure`）已经过滤过一次，
+       * 但这里再挡一道：这个集合将来可能从别的地方灌进来，
+       * 而「：、、」这种输出比不显示更糟 —— 用户会以为是软件坏了。
+       */
+      if(name==null||name.trim().isEmpty())continue;
+      total++;
+      if(shown>=2)continue;
+      if(shown>0)sb.append("、");
+      sb.append(name.trim());
+      shown++;
+    }
+    if(shown==0)return "";
+    if(total>shown)sb.append(" 等 ").append(total).append(" 个");
+    return sb.toString();
+  }
+
+  void refreshSearchUi(int session){if(!searchUiCurrent(session)||status==null||statusRight==null||progress==null)return;String line,right;int percent;boolean running,nameOnly,indexOnly,paused; synchronized(globalSearch){running=globalSearch.running;nameOnly=globalSearch.nameOnly;indexOnly=globalSearch.indexOnly;paused=globalSearch.paused;percent=globalSearch.percent;if(nameOnly)line="名称匹配 "+globalSearch.items.size()+" 个项目";else if(indexOnly)line="仅索引匹配 · 找到 "+globalSearch.items.size()+" 个项目";else line=(running?"正在搜索 "+globalSearch.active+"/"+Math.max(1,globalSearch.total)+" 个源 · ":"")+"已完成 "+globalSearch.done+" · 找到 "+globalSearch.items.size()+(globalSearch.source.isEmpty()?"":" · "+globalSearch.source);right=paused?"已暂停":globalSearch.right.isEmpty()?(running?"实时追加":globalSearch.failures==0?"已完成":"已完成 · "+globalSearch.failures+" 源异常"+failedSourceSuffix(globalSearch.failedSources)):globalSearch.right;}progress.setVisibility(running?View.VISIBLE:View.GONE);progress.setIndeterminate(running&&!paused&&percent==0);if(paused||percent>0){progress.setIndeterminate(false);progress.setProgress(percent);}status.setText(line);statusRight.setText(right);if(searchPauseButton!=null){searchPauseButton.setVisibility(running&&!nameOnly&&!indexOnly?View.VISIBLE:View.GONE);searchPauseButton.setText(paused?"继续":"暂停");searchPauseButton.setContentDescription(paused?"继续全源搜索":"暂停全源搜索");}}
   void toggleSearchPaused(int session){synchronized(globalSearch){if(session!=searchGeneration||!globalSearch.running||globalSearch.nameOnly||globalSearch.indexOnly)return;globalSearch.paused=!globalSearch.paused;globalSearch.notifyAll();}refreshSearchUi(session);}
   void acceptSearchBatch(int session,List<Models.Item> batch){if(batch==null||batch.isEmpty()||session!=searchGeneration)return;List<Models.Item> fresh=new ArrayList<>(),updates=new ArrayList<>();synchronized(globalSearch){if(session!=searchGeneration)return;for(Models.Item item:batch){Models.Item present=globalSearch.byUrl.get(item.url);if(present==null){globalSearch.byUrl.put(item.url,item);insertGlobalSearchItem(globalSearch,item);fresh.add(item);}else{mergeSearchItem(present,item);updates.add(present);}}globalSearch.right="已显示 "+globalSearch.items.size();}queueSearchUi(session,fresh,updates);}
   void acceptSearchItemUpdate(int session,Models.Item item){if(item==null||item.url.isEmpty())return;Models.Item present;synchronized(globalSearch){present=globalSearch.byUrl.get(item.url);if(session!=searchGeneration||present==null)return;mergeSearchItem(present,item);}queueSearchUi(session,null,Collections.singletonList(present));}
@@ -3862,7 +3916,15 @@ content=new LinearLayout(this);content.setOrientation(LinearLayout.VERTICAL);pag
         @Override public void onItemUpdated(Models.Item item){acceptSearchItemUpdate(session,item);}
         @Override public void onActivity(int active,int total,String source){synchronized(globalSearch){if(session!=searchGeneration)return;globalSearch.active=active;globalSearch.total=total;if(source!=null&&!source.isEmpty())globalSearch.source=source;}queueSearchRefresh(session);}
         @Override public void onWorkProgress(int doneUnits,int totalUnits){synchronized(globalSearch){if(session!=searchGeneration)return;int value=totalUnits<=0?0:doneUnits*100/Math.max(1,totalUnits);globalSearch.percent=Math.max(globalSearch.percent,Math.min(99,value));}queueSearchRefresh(session);}
-        @Override public void onFailure(String source){synchronized(globalSearch){if(session==searchGeneration)globalSearch.failures++;}}
+        /*
+         * [DFW-36 2026-10-03] **把源名留下来。**
+         *
+         * 参数 `source` 是源的标题（`LanzouCore` 传的是 `state.source.title`），
+         * 原来这里只做 `failures++`，**这个参数从头到尾没被用过** ——
+         * 于是用户只能看到一个「N 源异常」的数字，不知道是哪个源坏了。
+         * 现在连名字一起记，让状态行能说出是哪些源。
+         */
+        @Override public void onFailure(String source){synchronized(globalSearch){if(session!=searchGeneration)return;globalSearch.failures++;String name=source==null?"":source.trim();if(!name.isEmpty())globalSearch.failedSources.add(name);}}
         @Override public void onIndexSource(String sourceId,String source){if(!options.indexEnabled())return;try{LanzouCore.IndexSnapshot snapshot=core.markSearchSourceIndexed(sourceId,source,indexRetentionMillis());runOnUiThread(()->{if(session==searchGeneration)applyIndexSnapshot(snapshot);});}catch(Exception ignored){android.util.Log.w("MainActivity", "MainActivity Exception: "+ignored.getMessage(), ignored);}}
         @Override public void onPage(String source,int page,int pageItems,int sourceFound,int totalPagesSeen){synchronized(globalSearch){if(session!=searchGeneration)return;globalSearch.source=source;globalSearch.pages=totalPagesSeen;globalSearch.right="第 "+page+" 页 · 累计 "+totalPagesSeen+" 页";}queueSearchRefresh(session);}
         @Override public void onProgress(int done,int total,int found,String source){synchronized(globalSearch){if(session!=searchGeneration)return;globalSearch.done=done;globalSearch.total=total;globalSearch.source=source;globalSearch.percent=Math.max(globalSearch.percent,done*100/Math.max(1,total));globalSearch.right="已显示 "+globalSearch.items.size();}queueSearchRefresh(session);}
