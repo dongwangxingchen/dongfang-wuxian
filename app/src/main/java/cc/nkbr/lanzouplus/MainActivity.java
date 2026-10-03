@@ -4182,6 +4182,15 @@ content=new LinearLayout(this);content.setOrientation(LinearLayout.VERTICAL);pag
     scroll.setHorizontalScrollBarEnabled(false);
     scroll.setFillViewport(false);
     strip.setOrientation(LinearLayout.HORIZONTAL);
+    /* [DFW-130 2026-10-03] 这一句是必须的，不是可选的美化。
+       实测（Robolectric 几何 dump，360dp）：
+         strip 高 154px(44dp)、上下内边距各 7px(2dp) ⇒ 内容区只有 140px
+         胶囊高 154px(44dp) —— 它本来就该占满整行
+       没有 CENTER_VERTICAL 时胶囊靠上对齐，落在 y=7..161，**底部 7px 被父容器裁掉**
+       （用户截图原话：「按钮底部都被东西给裁剪遮住了」）。
+       加上之后居中：childTop = 2 + (140-154)/2 = 0，正好 0..154 铺满，不裁也不溢出。
+       状态筛选那行一直没这问题，就是因为它本来就有 CENTER_VERTICAL —— 两行现在一致了。 */
+    strip.setGravity(Gravity.CENTER_VERTICAL);
     strip.setPadding(0,dp(2),dp(8),dp(2));
     scroll.addView(strip,new HorizontalScrollView.LayoutParams(-2,dpText(44)));
     FrameLayout box=new FrameLayout(this);

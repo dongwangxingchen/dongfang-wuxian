@@ -876,7 +876,8 @@ final class LanzouCore {
 
   private static boolean isDirectorySharePage(String html){return html.contains("filemoreajax.php")||!cap(html,"url\\s*:\\s*['\"]([^'\"]*filemoreajax\\.php\\?file=\\d+[^'\"]*)['\"]").isEmpty();}
 
-  private static boolean isSingleFileSharePage(String html){if(html==null||html.isEmpty()||isDirectorySharePage(html))return false;String title=strip(cap(html,"(?is)<title[^>]*>(.*?)</title>")),description=strip(cap(html,"(?is)<meta[^>]+name=[\"']description[\"'][^>]+content=[\"']([^\"']*)"));return !cap(html,"(?is)id=[\"']downurl[\"'][^>]*href=[\"']([^\"']+)").isEmpty()||!cap(html,"(?is)<iframe[^>]+src=[\"'][^\"']*/fn\\?[^\"']+[\"']").isEmpty()||html.matches("(?is).*class=[\"'][^\"']*\\bappfile\\b[^\"']*[\"'].*")||html.matches("(?is).*id=[\"']filenajax[\"'].*")||title.matches("(?is).+?\\s*-\\s*(?:蓝奏云|lanzou)\\s*")&&description.matches("(?is).*(?:文件)?大小\\s*[:：].*");}
+  /** [DFW-129] 包内可见（原来是 private）—— 这里是「No group 1」的爆点，必须能直接测。 */
+  static boolean isSingleFileSharePage(String html){if(html==null||html.isEmpty()||isDirectorySharePage(html))return false;String title=strip(cap(html,"(?is)<title[^>]*>(.*?)</title>")),description=strip(cap(html,"(?is)<meta[^>]+name=[\"']description[\"'][^>]+content=[\"']([^\"']*)"));return !cap(html,"(?is)id=[\"']downurl[\"'][^>]*href=[\"']([^\"']+)").isEmpty()||!cap(html,"(?is)<iframe[^>]+src=[\"']([^\"']*/fn\\?[^\"']+)[\"']").isEmpty()||html.matches("(?is).*class=[\"'][^\"']*\\bappfile\\b[^\"']*[\"'].*")||html.matches("(?is).*id=[\"']filenajax[\"'].*")||title.matches("(?is).+?\\s*-\\s*(?:蓝奏云|lanzou)\\s*")&&description.matches("(?is).*(?:文件)?大小\\s*[:：].*");}
 
   private Models.SourceMember probeSingleDirectory(String url,String password,long deadline,byte ua)throws Exception{
     Models.Item only=null;for(int page=1;page<=100;page++){PageResult result=browsePageUa(url,password,true,page,deadline,true,sourceProfile(url),ua);for(Models.Item item:result.folder.items){if(item.folder)throw new IOException("单软件目录不能包含子文件夹");if(only!=null&&!only.url.equals(item.url))throw new IOException("该目录包含多个软件");only=item;}if(!result.folder.hasMore)break;if(page==100)throw new IOException("单软件目录分页过多");}if(only==null)throw new IOException("该目录没有可下载软件");Models.SourceMember out=memberFromItem(only);out.kind=Models.MEMBER_DIRECTORY;out.password=password;out.lightweight=true;out.refreshedAt=System.currentTimeMillis();return out;
@@ -1930,7 +1931,32 @@ final class LanzouCore {
   private static String decode(String value){try{return URLDecoder.decode(value,"UTF-8");}catch(Exception ignored){return value;}}
   private static String originUnchecked(String url){try{return origin(url);}catch(Exception ignored){return url;}}
   private static Pattern parsePattern(String expression){Pattern cached=PARSE_PATTERNS.get(expression);if(cached!=null)return cached;Pattern compiled=Pattern.compile(expression),existing=PARSE_PATTERNS.putIfAbsent(expression,compiled);return existing==null?compiled:existing;}
-  private static String cap(String s,String p){Matcher m=parsePattern(p).matcher(s);return m.find()?unescape(m.group(1).trim()):"";}
+  /**
+   * 按正则从 HTML 里取第一个捕获组。
+   *
+   * ## [DFW-129 2026-10-03] 这里原来会抛 `IndexOutOfBoundsException: No group 1`
+   * 旧实现是 `m.find()?unescape(m.group(1).trim()):""` —— **只判了有没有匹配，没判有没有捕获组**。
+   * 于是任何一个忘了写括号的正则，只要**匹配上了**就会抛异常。
+   *
+   * 这不是理论风险，是真机上发生的事：
+   * {@link #isSingleFileSharePage} 里的 iframe 正则漏了括号，
+   * 而新版蓝奏单文件页（`yoyodadada.lanzouw.com`）正好是 iframe 格式，
+   * 于是**每次解析都在这一行炸掉**，用户看到的就是「解析不了」。
+   * 老版页面（`oreojiang.lanzout.com`）没有 iframe，走不到这行，所以一直正常 ——
+   * 这就是「有的链接行、有的链接不行」的真正原因。
+   *
+   * 现在：没有捕获组时退化成返回整个匹配（调用方显然就是这个意思），
+   * 并且写一条日志让缺陷可见，而不是把整个下载链路炸掉。
+   */
+  private static String cap(String s,String p){
+    Matcher m=parsePattern(p).matcher(s);
+    if(!m.find())return"";
+    if(m.groupCount()<1){
+      android.util.Log.w("LanzouCore", "cap() 的正则没有捕获组，已退化为返回整体匹配：" + p);
+      return unescape(m.group());
+    }
+    return unescape(m.group(1).trim());
+  }
   private static String capMulti(String s,String p){Matcher m=parsePattern(p).matcher(s);if(!m.find())return"";for(int i=1;i<=m.groupCount();i++){String value=m.group(i);if(value!=null&&!value.trim().isEmpty())return unescape(value.trim());}return"";}
   private static String divInner(String s,String cls){Matcher open=parsePattern("(?is)<div[^>]*class=[\"'][^\"']*\\b"+Pattern.quote(cls)+"\\b[^\"']*[\"'][^>]*>").matcher(s);return open.find()?balancedDivInner(s,open.end()):"";}
   private static String elementByIdInner(String s,String id){Matcher open=parsePattern("(?is)<div[^>]*\\bid=[\"']"+Pattern.quote(id)+"[\"'][^>]*>").matcher(s);return open.find()?balancedDivInner(s,open.end()):"";}

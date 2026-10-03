@@ -170,6 +170,45 @@ class DownloadPageGeometryJvmTest {
     }
 
     /**
+     * **[DFW-130 2026-10-03] 筛选胶囊不许被自己的容器裁掉一块。**
+     *
+     * 用户真机截图原话：「上面『全部』按钮那一列的按钮底部都被东西给裁剪遮住了，很丑」。
+     *
+     * 实测（360dp / 560dpi）：
+     * ```
+     *   strip       y=0..154   高 154px(44dp)   上下内边距各 7px(2dp) ⇒ 内容区只有 140px
+     *   chip        y=7..161   高 154px(44dp)   ← 底部 161 超出容器 154，被裁掉 7px
+     * ```
+     * 根因：胶囊本来就该**占满整行高度**（44dp），而这一行比状态筛选那行**少了
+     * `setGravity(CENTER_VERTICAL)`** —— 状态那行的标签居中后正好铺满所以没事，
+     * 这行靠上对齐就溢出了底部。加一句 gravity 即修好。
+     *
+     * 这条用例守两件：**不许超出容器**、**渲染高度必须等于声明高度**。
+     * 后者是关键 —— 只判"没超出"是不够的，容器和胶囊一起变小同样能"不超出"。
+     */
+    @Test
+    fun theFilterChipsAreNotClippedByTheirContainer() {
+        val a = layoutDownloads(listOf("任务.zip" to MainActivity.DOWNLOAD_COMPLETED))
+        val strip = a.downloadExtensionStrip
+        assertTrue("扩展名筛选条应当有胶囊", strip.childCount > 0)
+        for (i in 0 until strip.childCount) {
+            val chip = strip.getChildAt(i)
+            val declared = chip.layoutParams.height
+            assertEquals(
+                "第 ${i + 1} 个胶囊被裁了：声明高度 ${declared}px，实际渲染 ${chip.height}px。" +
+                    "差多少就是被容器切掉多少",
+                declared,
+                chip.height,
+            )
+            assertTrue(
+                "第 ${i + 1} 个胶囊底部(${chip.bottom}) 超出了容器高度(${strip.height}) —— 底部会被切平",
+                chip.bottom <= strip.height,
+            )
+            assertTrue("第 ${i + 1} 个胶囊顶部(${chip.top}) 不该是负的", chip.top >= 0)
+        }
+    }
+
+    /**
      * **[2026-10-03 新增] 悬浮球不许压住底部的选择条。**
      *
      * 实测缺陷（用户看截图直接指出来的）：
