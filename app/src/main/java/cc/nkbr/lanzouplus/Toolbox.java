@@ -103,10 +103,28 @@ final class Toolbox {
     SimpleDateFormat fmt=new SimpleDateFormat("yyyy-MM-dd HH:mm:ss",Locale.CHINA);
     return "当前时间戳："+System.currentTimeMillis()/1000+" 秒 / "+System.currentTimeMillis()+" 毫秒\n本地时间："+fmt.format(new java.util.Date());
   }
+  /**
+   * 时间戳自动判别：纯数字当时间戳，其余当日期。
+   *
+   * [2026-10-03 修崩溃] `Long.parseLong(v)` 原来**裸着**，没有 try/catch。
+   * 而它唯一的调用点 `ToolHost.java:1326` 在 `TextWatcher.afterTextChanged` 里，
+   * 也就是**主线程、每敲一个字符就跑一次**。用户在时间戳输入框里粘贴一个 20 位数字
+   * （或手按 19 个 9 以上）→ `NumberFormatException` 直接抛到主线程 → **当场崩溃**。
+   *
+   * 旁证这是漏写而不是设计：同一个类的兄弟分支 `dateToStamp`（下面几行）**是有 try/catch 的**
+   * （非法日期返回「格式：2000-06-15」），只有这一条数字分支漏了。
+   *
+   * 现在按同样口径兜住：超出 long 范围的数字给一句能照着改的提示，而不是崩。
+   * 注意**不能只说"19 位以内就安全"**：long 的上限是 9223372036854775807，
+   * 同为 19 位的 9999999999999999999 照样溢出。所以提示写的是上限本身。
+   */
   static String timestampAuto(String value){
     String v=value==null?"":value.trim();
     if(v.isEmpty())return "输入时间戳（秒/毫秒）或日期（yyyy-MM-dd 或 yyyy-MM-dd HH:mm:ss）";
-    if(v.matches("\\d+"))return stampToDate(Long.parseLong(v));
+    if(v.matches("\\d+")){
+      try{return stampToDate(Long.parseLong(v));}
+      catch(NumberFormatException e){return "这个数字太大了：时间戳最大 9223372036854775807（19 位，到 2262 年为止）";}
+    }
     return dateToStamp(v);
   }
   static String stampToDate(long v){
@@ -309,10 +327,27 @@ final class Toolbox {
   static String coinFlip(){return new SecureRandom().nextBoolean()?"正面（花）":"反面（字）";}
   static int diceRoll(int sides){return new SecureRandom().nextInt(Math.max(2,Math.min(100,sides)))+1;}
   static String decide(String[] options){if(options==null||options.length==0)return"填几个候选";return options[new SecureRandom().nextInt(options.length)];}
-  /** v1.10.4 工具精修11：sort 0=不排序（抽签序） 1=升序 2=降序；SecureRandom 全程 */
+  /**
+   * 生成随机数。sort 0=不排序（抽签序）1=升序 2=降序；SecureRandom 全程。
+   *
+   * [2026-10-03 修崩溃] 区间跨度原来用 **int** 算：`int span=max-min+1`。
+   * 下限 0、上限 2147483647（Integer.MAX_VALUE）时，真实跨度是 2147483648，
+   * 存进 int **溢出成负数** -2147483648，随后 `r.nextInt(span)` 抛
+   * `IllegalArgumentException: bound must be positive` → 崩溃。
+   *
+   * 触发路径是**默认那条**，这点很反直觉：
+   *   · 勾了「去重」→ 下面 `count > span` 在 span 为负时恒真 → 提前 return 提示串，**不崩**；
+   *   · **没勾去重（默认）** → 跳过那条检查 → 直接崩。
+   * 上限输入框带 `TYPE_NUMBER_FLAG_SIGNED`（`ToolHost.java:706`），10 位数输得进去。
+   *
+   * 修法：跨度先用 long 算，超过 int 能表示的区间就**明说区间太大**（而不是崩、也不是静默给错结果）。
+   */
   static String randomNumbers(int min,int max,int count,boolean unique,int sort){
     if(max<min)return"上限需不小于下限";
-    SecureRandom r=new SecureRandom();int span=max-min+1;
+    /* 用 long 算跨度：max-min+1 在 int 下会溢出（0..Integer.MAX_VALUE 的真实跨度是 2^31）。 */
+    long spanLong=(long)max-(long)min+1L;
+    if(spanLong>Integer.MAX_VALUE)return"区间太大了（最多 "+Integer.MAX_VALUE+" 个数），请把上限调小一些";
+    SecureRandom r=new SecureRandom();int span=(int)spanLong;
     if(unique&&count>span)return"去重模式下数量不能超过区间大小 "+span;
     java.util.LinkedHashSet<Integer> set=new java.util.LinkedHashSet<>();List<Integer> list=new ArrayList<>();
     while((unique?set:list).size()<Math.max(1,Math.min(200,count))){int v=min+r.nextInt(span);if(unique)set.add(v);else list.add(v);}

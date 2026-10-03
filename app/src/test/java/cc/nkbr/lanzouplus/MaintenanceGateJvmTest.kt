@@ -22,7 +22,7 @@ class MaintenanceGateJvmTest {
         body: String = "",
         until: String = "",
     ) = RemoteConfigClient.Snapshot(
-        true,
+        true, true,
         RemoteConfigClient.Control(maintenanceOn, blocked, title, body, until),
         null, emptyList(), emptyList(),
     )

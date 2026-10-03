@@ -44,7 +44,7 @@ class NoticeCenterUiJvmTest {
     ) = RemoteConfigClient.Notice(id, title, "正文内容", "normal", pinned, mode, createdMs)
 
     private fun snapshot(vararg notices: RemoteConfigClient.Notice) =
-        RemoteConfigClient.Snapshot(true, RemoteConfigClient.Control.normal(), null, notices.toList(), emptyList())
+        RemoteConfigClient.Snapshot(true, true, RemoteConfigClient.Control.normal(), null, notices.toList(), emptyList())
 
     private fun activity(): MainActivity {
         val a = Robolectric.buildActivity(MainActivity::class.java).setup().get()

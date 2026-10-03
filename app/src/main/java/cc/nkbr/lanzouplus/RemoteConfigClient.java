@@ -201,13 +201,32 @@ final class RemoteConfigClient {
    */
   static final class Snapshot {
     final boolean reachable;
+    /**
+     * [2026-10-03 修已读状态被误清空] **「公告这一路」自己拉成功了没有。**
+     *
+     * 为什么不能拿 {@link #reachable} 代替它（这是一个真 bug 的根因）：
+     * `reachable` 的定义是「**四个集合里任意一个**拉到了」（见 {@link #fetch} 里 `anyOk` 的赋值），
+     * 而「公告路失败、其余三路正常」时 `reachable=true` 但 `notices` 是**空表**。
+     * 调用方 `NoticeCenter.prunedReadIds` 拿它当「公告集合拉到了」用，
+     * 于是 `alive` 为空 → `read.retainAll(空)` → **把已读集合清空并落盘** →
+     * 用户读过的「一次性」公告下次开机**再弹一遍**。
+     *
+     * 这正是 `NoticeCenter` 那段注释里声称已修掉的投诉（用户 2026-10-01「发布后只弹一次你没做」）——
+     * 上一次只堵住了 `snapshot == null` 这一种，**没覆盖「快照可达但公告路单独失败」**。
+     *
+     * 所以这里把「公告路成功」单独记一个标志，让调用方能区分这两件事：
+     *   · `noticeOk=false` → **不知道**后台有哪些公告 → 绝不动已读集合；
+     *   · `noticeOk=true` 且 `notices` 为空 → 后台**确实**没有公告了 → 该清理就清理。
+     */
+    final boolean noticeOk;
     private final Control control;
     private final Release release;
     private final List<Notice> notices;
     private final List<Changelog> changelogs;
 
-    Snapshot(boolean reachable, Control control, Release release, List<Notice> notices, List<Changelog> changelogs) {
+    Snapshot(boolean reachable, boolean noticeOk, Control control, Release release, List<Notice> notices, List<Changelog> changelogs) {
       this.reachable = reachable;
+      this.noticeOk = noticeOk;
       this.control = control;
       this.release = release;
       this.notices = notices == null ? Collections.emptyList() : notices;
@@ -215,7 +234,7 @@ final class RemoteConfigClient {
     }
 
     static Snapshot unavailable() {
-      return new Snapshot(false, Control.normal(), null, Collections.emptyList(), Collections.emptyList());
+      return new Snapshot(false, false, Control.normal(), null, Collections.emptyList(), Collections.emptyList());
     }
 
     Control control() { return control == null ? Control.normal() : control; }
@@ -326,7 +345,10 @@ final class RemoteConfigClient {
 
       JSONArray notice = o.optJSONArray("notice");
       JSONArray changelog = o.optJSONArray("changelog");
-      return new Snapshot(true, control, release,
+      /* 缓存是按集合合并写的（见 storeCache）：**notice 这个 key 存在**才说明"我们真的拿到过公告列表"
+         （哪怕是空数组，也代表后台当时确实没有公告）。key 不存在 = 从没成功拉到过 →
+         noticeOk=false，让 NoticeCenter 不要动已读集合。 */
+      return new Snapshot(true, notice != null, control, release,
           parseNotices(notice == null ? new JSONArray() : notice),
           parseChangelogs(changelog == null ? new JSONArray() : changelog));
     } catch (Exception ignored) {
@@ -340,6 +362,10 @@ final class RemoteConfigClient {
     List<Notice> notices = Collections.emptyList();
     List<Changelog> changelogs = Collections.emptyList();
     boolean anyOk = false;
+    /* [2026-10-03] 「公告这一路」自己成功没有 —— 与 anyOk 分开记。
+       两者必须分开：anyOk 是"任意一路成功"（给 reachable 用，决定要不要落盘缓存），
+       noticeOk 是"公告这一路成功"（给 NoticeCenter 用，决定敢不敢清理已读集合）。 */
+    boolean noticeOk = false;
 
     try {
       JSONArray items = items("control");
@@ -361,6 +387,9 @@ final class RemoteConfigClient {
       if (sink != null) sink.notice = items;
       notices = parseNotices(items);
       anyOk = true;
+      /* 只有**这一路真的走完**才置位。下面 catch 吞掉的失败路径不置位 ——
+         这正是"公告接口抖一下 → 已读集合被清空 → 已读公告重复弹"的开关。 */
+      noticeOk = true;
     } catch (Exception ignored) { /* 公告失败不影响更新 */ }
 
     try {
@@ -370,7 +399,7 @@ final class RemoteConfigClient {
       anyOk = true;
     } catch (Exception ignored) { /* 更新记录失败不影响其它 */ }
 
-    return new Snapshot(anyOk, control, release, notices, changelogs);
+    return new Snapshot(anyOk, noticeOk, control, release, notices, changelogs);
   }
 
   /** 取某集合的记录数组（只看启用项，按后台排序）。 */
