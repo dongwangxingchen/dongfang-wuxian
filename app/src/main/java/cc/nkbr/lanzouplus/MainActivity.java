@@ -783,9 +783,25 @@ trigger.addView(value,new LinearLayout.LayoutParams(0,dp(54),1));arrow=new Image
      * 所以这一行等于给"任何会显示给用户的错误"自动装上了留证 ——
      * 不需要在任何一个具体 bug 旁边插埋点，也不会漏掉还没被发现的那些。
      * 这就是"不做针对性埋点"：给**通道**打点，不是给**已知故障**打点。
+     *
+     * [DFW-36 2026-10-03] **「不受信任 / 跳转」那条映射的文案改了。**
+     *
+     * 原来是「该源已失效或跳转异常」。这句话在 v1.0.5→v1.0.14 期间**被证伪过四次**，
+     * 四次没有一次是源的问题：
+     *
+     * | 真根因 | 出处 |
+     * |---|---|
+     * | 官方把下载 API 迁到 `api.ilanzou.com`，白名单正则漏了 | DFW-103 |
+     * | 上一轮修复的 http 降级被「只认 https」当场拒掉 | DFW-104 |
+     * | 域名池里 `wwc.lanzoux.com` 的证书过期 | DFW-88 |
+     * | 阿里云 WAF 滑块页 | DFW-107 |
+     *
+     * 代价很实在：用户看到「源已失效」会**去删源**，而源是好的。
+     * 所以新文案做两件事：说清可能是蓝奏换了地址或加了校验（那是我们能修的），
+     * 并**明确否认**「源坏了」这个结论。详见 `docs/research/dfw36-失效源识别方案.md` §3.2。
      */
     DfLog.failure("ui","user-visible-error",error);
-    String raw=error==null||error.getMessage()==null?"":error.getMessage().trim(),lower=raw.toLowerCase(Locale.ROOT);if(raw.contains("分享已取消"))return"分享已取消";if(raw.contains("不受信任")||raw.contains("跳转"))return"该源已失效或跳转异常";if(raw.contains("超时")||lower.contains("timeout")||lower.contains("timed out"))return"连接超时，请稍后重试";if(raw.contains("密码"))return raw;if(raw.contains("过快")||raw.contains("频率")||raw.contains("受限"))return"请求频率受限，请稍后重试";if(raw.contains("ACW"))return"蓝奏验证暂不可用，请稍后重试";if(lower.contains("socket")||lower.contains("connect")||lower.contains("host")||raw.contains("网络"))return"网络连接异常，请稍后重试";if(raw.startsWith("请输入")||raw.startsWith("无法")||raw.startsWith("未获得")||raw.startsWith("没有"))return raw;return"操作失败，请稍后重试";}
+    String raw=error==null||error.getMessage()==null?"":error.getMessage().trim(),lower=raw.toLowerCase(Locale.ROOT);if(raw.contains("分享已取消"))return"分享已取消";if(raw.contains("不受信任")||raw.contains("跳转"))return"蓝奏换了链接地址或加了安全校验，请稍后重试。不是这个源坏了";if(raw.contains("超时")||lower.contains("timeout")||lower.contains("timed out"))return"连接超时，请稍后重试";if(raw.contains("密码"))return raw;if(raw.contains("过快")||raw.contains("频率")||raw.contains("受限"))return"请求频率受限，请稍后重试";if(raw.contains("ACW"))return"蓝奏验证暂不可用，请稍后重试";if(lower.contains("socket")||lower.contains("connect")||lower.contains("host")||raw.contains("网络"))return"网络连接异常，请稍后重试";if(raw.startsWith("请输入")||raw.startsWith("无法")||raw.startsWith("未获得")||raw.startsWith("没有"))return raw;return"操作失败，请稍后重试";}
   GradientDrawable shape(int color,int radius){GradientDrawable g=new GradientDrawable();g.setColor(color);g.setCornerRadius(dp(radius));g.setStroke(dp(1),BORDER);return g;}
   public Drawable filterRipple(Drawable content){
     return new RippleDrawable(android.content.res.ColorStateList.valueOf(ThemeEngine.tint(PRIMARY,42)),content,null);
