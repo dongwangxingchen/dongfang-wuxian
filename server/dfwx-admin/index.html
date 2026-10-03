@@ -1693,6 +1693,30 @@ function isLiveApk(name){
   return String(r.apkUrl).split("?")[0].endsWith("/" + name);
 }
 
+/**
+ * [DFW-134 防呆] 上传前的重名检查 —— 返回要问用户的话；返回 null 表示可以直接传。
+ *
+ * 为什么要拦：服务端落盘用的是 `os.replace()`，**同名上传是静默覆盖**。
+ * 最危险的形态是覆盖掉**线上正在用的那个包** —— 文件名没变、内容变了，
+ * 而 release 记录里登记的 sha256 不会跟着变，于是用户下载后校验失败、装不上更新。
+ * 这正是本卡要防的那类事故（用户那次是"被别的 App 覆盖了版本记录"，
+ * 这是同一个风险的**文件侧**版本）。
+ *
+ * 抽成纯函数是为了能测：DOM 事件处理器没法单测，但「该不该警告、警告什么」可以。
+ */
+function panUploadWarning(name, existing){
+  const clash = (existing || []).find(x => x.name === name);
+  if (!clash) return null;
+  if (isLiveApk(name)){
+    return "⚠️「" + name + "」是线上正在用的安装包。\n\n"
+      + "同名上传会直接覆盖它，而版本记录里登记的校验值不会跟着变 ——\n"
+      + "结果是用户下载后校验失败、装不上更新。\n\n"
+      + "正确做法：换一个新文件名（例如带上版本号），再去「版本」页填进去。\n\n"
+      + "确定要覆盖吗？";
+  }
+  return "「" + name + "」已经存在（" + mbText(clash.size) + "），上传会直接覆盖它。\n\n继续吗？";
+}
+
 function panFileHtml(f){
   const apk = /\.apk$/i.test(f.name);
   const live = isLiveApk(f.name);
@@ -1760,6 +1784,9 @@ async function renderPan(p){
     const f = input.files && input.files[0];
     const info = $("#paninfo");
     if (!f){ toast("先选一个文件", "err"); return; }
+    /* [DFW-134 防呆] 重名上传是静默覆盖，覆盖到线上那个包会让用户装不上更新 */
+    const warn = panUploadWarning(f.name, files);
+    if (warn && !confirm(warn)) return;
     const b = $("#panup");
     b.disabled = true;
     b.innerHTML = '<span class="spin"></span> 上传中…';

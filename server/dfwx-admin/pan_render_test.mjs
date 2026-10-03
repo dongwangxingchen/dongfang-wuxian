@@ -51,8 +51,9 @@ const pieces = [
   extractFunction(HTML, 'fmtTime'),
   extractFunction(HTML, 'fmtUnix'),
   extractFunction(HTML, 'isLiveApk'),
+  extractFunction(HTML, 'panUploadWarning'),
   extractFunction(HTML, 'panFileHtml'),
-  'return { panFileHtml, fmtUnix, isLiveApk, esc, setCache: v => { cache = v; } };',
+  'return { panFileHtml, fmtUnix, isLiveApk, panUploadWarning, esc, setCache: v => { cache = v; } };',
 ];
 const api = new Function(pieces.join('\n'))();
 
@@ -134,6 +135,26 @@ console.log('【6】时间格式化');
   const text = api.fmtUnix(1790999945);
   check('Unix 秒能格式化成可读时间', /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/.test(text), text);
   check('0 / 空值返回空串而不是 Invalid Date', api.fmtUnix(0) === '' && api.fmtUnix(null) === '');
+}
+
+console.log();
+console.log('【7】上传重名防呆（服务端是 os.replace，同名是静默覆盖）');
+{
+  const existing = [APK, { name: 'other.zip', size: 1024 }];
+
+  api.setCache({ release: { apkUrl: 'https://39.106.33.135/apk/dongfang-wuxian-v1.0.0.apk' } });
+  const liveWarn = api.panUploadWarning('dongfang-wuxian-v1.0.0.apk', existing);
+  check('覆盖线上正在用的包 → 必须警告', typeof liveWarn === 'string' && liveWarn.length > 0);
+  check('警告里说清后果（校验值对不上、装不上）',
+    /校验值|校验/.test(liveWarn) && /装不上|失败/.test(liveWarn), liveWarn);
+  check('警告里给出正确做法（换文件名）', /换一个新文件名|文件名/.test(liveWarn));
+
+  const plainWarn = api.panUploadWarning('other.zip', existing);
+  check('覆盖普通文件 → 也警告，但不吓唬人', typeof plainWarn === 'string' && !/线上正在用/.test(plainWarn), plainWarn);
+
+  check('全新文件名 → 不警告，直接传', api.panUploadWarning('brand-new.apk', existing) === null);
+  check('列表为空 → 不警告', api.panUploadWarning('anything.apk', []) === null);
+  check('列表是 undefined 也不炸', api.panUploadWarning('anything.apk', undefined) === null);
 }
 
 console.log();
