@@ -336,9 +336,24 @@ loadSearchSettings();applyUserAgentSettings();detectWeakDevice();installBackAnim
     // v1.22.10：已授权就静默建好 Download/东方无限/崩溃日志（空目录也要让用户看得见）；
     // 未授权不在启动时弹窗打扰——用户 2026-09-29 明确要求"下载后再问存储权限"。
     if(storageAccessGranted())ensureCrashFolder();
-    // DFW-7：冷启动 6 秒后静默查一次更新（错开启动高峰；24h 节流在 maybeCheckForUpdates 内）。
-    // 自动检查"发现有更新"才弹窗，无更新/失败都不打扰——避免变成 T5-C 要清理的多余提示。
-    ui.postDelayed(this::maybeCheckForUpdates,6000);
+    /*
+     * [DFW-7 → 2026-10-03 改] 冷启动查更新：**6 秒 → 1 秒**。
+     *
+     * 用户 2026-10-03 报：
+     * > 「按理来说，每一次打开软件，它都会刷新更新。为什么我打开软件后，
+     * >   过了好久才弹出来更新弹窗呢？」
+     *
+     * DFW-7 当初排 6 秒的理由只写了四个字「错开启动高峰」，但**这个理由站不住**：
+     * 同一个方法里，维护拦截（{@code maybeEnterMaintenance}）和公告
+     * （{@code maybeFetchNotices}）都是 {@code ui.post} **立即**发出去的，
+     * 而且它们打的是**同一个** {@code RemoteConfigClient.fetch()} 接口。
+     * 既然那两条能立即发，更新这条没有任何理由排到最后 ——
+     * 结果只是"用户要盯着屏幕干等 6 秒才看到更新提示"。
+     *
+     * 留 1 秒而不是 0：更新提示是个**对话框**，要等首屏那一帧画完再弹，
+     * 否则会在用户还没看清界面时糊上来（和公告弹窗的时机保持一致）。
+     */
+    ui.postDelayed(this::maybeCheckForUpdates,1000);
     // DFW-60：维护/停更拦截。放在启动后异步拉取，不阻塞首屏——拉不到就按正常放行（fail-open），
     // 绝不因服务器故障把用户挡在门外。
     ui.post(this::maybeEnterMaintenance);
@@ -2402,9 +2417,106 @@ FrameLayout.LayoutParams tp=new FrameLayout.LayoutParams(Math.max(dp(1),Math.min
 
   void showLanzouPlusUpdate(UpdateClient.UpdateInfo info){showUpdateOffer(UpdateOffer.fromGithub(info,BuildConfig.OFFICIAL_URL),false);}
   void startLanzouPlusUpdate(UpdateClient.UpdateInfo info){if(!ensureDirectStorageAuthorized(()->startLanzouPlusUpdate(info)))return;try{DownloadEntry entry=new DownloadEntry();entry.source=DOWNLOAD_SOURCE_UPDATE;entry.name="dongfang-wuxian-v"+info.version+".apk";entry.state=DOWNLOAD_RUNNING;entry.createdAt=entry.startedAt=System.currentTimeMillis();entry.totalBytes=entry.verifiedTotalBytes=info.size;entry.sourceSizeText=formatSize(info.size);entry.directUrl=info.primaryUrl();entry.resolvedAt=entry.createdAt;entry.autoInstall=true;entry.updateInfo=info;entry.target=createDownloadTarget(entry.name);entry.uriString=entry.target.toString();entry.parentUriString=currentDownloadParentReferenceUri().toString();downloadEntries.add(entry);persistDownloadHistory(entry);updateDownloadUi(entry);downloadLanzouPlusUpdate(info,entry,info.primaryUrl(),true);}catch(Exception error){showNotice("无法创建更新文件："+friendlyError(error),true);}}
-  void downloadLanzouPlusUpdate(UpdateClient.UpdateInfo info,DownloadEntry entry,String url,boolean fallback){Uri destination;int generation;SegmentDownloader downloader;synchronized(entry){if(entry.stopRequested)return;destination=entry.target;entry.updateInfo=info;entry.directUrl=url;entry.state=DOWNLOAD_RUNNING;entry.error="";entry.startedAt=System.currentTimeMillis();entry.lastSpeedAt=entry.startedAt;entry.lastSpeedBytes=entry.downloadedBytes;generation=++entry.controlGeneration;downloader=new SegmentDownloader(this);entry.downloader=downloader;}updateDownloadUi(entry);downloader.startDirect(url,destination,new SegmentDownloader.Listener(){public void progress(long done,long total){synchronized(entry){if(entry.transferOwnedBy(generation,downloader)&&!entry.stopRequested)applyDownloadProgress(entry,done,total);}}public void completed(){synchronized(entry){if(entry.downloader!=downloader||generation!=entry.controlGeneration||entry.stopRequested||!entry.state.equals(DOWNLOAD_RUNNING))return;entry.downloader=null;entry.error="校验中";}updateDownloadUi(entry);io.execute(()->{try{verifyUpdateApk(destination,info);synchronized(entry){if(generation!=entry.controlGeneration||entry.stopRequested||!entry.state.equals(DOWNLOAD_RUNNING))return;entry.downloadedBytes=entry.totalBytes=entry.verifiedTotalBytes=info.size;entry.percent=100;entry.state=DOWNLOAD_COMPLETED;entry.error="";entry.completedAt=System.currentTimeMillis();}finishDownloadTarget(entry,true);updateDownloadUi(entry);runOnUiThread(()->{if(generation==entry.controlGeneration&&entry.state.equals(DOWNLOAD_COMPLETED))installEntry(entry);});}catch(Exception error){boolean failed;synchronized(entry){failed=generation==entry.controlGeneration&&!entry.stopRequested&&entry.state.equals(DOWNLOAD_RUNNING);if(failed){entry.state=DOWNLOAD_FAILED;entry.error="更新包校验未通过";entry.speedBps=0;entry.etaSeconds=-1;}}if(failed){updateDownloadUi(entry);showNotice("更新包校验未通过",true);}}});}public void paused(long done,long total){finishStoppedTransfer(entry,DOWNLOAD_PAUSED,done,total,generation,downloader);}public void cancelled(long done,long total){finishStoppedTransfer(entry,DOWNLOAD_CANCELLED,done,total,generation,downloader);}public void failed(String error){boolean useFallback;synchronized(entry){if(entry.downloader!=downloader)return;entry.downloader=null;if(generation!=entry.controlGeneration||entry.stopRequested)return;useFallback=fallback&&!info.fallbackUrl().isEmpty()&&!info.fallbackUrl().equals(url);if(useFallback){entry.state=DOWNLOAD_RESOLVING;entry.error="切换备用地址";}else{entry.state=DOWNLOAD_FAILED;entry.error=friendlyError(new IOException(error));entry.speedBps=0;entry.etaSeconds=-1;}}updateDownloadUi(entry);if(useFallback){synchronized(entry){if(generation!=entry.controlGeneration||entry.stopRequested||!entry.state.equals(DOWNLOAD_RESOLVING))return;downloadLanzouPlusUpdate(info,entry,info.fallbackUrl(),false);}}}});}
+  void downloadLanzouPlusUpdate(UpdateClient.UpdateInfo info,DownloadEntry entry,String url,boolean fallback){Uri destination;int generation;SegmentDownloader downloader;synchronized(entry){if(entry.stopRequested)return;destination=entry.target;entry.updateInfo=info;entry.directUrl=url;entry.state=DOWNLOAD_RUNNING;entry.error="";entry.startedAt=System.currentTimeMillis();entry.lastSpeedAt=entry.startedAt;entry.lastSpeedBytes=entry.downloadedBytes;generation=++entry.controlGeneration;downloader=new SegmentDownloader(this);entry.downloader=downloader;}updateDownloadUi(entry);downloader.startDirect(url,destination,new SegmentDownloader.Listener(){public void progress(long done,long total){synchronized(entry){if(entry.transferOwnedBy(generation,downloader)&&!entry.stopRequested)applyDownloadProgress(entry,done,total);}}public void completed(){synchronized(entry){if(entry.downloader!=downloader||generation!=entry.controlGeneration||entry.stopRequested||!entry.state.equals(DOWNLOAD_RUNNING))return;entry.downloader=null;entry.error="校验中";}updateDownloadUi(entry);io.execute(()->{try{verifyUpdateApk(destination,info);synchronized(entry){if(generation!=entry.controlGeneration||entry.stopRequested||!entry.state.equals(DOWNLOAD_RUNNING))return;entry.downloadedBytes=entry.totalBytes=entry.verifiedTotalBytes=info.size;entry.percent=100;entry.state=DOWNLOAD_COMPLETED;entry.error="";entry.completedAt=System.currentTimeMillis();}finishDownloadTarget(entry,true);updateDownloadUi(entry);runOnUiThread(()->{if(generation==entry.controlGeneration&&entry.state.equals(DOWNLOAD_COMPLETED))installEntry(entry);});}catch(Exception error){
+  /*
+   * [2026-10-03] **两类失败必须分开报**（原来这里把它们拍扁成同一句「更新包校验未通过」，
+   * 于是"文件明明下下来了"却被显示成"下载失败"）。
+   *
+   * 用户原话：
+   * > 「我不管上传什么软件，它都可以正常下载。我不在乎它能不能覆盖安装。」
+   *
+   *   · NotOurAppException —— 包**完整下载成功**了，只是它不是东方无限 → 下载算**完成**；
+   *   · 其它（摘要不一致 / 读取失败）—— 文件真的坏了 → 下载**失败**（这条不能松）。
+   *
+   * 降级成"外部来源"是关键一步：改完之后它和从外部链接下下来的 APK 走**完全一样**的手续
+   * （点安装要先过 `showExternalInstallConfirmation` 那道确认），
+   * 既不会自动安装，也不阻止用户自己装 —— **不新增任何漏洞**。
+   */
+  if(error instanceof NotOurAppException){
+    boolean keep;
+    synchronized(entry){
+      keep=generation==entry.controlGeneration&&!entry.stopRequested&&entry.state.equals(DOWNLOAD_RUNNING);
+      if(keep){entry.downloadedBytes=entry.totalBytes=entry.verifiedTotalBytes=info.size;entry.percent=100;entry.state=DOWNLOAD_COMPLETED;entry.error="";entry.completedAt=System.currentTimeMillis();demoteForeignUpdateToExternal(entry);}
+    }
+    if(keep){finishDownloadTarget(entry,true);updateDownloadUi(entry);showNotice("下载完成。但这不像是东方无限的更新包，已阻止自动安装；文件已保存到下载页，需要的话你可以自己打开安装。",true);}
+    return;
+  }
+  boolean failed;
+  synchronized(entry){failed=generation==entry.controlGeneration&&!entry.stopRequested&&entry.state.equals(DOWNLOAD_RUNNING);if(failed){entry.state=DOWNLOAD_FAILED;entry.error="更新包校验未通过："+friendlyError(error);entry.speedBps=0;entry.etaSeconds=-1;}}
+  if(failed){
+    /*
+     * [2026-10-03] **删掉这份坏字节。**
+     *
+     * 走到这里说明摘要/大小对不上 —— 文件**确实是坏的**（和上面"不是我们的包"那条不同）。
+     * 而它现在还是个 `.part`：用户既看不到它、App 也读不了它
+     * （`entryFileReadable` 只认"已完成"），但几十兆就那样躺在下载目录里占空间。
+     * 更麻烦的是**重试还会去续传这份坏文件**（`resumeTargetAvailable` 对 file: 无条件返回 true），
+     * 于是拼出新旧混合的文件、永远校验不过 —— 用户唯一的出路变成"删除文件"再重来。
+     * 删掉之后重试才是一次干净的全量下载。
+     */
+    discardCancelledPartial(entry);
+    updateDownloadUi(entry);
+    showNotice("更新包校验未通过："+friendlyError(error),true);
+  }
+}});}public void paused(long done,long total){finishStoppedTransfer(entry,DOWNLOAD_PAUSED,done,total,generation,downloader);}public void cancelled(long done,long total){finishStoppedTransfer(entry,DOWNLOAD_CANCELLED,done,total,generation,downloader);}public void failed(String error){boolean useFallback;synchronized(entry){if(entry.downloader!=downloader)return;entry.downloader=null;if(generation!=entry.controlGeneration||entry.stopRequested)return;useFallback=fallback&&!info.fallbackUrl().isEmpty()&&!info.fallbackUrl().equals(url);if(useFallback){entry.state=DOWNLOAD_RESOLVING;entry.error="切换备用地址";}else{entry.state=DOWNLOAD_FAILED;entry.error=friendlyError(new IOException(error));entry.speedBps=0;entry.etaSeconds=-1;}}updateDownloadUi(entry);if(useFallback){synchronized(entry){if(generation!=entry.controlGeneration||entry.stopRequested||!entry.state.equals(DOWNLOAD_RESOLVING))return;downloadLanzouPlusUpdate(info,entry,info.fallbackUrl(),false);}}}});}
   void verifyUpdateApk(Uri uri,UpdateClient.UpdateInfo info)throws Exception{File temporary=File.createTempFile("verified-update-",".apk",getCacheDir());// DFWX-STAB-001（修审计 H-P1-7）：固定名 verified-update.apk 在手动+自动重试并发校验时互相覆盖，改唯一临时名
-  java.security.MessageDigest digest=java.security.MessageDigest.getInstance("SHA-256");long size=0;try(InputStream input=openUriInput(uri);OutputStream output=new FileOutputStream(temporary)){byte[] buffer=new byte[32768];for(int count;(count=input.read(buffer))>0;){size+=count;if(size>info.size)throw new IOException("更新包大小不一致");digest.update(buffer,0,count);output.write(buffer,0,count);}}try{if(size!=info.size||!("sha256:"+hex(digest.digest())).equals(info.digest))throw new IOException("更新包摘要不一致");int flags=Build.VERSION.SDK_INT>=28?PackageManager.GET_SIGNING_CERTIFICATES:PackageManager.GET_SIGNATURES;android.content.pm.PackageInfo current=getPackageManager().getPackageInfo(getPackageName(),flags),archive=getPackageManager().getPackageArchiveInfo(temporary.getAbsolutePath(),flags);if(archive==null||!getPackageName().equals(archive.packageName)||!signatureDigests(current).equals(signatureDigests(archive)))throw new IOException("更新包签名不一致");}finally{temporary.delete();}}
+  java.security.MessageDigest digest=java.security.MessageDigest.getInstance("SHA-256");long size=0;try(InputStream input=openUriInput(uri);OutputStream output=new FileOutputStream(temporary)){byte[] buffer=new byte[32768];for(int count;(count=input.read(buffer))>0;){size+=count;if(size>info.size)throw new IOException("更新包大小不一致");digest.update(buffer,0,count);output.write(buffer,0,count);}}try{if(size!=info.size||!("sha256:"+hex(digest.digest())).equals(info.digest))throw new IOException("更新包摘要不一致");int flags=Build.VERSION.SDK_INT>=28?PackageManager.GET_SIGNING_CERTIFICATES:PackageManager.GET_SIGNATURES;android.content.pm.PackageInfo current=getPackageManager().getPackageInfo(getPackageName(),flags),archive=getPackageManager().getPackageArchiveInfo(temporary.getAbsolutePath(),flags);if(archive==null)throw new NotOurAppException("更新包不是有效的 APK");if(!getPackageName().equals(archive.packageName))throw new NotOurAppException("更新包包名不一致");if(!signatureDigests(current).equals(signatureDigests(archive)))throw new NotOurAppException("更新包签名不一致");}finally{temporary.delete();}}
+
+  /**
+   * [2026-10-03] **「包下载完整，但它不是东方无限」** —— 必须和「下载坏了」分开。
+   *
+   * ## 用户报的问题
+   * 后台指向别的软件时，文件**完整下载成功**了，界面却显示
+   * 「下载失败 · 更新包校验未通过」。用户原话：
+   * > 「我不管上传什么软件，它都可以正常下载。我不在乎它能不能覆盖安装，
+   * >   毕竟下载别的软件肯定不能覆盖安装，对不对？」
+   *
+   * **他说得对的地方**：下载和"能不能当更新装"是两件事。文件下下来了就是下下来了，
+   * 不该因为"装不上"就被报成"下载失败"。
+   *
+   * ## 但校验本身不能去掉（这一点不能顺着用户改）
+   * 用户的论证是「反正安卓自己会拦」。**这个论证不成立**：
+   * 安卓只在**包名相同**时才拒绝覆盖安装；包名**不同**的 APK 会被系统当成
+   * **一个全新的 App 装上去**，不报任何错 —— 用户会莫名其妙多出一个陌生软件。
+   *
+   * 而更新元数据（apkUrl / sha256）是从 `http://39.106.33.135/pb` **明文**读来的
+   * （DFW-7 的提交里就写过「明文响应里的 sha256 等于没兜底」）。
+   * 能改这条响应的人**就能把 apkUrl 换成任意一个 APK**。所以包名 + 签名校验是
+   * **唯一**能拦住"被引导去装一个不是我们的 App"的那道闸 —— 去掉就是真的安全倒退。
+   *
+   * ## 折中：保校验，只改表现
+   * 校验不过时把条目标成**下载完成**、说明原因，但**绝不调 `installEntry`**
+   * （不引导用户去装它）。这样"下载能成功"和"不会被骗着装陌生软件"两件事都成立。
+   */
+  static final class NotOurAppException extends IOException{
+    NotOurAppException(String message){super(message);}
+  }
+
+  /**
+   * [2026-10-03] 把一条「从更新通道下到的、但不是我们的包」的下载记录**降级成外部来源**。
+   *
+   * ## 为什么是"降级"而不是"删掉"或"直接装"
+   * 用户说「我不在乎它能不能覆盖安装」—— 对，文件下下来了就该留着。
+   * 但**不能就这么把它当更新装上去**：安卓只在包名相同时才拒绝覆盖安装，
+   * 包名不同的 APK 会被系统当成一个**全新的 App 装上去**。
+   *
+   * 所以改成让它走**和外部链接下载完全一样的手续**：
+   *   · `source` → `EXTERNAL` ⇒ `DownloadSourcePolicy.requiresInstallConfirmation` 变 true，
+   *     用户点安装时会先过 `showExternalInstallConfirmation` 那道确认；
+   *   · `expectedUpdateVersion` 清空 ⇒ 不会再走"云端更新"那套校验分支（那条永远过不了）；
+   *   · `autoInstall=false` ⇒ 绝不自动装。
+   * 结果：**下载成功、文件保留、想装要自己点并确认** —— 不新增任何漏洞。
+   *
+   * 抽成静态方法是为了能直接测（原来这段逻辑内联在一个巨大的 lambda 里，只能靠读代码）。
+   */
+  static void demoteForeignUpdateToExternal(DownloadEntry entry){
+    if(entry==null)return;
+    entry.source=DownloadSourcePolicy.EXTERNAL;
+    entry.expectedUpdateVersion="";
+    entry.updateVerified=false;
+    entry.autoInstall=false;
+    entry.installConfirmationGranted=false;
+  }
   InputStream openUriInput(Uri uri)throws IOException{if("file".equals(uri.getScheme()))return new FileInputStream(new File(uri.getPath()));InputStream input=getContentResolver().openInputStream(uri);if(input==null)throw new IOException("无法读取更新包");return input;}
   @android.annotation.SuppressLint("PackageManagerGetSignatures") Set<String> signatureDigests(android.content.pm.PackageInfo info)throws Exception{android.content.pm.Signature[] values;if(Build.VERSION.SDK_INT>=28&&info.signingInfo!=null)values=info.signingInfo.hasMultipleSigners()?info.signingInfo.getApkContentsSigners():info.signingInfo.getSigningCertificateHistory();else values=info.signatures;Set<String> out=new HashSet<>();if(values!=null)for(android.content.pm.Signature value:values)out.add(hex(java.security.MessageDigest.getInstance("SHA-256").digest(value.toByteArray())));if(out.isEmpty())throw new IOException("安装包没有签名");return out;}
   static String hex(byte[] bytes){char[] alphabet="0123456789abcdef".toCharArray(),out=new char[bytes.length*2];for(int i=0;i<bytes.length;i++){out[i*2]=alphabet[(bytes[i]>>>4)&15];out[i*2+1]=alphabet[bytes[i]&15];}return new String(out);}
