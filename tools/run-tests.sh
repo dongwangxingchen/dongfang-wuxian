@@ -65,8 +65,19 @@ done
 
 # ── 跑 ────────────────────────────────────────────────────────────────
 echo "▶ $TASK ${GRADLE_EXTRA[*]:-}"
+#
+# ⚠️ `${GRADLE_EXTRA[@]}` **必须**写成 `${GRADLE_EXTRA[@]+"${GRADLE_EXTRA[@]}"}`。
+#
+# macOS 自带的是 **bash 3.2**（/bin/bash），它有个老 bug：脚本里开了 `set -u` 时，
+# 展开一个**空数组**会报 `GRADLE_EXTRA[@]: unbound variable` 并直接退出。
+# 这个脚本第 28 行正好有 `set -uo pipefail`。
+#
+# 后果（2026-10-03 实际撞上）：**不带任何参数跑全量测试会立刻失败**，
+# 而带 `--class Xxx` 时数组非空、一切正常 —— 所以这个 bug 藏了很久没暴露，
+# 表现是"我只想跑个全量，结果脚本自己死了"，很容易被误判成代码或环境问题。
+# `${A[@]+...}` 的写法在数组为空时展开成空，非空时正常展开，两种 bash 都对。
 DFWX_OFFLINE=1 JAVA_HOME="${JAVA_HOME:-/Users/lishaowei/sdk/jdk-21.0.11.jdk/Contents/Home}" \
-  ./gradlew -p "$REPO_ROOT" "$TASK" "${GRADLE_EXTRA[@]}"
+  ./gradlew -p "$REPO_ROOT" "$TASK" ${GRADLE_EXTRA[@]+"${GRADLE_EXTRA[@]}"}
 status=$?
 
 if [[ $status -ne 0 ]]; then
