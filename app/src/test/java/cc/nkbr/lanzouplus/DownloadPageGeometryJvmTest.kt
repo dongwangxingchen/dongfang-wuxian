@@ -472,6 +472,63 @@ class DownloadPageGeometryJvmTest {
     }
 
     /**
+     * **[2026-10-03 新增] 多选时，行内动作按钮必须让位给复选框。**
+     *
+     * 缺陷形态（看截图发现的，不是推断）：进入多选后每行同时出现
+     * 「删除/暂停/取消」+ 复选框，两套动作挤在一行 —— 用户不知道该点哪个，
+     * 而且右侧固定件从 2×38+32=108dp 涨到 2×48+32=128dp，文件名被挤到很早就截断
+     * （360dp 截图里「东方无限-v1.0.0.apk」变成「东方无限-v1.0.0…」）。
+     *
+     * 这个缺陷在本轮之前就存在（当时按钮 38dp，挤压没那么明显），**本轮把按钮提到 48dp 后更刺眼**。
+     * 修法：多选是"选"，不是"操作"，动作按钮整体隐藏。
+     */
+    @Test
+    fun selectionModeHidesTheRowActionsSoTheCheckboxHasRoom() {
+        val a = layoutDownloads(listOf("任务.zip" to MainActivity.DOWNLOAD_COMPLETED), widthDp = 360)
+        fun actionButtons(): List<View> {
+            val out = mutableListOf<View>()
+            fun walk(v: View) {
+                if (v is android.widget.ImageButton) out.add(v)
+                if (v is ViewGroup) for (i in 0 until v.childCount) walk(v.getChildAt(i))
+            }
+            walk(firstRow(a))
+            return out
+        }
+        /* ⚠️ 这里**不能**用 `it.visibility == View.VISIBLE` 判断按钮还在不在。
+           `View.getVisibility()` 返回的是这个视图**自己**的标志，**不看祖先** ——
+           父容器设成 GONE 之后，里面的 ImageButton 照样报告 VISIBLE。
+           第一版就是踩了这个坑，测试红得莫名其妙（产品其实是对的）。
+           要判断"用户到底看不看得见"，必须沿父链往上查。 */
+        fun effectivelyVisible(v: View): Boolean {
+            var cur: View? = v
+            while (cur != null) {
+                if (cur.visibility != View.VISIBLE) return false
+                cur = cur.parent as? View
+            }
+            return true
+        }
+
+        assertTrue(
+            "进入多选前，行内应当有看得见的动作按钮",
+            actionButtons().any { effectivelyVisible(it) },
+        )
+
+        a.enterDownloadSelection()
+        idle()
+        assertTrue(
+            "进入多选后，行内动作按钮必须全部隐藏（否则一行里两套动作打架，文件名也被挤短）",
+            actionButtons().none { effectivelyVisible(it) },
+        )
+
+        a.exitDownloadSelection()
+        idle()
+        assertTrue(
+            "退出多选后动作按钮必须回来",
+            actionButtons().any { effectivelyVisible(it) },
+        )
+    }
+
+    /**
      * **[2026-10-03 新增] 空态不许退回"一行灰字白板"。**
      *
      * 改前是 `text("暂无下载记录",14,MUTED)` 一行灰字居中 —— 一整屏纯黑中央一行灰字，
