@@ -90,6 +90,35 @@
 
 ## 四、按需检索（不默认加载，按任务读对应节）
 
+### 4.0 能力路由 —— **不确定用什么工具时先看这张表，不要自己猜、不要绕圈**
+
+> 2026-10-04 实测盘点（DFW-138）。**本机能力主要来自「技能」和「CLI」，不是 MCP。**
+> 原因：技能是共享的（`~/.agents/skills/` 下 114 个），CLI 直接可调；
+> 而 MCP 两边不一致 —— Codex 配了 16 个，DSH 只挂 10 个，且多出来的那 4 个里
+> `playwright` / `chrome-devtools` **缺浏览器跑不起来**（实测：期望的
+> `~/Library/Caches/ms-playwright/chromium-1232/` 不存在，系统也没有 Chrome）。
+
+| 我要干什么 | **用什么** | 别用什么（踩过） |
+|---|---|---|
+| 打开/操作网页、点按钮、登录、截图 | **`ego-browser`**（自带 Chromium，已实测登录控制台成功） | 手工开 Safari；`playwright` MCP（坏的） |
+| 复查做好的 HTML/MD 页面长什么样 | **`ego-browser` 打开 + 截图**，自己看一眼 | 自己写 markdown 渲染器（DFW-105 白花一轮） |
+| 查代码结构 / **改动影响范围** | **`codebase-memory` CLI**（2.5s/次） | MCP 模式（150s 握手超时，技能里明令禁止） |
+| 看截图、图片内容 | 直接读图 | — |
+| 联网搜索 | **`anysearch`**（`mcp__anysearch__*`） | `web_search`（本机坏的） |
+| 查框架/库文档 | `context7` | 网上搜一遍 |
+| **不确定本机有什么能力** | `python3 ~/.codex/scripts/codex-capability-route.py "<意图>"` | 自己猜、或研究"要不要装"（DFW-138 前车之鉴） |
+| 服务器运维 | `ssh dfwx '<命令>'` | — |
+| 任务面板 | **`taskctl`** | `mcp__dashi-taskboard__` 列表（返回巨大 JSON） |
+| 验 APK 里有没有我的代码 | **Python 按字节搜 dex** | `grep`/`strings`（**搜不到中文**，MUTF-8 多字节） |
+| 派活给队友 | `spawn_teammate` / `send_message` | `subagent`（一次性，死了唤醒不了） |
+
+**三条纪律**（都是这轮实测踩出来的）：
+1. **先查自己有什么，再研究要不要装** —— DFW-138 花了半天研究"要不要装 Playwright"，
+   而 `ego-browser` 一直装在本机、`webapp-testing` 技能一直在目录里。
+2. **用代码图谱前先验新鲜度** —— 拿一条已知方法的行号对一下。过期图谱比没有图谱更危险
+   （实测：`showNotice` 图谱说 1761 行，实际 5552 行；`showTopBanner` 图谱里根本没有）。
+3. **验 APK 内容用 Python 按字节搜** —— `grep` / `grep -a` / `strings` 三种都找不到 DEX 里的中文。
+
 > **技能路径约定**：ZCode 在 `.zcode/skills/<名>/`，WorkBuddy 在 `~/.workbuddy/skills/<名>/`。
 > 两边已同步 `dfwx-release` / `dfwx-verify` / `dfwx-emulator` / `codebase-memory-cli`，按技能名引用即可。
 
