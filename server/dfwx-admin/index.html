@@ -575,34 +575,62 @@ function relFields(o){
 }
 
 /**
- * [DFW-82 / DFW-118] **版本序号守卫**（原来写在「发新版」里，现在抽出来给三条路径共用）。
+ * [DFW-82 / DFW-118 / 2026-10-03 改版] **版本序号的合法性校验** —— 这一条仍然硬拦。
  *
- * 只要一个操作会让「用户拿到的版本序号」发生变化，就必须过这里。三种模式只在「相等」那条上不同：
- * - `publish`：发一条新的。相等 = 静默发出同序号 = 用户永远「已是最新版本」（DFW-82 老病）→ **硬拦**。
- * - `switch`：回滚到另一条记录。相等 = 用户那边等于什么都没变 → 同样**硬拦**。
- * - `editCurrent`：改的就是当前那一条。相等是它自己（比如只改下载地址），属正常保存 → 放行。
- *
- * 「变小」一律 confirm，并把后果原样写清楚 —— 这是换版本编号方案 / 真回退时的一次性通道，
- * 默认拦住、显式放行。
+ * 只拦「发出去软件读不懂」的值：非整数、0、负数。这是输入校验，不是产品决策，
+ * 所以它继续抛错；**不再有任何 confirm**。
  */
-function guardVersionTransition(nextCode, currentCode, mode){
+function assertVersionCode(nextCode){
   if (!Number.isInteger(nextCode) || nextCode <= 0) {
     throw new Error("版本序号必须是不小于 1 的整数");
   }
-  if (mode !== "editCurrent" && currentCode > 0 && nextCode === currentCode) {
-    if (mode === "publish") {
-      throw new Error("版本序号和现在一样（都是 " + currentCode + "）—— 软件会认为已经是最新版，不会提示更新。"
-        + "如果刚才提示「读不出包里的版本号」，请手动填成新版本的值。");
-    }
-    throw new Error("这条记录的版本序号和当前版本一样（都是 " + currentCode + "）——"
-      + "回滚过去，用户那边等于什么都没变。要回滚请选一个序号不同的版本。");
+}
+
+/**
+ * [2026-10-03 用户要求] **版本序号的过渡提示** —— 只返回一句提醒，**不拦截、不弹窗**。
+ *
+ * ## 为什么从「拦截」改成「提示」
+ *
+ * 用户原话：
+ * > 「能不能改为我自个填版本号和版本序号？不要让它再弹出来那个弹窗阻止我了，
+ * >   只要我发布的版本号和版本序号高于我现在的版本，那它就会弹更新」
+ *
+ * 用户说得对，理由也充分：**规则本身很简单，而且用户已经完全理解它** ——
+ * 「序号填得比现在大 → 软件就会弹更新」。既然规则是确定的、用户是懂的，
+ * 就没有理由再用一个 confirm 去挡他。挡住的只是他自己。
+ *
+ * 真正需要挡的只有「填了个软件读不懂的值」，那个由 `assertVersionCode` 负责。
+ *
+ * ## 但提示必须留着，而且必须说清后果
+ *
+ * 下面两句提醒不是走过场 —— 它们描述的是**用户在后台看不出来的后果**：
+ *   · **序号填小了**：已经装了新版的人**收不到更新提示**，界面上完全看不出为什么；
+ *   · **序号填一样**：软件认为「已是最新版」，**不弹任何窗口**。
+ *
+ * 这两种情况在后台看起来都是「发布成功」，所以必须在这里说清楚 ——
+ * 否则用户会以为是更新功能坏了。**DFW-82「能下到新包但永远不提示更新」就是这么来的。**
+ *
+ * @param {number} nextCode    这次要发的序号
+ * @param {number} currentCode 当前线上的序号（0 = 还没有版本）
+ * @param {string} mode        "publish" | "switch" | "editCurrent"
+ * @returns {string} 空字符串 = 没问题；否则是要显示给用户看的提醒
+ */
+function versionTransitionWarning(nextCode, currentCode, mode){
+  if (!Number.isInteger(nextCode) || nextCode <= 0) {
+    return "版本序号要填不小于 1 的整数，否则发出去软件读不懂。";
   }
-  if (currentCode > 0 && nextCode < currentCode) {
-    const ok = confirm("⚠️ 这次的版本序号比当前版本**小**（当前 " + currentCode + "，本次 " + nextCode + "）。\n\n"
-      + "后果：已经装了新版（序号 " + currentCode + "）的用户**收不到更新提示**，必须手动卸载重装一次。\n\n"
-      + "只有「换了版本编号方案」或「确实要回退」才该继续。确定吗？");
-    if (!ok) throw new Error("已取消：版本序号不能比当前小（当前 " + currentCode + "）");
+  if (!(currentCode > 0)) return "";
+  if (nextCode < currentCode) {
+    return "这次的序号比当前小（当前 " + currentCode + "，本次 " + nextCode + "）："
+      + "已经装了序号 " + currentCode + " 的用户收不到更新提示，得手动卸载重装一次。"
+      + "想让所有人都收到更新，序号要填得比 " + currentCode + " 大。";
   }
+  if (nextCode === currentCode && mode !== "editCurrent") {
+    return "这次的序号和当前一样（都是 " + currentCode + "）："
+      + "软件会认为已经是最新版，不会弹任何更新提示。"
+      + "想让更新弹出来，序号要填得比 " + currentCode + " 大。";
+  }
+  return "";
 }
 
 /** 拉一页历史。集合还没建时**不抛**，只标记 `histMissing`，由页面给一个「创建」按钮。 */
@@ -728,7 +756,10 @@ async function saveRelEdit(key, isCurrent){
       throw new Error("校验值必须是 64 位十六进制 —— 这一条是用户真正会下载的版本，写错了用户装不上");
     }
     if (!(body.size > 0)) throw new Error("大小必须大于 0 —— 这一条是用户真正会下载的版本");
-    guardVersionTransition(body.versionCode, relFields(cache.release).versionCode, "editCurrent");
+    assertVersionCode(body.versionCode);
+    /* [2026-10-03] 只提示不拦截：编辑当前记录时把序号改小，等于给所有人降级。 */
+    const editWarn = versionTransitionWarning(body.versionCode, relFields(cache.release).versionCode, "editCurrent");
+    if (editWarn) toast(editWarn, "err");
     await api("/release/records/" + cache.release.id, { method:"PATCH", body: JSON.stringify(body) });
     toast("已保存，用户下次打开软件生效", "ok");
   } else {
@@ -748,7 +779,7 @@ async function rollbackTo(key){
   }
   if (!(f.size > 0)) throw new Error("这条历史的大小是 0，直接回滚用户会装不上 —— 请先「编辑」把它补对");
   const cur = cache.release ? relFields(cache.release) : null;
-  guardVersionTransition(f.versionCode, cur ? cur.versionCode : 0, "switch");
+  assertVersionCode(f.versionCode);
   const ok = confirm("把当前版本回滚到「" + f.versionName + "」（序号 " + f.versionCode + "）？\n\n"
     + "用户下次打开软件就会拿到这个版本的下载地址。\n"
     + "已经装了更新版本的用户**不会**收到提示（软件只往「更新」的方向提示），要他们降级只能手动卸载重装。");
@@ -815,12 +846,15 @@ function renderRelease(p){
    * ⚠️ 所以下面这句提示必须**跟着当前值动态生成**：既不能写死数字，也不能再承诺
    * 「已经替你把序号加好了」—— DFW-118 路线 B 把预填从 `last + 1` 改成 `last` 时
    * 漏改了这句，文案一直和真实行为不符（用户照做会被守卫拦下，显得"说了帮忙却没帮"）。
+   *
+   * [2026-10-03] 又改了一次：**不再覆盖用户填的值**，所以末尾那句
+   * 「点保存时会先用安装包里的真实序号覆盖这里」已经过期，删掉换成现在的真实行为。
    */
   const curCode = Number(r && r.versionCode) || 0;
   const vcHint = (curCode > 0
-      ? `软件就是拿这个数字比大小的：<b>必须比现在（${curCode}）大</b>，否则用户永远收不到更新。`
+      ? `软件就是拿这个数字比大小的：<b>填得比现在（${curCode}）大，用户就会收到更新提示</b>；填小了或填一样，就不会弹。`
       : `软件就是拿这个数字比大小的：<b>必须是个正整数</b>，而且以后每次发版都得比上一版大。`)
-    + `点「保存并发布」时会先用安装包里的真实序号覆盖这里（没选包就直接用你填的值）。`;
+    + `这个数字<b>你自己填</b>，填什么就发什么（选了安装包也不会改你填的值）。`;
   pendingApk = null;
   p.innerHTML = `
   <div class="card">
@@ -837,6 +871,9 @@ function renderRelease(p){
     <label for="vc">③ 版本序号（versionCode）—— 决定软件会不会提示更新</label>
     <input id="vc" type="number" min="1" value="${Number(r && r.versionCode) || 0}">
     <p class="hint">${vcHint}</p>
+    <!-- [2026-10-03] 常驻提醒区：序号填得比当前小/一样时，在这里当场说明后果。
+         放在**点按钮之前**就能看到，所以不需要再用 confirm 弹窗去挡。 -->
+    <div class="note warn hide" id="vcWarn"></div>
 
     <label for="um">④ 更新方式</label>
     <select id="um">
@@ -876,6 +913,25 @@ function renderRelease(p){
         ${histPagerHtml()}`}
   </div>`;
 
+  /**
+   * [2026-10-03] 序号填得不对时，**当场**在输入框下面说明后果 —— 而不是等点按钮时弹窗挡。
+   * 跟着输入实时刷新，用户边填边能看到；点「保存并发布」时也会再刷一次。
+   */
+  const refreshVcWarn = () => {
+    const box = $("#vc"), tip = $("#vcWarn");
+    if (!box || !tip) return;
+    const msg = versionTransitionWarning(Number(box.value || 0), curCode, "publish");
+    if (msg) {
+      tip.textContent = msg;
+      tip.classList.remove("hide");
+    } else {
+      tip.textContent = "";
+      tip.classList.add("hide");
+    }
+  };
+  $("#vc").oninput = refreshVcWarn;
+  refreshVcWarn();
+
   $("#apk").onchange = async e => {
     const f = e.target.files && e.target.files[0];
     if (!f) return;
@@ -905,18 +961,37 @@ function renderRelease(p){
         b.innerHTML = '<span class="spin"></span> 上传安装包…';
         const meta = await uploadApk(pendingApk.file, pendingApk.name);
         /*
-         * [DFW-117] **用包里的真实版本号覆盖输入框。**
+         * [DFW-117 → 2026-10-03 改版] 这里原来是**无条件用包里的序号覆盖输入框**。
          *
-         * 用户上传的那个 APK 就是新版本，它的 versionCode 才是真值 ——
-         * 比任何"猜"都可靠。原来这里用的是「上一条记录 + 1」，
-         * 上一条是 10027 就填 10028，而用户装的是 10034 → 软件判定"这更新比我还旧"，不弹窗。
+         * 原来的理由（DFW-117）是成立的：用户上传的那个 APK 就是新版本，它的 versionCode
+         * 才是真值，比"上一条 + 1"这种猜法可靠。但**无条件覆盖**带来了一个用户直接撞上的问题：
+         *
+         *   用户自己填好序号 → 选了一个内部序号很小的 APK（比如别家软件的 `1`）
+         *   → 输入框被盖成 1 → 紧接着被判"比当前小"拦下
+         *   → 用户的感受是「我明明填了，它却给我改了，还不让我发」。
+         *
+         * 用户原话：
+         * > 「能不能改为我自个填版本号和版本序号？……结果它居然自动填充了」
+         *
+         * 现在改成：**只在输入框是空 / 0 的时候才预填**（纯省事），
+         * 用户已经填了值就**一律保留**，包里的值只作为一句参考信息告诉他。
+         * 这样"帮我省事"和"别改我填的"两件事就不打架了。
          */
         if (meta && meta.versionCode) {
-          $("#vc").value = meta.versionCode;
-          if (meta.versionName) $("#vn").value = meta.versionName;
-          toast("已从安装包里读出真实版本号：" + meta.versionName + "（" + meta.versionCode + "）", "ok");
+          const box = $("#vc");
+          const typed = Number(box.value || 0);
+          const pkgName = meta.versionName || "";
+          if (typed > 0) {
+            toast("你填的序号 " + typed + " 保留不动（包里这个 APK 的真实序号是 "
+              + meta.versionCode + (pkgName ? "，版本名 " + pkgName : "") + "）", "ok");
+          } else {
+            box.value = meta.versionCode;
+            if (pkgName) $("#vn").value = pkgName;
+            toast("输入框原来是空的，已替你填上包里的真实版本号：" + pkgName + "（" + meta.versionCode + "）", "ok");
+          }
+          refreshVcWarn();
         } else {
-          toast("读不出包里的版本号，请自己确认「版本序号」填对了", "err");
+          toast("读不出包里的版本号 —— 没关系，上面「版本序号」填什么就用什么", "err");
         }
       }
       /*
@@ -926,8 +1001,10 @@ function renderRelease(p){
        * 用户 2026-10-01 报的"更新功能坏掉了"就是这一行。
        * 现在改成读输入框，并且**强制严格递增**。
        *
-       * [DFW-106] 这两条守卫（相等硬拦 / 变小 confirm）已抽成 guardVersionTransition，
-       * 由「发新版」「回滚」「编辑当前版本」三条路径共用 —— 规则一字未改，只是不再只有一处生效。
+       * [DFW-106 → 2026-10-03] 这两条规则已抽成 `assertVersionCode`（硬拦非法值）
+       * 与 `versionTransitionWarning`（只提示不拦截），由「发新版」「回滚」「编辑当前版本」
+       * 三条路径共用。**注意：原来的「相等硬拦 / 变小 confirm」已按用户要求取消** ——
+       * 见 `versionTransitionWarning` 的注释。
        */
       const currentCode = Number(cache.release && cache.release.versionCode) || 0;
       const nextCode = Number($("#vc").value || 0);
@@ -940,14 +1017,30 @@ function renderRelease(p){
         size: Number($("#sz").value || 0)
       };
       if (!body.versionName) throw new Error("请填写版本号");
-      guardVersionTransition(nextCode, currentCode, "publish");
+      /*
+       * [2026-10-03 用户要求] 这里原来是一个 confirm「序号比当前小，确定吗？」——
+       * 点「拒绝」就抛错，整个发布被挡下来。用户明确要求去掉：
+       * > 「不要让它再弹出来那个弹窗阻止我了，只要我发布的版本号和版本序号
+       * >   高于我现在的版本，那它就会弹更新」
+       *
+       * 现在拆成两件事：
+       *   · `assertVersionCode` —— 只拦"软件读不懂的值"（非正整数），这个仍然抛错；
+       *   · `versionTransitionWarning` —— 序号偏小时给一句**非阻塞**的提醒，
+       *     发布照常进行。提醒内容会同时出现在按钮上方的常驻提示区（见 #vcWarn），
+       *     所以用户在点之前就已经看到了，不需要再弹一次。
+       */
+      assertVersionCode(nextCode);
+      const transWarn = versionTransitionWarning(nextCode, currentCode, "publish");
+      if (transWarn) toast(transWarn, "err");
       if (!/^[0-9a-f]{64}$/.test(body.sha256)) throw new Error("校验值必须是 64 位十六进制（选一个安装包就会自动算好）");
       if (!(body.size > 0)) throw new Error("请选择安装包，大小会自动算出来");
-      if (currentCode > 0 && body.versionName === (cache.release && cache.release.versionName)) {
-        const ok = confirm("版本号（" + body.versionName + "）和现在一样，只有版本序号变了"
-          + "（" + currentCode + " → " + nextCode + "）。\n"
-          + "这样用户会收到更新提示，但显示的版本名不会变。确定要发布吗？");
-        if (!ok) { b.disabled = false; b.textContent = "保存并发布"; return; }
+      /*
+       * 版本名和现在一样、只有序号变了 —— 原来也是 confirm，同样改成非阻塞提醒。
+       * 这本身是个完全合法的操作（比如只改了更新方式、或换了安装包但版本名还没改），
+       * 不该用弹窗拦。
+       */
+      if (currentCode > 0 && body.versionName === (cache.release && cache.release.versionName) && nextCode > currentCode) {
+        toast("版本名没变（还是 " + body.versionName + "），只有序号变了 —— 用户会收到更新提示，但显示的版本名不变", "ok");
       }
       await upsert("release", cache.release && cache.release.id, body);
       // [DFW-106] 发布成功后再往历史里追一条。写历史失败不影响发布本身（snapshot 内部已兜住）。

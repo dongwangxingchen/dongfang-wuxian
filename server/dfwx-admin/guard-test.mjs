@@ -37,26 +37,26 @@ function extractFunction(src, name) {
   throw new Error("函数 " + name + "() 的大括号不配对");
 }
 
-/* 把真实源码拼成一段可执行的脚本。`confirm` 是桩，由测试逐例设置。 */
+/*
+ * 把真实源码拼成一段可执行的脚本。
+ *
+ * [2026-10-03] `confirm` 桩**删掉了** —— 版本序号这条路径上已经一个 confirm 都不剩。
+ * 现在只有两个函数：`assertVersionCode`（硬拦非法值）和 `versionTransitionWarning`
+ * （只返回提醒文案，绝不拦截）。
+ */
 const source = [
-  extractFunction(html, "guardVersionTransition"),
+  extractFunction(html, "assertVersionCode"),
+  extractFunction(html, "versionTransitionWarning"),
   extractFunction(html, "relFields"),
-  "return { guardVersionTransition, relFields };"
+  "return { assertVersionCode, versionTransitionWarning, relFields };"
 ].join("\n\n");
 
-let confirmAnswer = true;
-let confirmMessages = [];
-const factory = new Function("confirm", source);
-const { guardVersionTransition, relFields } = factory(msg => {
-  confirmMessages.push(msg);
-  return confirmAnswer;
-});
+const { assertVersionCode, versionTransitionWarning, relFields } = new Function(source)();
 
 /* ---------------- 测试框架（10 行，不引依赖） ---------------- */
 let pass = 0, fail = 0;
 const results = [];
 function check(name, fn) {
-  confirmMessages = [];
   try {
     fn();
     results.push("  ✅ " + name);
@@ -85,72 +85,91 @@ function assertIncludes(hay, needle) {
 
 const CUR = 10023;   // 当前版本的 versionCode
 
-/* ---------------- 守卫①：相等 → 硬拦 ---------------- */
-console.log("守卫① versionCode 相等 → 硬拦（DFW-82 老病，不许静默发出）");
-throws("publish 模式：新序号 == 当前序号 → 抛错", () => guardVersionTransition(CUR, CUR, "publish"));
-throws("switch 模式（回滚）：目标序号 == 当前序号 → 抛错", () => guardVersionTransition(CUR, CUR, "switch"));
-ok("editCurrent 模式：改的就是当前那条，序号不变属正常保存 → 放行", () => guardVersionTransition(CUR, CUR, "editCurrent"));
-check("publish 被拦时的提示里点名「不会提示更新」", () => {
-  try { guardVersionTransition(CUR, CUR, "publish"); } catch (e) {
-    assertIncludes(e.message, "不会提示更新");
-    return;
+/* ---------------- 硬拦：只拦「软件读不懂的值」 ---------------- */
+/*
+ * [2026-10-03] 这里原来还有两条硬拦（序号相等 / 变小要 confirm）。
+ * 用户明确要求去掉：「不要让它再弹出来那个弹窗阻止我了，只要我发布的版本号
+ * 和版本序号高于我现在的版本，那它就会弹更新」。理由成立 —— 规则简单且用户已理解，
+ * 没有理由用弹窗去挡他本人。现在硬拦只剩"发出去软件读不懂"这一类。
+ */
+console.log("硬拦：只拦软件读不懂的序号（非正整数）");
+throws("序号 0 → 抛错", () => assertVersionCode(0));
+throws("序号负数 → 抛错", () => assertVersionCode(-5));
+throws("序号非整数 → 抛错", () => assertVersionCode(1.5));
+throws("序号 NaN → 抛错", () => assertVersionCode(NaN));
+throws("序号字符串 '10000' → 抛错（必须是 number，不能靠隐式转换）", () => assertVersionCode("10000"));
+ok("序号 10000 → 放行", () => assertVersionCode(10000));
+ok("序号 1 → 放行（用户就是想填 1，也让他填）", () => assertVersionCode(1));
+
+/* ---------------- 提示：只提醒，绝不拦截 ---------------- */
+console.log("\n提示：序号偏小时给一句提醒，但**绝不拦截**");
+check("变小（10000 < 10023）→ 返回提醒，且**不抛错**", () => {
+  const w = versionTransitionWarning(10000, CUR, "publish");
+  if (!w) throw new Error("变小了却没有提醒 —— 用户会以为发布成功就没事，实际老用户收不到更新");
+  assertIncludes(w, "收不到更新提示");
+  assertIncludes(w, "卸载重装");
+  assertIncludes(w, String(CUR));
+  assertIncludes(w, "10000");
+});
+check("相等（10023 == 10023）→ 返回提醒，且**不抛错**", () => {
+  const w = versionTransitionWarning(CUR, CUR, "publish");
+  if (!w) throw new Error("序号一样却没有提醒 —— 这正是 DFW-82「永远不提示更新」的形态");
+  assertIncludes(w, "不会弹");
+  assertIncludes(w, String(CUR));
+});
+check("editCurrent 模式：序号相等属正常保存 → **不给提醒**（别制造噪音）", () => {
+  assertEq(versionTransitionWarning(CUR, CUR, "editCurrent"), "", "提醒文案");
+});
+check("变大（10024 > 10023）→ **不给任何提醒**（这是正常路径，不该打扰）", () => {
+  assertEq(versionTransitionWarning(10024, CUR, "publish"), "", "提醒文案");
+  assertEq(versionTransitionWarning(10024, CUR, "switch"), "", "提醒文案");
+});
+check("当前还没有版本（currentCode=0）→ 不给提醒", () => {
+  assertEq(versionTransitionWarning(10000, 0, "publish"), "", "提醒文案");
+});
+check("非法值也走「提醒」而不是抛错（提示函数永远不抛）", () => {
+  for (const bad of [0, -5, 1.5, NaN, "10000", null, undefined]) {
+    const w = versionTransitionWarning(bad, CUR, "publish");
+    if (!w) throw new Error("非法值 " + JSON.stringify(bad) + " 应当返回提醒文案");
   }
-  throw new Error("没有抛错");
-});
-check("相等被拦时**不弹 confirm**（是硬拦，不是询问）", () => {
-  try { guardVersionTransition(CUR, CUR, "publish"); } catch (e) { /* 预期 */ }
-  assertEq(confirmMessages.length, 0, "confirm 调用次数");
 });
 
-/* ---------------- 守卫②：变小 → confirm + 写清后果 ---------------- */
-console.log("\n守卫② versionCode 变小 → confirm 确认，且必须写清后果");
-throws("publish：变小 + 用户点「取消」→ 抛错（拦下）", () => {
-  confirmAnswer = false;
-  guardVersionTransition(10000, CUR, "publish");
+/* ---------------- 源码级：这条路径上不许再有 confirm ---------------- */
+console.log("\n源码级断言：版本序号路径上不许再出现 confirm");
+check("index.html 里已无 guardVersionTransition 残留", () => {
+  if (html.includes("guardVersionTransition")) {
+    throw new Error("还有地方在调 guardVersionTransition —— 那个函数已经删了");
+  }
 });
-ok("publish：变小 + 用户点「确定」→ 放行", () => {
-  confirmAnswer = true;
-  guardVersionTransition(10000, CUR, "publish");
-});
-throws("switch（回滚）：变小 + 取消 → 抛错", () => {
-  confirmAnswer = false;
-  guardVersionTransition(10000, CUR, "switch");
-});
-ok("switch（回滚）：变小 + 确定 → 放行", () => {
-  confirmAnswer = true;
-  guardVersionTransition(10000, CUR, "switch");
-});
-throws("editCurrent：变小 + 取消 → 抛错", () => {
-  confirmAnswer = false;
-  guardVersionTransition(10000, CUR, "editCurrent");
-});
-ok("editCurrent：变小 + 确定 → 放行", () => {
-  confirmAnswer = true;
-  guardVersionTransition(10000, CUR, "editCurrent");
-});
-check("变小时的 confirm 文案包含后果原话「必须手动卸载重装一次」", () => {
-  confirmAnswer = true;
-  guardVersionTransition(10000, CUR, "publish");
-  assertEq(confirmMessages.length, 1, "confirm 调用次数");
-  assertIncludes(confirmMessages[0], "必须手动卸载重装一次");
-  assertIncludes(confirmMessages[0], "收不到更新提示");
-  assertIncludes(confirmMessages[0], String(CUR));
-  assertIncludes(confirmMessages[0], "10000");
+check("版本相关的 confirm 已全部移除", () => {
+  /*
+   * 允许的 confirm 只有「回滚」（那是另一个动作的确认，不是版本序号守卫）。
+   * 这里检查的是：不再有"序号比当前小/一样"这类询问式弹窗。
+   */
+  const bad = ["版本序号不能比当前小", "这次的版本序号比当前版本", "和现在一样，只有版本序号变了"];
+  for (const s of bad) {
+    if (html.includes(s)) throw new Error("还残留着会拦截用户的弹窗文案：「" + s + "」");
+  }
 });
 
-/* ---------------- 正常路径 ---------------- */
-console.log("\n正常路径：变大直接过，不打扰用户");
-ok("publish：10024 > 10023 → 放行", () => { confirmAnswer = false; guardVersionTransition(10024, CUR, "publish"); });
-check("变大时不弹 confirm", () => assertEq(confirmMessages.length, 0, "confirm 调用次数"));
-ok("switch：10024 > 10023 → 放行", () => { confirmAnswer = false; guardVersionTransition(10024, CUR, "switch"); });
-ok("当前还没有版本（currentCode=0）→ 任意正数放行", () => { confirmAnswer = false; guardVersionTransition(10000, 0, "publish"); });
-
-/* ---------------- 非法输入 ---------------- */
-console.log("\n非法输入");
-throws("序号 0 → 抛错", () => guardVersionTransition(0, CUR, "publish"));
-throws("序号负数 → 抛错", () => guardVersionTransition(-5, CUR, "publish"));
-throws("序号非整数 → 抛错", () => guardVersionTransition(1.5, CUR, "publish"));
-throws("序号 NaN → 抛错", () => guardVersionTransition(NaN, CUR, "publish"));
+/* ---------------- 源码级：选完 APK 不许覆盖用户填的序号 ---------------- */
+console.log("\n源码级断言：选完 APK 不许覆盖用户自己填的版本序号");
+check("不再无条件用包里的序号覆盖输入框", () => {
+  /*
+   * 用户 2026-10-03 撞上的就是这个：
+   * 自己填好序号 → 选了个内部序号很小的 APK → 输入框被盖掉 → 然后被守卫拦下。
+   * 用户的感受是「我明明填了，它却给我改了，还不让我发」。
+   */
+  if (/\$\("#vc"\)\.value\s*=\s*meta\.versionCode\s*;/.test(html)) {
+    throw new Error("还在无条件用包里的序号覆盖输入框 —— 用户填了也白填");
+  }
+  if (!html.includes("const typed = Number(box.value || 0);")) {
+    throw new Error("没找到「先看用户填了没有」的判断逻辑");
+  }
+  if (!html.includes("refreshVcWarn")) {
+    throw new Error("没找到常驻提醒区的刷新函数 —— 提醒不显示出来，用户就看不到后果");
+  }
+});
 
 /* ---------------- relFields：渲染/写回共用的取值函数 ---------------- */
 console.log("\nrelFields 取值");
@@ -225,11 +244,27 @@ check("提示里的数字与输入框预填值来自同一个表达式（逐个�
   }
 });
 check("渲染出来的提示里，当前值是动态的、且与预填值一致", () => {
+  /*
+   * [2026-10-03] 文案改过一次：原来是「必须比现在（N）大，否则用户永远收不到更新」，
+   * 现在是「填得比现在（N）大，用户就会收到更新提示；填小了或填一样，就不会弹」。
+   * 换的是措辞，**要守的不变量没变**：数字必须是动态注入的、和输入框里的值同源。
+   */
   for (const code of [10000, 1, 10023]) {
     const text = renderHint({ versionCode: code });
-    assertIncludes(text, "必须比现在（" + code + "）大");
+    assertIncludes(text, "填得比现在（" + code + "）大");
   }
-  if (/必须比现在（\d{3,}）/.test(html)) throw new Error("提示里出现了写死的数字");
+  if (/填得比现在（\d{3,}）/.test(html)) throw new Error("提示里出现了写死的数字");
+});
+check("提示里说清了「这个数字你自己填，选了包也不会改你的值」", () => {
+  /*
+   * 这条守的是 2026-10-03 用户要求的那个改动：原来选完 APK 会用包里的序号
+   * **覆盖**用户填的值，用户填了也白填。现在不覆盖了，文案必须跟着说清楚，
+   * 否则用户还会以为"反正会被覆盖，我填不填无所谓"。
+   */
+  for (const r of [{ versionCode: 10000 }, null]) {
+    const text = renderHint(r);
+    assertIncludes(text, "你自己填");
+  }
 });
 check("提示里不再有「已经帮你加好了」这种与真实行为不符的承诺", () => {
   for (const r of [{ versionCode: 10000 }, null]) {
