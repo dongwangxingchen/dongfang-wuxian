@@ -1,30 +1,62 @@
-# 东方无限 DongFangWuXian
+<div align="center">
 
-> 一款纯净的原生 Android 工具箱：软件库资源获取 · 37 个离线小工具 · 完整 AI 聊天
+# 东方无限
 
-![License](https://img.shields.io/github/license/dongwangxingchen/dongfang-wuxian) ![Release](https://img.shields.io/github/v/release/dongwangxingchen/dongfang-wuxian?include_prereleases) ![Platform](https://img.shields.io/badge/Android-8.0%2B%20%7C%20arm64--v8a-brightgreen)
+**安卓上的资源库 + AI 对话 + 下载器 —— 免费、开源、无广告**
+
+[![License](https://img.shields.io/github/license/dongwangxingchen/dongfang-wuxian?color=blueviolet)](LICENSE)
+[![Version](https://img.shields.io/badge/version-1.0.0-blueviolet)](https://github.com/dongwangxingchen/dongfang-wuxian/releases)
+[![Platform](https://img.shields.io/badge/Android-8.0%2B%20%7C%20arm64--v8a-brightgreen)](#下载)
+
+</div>
 
 <!--
-  徽章为什么要带 ?include_prereleases —— 2026-10-02 实测：
-  当前所有 Release 都是 Pre-release（测试专区），而 shields.io 的 `v/release`
-  **默认不统计预发布**，于是渲染出来是「release: no releases or repo not found」。
-  加上这个参数后正常显示最新标签。删掉它 = 徽章变回一句假话。
+  ⚠️ 版本徽章**故意用静态的**，不要改成 `github/v/release`。
+  2026-10-04 实测两个候选都是坏的：
+    · `github/v/release`                → 渲染成「no releases or repo not found」（当前所有 Release 都是 Pre-release）
+    · `github/v/release?include_prereleases` → 渲染成「release: test-20261004-02」
+  后者更糟：**它把测试标签名直接暴露在门面上**，访客看到的是「这项目在跑测试」。
+  等正式发布 v1.0.0（非 Pre-release）之后，才可以换成 `github/v/release`。
+  在那之前静态徽章是唯一既正确又体面的选择。
 -->
 
 **东方无限**是一款原生 Android 应用，把三件事装进一个干净的小体积 APP 里：
+找资源、问 AI、管下载。没有广告，没有追踪，也没有账号体系。
 
-- **软件库** —— 多源聚合的资源搜索与下载
-- **工具箱** —— 37 个纯离线小工具，覆盖日常方方面面
-- **AI 对话** —— 完整内嵌的开源 AI 助手，多渠道多模型
+| | |
+|---|---|
+| **体积** | 约 36 MB（arm64-v8a） |
+| **系统** | Android 8.0（API 26）及以上 |
+| **开源** | AGPL-3.0，完整源码即本仓库，与发版同步 |
 
-无广告、无追踪；权限只在对应功能使用时申请（存储用于把下载与崩溃日志写进
-`Download/东方无限`，安装用于安装你已下载的 APK），拒绝不影响其它功能。
-**不内置任何 AI Key**：内置渠道开箱即用、不需要自己填 Key —— 它走的是本项目自建的中转，
-上游地址与密钥只保存在服务器上，不随 APK 分发。想用自己的渠道也可以随时接。
+## 界面
 
-## 五大板块
+<div align="center">
+  <img src="docs/screenshots/home.png" width="24%" alt="软件库首页：分类导航" />
+  <img src="docs/screenshots/tools.png" width="24%" alt="工具箱：37 个离线小工具" />
+  <img src="docs/screenshots/downloads.png" width="24%" alt="下载管理：队列与历史" />
+  <img src="docs/screenshots/settings.png" width="24%" alt="设置：主题与偏好" />
+  <br />
+  <sub>软件库 · 工具箱 · 下载管理 · 设置</sub>
+</div>
 
-APP 底部导航即五大板块，各司其职：
+> 截图取自应用真实渲染，不是效果图。
+
+## 下载
+
+**[⬇️ 前往 Releases 下载最新 APK](https://github.com/dongwangxingchen/dongfang-wuxian/releases)**
+
+- 文件名：`dongfang-wuxian-v1.0.0.apk`
+- 大小约 36 MB，**仅支持 arm64-v8a**（2017 年后的主流机型）
+- 系统要求：Android 8.0 及以上
+
+> [!IMPORTANT]
+> **安装提示**
+> 1. 从浏览器下载后，系统会提示「未知来源」——需要允许浏览器安装应用，这是 Android 对所有非商店应用的标准限制
+> 2. 覆盖安装旧版本时，**版本号必须更大**系统才允许；若提示「应用未安装」，先卸载旧版再装
+> 3. 首次启动若提示存储权限，建议允许：下载的文件与崩溃日志会写进 `Download/东方无限`
+
+## 功能
 
 ### 📚 软件库 —— 找资源
 
@@ -41,9 +73,8 @@ APP 底部导航即五大板块，各司其职：
 - 流式输出、思考过程、消息分叉、Token 用量统计
 - 助手系统、提示词模板、Skills、联网搜索
 - 数据备份（WebDAV / S3）、Web 局域网控制台、TTS 语音朗读
-- **不内置任何 API Key**：内置渠道开箱即用、**不需要自己填 Key**，装上就能聊（含看图）——
-  APK 里只有本项目自己服务器的地址与应用令牌，上游密钥在服务器上
-- **也可以接自己的渠道**：在「设置 → 渠道」填入你自己的 API 地址与 Key，支持 OpenAI 兼容 / Claude / Google 协议
+- **不内置任何 API Key**：内置渠道开箱即用、**不需要自己填 Key**，装上就能聊（含看图）——APK 里只有本项目自己服务器的地址与应用令牌，上游密钥在服务器上
+- **也可以接自己的渠道**：在「设置 → 渠道」填入你自己的 API 地址与 Key
 
 ### ⬇️ 下载 —— 管下载
 
@@ -74,23 +105,30 @@ APP 底部导航即五大板块，各司其职：
 - 数据与关于：资源源管理、崩溃日志查看（可导出文件）、应用信息、**手动检查更新**
 - 隐私相关：下载历史里的分享提取码可一键清除；局域网 Web 控制台默认**仅本机**监听
 
+## 安全与信任
+
+> [!WARNING]
+> **请只从本仓库的 Releases 页面下载。**
+> 本项目没有在任何应用商店上架，也没有授权任何第三方站点分发。
+> 如果你在别处看到「东方无限」，那不是我们发的。
+
+- 每份安装包都带**签名校验**，应用内更新会核对签名与版本号后才引导安装
+- 应用**不收集任何个人数据**，没有埋点、没有统计 SDK
+- 权限只在对应功能使用时申请，拒绝不影响其它功能
+- 更新日志在应用内可查；远程配置只用于公告与版本清单
+
 ## 屏幕适配
 
-**面向手机**（2026-09-24 起）：界面按手机视口逐页验收，并对系统大字体（无障碍字号）做了适配——
-字号放大时承载文字的容器会等比放大，避免文字被裁切（见 `docs/plan/decision` 系列与 DFW-13）。
+**面向手机**：界面按手机视口逐页验收，并对系统大字体（无障碍字号）做了适配——
+字号放大时承载文字的容器会等比放大，避免文字被裁切。
 
 > 早期版本曾在手表小屏（343dp 级别）上做过适配与截图验收，**手表测试已永久停止**，
-> 当前版本不再把"手表可用"作为承诺。手表端如需使用请自行评估。
-## 下载
-
-前往 **[Releases](https://github.com/dongwangxingchen/dongfang-wuxian/releases)** 下载最新 APK（约 35 MB，arm64-v8a）。
-
-- 系统要求：Android 8.0（API 26）及以上，面向手机（arm64-v8a）
-- 完整源码即本仓库（AGPL-3.0，与发版同步）
+> 当前版本不再把「手表可用」作为承诺。手表端如需使用请自行评估。
 
 ## 支持作者
 
-东方无限**免费、开源**，也不在应用内放任何广告。如果它对你有用，欢迎在「设置 → 诚信付费」自愿支持——金额随意，全凭心意。你的支持是持续更新的动力。
+东方无限**免费、开源**，也不在应用内放任何广告。如果它对你有用，欢迎在「设置 → 诚信付费」自愿支持——
+金额随意，全凭心意。你的支持是持续更新的动力。
 
 AI 对话默认走软件自带的**内置渠道**，不需要填 Key；你也可以在「设置 → 渠道」接自己的 API 地址与 Key。
 内置渠道由本项目自建的中转提供服务，上游地址与密钥只保存在服务器上，不随 APK 分发。
@@ -98,7 +136,8 @@ AI 对话默认走软件自带的**内置渠道**，不需要填 Key；你也可
 
 ## 构建
 
-需要 JDK 21、Android SDK（platform 37 + build-tools 37.0.0）、Gradle 9.6（wrapper 已配置；`services.gradle.org` 不可达的环境可改用镜像源，见 `gradle/wrapper/gradle-wrapper.properties`）。
+需要 JDK 21、Android SDK（platform 37 + build-tools 37.0.0）、Gradle 9.6（wrapper 已配置；
+`services.gradle.org` 不可达的环境可改用镜像源，见 `gradle/wrapper/gradle-wrapper.properties`）。
 
 ```bash
 # 1. 配置 SDK 路径与默认 AI Key（此文件不入库，Key 可省略）
@@ -107,13 +146,15 @@ sdk.dir=/path/to/android-sdk
 ai.default.key=sk-your-own-key
 EOF
 
-# 2. 构建 release APK（约 35MB，arm64-v8a）
+# 2. 构建 release APK（约 36MB，arm64-v8a）
 ./gradlew :app:assembleEmptyRelease
 ```
 
 产物：`app/build/outputs/apk/empty/release/app-empty-release.apk`
 
-> `local.properties`、keystore 与签名口令不入库。AI 部分上游代码在 `rikkahub/` 目录，与上游 [re-ovo/rikkahub](https://github.com/re-ovo/rikkahub) 保持路径一一对应，定制全部记录在 [rikkahub/PATCHES.md](rikkahub/PATCHES.md) 以便跟随上游更新。
+> `local.properties`、keystore 与签名口令不入库。AI 部分上游代码在 `rikkahub/` 目录，
+> 与上游 [re-ovo/rikkahub](https://github.com/re-ovo/rikkahub) 保持路径一一对应，
+> 定制全部记录在 [rikkahub/PATCHES.md](rikkahub/PATCHES.md) 以便跟随上游更新。
 
 ## 致谢与第三方参考
 
@@ -128,10 +169,14 @@ EOF
 | [langchain4j](https://github.com/langchain4j/langchain4j) | AI 对话流式协议解析参考 | Apache-2.0 |
 | [openai-java](https://github.com/TheoKanning/openai-java) | OpenAI 兼容 API 规范参考 | MIT |
 
-**关于 RikkaHub**：本项目的 AI 对话模块在信息架构、数据模型与交互逻辑上深度参考了 [RikkaHub](https://github.com/rikkahub/rikkahub)。RikkaHub 采用 AGPL-3.0 许可，本项目同样以 AGPL-3.0 发布，符合其许可条款。感谢 RikkaHub 作者的杰出工作。
+**关于 RikkaHub**：本项目的 AI 对话模块在信息架构、数据模型与交互逻辑上深度参考了
+[RikkaHub](https://github.com/rikkahub/rikkahub)。RikkaHub 采用 AGPL-3.0 许可，
+本项目同样以 AGPL-3.0 发布，符合其许可条款。感谢 RikkaHub 作者的杰出工作。
 
 ## 许可证
 
 [GNU Affero General Public License v3.0](LICENSE)
 
-本项目以 AGPL-3.0 发布：你可以自由使用、修改和分发，也可以对副本收取费用，但**分发（无论是否收费）时必须向获得方提供同样以 AGPL-3.0 授权的完整源码**，且不得附加额外限制（包括通过网络提供服务的情形）。
+本项目以 AGPL-3.0 发布：你可以自由使用、修改和分发，也可以对副本收取费用，
+但**分发（无论是否收费）时必须向获得方提供同样以 AGPL-3.0 授权的完整源码**，
+且不得附加额外限制（包括通过网络提供服务的情形）。
