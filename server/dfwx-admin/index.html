@@ -675,9 +675,36 @@ let pendingApk = null;
  * 用暂存而不是直接改 DOM 的原因见 applyPendingFill() 的注释。
  */
 let pendingFill = null;
-/** 安装包对外地址的固定前缀：**故意用 http**——App 走的是明文下载，
- *  改成 https 会因为那张证书不被设备信任而直接下载失败。 */
-const APK_ORIGIN = "https://39.106.33.135";
+/**
+ * 安装包对外地址的固定前缀。
+ *
+ * [2026-10-03 用户拍板] **用 http，不用 https。**
+ *
+ * 这里原来注释写着「故意用 http」但值却是 `https://` —— 值和注释互相矛盾（
+ * `server/dfwx-upload/README.md` 里也留着同一条过期结论）。核对后确认**用 http 是对的**：
+ *
+ * 1. **https 在光秃秃的 IP 上是个新东西，而且只有 6 天有效期。**
+ *    Let's Encrypt 最近才开始发「IP 证书」（这张的 SAN 就是 `IP Address:39.106.33.135`，
+ *    `notAfter` 只到签发后第 6 天），域名证书才是 90 天。
+ *    所以它必须一天不停地自动续期，**一天没续上，用户就下不了更新**。
+ *    http 不需要证书，没有「到期」这回事。
+ *
+ * 2. **挂 https 在这个场景下基本是白挂的。**
+ *    软件读「版本信息 + 校验值」那一步走的是 `http://39.106.33.135/pb`
+ *    （`RemoteConfigClient.BASE`），本来就是明文。
+ *    也就是说：能篡改下载地址的人，**同时就能把校验值一起改掉**，https 挡不住他。
+ *
+ * 3. **真正拦住坏包的是签名校验**，不是传输层。
+ *    APK 签名由系统级比对，别人签不出来，改过的包装不上。
+ *    这一层跟走 http 还是 https 毫无关系。
+ *
+ * 4. App 端本来就允许：`app/src/main/res/xml/network_security_config.xml` 里
+ *    `39.106.33.135` 那条显式 `cleartextTrafficPermitted="true"`。
+ *
+ * ⚠️ 所以**不要**再把它改成 https —— 换来的是一点点心理安慰，
+ * 代价是多一个「随时可能过期、一过期更新就断」的依赖。
+ */
+const APK_ORIGIN = "http://39.106.33.135";
 
 /**
  * [DFW-106] **发布历史另起一个集合，绝不放进 `release`。**

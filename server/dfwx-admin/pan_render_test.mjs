@@ -158,5 +158,27 @@ console.log('【7】上传重名防呆（服务端是 os.replace，同名是静�
 }
 
 console.log();
+console.log('【8】跨文件：控制台的下载地址前缀 == 上传服务返回的地址前缀');
+{
+  /*
+   * 这条是**防漂移**用的，因为真的漂移过：
+   * index.html 的 APK_ORIGIN 一度是 `https://`，而 server.py 返回的是 `http://`，
+   * 两处不一致 —— 结果「手动填的地址」和「上传后拿到的地址」是两个不同的地址，
+   * 而谁都没发现。注释里甚至写着「故意用 http」但值是 https。
+   *
+   * 现在两处必须一致。用户 2026-10-03 拍板：**用 http**（理由见 index.html 里的长注释）。
+   */
+  const serverPy = readFileSync(join(HERE, '..', 'dfwx-upload', 'server.py'), 'utf8');
+  const originMatch = /^const APK_ORIGIN = "([^"]+)";$/m.exec(HTML);
+  const urlMatch = /"url":\s*"([^"]*?)\/apk\/"/.exec(serverPy);
+  check('两边都能取到前缀', !!originMatch && !!urlMatch,
+    `origin=${originMatch?.[1]} server=${urlMatch?.[1]}`);
+  check('两处前缀完全一致', originMatch[1] === urlMatch[1],
+    `控制台 ${originMatch[1]}  vs  服务端 ${urlMatch[1]}`);
+  check('用的是 http 而不是 https（IP 证书只有 6 天，不该依赖它）',
+    originMatch[1].startsWith('http://'), originMatch[1]);
+}
+
+console.log();
 console.log(failures === 0 ? '✅ 全部通过' : `❌ ${failures} 项未通过`);
 process.exit(failures === 0 ? 0 : 1);

@@ -119,29 +119,46 @@ location /admin/apk-upload/ {
 1. **`/admin/` 与 `/apk/` 必须在 443 上也挂着**。
    浏览器输入裸 IP 会先试 https，只挂在 80 的话后台打开是 **401**（落到 DSH 上了）。
    这正是上个会话把 PocketBase 后台挪到 443 的同一个原因，新控制台当时漏了。
-2. **`apkUrl` 现在用 `https://`**（前端 `APK_ORIGIN` 常量，`index.html`）。
-   ⚠️ 这里和本文件 2026-10-01 的旧结论**相反**，2026-10-03 重新核对过：
+2. **`apkUrl` 用 `http://`（不是 https）** —— 前端 `APK_ORIGIN` 常量，`index.html`。
+   用户 2026-10-03 明确拍板。
 
-   | | 旧结论（10-01） | 实测（10-03） |
+   ⚠️ 这条结论**反复过两次**，把三次的来龙去脉记下来，免得再被翻案：
+
+   | 时间 | 结论 | 依据 |
    |---|---|---|
-   | `APK_ORIGIN` | 说"故意用 http" | 代码里是 **`https://39.106.33.135`** |
-   | https 能不能下 | 说"证书不被设备信任，会直接失败" | **能下**（`curl` 206；证书链完整） |
+   | 10-01 | http | 当时 `index.html` 的注释写着「故意用 http」 |
+   | 10-03 早 | https | 但**代码里的值早就是 `https://`** —— 值和注释互相矛盾，谁都没发现 |
+   | 10-03 晚 | **http（定案）** | 见下面四条理由 |
 
-   为什么现在 https 可用：
-   - 证书是 Let's Encrypt 签的 **IP 证书**，链是 `叶证书 → YE1 → ISRG Root YE → ISRG Root X2`，
-     用系统信任库验证 `Verify return code: 0 (ok)`；Android 16 信任 ISRG Root X2。
-   - `app/src/main/res/xml/network_security_config.xml` 里 `39.106.33.135` 那条
-     `cleartextTrafficPermitted="true"` **只放行明文，不禁止 https**；
-     base-config 的信任锚是「系统 + 用户」，所以 https 与「用户装了 VPN 证书」两种情况都能过。
+   **为什么最终选 http：**
 
-   ⚠️ **仍然存在的脆弱点（未修，需用户决策）**：这张 IP 证书**只有 6 天有效期**
-   （实测 `notBefore=Oct 3 04:41` / `notAfter=Oct 9 20:41`）。`certbot.timer` 在跑、
-   今天也续过，所以正常情况没问题；但**一旦 certbot 连续失败两天，更新下载就会断**，
-   而 App 端没有 http 回退。
-   要彻底消除这个依赖，可以把 `apkUrl` 换回 `http://` ——
-   该 IP 在 `network_security_config.xml` 里已显式允许明文，
-   且下载后有 sha256 + 包名 + 签名三重校验，明文不构成实际风险。
-   **这是产品取舍，等用户拍板，不擅自改。**
+   1. **https 在光秃秃的 IP 上只有 6 天有效期。**
+      这张证书的 SAN 就是 `IP Address:39.106.33.135`（是 IP 证书，不是域名证书），
+      实测 `notBefore=Oct 3 04:41` / `notAfter=Oct 9 20:41`。
+      域名证书是 90 天，IP 证书只有 6 天 —— 它必须一天不停地自动续期，
+      **一天没续上，用户就下不了更新**，而 App 端没有回退。
+      http 不需要证书，没有「到期」这回事。
+
+   2. **挂 https 在这个场景下基本是白挂的。**
+      软件读「版本信息 + 校验值」那一步走的是 `http://39.106.33.135/pb`
+      （`RemoteConfigClient.BASE`，本来就是明文）。也就是说：
+      能篡改下载地址的人，**同时就能把校验值一起改掉**，https 挡不住他。
+
+   3. **真正拦住坏包的是签名校验**，不是传输层。APK 签名由系统级比对，
+      别人签不出来，改过的包装不上。这一层跟 http/https 毫无关系。
+
+   4. App 端本来就允许：`app/src/main/res/xml/network_security_config.xml` 里
+      `39.106.33.135` 那条显式 `cleartextTrafficPermitted="true"`。
+
+   ⚠️ **不要再改成 https。** 换来的是一点点心理安慰，代价是多一个
+   「随时可能过期、一过期更新就断」的依赖。
+
+   防漂移：`server/dfwx-admin/pan_render_test.mjs` 第 8 组会**跨文件比对**
+   `index.html` 的 `APK_ORIGIN` 和本服务的 `"url"` 前缀，两处不一致就红。
+   （当初就是这两处漂移了：控制台 https、服务端 http，谁都没发现。）
+
+   定案后实测：按记录里的 http 地址真下 36,840,658 字节，
+   sha256 与记录**完全一致**，包名 `dfwx.dongdang` / 序号 10000 / arm64-v8a 都对。
 
 ## 已知遗留
 
