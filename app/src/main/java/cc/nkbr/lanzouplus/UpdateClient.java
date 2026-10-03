@@ -206,8 +206,24 @@ final class UpdateClient {
     if(!"http".equals(protocol)&&!"https".equals(protocol))return false;
     String host=url.getHost()==null?"":url.getHost().toLowerCase(Locale.ROOT);
     String own=ownServerHost();
-    if(!own.isEmpty()&&host.equals(own))return true;
+    if(!own.isEmpty()&&host.equals(own))return standardWebPort(url);
     if(!"https".equals(protocol)||!defaultHttpsPort(url))return false;
     return host.equals("github.com")||host.equals("githubusercontent.com")||host.endsWith(".githubusercontent.com")||host.endsWith(".nkbr.cc");
   }
+
+  /**
+   * [2026-10-03 补] **自有服务器分支原来不检查端口。**
+   *
+   * `host.equals(own)` 直接 `return true`，于是 `http://39.106.33.135:8080/x.apk`
+   * 也会被放行 —— 和上面那句注释自称的「放宽是**有界**的：只认精确主机名」直接矛盾：
+   * **主机名有界，端口无界。**
+   *
+   * 2026-10-03 对抗性复查用 JDK 实跑了 17 个 URL 确认了这一条；另外 16 个绕过尝试
+   * （`@` 混淆、后缀欺骗、末尾点、`%2e`、反斜杠、IPv6、ftp、`:8443`）全部被正确拒绝，
+   * 所以这是**唯一**的漏。
+   *
+   * 当前不可利用（`AGENTS.md` 铁律写着"非标端口外网不通"），
+   * 但"有界"这句话必须名副其实 —— 否则下一个改这里的人会以为它已经守住了。
+   */
+  private static boolean standardWebPort(URL url){int port=url.getPort();return port==-1||port==80||port==443;}
 }

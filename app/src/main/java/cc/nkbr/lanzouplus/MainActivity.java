@@ -83,8 +83,15 @@ public final class MainActivity extends androidx.activity.ComponentActivity impl
    *
    * ## 为什么留 60 秒而不是直接取消
    * 留一个**极小**的下限，防的是病态循环（比如崩溃重启风暴里 Activity 被反复重建）
-   * 把服务器打爆。60 秒对真实使用**完全无感**（正常用户不会在一分钟内冷启两次），
-   * 但能把最坏情况下的请求量钉在"每分钟一次"。
+   * 把服务器打爆。60 秒对真实使用**完全无感**（正常用户不会在一分钟内冷启两次）。
+   *
+   * ⚠️ **[2026-10-03 对抗性复查纠正] 这里原来写的是「能把最坏情况下的请求量钉在每分钟一次」——
+   * 那句话不准确，已改。** 它只覆盖**更新检查这一路**：冷启动时还有
+   * `maybeEnterMaintenance` 和 `maybeFetchNotices` **两路也打同一个接口，而且都没有节流**。
+   *
+   * 现在真正的兜底在**源头**：`RemoteConfigClient.FETCH_MEMO_MS` 让 3 秒内的多次
+   * `fetch()` 只打一轮网络（4 个集合）。所以"最坏 12 个请求/冷启动"已经收敛成 4 个，
+   * 而不是靠这一路节流。
    */
   static final long AUTO_UPDATE_CHECK_INTERVAL_MS=60L*1000;
   static final String UPDATE_CHECK_PREFS="update_check";
@@ -2425,20 +2432,36 @@ FrameLayout.LayoutParams tp=new FrameLayout.LayoutParams(Math.max(dp(1),Math.min
    * 用户原话：
    * > 「我不管上传什么软件，它都可以正常下载。我不在乎它能不能覆盖安装。」
    *
-   *   · NotOurAppException —— 包**完整下载成功**了，只是它不是东方无限 → 下载算**完成**；
+   *   · UpdateNotInstallableException —— 包**完整下载成功**了，只是它不是东方无限 → 下载算**完成**；
    *   · 其它（摘要不一致 / 读取失败）—— 文件真的坏了 → 下载**失败**（这条不能松）。
    *
    * 降级成"外部来源"是关键一步：改完之后它和从外部链接下下来的 APK 走**完全一样**的手续
    * （点安装要先过 `showExternalInstallConfirmation` 那道确认），
    * 既不会自动安装，也不阻止用户自己装 —— **不新增任何漏洞**。
    */
-  if(error instanceof NotOurAppException){
+  if(error instanceof UpdateNotInstallableException){
     boolean keep;
     synchronized(entry){
       keep=generation==entry.controlGeneration&&!entry.stopRequested&&entry.state.equals(DOWNLOAD_RUNNING);
       if(keep){entry.downloadedBytes=entry.totalBytes=entry.verifiedTotalBytes=info.size;entry.percent=100;entry.state=DOWNLOAD_COMPLETED;entry.error="";entry.completedAt=System.currentTimeMillis();demoteForeignUpdateToExternal(entry);}
     }
-    if(keep){finishDownloadTarget(entry,true);updateDownloadUi(entry);showNotice("下载完成。但这不像是东方无限的更新包，已阻止自动安装；文件已保存到下载页，需要的话你可以自己打开安装。",true);}
+    /*
+     * ⚠️ [2026-10-03 对抗性复查] `finishDownloadTarget` **自己会吞异常并改状态**：
+     * 改名/落盘失败时它把 `entry.state` 改回 `DOWNLOAD_FAILED`、并写上"下载完成但文件保存失败：…"。
+     *
+     * 原来这里**不看状态就无条件弹"下载完成"** —— 于是用户会同时看到两条互相矛盾的话：
+     * 顶部横幅说"失败"、提示说"完成"。
+     *
+     * 现在弹之前先看状态：完成 → 说清"为什么不能当更新装"（用异常自带的**具体原因**，
+     * 而不是笼统一句"不是东方无限"，因为还可能是"不比当前版本新"）；
+     * 没完成 → 如实把保存失败的原因报出来。
+     */
+    if(keep){
+      finishDownloadTarget(entry,true);
+      updateDownloadUi(entry);
+      if(entry.state.equals(DOWNLOAD_COMPLETED))showNotice("下载完成，但不能作为更新安装："+error.getMessage()+"。文件已保存到下载页，需要的话你可以自己打开安装。",true);
+      else showNotice(entry.error.isEmpty()?"文件保存失败，请到下载页重试":entry.error,true);
+    }
     return;
   }
   boolean failed;
@@ -2460,10 +2483,35 @@ FrameLayout.LayoutParams tp=new FrameLayout.LayoutParams(Math.max(dp(1),Math.min
   }
 }});}public void paused(long done,long total){finishStoppedTransfer(entry,DOWNLOAD_PAUSED,done,total,generation,downloader);}public void cancelled(long done,long total){finishStoppedTransfer(entry,DOWNLOAD_CANCELLED,done,total,generation,downloader);}public void failed(String error){boolean useFallback;synchronized(entry){if(entry.downloader!=downloader)return;entry.downloader=null;if(generation!=entry.controlGeneration||entry.stopRequested)return;useFallback=fallback&&!info.fallbackUrl().isEmpty()&&!info.fallbackUrl().equals(url);if(useFallback){entry.state=DOWNLOAD_RESOLVING;entry.error="切换备用地址";}else{entry.state=DOWNLOAD_FAILED;entry.error=friendlyError(new IOException(error));entry.speedBps=0;entry.etaSeconds=-1;}}updateDownloadUi(entry);if(useFallback){synchronized(entry){if(generation!=entry.controlGeneration||entry.stopRequested||!entry.state.equals(DOWNLOAD_RESOLVING))return;downloadLanzouPlusUpdate(info,entry,info.fallbackUrl(),false);}}}});}
   void verifyUpdateApk(Uri uri,UpdateClient.UpdateInfo info)throws Exception{File temporary=File.createTempFile("verified-update-",".apk",getCacheDir());// DFWX-STAB-001（修审计 H-P1-7）：固定名 verified-update.apk 在手动+自动重试并发校验时互相覆盖，改唯一临时名
-  java.security.MessageDigest digest=java.security.MessageDigest.getInstance("SHA-256");long size=0;try(InputStream input=openUriInput(uri);OutputStream output=new FileOutputStream(temporary)){byte[] buffer=new byte[32768];for(int count;(count=input.read(buffer))>0;){size+=count;if(size>info.size)throw new IOException("更新包大小不一致");digest.update(buffer,0,count);output.write(buffer,0,count);}}try{if(size!=info.size||!("sha256:"+hex(digest.digest())).equals(info.digest))throw new IOException("更新包摘要不一致");int flags=Build.VERSION.SDK_INT>=28?PackageManager.GET_SIGNING_CERTIFICATES:PackageManager.GET_SIGNATURES;android.content.pm.PackageInfo current=getPackageManager().getPackageInfo(getPackageName(),flags),archive=getPackageManager().getPackageArchiveInfo(temporary.getAbsolutePath(),flags);if(archive==null)throw new NotOurAppException("更新包不是有效的 APK");if(!getPackageName().equals(archive.packageName))throw new NotOurAppException("更新包包名不一致");if(!signatureDigests(current).equals(signatureDigests(archive)))throw new NotOurAppException("更新包签名不一致");}finally{temporary.delete();}}
+  java.security.MessageDigest digest=java.security.MessageDigest.getInstance("SHA-256");long size=0;try(InputStream input=openUriInput(uri);OutputStream output=new FileOutputStream(temporary)){byte[] buffer=new byte[32768];for(int count;(count=input.read(buffer))>0;){size+=count;if(size>info.size)throw new IOException("更新包大小不一致");digest.update(buffer,0,count);output.write(buffer,0,count);}}try{if(size!=info.size||!("sha256:"+hex(digest.digest())).equals(info.digest))throw new IOException("更新包摘要不一致");int flags=Build.VERSION.SDK_INT>=28?PackageManager.GET_SIGNING_CERTIFICATES:PackageManager.GET_SIGNATURES;android.content.pm.PackageInfo current=getPackageManager().getPackageInfo(getPackageName(),flags),archive=getPackageManager().getPackageArchiveInfo(temporary.getAbsolutePath(),flags);if(archive==null)throw new UpdateNotInstallableException("更新包不是有效的 APK");if(!getPackageName().equals(archive.packageName))throw new UpdateNotInstallableException("更新包包名不一致");if(!signatureDigests(current).equals(signatureDigests(archive)))throw new UpdateNotInstallableException("更新包签名不一致");
+      /*
+       * [2026-10-03 补] **这条是 DFW-90 定下的安全底线，原来只装在另一条通道上。**
+       *
+       * DFW-90 的原文（`docs/plan/dfw-90-95-96-103-batch.md:20-24`）：
+       * > 「真实版本序号更大 | 确认包真的比用户手上的新 | **留**
+       * >   为什么不能一起删：后台填的版本号只决定「要不要提醒更新」，用户真正装上的还是那个包。
+       * >   包本身不比当前版本新 → 装完版本没变 → 后台还说有新版本 → **无限循环提示**。
+       * >   这是物理限制，不是保守。」
+       *
+       * 但那条守卫当时只加进了 `verifyArchiveUpdate`（本地归档通道）。
+       * **而用户走的是"点更新提示 → 下载"这条通道，它调的是本方法** ——
+       * 于是后台只要把序号填得比包大（比如记录 10001、包还是 10000），
+       * App 就会：下载 → 本方法放行 → 装上 → 版本没变 → 后台还说有新版本 → **永远提示**。
+       * 2026-10-03 用户实测就停在这个状态里，而我当时还告诉他"这是正常的"——**那句话是错的**。
+       *
+       * 归到 `UpdateNotInstallableException` 而不是 `IOException`：包本身没问题、下载也是成功的，
+       * 只是它不能当更新装 —— 所以条目算"已完成"、降级成外部来源，绝不自动安装。
+       */
+      long currentCode=Build.VERSION.SDK_INT>=28?current.getLongVersionCode():current.versionCode,archiveCode=Build.VERSION.SDK_INT>=28?archive.getLongVersionCode():archive.versionCode;if(archiveCode<=currentCode)throw new UpdateNotInstallableException("这个包并不比当前版本新（包内 "+archive.versionName+"，当前 "+current.versionName+"），装了不会有任何变化");}finally{temporary.delete();}}
 
   /**
-   * [2026-10-03] **「包下载完整，但它不是东方无限」** —— 必须和「下载坏了」分开。
+   * [2026-10-03] **「包下载完整，但它不能作为更新安装」** —— 必须和「下载坏了」分开。
+   *
+   * ## 这个类型覆盖哪几种情况（都是"文件没问题，但装不了"）
+   *   · 包名/签名不是东方无限 —— 别人塞的包；
+   *   · **包本身不比当前版本新** —— DFW-90 定下的安全底线，见下面 2026-10-03 的补充说明；
+   *   · 包解析不出来（摘要已过 ⇒ 文件和服务端一致，是包本身有问题）。
+   * 它们的共同点：**下载是成功的**，所以条目要标"已完成"，只是不能当更新装上去。
    *
    * ## 用户报的问题
    * 后台指向别的软件时，文件**完整下载成功**了，界面却显示
@@ -2488,8 +2536,8 @@ FrameLayout.LayoutParams tp=new FrameLayout.LayoutParams(Math.max(dp(1),Math.min
    * 校验不过时把条目标成**下载完成**、说明原因，但**绝不调 `installEntry`**
    * （不引导用户去装它）。这样"下载能成功"和"不会被骗着装陌生软件"两件事都成立。
    */
-  static final class NotOurAppException extends IOException{
-    NotOurAppException(String message){super(message);}
+  static final class UpdateNotInstallableException extends IOException{
+    UpdateNotInstallableException(String message){super(message);}
   }
 
   /**
@@ -2505,7 +2553,15 @@ FrameLayout.LayoutParams tp=new FrameLayout.LayoutParams(Math.max(dp(1),Math.min
    *     用户点安装时会先过 `showExternalInstallConfirmation` 那道确认；
    *   · `expectedUpdateVersion` 清空 ⇒ 不会再走"云端更新"那套校验分支（那条永远过不了）；
    *   · `autoInstall=false` ⇒ 绝不自动装。
-   * 结果：**下载成功、文件保留、想装要自己点并确认** —— 不新增任何漏洞。
+   * 结果：**下载成功、文件保留、想装要自己点并确认**。
+   *
+   * ## ⚠️ 这不是"零代价"（2026-10-03 对抗性复查纠正）
+   * 原来这里写的是「不新增任何漏洞」—— **那句话不准确，已改**。真实情况：
+   * 降级后文件会被 `finishDownloadTarget` 改成**正式文件名**（不再是 `.part`），
+   * 用户看到"下载完成"，并且**经两次确认就能把它装上**。
+   * 改之前是"下载失败" + 一个 App 自己都读不了的 `.part`。
+   * 所以这是**有意的取舍**：拿"下载体验正确"换了"用户多一次自行确认的机会"。
+   * 安全性没有降低到"能被自动装上"（那才是真漏洞），但说"不新增任何漏洞"是绝对化了。
    *
    * 抽成静态方法是为了能直接测（原来这段逻辑内联在一个巨大的 lambda 里，只能靠读代码）。
    */

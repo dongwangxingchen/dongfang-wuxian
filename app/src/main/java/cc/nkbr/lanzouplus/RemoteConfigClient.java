@@ -17,7 +17,8 @@ import org.json.JSONObject;
  * [DFWX] 远程控制与更新体系 · 后台数据客户端（2026-09-30 立项）。
  *
  * ## 职责
- * 从用户自建后台（PocketBase，`https://39.106.33.135/pb/`）读取四类数据：
+ * 从用户自建后台（PocketBase，**`http://39.106.33.135/pb/`** —— 注意是 http，
+ * 理由见下面「为什么用 http 而不是 https」；这里原来误写成 https，与常量 `BASE` 矛盾）读取四类数据：
  * 总控（维护/停用）、版本、公告、更新记录。**只读，不写**。
  *
  * ## 为什么用 http 而不是 https
@@ -356,7 +357,85 @@ final class RemoteConfigClient {
     }
   }
 
+  /**
+   * [2026-10-03] **短时去重：同一进程里 {@link #FETCH_MEMO_MS} 毫秒内的多次 `fetch()` 只打一次网络。**
+   *
+   * ## 为什么需要（2026-10-03 对抗性复查的发现）
+   * 冷启动时有**三路**各自调 `fetch()`：
+   *   · `MainActivity.maybeCheckForUpdates`（有 60 秒落盘节流）
+   *   · `MainActivity.maybeEnterMaintenance`（**无**节流）
+   *   · `MainActivity.maybeFetchNotices`（**无**节流）
+   * 而一次 `fetch()` 要拉 **4 个集合** ⇒ 每次冷启动最多 **12 个请求**打同一台 2核2G 的 VPS。
+   *
+   * 复查同时指出：那次提交里写的「把最坏情况下的请求量钉在每分钟一次」**只覆盖了 1/3** ——
+   * 另外两路完全没节流。这里从**源头**去重，比给每一路各加一个节流更彻底。
+   *
+   * ## 为什么是"短时记忆"而不是"启动时拉一次再分发"
+   * 后者要改三个调用方的时序（谁先谁后、失败了怎么办），改动面大。
+   * 短时记忆**对调用方完全透明**：谁先到谁发请求，后面的直接复用。
+   *
+   * ## 为什么失败**不**缓存
+   * 只缓存 `anyOk`（这一轮真的拿到了东西）的结果。全失败时不留记忆 ——
+   * 否则一次网络抖动会被放大成"接下来 3 秒连重试都不会发生"。
+   *
+   * 3 秒是拍的值：要盖住"冷启动三路几乎同时发"这个窗口，又不能长到让手动刷新拿到旧数据。
+   */
+  private static final long FETCH_MEMO_MS = 3000L;
+  private static final Object FETCH_MEMO_LOCK = new Object();
+  private static Snapshot fetchMemoSnapshot;
+  private static Raw fetchMemoRaw;
+  private static long fetchMemoAt;
+
+  /**
+   * **测试接缝**：非 null 时 `get()` 直接用它返回，既不校验 `isJvmUnitTest()` 也不打网络。
+   * 生产代码里**永远是 null**。
+   *
+   * ## 为什么值得在关键路径上开这个口子
+   * `fetch()` 是**全部远程读取的唯一咽喉**（更新 / 维护拦截 / 公告 / 更新记录都走它），
+   * 但在 2026-10-03 之前它**一条测试都没有** —— 因为 `get()` 里那道
+   * `App.isJvmUnitTest()` 守卫让它在单元测试里必然抛异常。
+   *
+   * 于是"改了这个咽喉，但没法证明改对了"成了常态。上面那个 `FETCH_MEMO_MS` 去重
+   * 就是必须能验的一例：它一旦写错（比如把失败也缓存），后果是
+   * **一次网络抖动被放大成"接下来 3 秒连重试都不会发生"**，而线上完全看不出来。
+   *
+   * 有这个接缝，才第一次能给 `fetch()` 写真正的行为测试。
+   */
+  static java.util.function.Function<String, JSONObject> testResponder;
+
+  /** 测试用：清掉去重记忆。生产不调用。 */
+  static void resetFetchMemoForTest() {
+    synchronized (FETCH_MEMO_LOCK) {
+      fetchMemoSnapshot = null;
+      fetchMemoRaw = null;
+      fetchMemoAt = 0L;
+    }
+  }
+
+  private static Raw copyRaw(Raw from, Raw to) {
+    to.control = from.control;
+    to.release = from.release;
+    to.notice = from.notice;
+    to.changelog = from.changelog;
+    return to;
+  }
+
   static Snapshot fetch(Raw sink) {
+    synchronized (FETCH_MEMO_LOCK) {
+      if (fetchMemoSnapshot != null && System.currentTimeMillis() - fetchMemoAt < FETCH_MEMO_MS) {
+        if (sink != null && fetchMemoRaw != null) copyRaw(fetchMemoRaw, sink);
+        return fetchMemoSnapshot;
+      }
+    }
+    /*
+     * 内部**始终**用一个本地 Raw 收集原始 JSON —— 不依赖调用方有没有传 sink。
+     *
+     * ⚠️ 这个坑是写测试时**实测撞出来的**：第一版只在 `sink != null` 时收集，
+     * 于是"第一个调用者不传 sink"（更新检查就是）会把记忆存成 `null` Raw，
+     * 后面传 sink 的调用者（公告，要用它落盘缓存）命中记忆时**什么都拿不到** ——
+     * 表现为"公告能显示，但下次启动没有离线缓存"，**线上完全看不出来**。
+     */
+    Raw collected = new Raw();
     Control control = Control.normal();
     Release release = null;
     List<Notice> notices = Collections.emptyList();
@@ -369,13 +448,13 @@ final class RemoteConfigClient {
 
     try {
       JSONArray items = items("control");
-      if (sink != null) sink.control = items;
+      collected.control = items;
       if (items.length() > 0) { control = parseControl(items.getJSONObject(0)); anyOk = true; }
     } catch (Exception ignored) { /* fail-open：保持 normal */ }
 
     try {
       JSONArray items = items("release");
-      if (sink != null) sink.release = items;
+      collected.release = items;
       if (items.length() > 0) {
         Release parsed = parseRelease(items.getJSONObject(0));
         if (parsed != null) { release = parsed; anyOk = true; }
@@ -384,7 +463,7 @@ final class RemoteConfigClient {
 
     try {
       JSONArray items = items("notice");
-      if (sink != null) sink.notice = items;
+      collected.notice = items;
       notices = parseNotices(items);
       anyOk = true;
       /* 只有**这一路真的走完**才置位。下面 catch 吞掉的失败路径不置位 ——
@@ -394,12 +473,25 @@ final class RemoteConfigClient {
 
     try {
       JSONArray items = items("changelog");
-      if (sink != null) sink.changelog = items;
+      collected.changelog = items;
       changelogs = parseChangelogs(items);
       anyOk = true;
     } catch (Exception ignored) { /* 更新记录失败不影响其它 */ }
 
-    return new Snapshot(anyOk, noticeOk, control, release, notices, changelogs);
+    Snapshot snapshot = new Snapshot(anyOk, noticeOk, control, release, notices, changelogs);
+    /*
+     * 只缓存"这一轮真的拿到了东西"的结果。全失败时**不留记忆** ——
+     * 否则一次网络抖动会被放大成"接下来 3 秒连重试都不会发生"。
+     */
+    if (sink != null) copyRaw(collected, sink);
+    if (anyOk) {
+      synchronized (FETCH_MEMO_LOCK) {
+        fetchMemoSnapshot = snapshot;
+        fetchMemoRaw = copyRaw(collected, new Raw());
+        fetchMemoAt = System.currentTimeMillis();
+      }
+    }
+    return snapshot;
   }
 
   /** 取某集合的记录数组（只看启用项，按后台排序）。 */
@@ -532,6 +624,7 @@ final class RemoteConfigClient {
      * 判据用「Robolectric 在不在 classpath 上」（同 `App.isJvmUnitTest()`）：
      * 发布 APK 里没有 Robolectric，恒为 false，不需要开关，也不引入任何依赖。
      */
+    if (testResponder != null) return testResponder.apply(endpoint);
     if (App.isJvmUnitTest()) throw new IOException("单元测试不发真实网络请求（DFW-124）");
     URL url = new URL(endpoint);
     String expectedHost = url.getHost().toLowerCase(Locale.ROOT);
