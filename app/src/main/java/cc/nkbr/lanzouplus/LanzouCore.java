@@ -604,7 +604,10 @@ final class LanzouCore {
   // 真入口在下面的 script 里：link.href = "/tp/文件ID?webtp=..."
   // 原来的正则会优先命中举报链接，于是拿着 /tp/#5738522 去解析 —— 必然失败。
   // 所以：① 先找 JS 里的 link.href；② HTML 兜底时必须带 ?webtp=（举报链接没有这个参数）。
-  private static String directTransferHref(String html){
+  // [DFW-135 2026-10-03] 改成包内可见（原来是 private），理由同 isSingleFileSharePage：
+  // 「取到的是真入口还是那个举报占位符 /tp/#xxxxx」是必须能直接测的事实，
+  // 而它只在真机日志里暴露过一次（DFW-88）。私有方法测不到，就只能靠线上出事才发现。
+  static String directTransferHref(String html){
       String transfer=cap(html,"(?is)<a(?=[^>]*id=[\"']downurl[\"'])(?=[^>]*href=[\"']([^\"']+)[\"'])[^>]*>");
       if(transfer.isEmpty())transfer=cap(html,"(?is)<a(?=[^>]*href=[\"']([^\"']+)[\"'])(?=[^>]*id=[\"']downurl[\"'])[^>]*>");
       // [DFW-88] 新版入口：真链接在 JS 里，不在 HTML 里
@@ -877,7 +880,38 @@ final class LanzouCore {
   private static boolean isDirectorySharePage(String html){return html.contains("filemoreajax.php")||!cap(html,"url\\s*:\\s*['\"]([^'\"]*filemoreajax\\.php\\?file=\\d+[^'\"]*)['\"]").isEmpty();}
 
   /** [DFW-129] 包内可见（原来是 private）—— 这里是「No group 1」的爆点，必须能直接测。 */
-  static boolean isSingleFileSharePage(String html){if(html==null||html.isEmpty()||isDirectorySharePage(html))return false;String title=strip(cap(html,"(?is)<title[^>]*>(.*?)</title>")),description=strip(cap(html,"(?is)<meta[^>]+name=[\"']description[\"'][^>]+content=[\"']([^\"']*)"));return !cap(html,"(?is)id=[\"']downurl[\"'][^>]*href=[\"']([^\"']+)").isEmpty()||!cap(html,"(?is)<iframe[^>]+src=[\"']([^\"']*/fn\\?[^\"']+)[\"']").isEmpty()||html.matches("(?is).*class=[\"'][^\"']*\\bappfile\\b[^\"']*[\"'].*")||html.matches("(?is).*id=[\"']filenajax[\"'].*")||title.matches("(?is).+?\\s*-\\s*(?:蓝奏云|lanzou)\\s*")&&description.matches("(?is).*(?:文件)?大小\\s*[:：].*");}
+  /*
+   * [DFW-135 2026-10-03] **修掉「除了 APK 之外的文件全都解析失败」。**
+   *
+   * 实测：`curl -A "<Android UA>" https://yoyodadada.lanzouw.com/iEDWr2dg6vih`
+   * 返回 1667 字节，分享的是 `*裁剪助手1.0.0.exe`（93.9 M）。这个页面用的是**第三种模板**：
+   *
+   *   <title>*裁剪助手1.0.0.exe - 蓝奏云网盘</title>
+   *   <meta name="description" content="文件大小：93.9 M" />
+   *   <div class="mh"><a href="/tp/#205716547" id="ddown">下载( 93.9 M )</a></div>
+   *   <script>link.href = '/tp/iEDWr2dg6vih?webtp=<token>';</script>
+   *
+   * 原来的五条判据**全部落空**：
+   *   ① id="downurl"   —— 没有
+   *   ② iframe /fn?    —— 没有
+   *   ③ class="appfile" —— 没有
+   *   ④ id="filenajax"  —— 没有
+   *   ⑤ 标题 + description —— description「文件大小：93.9 M」是匹配的，
+   *      但标题那条被 `String.matches()` 的**全串匹配**卡死：正则写到「蓝奏云」就结束，
+   *      而真实标题后面还有「网盘」两个字 → 整串匹配失败。
+   *
+   * 于是 `requireActiveShare()` 抛「当前 UA 未返回可解析的蓝奏分享页」，
+   * 界面一直停在「解析中」最后报解析失败。**这就是用户问的那个问题的根因。**
+   *
+   * 修法两条，思路都是「让判据描述事实，而不是描述某一个模板」：
+   *   1) **最根本的一条：能取出下载入口的页面就是单文件分享页。**
+   *      `directTransferHref()` 本来就同时覆盖 id="downurl" / JS 里的 /tp/…?webtp= /
+   *      HTML 兜底的 /tp/…?webtp= / iframe 的 /fn? 四种形态，拿它当判据，
+   *      以后蓝奏再换模板也不用继续补正则。它严格覆盖原来的①②，不是放宽。
+   *   2) 标题正则末尾补 `.*` —— 「蓝奏云」后面跟「网盘」还是别的，都认。
+   *   3) 另加 `id="ddown"` 这一条：它是这个模板的下载按钮 id，语义直接。
+   */
+  static boolean isSingleFileSharePage(String html){if(html==null||html.isEmpty()||isDirectorySharePage(html))return false;String title=strip(cap(html,"(?is)<title[^>]*>(.*?)</title>")),description=strip(cap(html,"(?is)<meta[^>]+name=[\"']description[\"'][^>]+content=[\"']([^\"']*)"));return !directTransferHref(html).isEmpty()||html.matches("(?is).*class=[\"'][^\"']*\\bappfile\\b[^\"']*[\"'].*")||html.matches("(?is).*id=[\"']filenajax[\"'].*")||html.matches("(?is).*id=[\"']ddown[\"'].*")||title.matches("(?is).+?\\s*-\\s*(?:蓝奏云|lanzou).*")&&description.matches("(?is).*(?:文件)?大小\\s*[:：].*");}
 
   private Models.SourceMember probeSingleDirectory(String url,String password,long deadline,byte ua)throws Exception{
     Models.Item only=null;for(int page=1;page<=100;page++){PageResult result=browsePageUa(url,password,true,page,deadline,true,sourceProfile(url),ua);for(Models.Item item:result.folder.items){if(item.folder)throw new IOException("单软件目录不能包含子文件夹");if(only!=null&&!only.url.equals(item.url))throw new IOException("该目录包含多个软件");only=item;}if(!result.folder.hasMore)break;if(page==100)throw new IOException("单软件目录分页过多");}if(only==null)throw new IOException("该目录没有可下载软件");Models.SourceMember out=memberFromItem(only);out.kind=Models.MEMBER_DIRECTORY;out.password=password;out.lightweight=true;out.refreshedAt=System.currentTimeMillis();return out;
