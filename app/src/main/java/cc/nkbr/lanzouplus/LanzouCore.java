@@ -240,7 +240,9 @@ final class LanzouCore {
   private final ScheduledThreadPoolExecutor searchScheduler=newSearchScheduler();
   LanzouCore(Context c){context=c.getApplicationContext();directCookiePool=new DirectCookiePool(context);loadPersistedCompositeMembers();}
   static final class DirectLink { String url,fileName,html,cookie,rootUrl,folderId,title,description,endpoint,folderEndpoint,fid,routeOrigin;DirectLink target,page;Map<String,String> form;Models.Folder metadata;long createdAt;boolean authorized,redirected,passwordUnlocked;byte ua,template; }
-  private static final class DirectRetryException extends IOException{final long retryAfterMs;final boolean rateLimited;DirectRetryException(String message,long retryAfterMs,boolean rateLimited){super(message);long floor=rateLimited?1000L:180L;this.retryAfterMs=Math.max(floor,retryAfterMs);this.rateLimited=rateLimited;}}
+  /** [DFW-128] 包内可见（原来是 private）—— 测试要能构造「ACW 验证失败但**不是**限流」这个异常，
+      它正是「永远解析中」的触发条件。构造器本来就是包内可见，只是类被 private 挡住了。 */
+  static final class DirectRetryException extends IOException{final long retryAfterMs;final boolean rateLimited;DirectRetryException(String message,long retryAfterMs,boolean rateLimited){super(message);long floor=rateLimited?1000L:180L;this.retryAfterMs=Math.max(floor,retryAfterMs);this.rateLimited=rateLimited;}}
   static final class DirectPasswordException extends IOException{DirectPasswordException(){super("需要访问密码");}DirectPasswordException(String message){super(message==null||message.trim().isEmpty()?"需要访问密码":message.trim());}}
   private static final class CachedDirectoryEntry{final Models.Item item;final String sourceId,path,folded;final int depth,page;final long expiresAt;CachedDirectoryEntry(Models.Item item,String sourceId,int depth,int page,String path){this(item,sourceId,depth,page,path,Long.MAX_VALUE);}CachedDirectoryEntry(Models.Item item,String sourceId,int depth,int page,String path,long expiresAt){this.item=item;this.sourceId=sourceId;this.depth=depth;this.page=page;this.path=path==null?"":path;this.folded=foldDirectorySearch(item.title+"\n"+this.path);this.expiresAt=expiresAt<=0?Long.MAX_VALUE:expiresAt;}}
   private static final class DirectorySearchIndex{final long revision;final List<CachedDirectoryEntry> entries;DirectorySearchIndex(long revision,List<CachedDirectoryEntry> entries){this.revision=revision;this.entries=entries;}}
@@ -464,6 +466,32 @@ final class LanzouCore {
 
   private DirectLink resolveDirectRoute(String logicalShareUrl,String password,RouteCandidate route,long deadline,Set<String> attempted)throws Exception{
     directRemainingMillis(deadline);long now=System.currentTimeMillis();DirectCookiePool.Lease lease=directCookiePool.acquire(attempted,now,route.ua&0xff);attempted.add(lease.id);NetSession session=new NetSession(lease.jar,route.ua,deadline);try{DirectLink direct=resolveDirectWithSession(logicalShareUrl,route.url,password,session);directCookiePool.finish(lease,session.snapshot(),true,false,0,System.currentTimeMillis());return direct;}catch(Exception error){DirectRetryException retry=directRetry(error);directCookiePool.finish(lease,session.snapshot(),false,retry!=null&&retry.rateLimited,retry==null?0:retry.retryAfterMs,System.currentTimeMillis());throw error;}
+  }
+  /**
+   * [DFW-128 2026-10-03] 这个异常**明确是**"上游在限流"吗？
+   *
+   * `DirectRetryException` 自带 `rateLimited` 标志（{@link #directRetryDelay} 上面那个类），
+   * 抛的时候就知道自己是不是限流。所以这里**读结构化标志，不去猜报错文字**。
+   */
+  static boolean isRateLimited(Throwable error){
+    return error instanceof DirectRetryException&&((DirectRetryException)error).rateLimited;
+  }
+  /**
+   * [DFW-128 2026-10-03] 这个异常**明确不是**限流吗？
+   *
+   * 只有 `DirectRetryException` 带 `rateLimited=false` 时才算"明确"。
+   *
+   * ## 为什么必须有这个判据（这是"永远解析中"的根因）
+   * `DirectLinkResolver.upstreamPressure()` 原来**只按报错文字**判断是不是上游限流，
+   * 关键词里有「验证」。而真机抛的正是
+   * `new DirectRetryException("蓝奏 ACW 验证未完成",1000,**false**)`（见 {@link #directRetryDelay} 上方与本文件 :674/:1769），
+   * 必然命中 ⇒ 被当成限流 ⇒ 走进 `DirectLinkResolver` 那条**静默重试**分支 ⇒ **永不回调** ⇒ 界面永远「解析中」。
+   *
+   * 但 ACW 验证失败是"要解挑战（拿新 cookie）"，**不是限流** —— 降低并发永远解决不了它。
+   * 用户从 v1.0.5 报到 v1.0.12 的那个 bug，根子就在这个"用文字猜语义"上。
+   */
+  static boolean isExplicitlyNotRateLimited(Throwable error){
+    return error instanceof DirectRetryException&&!((DirectRetryException)error).rateLimited;
   }
   static long directRetryDelay(Throwable error,int failures){// 500ms 起、指数退避有上限，避免频率受限后死磕
     if(failures<=0||failures>5)return 0;

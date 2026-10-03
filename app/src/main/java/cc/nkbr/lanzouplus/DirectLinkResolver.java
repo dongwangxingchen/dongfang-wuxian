@@ -21,6 +21,8 @@ final class DirectLinkResolver implements AutoCloseable {
   private final LanzouCore core;
   private final SharedPreferences prefs;
   private final Clock clock;
+  /** [DFW-128] 「上游限流」静默重试的次数上限。超过就判失败，绝不允许无限重试。 */
+  private static final int MAX_PRESSURE_RETRIES=3;
   private final Object lock=new Object();
   private final ConcurrentHashMap<String,Request> inflight=new ConcurrentHashMap<>();
   private final PriorityQueue<Request> pending=new PriorityQueue<>((first,second)->first.confirmed==second.confirmed?Long.compare(first.sequence,second.sequence):(first.confirmed?-1:1));
@@ -46,7 +48,30 @@ final class DirectLinkResolver implements AutoCloseable {
   int effectiveParallelism(){synchronized(lock){return effectiveLimitLocked();}}
   private static int normalizeParallelism(int value){return Math.max(0,value);}
     private int effectiveLimitLocked(){int device=LanzouCore.adaptiveNetworkWorkers(Integer.MAX_VALUE),desired=parallelism==0?device:parallelism;return Math.max(1,Math.min(Math.min(desired,device),emergencyWorkerCeiling));}
-  private static boolean upstreamPressure(Throwable error){String value=failureMessage(error).toLowerCase(Locale.ROOT);return value.contains("验证")||value.contains("captcha")||value.contains("waf")||value.contains("429")||value.contains("频率")||value.contains("限流")||value.contains("rate limit")||value.contains("too many requests");}
+  /**
+   * 这个异常是不是"上游在限流"（应当**降并发后重试**）？
+   *
+   * ## [DFW-128 2026-10-03] 这里原来是"用报错文字猜语义"，正是「永远解析中」的根因
+   * 旧实现只看消息里有没有「验证」等关键词。而真机抛的是
+   * `new DirectRetryException("蓝奏 ACW 验证未完成",1000,false)`（`LanzouCore.java:674`/`:1769`）——
+   * **含「验证」二字，必然命中**，于是被当成上游限流，走进 {@link Request#resolveNow()} 那条
+   * **静默重试**分支：`return` 而**不调用 `finished()`** ⇒ 回调永远不发生 ⇒ 界面永远停在「解析中」。
+   *
+   * 但 ACW 验证失败要的是**一个新 cookie**，不是更少的并发 —— 降并发永远修不好它，
+   * 只会无限重试。用户从 v1.0.5 报到 v1.0.12 的 bug，根子就在这一行。
+   *
+   * ## 现在的顺序
+   * 1. 异常自己带 `rateLimited=true` → 是限流（结构化信号，最可信）
+   * 2. 异常自己带 `rateLimited=false` → **明确不是限流**，直接排除（这一条修 bug）
+   * 3. 其余异常（网络层等）才退回文字兜底，且**关键词里已去掉「验证」**
+   */
+  /** [DFW-128] 包内可见（原来是 private）—— 这是「永远解析中」的判据本身，必须能直接测。 */
+  static boolean upstreamPressure(Throwable error){
+    if(LanzouCore.isRateLimited(error))return true;
+    if(LanzouCore.isExplicitlyNotRateLimited(error))return false;
+    String value=failureMessage(error).toLowerCase(Locale.ROOT);
+    return value.contains("captcha")||value.contains("429")||value.contains("频率")||value.contains("限流")||value.contains("rate limit")||value.contains("too many requests");
+  }
   private boolean adaptToUpstreamPressure(){synchronized(lock){int limit=effectiveLimitLocked();boolean serial=limit<=1&&active<=1;if(!serial&&active<=limit){int reduced=Math.max(1,limit/2);emergencyWorkerCeiling=Math.min(emergencyWorkerCeiling,reduced);pressureSuccesses=0;pumpLocked();}return !serial;}}
   private void recordPressureFreeSuccess(){synchronized(lock){if(emergencyWorkerCeiling==Integer.MAX_VALUE)return;int current=Math.max(1,emergencyWorkerCeiling);pressureSuccesses++;if(pressureSuccesses<Math.max(1,current/2))return;int device=LanzouCore.adaptiveNetworkWorkers(Integer.MAX_VALUE),raised=Math.min(device,current+Math.max(1,current/2));emergencyWorkerCeiling=raised>=device?Integer.MAX_VALUE:raised;pressureSuccesses=0;pumpLocked();}}
 
@@ -83,6 +108,22 @@ final class DirectLinkResolver implements AutoCloseable {
     return()->false;
   }
 
+  /**
+   * [DFW-128 2026-10-03] 这个链接是不是**正在等用户输入访问密码**？
+   *
+   * 为什么需要它：`awaitPassword()`（本文件 :125）把请求挂起、弹密码框，
+   * **等多久取决于用户**（可能去找密码、可能先干别的）。
+   * 而 MainActivity 的解析看门狗是 25 秒超时 —— 如果不区分这种情况，
+   * 用户正打字的时候任务就被判成「解析超时」，比不修还糟。
+   *
+   * 所以看门狗拿到 true 时**重新计时**，而不是判失败：
+   * 看门狗要防的是「解析器**静默**卡住」，不是「在等用户」。
+   */
+  boolean isAwaitingPassword(String shareUrl){
+    String url=clean(shareUrl);
+    if(url.isEmpty())return false;
+    synchronized(lock){Request request=inflight.get(url);return request!=null&&!request.done&&request.awaitingPassword;}
+  }
   boolean providePassword(String shareUrl,String value){String url=clean(shareUrl),secret=value==null?"":value.trim();if(!validPassword(secret))return false;synchronized(lock){Request request=inflight.get(url);if(request==null||request.done||!request.awaitingPassword||closed)return false;request.password=secret;request.awaitingPassword=false;request.failures=0;if(request.running)request.resumePending=true;else enqueueLocked(request);return true;}}
   boolean cancelPasswordRequest(String shareUrl){String url=clean(shareUrl);Request request;synchronized(lock){request=inflight.get(url);if(request==null||request.done||!request.awaitingPassword)return false;request.awaitingPassword=false;}finished(request,null,0,"直链解析已取消");return true;}
 
@@ -168,8 +209,12 @@ final class DirectLinkResolver implements AutoCloseable {
   private static String clean(String value){return value==null?"":value.trim();}
   private static final class Cache { final String url;final long at;Cache(String url,long at){this.url=url;this.at=at;} }
   private final class Request {
-    final String url;final List<Callback> callbacks=new ArrayList<>();final long sequence;volatile boolean confirmed,running,queued,done,awaitingPassword,resumePending;String password;int failures;
+    final String url;final List<Callback> callbacks=new ArrayList<>();final long sequence;volatile boolean confirmed,running,queued,done,awaitingPassword,resumePending;String password;int failures;/** [DFW-128] 因「上游限流」而静默重试的次数，必须有上限。 */int pressureRetries;
     Request(String url,boolean confirmed,long sequence,String password){this.url=url;this.confirmed=confirmed;this.sequence=sequence;this.password=password==null?"":password;}
-        void resolveNow(){trace("开始解析 url="+url+" pwd="+(password.isEmpty()?"无":"有"));try{LanzouCore.DirectLink link=core.resolveDirect(url,password);trace("解析成功 -> "+link.url);if(link==null||link.url==null||link.url.isEmpty())throw new IllegalStateException("未解析到下载直链");long at=clock.now();if(!password.isEmpty())rememberPassword(url,password);recordPressureFreeSuccess();finished(this,link.url,at,null);}catch(LanzouCore.DirectPasswordException rejected){boolean hadPassword=!password.isEmpty();if(hadPassword)forgetPassword(url);awaitPassword(this,hadPassword);}catch(InterruptedException interrupted){Thread.currentThread().interrupt();if(!closed)finished(this,null,0,failureMessage(interrupted));}catch(Exception error){++failures;if(upstreamPressure(error)&&adaptToUpstreamPressure()){synchronized(lock){if(!done&&!closed)resumePending=true;}return;}long delay=LanzouCore.directRetryDelay(error,failures);if(delay>0)defer(this,delay);else{trace("解析失败 -> "+failureMessage(error));finished(this,null,0,failureMessage(error));}}}
+        void resolveNow(){trace("开始解析 url="+url+" pwd="+(password.isEmpty()?"无":"有"));try{LanzouCore.DirectLink link=core.resolveDirect(url,password);trace("解析成功 -> "+link.url);if(link==null||link.url==null||link.url.isEmpty())throw new IllegalStateException("未解析到下载直链");long at=clock.now();if(!password.isEmpty())rememberPassword(url,password);recordPressureFreeSuccess();finished(this,link.url,at,null);}catch(LanzouCore.DirectPasswordException rejected){boolean hadPassword=!password.isEmpty();if(hadPassword)forgetPassword(url);awaitPassword(this,hadPassword);}catch(InterruptedException interrupted){Thread.currentThread().interrupt();if(!closed)finished(this,null,0,failureMessage(interrupted));}catch(Exception error){++failures;/* [DFW-128 2026-10-03] 压力退避**必须有界**。
+   原来这里是无条件 return —— 只要 upstreamPressure 一直命中、adaptToUpstreamPressure 一直返回 true，
+   这个请求就会**无限重试且永不回调**（连下面 directRetryDelay 的 5 次上限都够不着）。
+   用户看到的「永远解析中」就是这么来的。
+   现在超过 MAX_PRESSURE_RETRIES 次就掉到下面那条路，由 directRetryDelay 兜底 → 最终一定 finished()。 */if(pressureRetries<MAX_PRESSURE_RETRIES&&upstreamPressure(error)&&adaptToUpstreamPressure()){++pressureRetries;synchronized(lock){if(!done&&!closed)resumePending=true;}return;}long delay=LanzouCore.directRetryDelay(error,failures);if(delay>0)defer(this,delay);else{trace("解析失败 -> "+failureMessage(error));finished(this,null,0,failureMessage(error));}}}
   }
 }

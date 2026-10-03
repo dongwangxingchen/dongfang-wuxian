@@ -67,7 +67,20 @@ final class WafCookieSolver {
    * 阿里云的 cookie 有有效期，缓存太久会拿到过期的；
    * 这里只缓存**本次进程生命周期内**的结果，并且**只在成功时缓存**。
    */
-  private static final Map<String, String> CACHE = new LinkedHashMap<>();
+  private static final long CACHE_TTL_MS = 10 * 60 * 1000L;
+
+  /** 缓存条目：cookie + 写入时刻。 */
+  private static final class Entry {
+    final String cookie;
+    final long at;
+
+    Entry(String cookie, long at) {
+      this.cookie = cookie;
+      this.at = at;
+    }
+  }
+
+  private static final Map<String, Entry> CACHE = new LinkedHashMap<>();
 
   private static final Handler MAIN = new Handler(Looper.getMainLooper());
 
@@ -84,14 +97,20 @@ final class WafCookieSolver {
     String host = hostOf(url);
     if (host.isEmpty()) return "";
     synchronized (CACHE) {
-      String cached = CACHE.get(host);
-      if (cached != null && !cached.isEmpty()) return cached;
+      Entry cached = CACHE.get(host);
+      if (cached != null && !cached.cookie.isEmpty() && System.currentTimeMillis() - cached.at <= CACHE_TTL_MS) {
+        return cached.cookie;
+      }
+      if (cached != null) CACHE.remove(host);
     }
 
     final Context app = context.getApplicationContext();
     final CountDownLatch done = new CountDownLatch(1);
     final String[] result = new String[] {""};
     final WebView[] holder = new WebView[1];
+    /* [DFW-128 2026-10-03] 求解**开始之前**已经存在的 cookie。
+       轮询器只认"跟这个不一样"的新 cookie —— 理由见下面 run() 里的长注释。 */
+    final String cookieBefore = cookieFor(url);
 
     MAIN.post(
         () -> {
@@ -110,9 +129,25 @@ final class WafCookieSolver {
             @Override
             public void run() {
               String cookie = cookieFor(url);
-              boolean has = cookie.contains("acw_sc__v2");
-              if (has || waited >= SOLVE_TIMEOUT_MS) {
-                result[0] = has ? cookie : "";
+              /* [DFW-128 2026-10-03] 必须是**新出现**的 cookie，不能是进来时就有的那个旧的。
+               *
+               * ## 缺陷（本次修的，也是"永远解析中"的源头）
+               * `cookieFor()` 读的是**进程级全局 CookieManager**（见本文件底部），
+               * 里面可能还留着上一轮解出来的 `acw_sc__v2`。
+               * 旧写法只判 `cookie.contains("acw_sc__v2")`，于是
+               * **第一个 tick（120ms）就"成功"返回** —— 那时挑战页根本没跑完，
+               * 返回的是**过期的旧 cookie**，还被写进缓存。
+               * 之后这个域名每次都用这个死 cookie → 挑战必然失败 →
+               * `LanzouCore` 抛「蓝奏 ACW 验证未完成」→ `DirectLinkResolver` 把它误判成"上游限流" →
+               * 静默重试、永不回调 → **界面永远停在「解析中」**。
+               *
+               * ## 为什么"必须变化"这个判据是对的
+               * 调用方**只有在现有 cookie 不灵的时候才会来求解**（`getBootstrap` 是自算失败才调这里）。
+               * 所以"解出来还是原来那一个"等价于"根本没解开"，不能算成功。
+               */
+              boolean fresh = isFreshSolve(cookie, cookieBefore);
+              if (fresh || waited >= SOLVE_TIMEOUT_MS) {
+                result[0] = fresh ? cookie : "";
                 done.countDown();
                 return;
               }
@@ -135,7 +170,7 @@ final class WafCookieSolver {
     String solved = result[0] == null ? "" : result[0];
     if (!solved.isEmpty()) {
       synchronized (CACHE) {
-        CACHE.put(host, solved);
+        CACHE.put(host, new Entry(solved, System.currentTimeMillis()));
       }
     }
     return solved;
@@ -146,7 +181,8 @@ final class WafCookieSolver {
     String host = hostOf(url);
     if (host.isEmpty()) return "";
     synchronized (CACHE) {
-      String value = CACHE.get(host);
+      Entry entry = CACHE.get(host);
+      String value = entry != null && System.currentTimeMillis() - entry.at <= CACHE_TTL_MS ? entry.cookie : null;
       return value == null ? "" : value;
     }
   }
@@ -184,6 +220,22 @@ final class WafCookieSolver {
         android.view.View.MeasureSpec.makeMeasureSpec(1, android.view.View.MeasureSpec.EXACTLY));
     web.layout(0, 0, 1, 1);
     return web;
+  }
+
+  /**
+   * [DFW-128 2026-10-03] 轮询判据：这个 cookie 算不算「刚解出来的新的」？
+   *
+   * 抽成**纯函数**就是为了能直接测 —— 这一行决定了「永远解析中」这个 bug 存不存在：
+   * 只判 `contains("acw_sc__v2")` 的话，全局 CookieManager 里残留的**过期 cookie**
+   * 会在第一个 tick（120ms）就被当成解开的结果，挑战页根本没跑完。
+   *
+   * 为什么「必须与求解前不同」是对的：调用方**只在现有 cookie 不灵时才会来求解**
+   * （`LanzouCore.getBootstrap` 是自算失败才调这里），所以"解出来还是原来那个"等于没解开。
+   */
+  static boolean isFreshSolve(String cookie, String cookieBefore) {
+    return cookie != null
+        && cookie.contains("acw_sc__v2")
+        && !cookie.equals(cookieBefore == null ? "" : cookieBefore);
   }
 
   private static String cookieFor(String url) {

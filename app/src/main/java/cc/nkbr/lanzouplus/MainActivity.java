@@ -135,18 +135,21 @@ public final class MainActivity extends androidx.activity.ComponentActivity impl
   final Object imageLock=new Object(); final Map<String,List<java.lang.ref.WeakReference<ImageView>>> imageWaiters=new HashMap<>(); final ArrayDeque<ImageDelivery> imageDeliveries=new ArrayDeque<>(); boolean imageDeliveryPosted; private static final java.util.regex.Pattern WEB_URL_CJK=java.util.regex.Pattern.compile("(?i)(?<![A-Z0-9._%+-])(?:(?:https?|ftp)://)?(?:[A-Z0-9-]+\\.)+[A-Z]{2,63}(?::[0-9]{1,5})?(?:/[A-Z0-9._~%!$&'()*+,;=:@/?#-]*)?(?![A-Z0-9._%+-])"),LANZOU_CLOUD_HOST=java.util.regex.Pattern.compile("^(?:[a-z0-9-]+[.])*(?:lanzou[a-z0-9]?|lanzov)[.]com$");
   static final String ACTION_WEB_DOWNLOAD="w",ACTION_OPEN_DOWNLOADS="h"; static final int STARTUP_NOTIFICATION_PERMISSION=4310,DELETE_PERMISSION=-2,DELETE_FAILED=-1,DELETE_MISSING=0,DELETE_OK=1,STORAGE_PERMISSION=62,IMPORT_RULES=64,EXPORT_RULES=65,STARTUP_STORAGE_PERMISSION=66,DIRECT_STORAGE_PERMISSION=67,FOLDER_PULL_THRESHOLD_DP=52,FOLDER_PULL_SETTLE_DP=56,FOLDER_PULL_MAX_DP=72,DEFAULT_TRANSFER_PARALLELISM=0,DEFAULT_INSTALL_PARALLELISM=0,DEFAULT_SOURCE_PROBE_PARALLELISM=0,SOURCE_LIST_MIN_DISPLAY=32,SEARCH_WINDOW=64,SEARCH_RENDER_CHUNK=64,IMAGE_UI_CHUNK=12,SOURCE_SELECT_LIST=0,SOURCE_SELECT_CUSTOM=1,SOURCE_SELECT_CHILD=2,SOURCE_SELECT_SOFTWARE=3,TOOL_PICK_IMAGE=68,TOOL_PICK_IMAGE2=69,TOOL_MIC_PERMISSION=70,AI_PERMISSION=71; static final long DOWNLOAD_PERSIST_INTERVAL_MS=1200L,DOWNLOAD_PERSIST_DEBOUNCE_MS=750L,DOWNLOAD_UI_INTERVAL_MS=100L; static final String DOWNLOAD_WAITING="等待中",DOWNLOAD_RESOLVING="解析中",DOWNLOAD_RUNNING="下载中",DOWNLOAD_PAUSED="已暂停",DOWNLOAD_CANCELLED="已取消",DOWNLOAD_COMPLETED="已完成",DOWNLOAD_FAILED="失败",ENTRY_DOWNLOAD="download",DOWNLOAD_SOURCE_LANZOU=DownloadSourcePolicy.LANZOU,DOWNLOAD_SOURCE_EXTERNAL=DownloadSourcePolicy.EXTERNAL,DOWNLOAD_SOURCE_UPDATE=DownloadSourcePolicy.UPDATE,DOWNLOAD_SOURCE_LEGACY=DownloadSourcePolicy.LEGACY; static final java.util.regex.Pattern SIZE_VALUE=java.util.regex.Pattern.compile("(?i)([0-9]+(?:\\.[0-9]+)?)\\s*([KMGT]?)"); Models.Item pendingPermissionDownload; boolean pendingPermissionAutoInstall; Runnable pendingToolColorImagePick,pendingMicAction; PendingRetry pendingRetryDownload; DownloadEntry pendingInstallEntry; List<Models.Item> pendingPermissionBatch; final List<DownloadEntry> downloadEntries=new CopyOnWriteArrayList<>(); final Set<DownloadEntry> dirtyDownloadUi=Collections.newSetFromMap(new IdentityHashMap<>()); final Map<DownloadEntry,LinearLayout> downloadActions=new IdentityHashMap<>(); final List<View> selectionHiddenViews=new ArrayList<>(); final Map<DownloadEntry,View> downloadRows=new IdentityHashMap<>(); final Map<DownloadEntry,TextView> downloadLabels=new IdentityHashMap<>(); final Map<DownloadEntry,ProgressBar> downloadBars=new IdentityHashMap<>(); final Map<String,TextView> batchDownloadLabels=new HashMap<>(); final Map<String,ProgressBar> batchDownloadBars=new HashMap<>(); final Map<String,View> batchDownloadRows=new HashMap<>(); final Map<String,CheckBox> batchDownloadChecks=new HashMap<>();  boolean downloadUiFramePosted,crashFolderEnsured;
   /**
-   * [DFW-101 2026-10-01] 解析看门狗：记录每个下载项**进入「解析中」的时刻**。
+   * 解析超时阈值（毫秒）。到点仍未返回就判失败，见 {@link #armResolveWatchdog}。
    *
-   * 为什么需要：用户从 v1.0.5 报到 v1.0.12，下载**永远停在「解析中」**，
-   * 既没有崩溃、也没有报错、也没有超时提示 —— 界面无限等待，用户完全不知道发生了什么。
-   * 我猜了 5 轮全错，最后连诊断日志都拿不到（文件没写进去 / 那个页面不显示它）。
+   * ## 这个数字背后是一段失败史（2026-10-03 复盘）
+   * 用户**从 v1.0.5 一路报到 v1.0.12**，症状始终是「下载永远停在解析中」：
+   * 不崩溃、不报错、不超时，界面无限等待。
    *
-   * 结论：**先让故障可见**。解析超过 {@link #RESOLVE_WATCHDOG_MS} 就判定失败并写明，
-   * 而不是让用户对着一个永远转的「解析中」干等。
-   * 这样既修了"无限等待"这个体验问题，也把真正卡住的位置暴露出来。
+   * DFW-101（2026-10-01）当时的做法是：在 `updateDownloadUi()` 里记录条目进入解析中的时刻，
+   * 下次再被调用时若已超过本阈值就判失败。**它没有生效，而且原因很隐蔽**：
+   * `updateDownloadUi()` 根本没有周期性调用者 —— 解析成功才有进度回调，解析失败才有失败回调，
+   * 而它要防的恰恰是"解析器什么都不回调"。**看门狗在它唯一要防的场景里是死的。**
+   *
+   * 教训：**超时必须由独立定时器驱动，不能寄生在"某个函数会被反复调用"这个假设上。**
+   * 现在由 {@link #armResolveWatchdog} 排一个真正的延时任务，不依赖任何其它代码路径。
    */
   static final long RESOLVE_WATCHDOG_MS=25000L;
-  final Map<DownloadEntry,Long> resolveWatchdog=new IdentityHashMap<>();
   static final class BatchResolved{final DownloadEntry entry;final boolean cached;BatchResolved(DownloadEntry entry,boolean cached){this.entry=entry;this.cached=cached;}}
   static final class PendingRetry{final DownloadEntry entry;final int generation;final String state;PendingRetry(DownloadEntry entry){this.entry=entry;this.generation=entry.controlGeneration;this.state=entry.state;}}
   static final class FilterTab{final TextView label;final View underline;FilterTab(TextView label,View underline){this.label=label;this.underline=underline;}}
@@ -5109,7 +5112,50 @@ void showCustomLanzouBaseOriginDialog(){EditText input=sourceInput("输入 oreoj
   boolean resumeTargetAvailable(DownloadEntry entry){Uri uri=entryUri(entry);if(uri==null)return false;if("file".equals(uri.getScheme()))return true;try(android.os.ParcelFileDescriptor ignored=getContentResolver().openFileDescriptor(uri,"rw")){return ignored!=null;}catch(Exception missing){return false;}}
   void startEntryDownload(DownloadEntry entry,String url){if(entry==null)return;if(DOWNLOAD_SOURCE_EXTERNAL.equals(entry.source)){entry.directUrl=url;entry.shareUrl=url;startExternalTransfer(entry);return;}if(DOWNLOAD_SOURCE_LEGACY.equals(entry.source)&&!isLanzouUrl(url)){failDownload(entry,"历史记录来源未知，无法安全重试");return;}entry.shareUrl=url;resolveEntryDownload(entry,false);}
   void startExternalTransfer(DownloadEntry entry){if(entry==null)return;String policyError=DownloadUrlPolicy.rejectionReason(entry.directUrl);if(!policyError.isEmpty()){failDownload(entry,"外部下载地址不受支持："+policyError);return;}int generation;SegmentDownloader downloader; synchronized(entry){if(entry.stopRequested)return;entry.state=DOWNLOAD_RUNNING;entry.startedAt=System.currentTimeMillis();entry.lastSpeedAt=entry.startedAt;entry.lastSpeedBytes=entry.downloadedBytes;generation=++entry.controlGeneration;downloader=new SegmentDownloader(this);entry.downloader=downloader;}updateDownloadUi(entry);downloader.startExternal(entry.directUrl,entry.target,entry.verifiedTotalBytes,new SegmentDownloader.Listener(){public void progress(long done,long total){synchronized(entry){if(entry.transferOwnedBy(generation,downloader)&&!entry.stopRequested)applyDownloadProgress(entry,done,total);}}public void completed(){synchronized(entry){if(entry.downloader!=downloader||generation!=entry.controlGeneration||entry.stopRequested||!entry.state.equals(DOWNLOAD_RUNNING))return;entry.downloader=null;entry.downloadedBytes=entry.totalBytes=Math.max(entry.totalBytes,entry.downloadedBytes);entry.percent=100;entry.state=DOWNLOAD_COMPLETED;entry.error="";entry.completedAt=System.currentTimeMillis();}finishDownloadTarget(entry,true);updateDownloadUi(entry);}public void paused(long done,long total){finishStoppedTransfer(entry,DOWNLOAD_PAUSED,done,total,generation,downloader);}public void cancelled(long done,long total){finishStoppedTransfer(entry,DOWNLOAD_CANCELLED,done,total,generation,downloader);}public void failed(String error){synchronized(entry){if(entry.downloader!=downloader)return;entry.downloader=null;if(generation!=entry.controlGeneration||entry.stopRequested)return;entry.state=DOWNLOAD_FAILED;entry.error=friendlyError(new IOException(error));entry.speedBps=0;entry.etaSeconds=-1;}updateDownloadUi(entry);}});}
-  void resolveEntryDownload(DownloadEntry entry,boolean forceFresh){if(forceFresh)directResolver.invalidate(entry.shareUrl,entry.directUrl);boolean waiting=!directResolver.hasFresh(entry.shareUrl);if(waiting){entry.state=DOWNLOAD_RESOLVING;updateDownloadUi(entry);}int generation=++entry.controlGeneration;DirectLinkResolver.Ticket ticket=directResolver.resolve(entry.shareUrl,true,new DirectLinkResolver.PasswordCallback(){public void passwordRequired(boolean rejectedPrevious){showLanzouAccessPrompt(entry.shareUrl,entry.name,rejectedPrevious,accessValue->directResolver.providePassword(entry.shareUrl,accessValue),()->directResolver.cancelPasswordRequest(entry.shareUrl));}public void resolved(String directUrl,long resolvedAt,boolean cached){synchronized(entry){if(generation!=entry.controlGeneration||entry.stopRequested||!entry.state.equals(DOWNLOAD_RESOLVING))return;entry.resolverTicket=null;entry.directUrl=directUrl;entry.resolvedAt=resolvedAt;entry.error="";}persistDownloadHistory(entry);startResolvedTransfer(entry,cached);}public void failed(String error){String message=friendlyError(new IOException(error));synchronized(entry){if(generation!=entry.controlGeneration||entry.stopRequested||!entry.state.equals(DOWNLOAD_RESOLVING))return;entry.resolverTicket=null;entry.state=DOWNLOAD_FAILED;entry.error=message;entry.speedBps=0;entry.etaSeconds=-1;}advanceBatch(entry);updateDownloadUi(entry);}});synchronized(entry){if(generation==entry.controlGeneration&&!entry.stopRequested&&entry.state.equals(DOWNLOAD_RESOLVING))entry.resolverTicket=ticket;else ticket.cancel();}}
+  /**
+   * [DFW-125 2026-10-03] **真正的**解析看门狗：一个独立的定时器，不依赖任何其它调用。
+   *
+   * ## 它修的是什么（实测根因，不是推测）
+   * DFW-101 原本把看门狗写在 `updateDownloadUi()` 里，靠"这个函数被反复调用"来计时。
+   * 但 `updateDownloadUi()` 的**全部调用点**（2474/2494/5112/5113/5116/5117/5118/5154/5156/5166/5167/5218）
+   * 里**没有任何周期性定时器** —— 条目进入「解析中」时只调用一次（就在 `resolveEntryDownload` 开头）。
+   * 之后要有第二次调用，只能是：① 传输进度回调（要解析**成功**才有）；② 解析失败回调（要解析器**失败**才有）。
+   * 所以**恰恰在解析器卡住不回调时，看门狗永远不会触发** —— 它在它唯一要防的场景里是死的。
+   * 用户 2026-10-03 真机反馈「所有东西都没法下载，一直显示解析中」，就是这个死法。
+   *
+   * ## 现在的做法
+   * 进入解析中时**排一个 25 秒的延时任务**，到点自己检查：还在解析中就判失败，并给出人话原因。
+   * 它不依赖任何其它代码路径，所以不可能再被绕过。
+   *
+   * ## 为什么是"失败"而不是"继续等"
+   * 无限转圈对用户是最坏的形态：不知道在等什么、不知道还要多久、也不知道该不该重试。
+   * 失败 + 一句明确的话 + 一个「重试」按钮，用户至少知道发生了什么。
+   */
+  void armResolveWatchdog(DownloadEntry entry,int generation){
+    ui.postDelayed(()->{
+      DirectLinkResolver.Ticket pending=null;
+      synchronized(entry){
+        /* 三重校验，避免误杀：换过一次解析（generation 变了）、已被取消、或已经不在解析中，都不动手。 */
+        if(generation!=entry.controlGeneration||entry.stopRequested)return;
+        if(!DOWNLOAD_RESOLVING.equals(entry.state))return;
+        /* **在等用户输密码时不算超时** —— 那是「等用户」，不是「解析器卡住」。
+           重新排一次，别把用户正在打字的任务打死。见 DirectLinkResolver.isAwaitingPassword。 */
+        if(directResolver.isAwaitingPassword(entry.shareUrl)){armResolveWatchdog(entry,generation);return;}
+        pending=entry.resolverTicket;
+        entry.resolverTicket=null;
+        entry.state=DOWNLOAD_FAILED;
+        entry.error="解析超时（"+RESOLVE_WATCHDOG_MS/1000+"秒没有回应）。解析这一步没有返回任何结果，通常是链接失效、需要密码、或网络被拦。";
+        entry.speedBps=0;entry.etaSeconds=-1;
+      }
+      /* 把还在飞的请求真正取消掉 —— 否则它可能在超时之后才回来，覆盖掉这次失败。 */
+      if(pending!=null){try{pending.cancel();}catch(Throwable ignored){}}
+      persistDownloadHistory(entry);
+      advanceBatch(entry);
+      updateDownloadUi(entry);
+    },RESOLVE_WATCHDOG_MS);
+  }
+  void resolveEntryDownload(DownloadEntry entry,boolean forceFresh){if(forceFresh)directResolver.invalidate(entry.shareUrl,entry.directUrl);boolean waiting=!directResolver.hasFresh(entry.shareUrl);if(waiting){entry.state=DOWNLOAD_RESOLVING;updateDownloadUi(entry);}int generation=++entry.controlGeneration;
+    if(waiting)armResolveWatchdog(entry,generation);DirectLinkResolver.Ticket ticket=directResolver.resolve(entry.shareUrl,true,new DirectLinkResolver.PasswordCallback(){public void passwordRequired(boolean rejectedPrevious){showLanzouAccessPrompt(entry.shareUrl,entry.name,rejectedPrevious,accessValue->directResolver.providePassword(entry.shareUrl,accessValue),()->directResolver.cancelPasswordRequest(entry.shareUrl));}public void resolved(String directUrl,long resolvedAt,boolean cached){synchronized(entry){if(generation!=entry.controlGeneration||entry.stopRequested||!entry.state.equals(DOWNLOAD_RESOLVING))return;entry.resolverTicket=null;entry.directUrl=directUrl;entry.resolvedAt=resolvedAt;entry.error="";}persistDownloadHistory(entry);startResolvedTransfer(entry,cached);}public void failed(String error){String message=friendlyError(new IOException(error));synchronized(entry){if(generation!=entry.controlGeneration||entry.stopRequested||!entry.state.equals(DOWNLOAD_RESOLVING))return;entry.resolverTicket=null;entry.state=DOWNLOAD_FAILED;entry.error=message;entry.speedBps=0;entry.etaSeconds=-1;}advanceBatch(entry);updateDownloadUi(entry);}});synchronized(entry){if(generation==entry.controlGeneration&&!entry.stopRequested&&entry.state.equals(DOWNLOAD_RESOLVING))entry.resolverTicket=ticket;else ticket.cancel();}}
   void startResolvedTransfer(DownloadEntry entry,boolean reusedCached){synchronized(entry){if(entry.stopRequested){advanceBatch(entry);return;}entry.cancelPending=null;entry.state=DOWNLOAD_RUNNING;entry.startedAt=System.currentTimeMillis();entry.completedAt=0;entry.lastSpeedAt=entry.startedAt;entry.lastSpeedBytes=entry.downloadedBytes;int generation=entry.controlGeneration;SegmentDownloader downloader=new SegmentDownloader(this);entry.downloader=downloader;updateDownloadUi(entry);downloader.startResolved(entry.directUrl,entry.target,entry.verifiedTotalBytes,new SegmentDownloader.Listener(){public void progress(long done,long total){synchronized(entry){if(entry.transferOwnedBy(generation,downloader)&&!entry.stopRequested)applyDownloadProgress(entry,done,total);}}public void completed(){synchronized(entry){if(entry.downloader!=downloader||generation!=entry.controlGeneration||entry.stopRequested||!entry.state.equals(DOWNLOAD_RUNNING))return;entry.downloader=null;entry.downloadedBytes=entry.totalBytes=Math.max(entry.totalBytes,entry.downloadedBytes);entry.percent=100;entry.state=DOWNLOAD_COMPLETED;entry.error="";entry.speedBps=0;entry.etaSeconds=0;entry.completedAt=System.currentTimeMillis();}advanceBatch(entry);finishDownloadTarget(entry,true);updateDownloadUi(entry);if(entry.autoInstall)runOnUiThread(()->{if(generation==entry.controlGeneration&&entry.state.equals(DOWNLOAD_COMPLETED)){if(entry.autoInstallFromPreference)autoInstallCompletedEntry(entry);else installEntry(entry);}});}public void paused(long done,long total){finishStoppedTransfer(entry,DOWNLOAD_PAUSED,done,total,generation,downloader);}public void cancelled(long done,long total){finishStoppedTransfer(entry,DOWNLOAD_CANCELLED,done,total,generation,downloader);}public void failed(String error){boolean retryFresh;synchronized(entry){if(entry.downloader!=downloader)return;entry.downloader=null;retryFresh=reusedCached&&!entry.directFallbackTried&&!entry.stopRequested;if(retryFresh){entry.directFallbackTried=true;entry.state=DOWNLOAD_RESOLVING;entry.error="直链已失效，正在重新解析";}else if(entry.stopRequested)return;else{entry.state=DOWNLOAD_FAILED;entry.error=friendlyError(new IOException(error));entry.speedBps=0;entry.etaSeconds=-1;}}if(retryFresh){updateDownloadUi(entry);synchronized(entry){if(generation!=entry.controlGeneration||entry.stopRequested||!entry.state.equals(DOWNLOAD_RESOLVING))return;directResolver.invalidate(entry.shareUrl,entry.directUrl);resolveEntryDownload(entry,true);}return;}advanceBatch(entry);updateDownloadUi(entry);}});}}
   void finishStoppedTransfer(DownloadEntry entry,String state,long done,long total,int generation,SegmentDownloader owner){boolean resume,cancelled;int currentGeneration;synchronized(entry){/* DFWX-STAB-001：终态回调先做 ownership 校验（锁内）——
         cancelled 只看 owner（cancelDownload 已 ++generation，自身回调必须放行），paused/其余看 generation+owner 双匹配；
@@ -5236,28 +5282,6 @@ if(motionEnabled()){panel.setAlpha(0f);panel.setTranslationY(-dp(8));panel.anima
    @android.annotation.SuppressLint("ClickableViewAccessibility") void swipePanel(View panel,Runnable dismiss,Runnable tap,Runnable hold){panel.setClickable(true);panel.setOnClickListener(tap==null?null:view->tap.run());panel.setLongClickable(hold!=null);panel.setOnLongClickListener(view->{if(hold==null)return false;hold.run();return true;});panel.setOnTouchListener(new View.OnTouchListener(){float startX,startY;int gesture;boolean held;final Runnable longAction=()->{if(gesture==0&&hold!=null)held=panel.performLongClick();};public boolean onTouch(View view,MotionEvent event){switch(event.getActionMasked()){case MotionEvent.ACTION_DOWN:startX=event.getRawX();startY=event.getRawY();gesture=0;held=false;view.animate().cancel();view.postDelayed(longAction,ViewConfiguration.getLongPressTimeout());view.getParent().requestDisallowInterceptTouchEvent(true);return true;case MotionEvent.ACTION_MOVE:float dx=event.getRawX()-startX,dy=event.getRawY()-startY;if(gesture==0&&Math.max(Math.abs(dx),Math.abs(dy))>dp(5)){gesture=Math.abs(dx)>=Math.abs(dy)?1:2;view.removeCallbacks(longAction);}if(gesture==2){view.getParent().requestDisallowInterceptTouchEvent(false);return false;}float shift=Math.max(0,dx);view.setTranslationX(shift);view.setAlpha(Math.max(.35f,1f-shift/Math.max(1f,dp(260))));return true;case MotionEvent.ACTION_UP:view.removeCallbacks(longAction);view.getParent().requestDisallowInterceptTouchEvent(false);if(held){resetSwipePanel(view);return true;}float distance=Math.max(0,event.getRawX()-startX);if(gesture==1&&distance>dp(72)){dismiss.run();return true;}resetSwipePanel(view);if(gesture==0)view.performClick();return true;default:view.removeCallbacks(longAction);view.getParent().requestDisallowInterceptTouchEvent(false);resetSwipePanel(view);return true;}}});}
   void dismissPanel(View panel,Runnable after){Runnable remove=()->{if(panel.getParent()==toastLayer)toastLayer.removeView(panel);updateToastViewport();if(after!=null)after.run();};if(!motionEnabled()){remove.run();return;}panel.animate().cancel();panel.animate().alpha(0f).translationY(-dp(8)).setDuration(150).setInterpolator(new android.view.animation.PathInterpolator(0.2f,0f,0f,1f)).withEndAction(remove).start();}
   void updateDownloadUi(DownloadEntry entry){
-    // [DFW-101] 解析看门狗 —— 把"无限解析中"变成"有明确原因的失败"
-    if(entry!=null){
-      if(DOWNLOAD_RESOLVING.equals(entry.state)){
-        Long since=resolveWatchdog.get(entry);
-        long now=System.currentTimeMillis();
-        if(since==null){resolveWatchdog.put(entry,now);}
-        else if(now-since>RESOLVE_WATCHDOG_MS){
-          resolveWatchdog.remove(entry);
-          synchronized(entry){
-            if(DOWNLOAD_RESOLVING.equals(entry.state)){
-              entry.state=DOWNLOAD_FAILED;
-              entry.error="解析超时（"+RESOLVE_WATCHDOG_MS/1000+"秒无响应）。这一步没有任何报错，说明卡在解析链路内部。";
-              entry.speedBps=0;entry.etaSeconds=-1;
-            }
-          }
-          persistDownloadHistory(entry);
-        }
-      }else{
-        resolveWatchdog.remove(entry);
-      }
-    }
-
     persistDownloadHistory(entry);boolean post=false;synchronized(dirtyDownloadUi){dirtyDownloadUi.add(entry);if(!downloadUiFramePosted){downloadUiFramePosted=true;post=true;}}if(post)ui.postDelayed(this::drainDownloadUi,downloadUiIntervalMs());
   }
   long downloadUiIntervalMs(){int active=0;for(DownloadEntry entry:downloadEntries)if(isDownloadActive(entry))active++;return active>=64?500L:active>=24?250L:DOWNLOAD_UI_INTERVAL_MS;}
