@@ -183,7 +183,7 @@ UI 是 `retestSelectedSources()` `:3994`。
 1. 本项目已有可导出的本地日志与崩溃报告（`SECURITY.md:34-36`：崩溃日志含版本/设备/系统/ABI/内存，
    **不含 URL、密码或任何凭据**），"复制诊断"是在既有能力上加一个按钮，**零新基础设施**。
 2. 用户是单人使用场景，**最快的闭环是把诊断文本粘给 AI**，而不是建一个后端集合再写一个管理页。
-3. 反馈通道一旦上传，就要面对 `decisions.md:11` 的凭据红线与 `decisions.md:82-84`（后台改动）的额外维护面。
+3. 反馈通道一旦上传，就要面对 `decisions.md:23`（第 11 条）的凭据红线与 `decisions.md:82-84`（后台改动）的额外维护面。
 4. 卡片的目标原文是"用户可在设置反馈源名"——**"复制诊断信息"已满足这个目标**，且更强（带证据，不只是源名）。
 
 诊断包**只允许**包含：源标题、域名、UA 编号、HTTP 状态码、异常**类名**、累计失败次数、时间戳。
@@ -288,7 +288,7 @@ static final class SourceFailure {
 | **R7** | 为了"多试几个"而**换域名** | DFW-106（commit `3abc671`）采到社区源码的明确约束：**"蓝奏风控 Cookie 与域名关联，强制换域名会导致校验失败"** | 交叉探测**只换 UA，不换域名**；不新增任何换域名逻辑 |
 | **R8** | 整体挂了就**自动**换基础链接 | 会擅自改用户设置，且 `MainActivity.java:3820` 现有设计就是"建议立即测速并更换"（**建议 + 用户点**） | 保持"建议 + 用户决定"，不自动改 |
 | **R9** | 在 JVM 测试里触发真实网络 | `MainActivity.java:414-422` 记录了 `SearchPageBudgetJvmTest` 单跑会对 85 个源发真请求（DFW-124 的第二条联网路径） | 新测试限纯函数级；必要时走 `isJvmUnitTest` 闸门 |
-| **R10** | 诊断包泄漏凭据 | `decisions.md:11` 红线；`SECURITY.md:34-36` 已定崩溃日志标准 | 白名单字段（见 §3.3），不含 URL 全文/密码/Cookie |
+| **R10** | 诊断包泄漏凭据 | `decisions.md:23`（第 11 条）红线；`SECURITY.md:34-36` 已定崩溃日志标准 | 白名单字段（见 §3.3），不含 URL 全文/密码/Cookie |
 | **R11** | 为了让标记"看起来有用"而**提前变灰** | 误判一次用户就会去删源（卡片最怕的后果） | 标记只在 §2.3 第 4 步之后出现；未定论时显示"正在确认"而非"不可用" |
 
 ---
@@ -352,5 +352,5 @@ static final class SourceFailure {
 | WAF 滑块背景 | `docs/plan/dfw-108-waf-challenge.md` |
 | 既有守卫测试 | `LanzouHostAllowlistJvmTest.kt`、`LanzouUnlockFieldsJvmTest.kt`、`LanzouSearchStallJvmTest.kt`、`LanzouDownloadRootCauseJvmTest.kt` |
 | 测试联网禁区 | `MainActivity.java:414-422` |
-| 凭据红线 | `docs/plan/decisions.md:11`；`SECURITY.md:34-36` |
+| 凭据红线 | `docs/plan/decisions.md:23`（第 11 条）；`SECURITY.md:34-36` |
 | 跑测试方式 | `AGENTS.md` 第四节（一律 `bash tools/run-tests.sh`） |
