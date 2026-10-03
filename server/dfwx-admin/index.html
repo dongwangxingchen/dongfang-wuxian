@@ -160,6 +160,18 @@ button:disabled{opacity:.62;cursor:default}
    万一某个 token 本身超长，再用 overflow-wrap:anywhere 兜底，保证**永远不会溢出**。 */
 .item .meta.url{overflow-wrap:anywhere;word-break:normal}
 .empty{color:var(--muted);font-size:13.5px;text-align:center;padding:26px 0}
+/* [DFW-134] 网盘条目。哈希是 64 位十六进制，在手机上必然超宽 ——
+   用 overflow-wrap:anywhere 让它换行，而不是撑破卡片或出现横向滚动。 */
+.pan-item{border:1px solid var(--line);border-radius:var(--r-sm);padding:12px 14px;margin:0 0 10px;
+  background:var(--card2)}
+.pan-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:0 0 6px}
+.pan-name{font-size:13.5px;overflow-wrap:anywhere}
+.pan-meta{font-size:12.5px;color:var(--muted);line-height:1.7;overflow-wrap:anywhere}
+.pan-hash{font-family:var(--mono,monospace);font-size:11.5px;overflow-wrap:anywhere;word-break:break-all;
+  color:var(--text)}
+.pan-nohash{color:var(--muted);font-style:italic}
+.pan-acts{margin-top:10px}
+.pan-acts button{font-size:12.5px;padding:7px 12px}
 /* [2026-10-03] 顶部状态条：把"线上现在是什么状态"提到第一屏。
    只用项目已有的语义色（ok 绿 / accent 紫 / muted 灰），不引入新色。 */
 .statusbar{display:flex;flex-wrap:wrap;gap:7px;margin:0 0 16px}
@@ -414,7 +426,7 @@ async function uploadApk(file, filename){
 }
 
 /* ---------- 骨架 ---------- */
-const TABS = ["总控","AI 渠道","版本","公告","更新记录"];
+const TABS = ["总控","AI 渠道","版本","公告","更新记录","网盘"];
 /**
  * [2026-10-03 视觉重置] 外壳：加一条**实时状态条**，把"现在线上是什么状态"直接摆在最上面。
  *
@@ -474,8 +486,37 @@ function renderPane(){
   else if (tab === "版本") renderRelease(p);
   else if (tab === "公告") renderNotice(p);
   else if (tab === "更新记录") renderChangelog(p);
+  else if (tab === "网盘") renderPan(p);
   // [task-12 缺陷4/5] 渲染完再量 scrollHeight，把长值多行框撑到刚好装下内容
   growAll(p);
+  applyPendingFill();
+}
+
+/**
+ * [DFW-134] 网盘里点了「填进版本记录」之后，把值落到「版本」页的输入框里。
+ *
+ * 为什么用「暂存 + 渲染后消费」而不是直接改 DOM：点那个按钮会**切换标签页**，
+ * 而切换会整页重渲染（renderShell 重建 #pane），当场改的 DOM 立刻就被丢掉了。
+ * 所以只能先把值存下来，等版本页渲染完再填。
+ */
+function applyPendingFill(){
+  const f = pendingFill;
+  if (!f) return;
+  pendingFill = null;
+  if (tab !== "版本") return;
+  const put = (sel, val) => { const el = $(sel); if (el) el.value = val; };
+  put("#vn", f.versionName || "");
+  put("#vc", f.versionCode || 0);
+  put("#sh", f.sha256 || "");
+  put("#au", f.url || "");
+  put("#sz", f.size || 0);
+  const szText = $("#szText");
+  if (szText) szText.value = mbText(f.size || 0);
+  // 这两行是程序赋值，不触发 input 事件，手动撑一次高 + 手动刷一次序号提醒
+  autoGrow($("#sh")); autoGrow($("#au"));
+  const vc = $("#vc");
+  if (vc && typeof vc.oninput === "function") vc.oninput();
+  toast("已从网盘带入：" + f.name + "（" + mbText(f.size || 0) + "）", "ok");
 }
 
 /* ---------- 总控 ---------- */
@@ -629,6 +670,11 @@ function renderAiChannel(p){
 /* ---------- 版本：发新版 / 当前版本 / 发布历史（编辑·删除·回滚） ---------- */
 /** 待上传的安装包（选完文件后暂存，点保存时真正上传）。 */
 let pendingApk = null;
+/**
+ * [DFW-134] 网盘里点了「填进版本记录」之后，暂存待填的值，切到「版本」页时消费。
+ * 用暂存而不是直接改 DOM 的原因见 applyPendingFill() 的注释。
+ */
+let pendingFill = null;
 /** 安装包对外地址的固定前缀：**故意用 http**——App 走的是明文下载，
  *  改成 https 会因为那张证书不被设备信任而直接下载失败。 */
 const APK_ORIGIN = "https://39.106.33.135";
@@ -1590,6 +1636,214 @@ function renderChangelog(p){
         versionName, date: date || new Date().toISOString().slice(0,10), highlights, enabled: true })});
       toast("已添加", "ok"); await refresh();
     } catch(e){ toast(e.message, "err"); b.disabled = false; b.textContent = "添 加"; }
+  };
+}
+
+/* ---------- 网盘（DFW-134）：上传即得链接，哈希/大小/版本号全自动 ---------- */
+
+/**
+ * 服务端接口（`/opt/dfwx-upload/server.py`）：
+ *   GET    /admin/apk-upload/          列目录
+ *   GET    /admin/apk-upload/<名字>    单个文件（没记过哈希就现算并缓存）
+ *   PUT    /admin/apk-upload/<名字>    上传（服务端顺手算好 sha256 / 大小 / 包内版本号）
+ *   DELETE /admin/apk-upload/<名字>    删除
+ *
+ * 这一页要解决的问题（用户原话）：
+ * > 「校验值啥的，我不知道是啥玩意。这玩意必须得我填吗？还是说它可以自动分析出来并填上？
+ * >   还有那个安装包大小啥的，也得显示出来。」
+ * 所以它不是「文件管理器」，而是**让用户一个字节都不用填**：
+ * 传完直接给链接、给哈希、给大小，点一下就填进版本记录。
+ *
+ * 为什么哈希是上传时算好的、不是每次列目录现算：站点目录现在 29 个包、合计约 1 GB，
+ * 每开一次这一页就把 1 GB 读一遍，而这台机器只有 2 核、无 swap。
+ * 老文件（网盘上线前就存在的）没有记录，列表里显示「未记录」，
+ * 点开那一条时才会现算并缓存下来。
+ */
+async function panRequest(path, options){
+  if (!adminPass){
+    const p = prompt("请输入后台密码（与登录密码相同），只用于这次操作：");
+    if (!p) throw new Error("已取消");
+    adminPass = p;
+  }
+  const r = await fetch("/admin/apk-upload/" + path, Object.assign({
+    headers: { "Authorization": "Basic " + btoa(adminUser + ":" + adminPass) }
+  }, options || {}));
+  if (r.status === 401){ adminPass = ""; throw new Error("后台密码不对，请重试"); }
+  const data = await r.json().catch(() => null);
+  if (!r.ok || !data || data.ok === false){
+    throw new Error((data && data.error) || ("操作失败（" + r.status + "）"));
+  }
+  return data;
+}
+
+/** Unix 秒 → 可读时间。服务端返回的是秒，fmtTime 要字符串。 */
+function fmtUnix(sec){
+  if (!sec) return "";
+  const d = new Date(sec * 1000);
+  if (isNaN(d.getTime())) return "";
+  const p = n => String(n).padStart(2, "0");
+  return d.getFullYear() + "-" + p(d.getMonth()+1) + "-" + p(d.getDate())
+       + " " + p(d.getHours()) + ":" + p(d.getMinutes());
+}
+
+/** 这条文件是不是当前线上版本记录指向的那个包（删除前要拦一下）。 */
+function isLiveApk(name){
+  const r = cache.release;
+  if (!r || !r.apkUrl) return false;
+  return String(r.apkUrl).split("?")[0].endsWith("/" + name);
+}
+
+function panFileHtml(f){
+  const apk = /\.apk$/i.test(f.name);
+  const live = isLiveApk(f.name);
+  const ver = apk
+    ? (f.versionName ? esc(f.versionName) + "（序号 " + esc(String(f.versionCode == null ? "?" : f.versionCode)) + "）" : "读不出，需手填")
+    : "—";
+  const hash = f.sha256
+    ? `<code class="pan-hash">${esc(f.sha256)}</code>`
+    : '<span class="pan-nohash">未记录（点「填进版本记录」时会现算）</span>';
+  return `<div class="pan-item" data-n="${esc(f.name)}">
+    <div class="pan-head">
+      <b class="pan-name">${esc(f.name)}</b>
+      ${live ? '<span class="pill on">线上正在用</span>' : ""}
+    </div>
+    <div class="pan-meta">${mbText(f.size)} · 上传于 ${esc(fmtUnix(f.uploadedAt || f.mtime))} · 包内版本 ${ver}</div>
+    <div class="pan-meta">${hash}</div>
+    <div class="row pan-acts">
+      ${apk ? '<button class="btn-main pan-fill">填进版本记录</button>' : ""}
+      <button class="btn-sec pan-copy">复制下载链接</button>
+      <button class="btn-sec pan-del">删除</button>
+    </div>
+  </div>`;
+}
+
+async function renderPan(p){
+  p.innerHTML = '<div class="card"><h2>网盘</h2><p class="hint">正在读取文件列表…</p></div>';
+  let data;
+  try {
+    data = await panRequest("");
+  } catch(e){
+    p.innerHTML = `<div class="card"><h2>网盘</h2>
+      <div class="note danger">读取失败：${esc(e.message)}</div>
+      <button class="btn-sec" id="panreload">重试</button></div>`;
+    const rb = $("#panreload"); if (rb) rb.onclick = () => renderPan(p);
+    return;
+  }
+
+  const files = data.files || [];
+  p.innerHTML = `
+  <div class="card">
+    <h2>上传文件</h2>
+    <p class="hint">传上来就能拿到下载链接。<b>校验值、文件大小、包里的版本号都会自动算好</b>，
+      你一个字都不用填。</p>
+    <label for="panfile">选择文件</label>
+    <input id="panfile" type="file">
+    <div class="note" id="paninfo">选好文件后点下面的按钮。上传大包时请勿关闭页面。</div>
+    <div style="height:14px"></div>
+    <button class="btn-main" id="panup">上传</button>
+  </div>
+
+  <div class="card">
+    <h2>文件列表（${files.length}）</h2>
+    <p class="hint">合计 ${mbText(data.totalBytes || 0)}。所有文件都能通过
+      <code>${APK_ORIGIN}/apk/&lt;文件名&gt;</code> 直接下载。</p>
+    ${files.length ? files.map(panFileHtml).join("") : '<div class="empty">还没有文件</div>'}
+    <div style="height:14px"></div>
+    <button class="btn-sec" id="panreload2">刷新列表</button>
+  </div>`;
+
+  const reload = () => renderPan(p);
+  const rb2 = $("#panreload2"); if (rb2) rb2.onclick = reload;
+
+  $("#panup").onclick = async () => {
+    const input = $("#panfile");
+    const f = input.files && input.files[0];
+    const info = $("#paninfo");
+    if (!f){ toast("先选一个文件", "err"); return; }
+    const b = $("#panup");
+    b.disabled = true;
+    b.innerHTML = '<span class="spin"></span> 上传中…';
+    try {
+      info.textContent = "正在上传 " + f.name + "（" + mbText(f.size) + "）…";
+      const r = await panRequest(encodeURIComponent(f.name), { method:"PUT", body: f });
+      info.innerHTML = "✅ 传好了：<b>" + esc(r.name) + "</b> · " + mbText(r.size)
+        + (r.versionName ? " · 包内版本 " + esc(r.versionName) + "（序号 " + esc(String(r.versionCode)) + "）" : "")
+        + "<br>下载链接：<code>" + esc(APK_ORIGIN + "/apk/" + r.name) + "</code>"
+        + "<br>校验值：<code>" + esc(r.sha256) + "</code>";
+      toast("上传成功", "ok");
+      reload();
+    } catch(e){
+      info.textContent = "❌ " + e.message;
+      toast(e.message, "err");
+      b.disabled = false;
+      b.textContent = "上传";
+    }
+  };
+
+  /* 事件委托：列表会整块重渲染，逐个绑按钮早晚会漏 */
+  p.onclick = async e => {
+    const item = e.target.closest(".pan-item");
+    if (!item) return;
+    const name = item.dataset.n;
+    const f = files.find(x => x.name === name);
+    if (!f) return;
+
+    if (e.target.closest(".pan-fill")){
+      const btn = e.target.closest(".pan-fill");
+      const old = btn.textContent;
+      btn.disabled = true;
+      btn.textContent = "算校验值…";
+      try {
+        /* 老文件没有记过哈希，这一步会现算（服务端读一遍文件）。
+           大包可能要几秒，所以按钮上给了字。 */
+        const r = await panRequest(encodeURIComponent(name));
+        const one = r.file;
+        pendingFill = {
+          name: one.name,
+          size: one.size,
+          sha256: one.sha256,
+          versionCode: one.versionCode,
+          versionName: one.versionName,
+          url: APK_ORIGIN + "/apk/" + one.name,
+        };
+        tab = "版本";
+        renderShell();
+      } catch(err){
+        toast(err.message, "err");
+        btn.disabled = false;
+        btn.textContent = old;
+      }
+      return;
+    }
+
+    if (e.target.closest(".pan-copy")){
+      const url = APK_ORIGIN + "/apk/" + name;
+      try {
+        await navigator.clipboard.writeText(url);
+        toast("链接已复制", "ok");
+      } catch(err){
+        /* 剪贴板要安全上下文 + 用户手势，失败就退化成让用户自己抄 */
+        prompt("复制这个链接：", url);
+      }
+      return;
+    }
+
+    if (e.target.closest(".pan-del")){
+      /* 防呆：不许删掉线上正在用的那个包 —— 删了用户立刻下不到更新。
+         服务端不认识 PocketBase，所以这一层只能在前端做。 */
+      if (isLiveApk(name)){
+        toast("这是线上正在用的安装包，不能删。要先在「版本」页换成别的包。", "err");
+        return;
+      }
+      if (!confirm("确定删除「" + name + "」？\n\n文件会从服务器上删掉，删了就找不回来了。")) return;
+      try {
+        await panRequest(encodeURIComponent(name), { method:"DELETE" });
+        toast("已删除 " + name, "ok");
+        reload();
+      } catch(err){
+        toast(err.message, "err");
+      }
+    }
   };
 }
 
