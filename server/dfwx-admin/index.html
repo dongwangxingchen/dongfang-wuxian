@@ -8,17 +8,28 @@
 <title>东方无限 · 控制台</title>
 <style>
 :root{
-  --bg:#0f1013; --card:#191b20; --card2:#20232a; --line:#2b2f38;
-  --text:#eceff4; --muted:#8e96a5; --accent:#7c6df2; --accent2:#6a5ae0;
+  /* [2026-10-03 视觉重置] 在原有骨架上做了三件事，不新增任何功能入口：
+     ① 底色再压深一档、面阶梯拉开（bg < card < card2），层次靠"面差"而不是靠描边；
+     ② 主色统一到与 App 一致的那支紫（#7C6DF2 系），并把渐变做成 token 便于统一调整；
+     ③ 补上圆角/阴影/动效三组 token，避免各处各写一个值（原来圆角就有 9/10/11/12/14 五种）。 */
+  --bg:#0b0c10; --card:#14161c; --card2:#1c1f27; --line:#282c36;
+  --text:#f2f4f8; --muted:#8b93a3; --accent:#7c6df2; --accent2:#6a5ae0;
   --ok:#3ddc97; --warn:#ffb020; --danger:#ff5c5c;
   --r:14px;
+  /* 新增 token：面阶梯 / 圆角三档 / 阴影两档 / 渐变。 */
+  --surface:#14161c; --surface-hi:#1c1f27; --stroke:#282c36;
+  --r-sm:10px; --r-md:14px; --r-lg:18px;
+  --sh-1:0 1px 2px rgba(0,0,0,.32);
+  --sh-2:0 8px 24px -8px rgba(0,0,0,.55);
+  --grad:linear-gradient(180deg,var(--accent),var(--accent2));
+  --focus:0 0 0 3px rgba(124,109,242,.20);
   /* [2026-10-03] 补齐三个**一直被引用、却从没定义**的变量。
      这是一个真 bug，不是风格问题：CSS 的 `var()` 在「变量未定义 + 没写回退值」时，
      **整条声明会被丢弃**（不是回退成 inherit），所以它坏得很安静。
      实测影响 4 处：
        · `.btn-ghost` / `.mchip` 的 `color:var(--fg)` → 失效 → 文字回落成浏览器默认黑，
-         在 #0f1013 深色底上几乎看不见（观感就是「后台有按钮是空的 / 没做完」）；
-       · `:956` 与 `:993` 两个 `<select>` 行内的 `background:var(--surface2)`
+         在深色底上几乎看不见（观感就是「后台有按钮是空的 / 没做完」）；
+       · 两处 `<select>` 行内的 `background:var(--surface2)`
          与 `border:1px solid var(--border)` → 全失效 → 下拉框变成**白底无边框**，
          在深色页面里视觉完全断裂。
      三个值都直接取本文件已有的面/描边阶梯，不引入任何新颜色。 */
@@ -27,61 +38,80 @@
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{margin:0;padding:0;background:var(--bg);color:var(--text);
   font:15px/1.6 -apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif}
-.wrap{max-width:860px;margin:0 auto;padding:20px 16px 80px}
-h1{font-size:20px;margin:0 0 4px;font-weight:650;letter-spacing:.3px}
+.wrap{max-width:860px;margin:0 auto;padding:22px 16px 88px}
+h1{font-size:21px;margin:0 0 6px;font-weight:660;letter-spacing:.2px}
 .sub{color:var(--muted);font-size:13px;margin:0 0 20px}
-.card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:18px;margin-bottom:14px}
-.card h2{font-size:16px;margin:0 0 4px;font-weight:620;display:flex;align-items:center;gap:8px}
-.card .hint{color:var(--muted);font-size:12.5px;margin:0 0 16px}
+/* 卡片：面差 + 极淡阴影做出层次（原来只有 1px 描边，整页看起来是"平"的）。 */
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--r-md);padding:18px;
+  margin-bottom:14px;box-shadow:var(--sh-1)}
+.card h2{font-size:16px;margin:0 0 4px;font-weight:630;display:flex;align-items:center;gap:8px;letter-spacing:.1px}
+.card .hint{color:var(--muted);font-size:12.5px;margin:0 0 16px;line-height:1.55}
 label{display:block;font-size:13.5px;color:var(--muted);margin:12px 0 6px;font-weight:500}
 input[type=text],input[type=number],input[type=password],textarea,select{
-  width:100%;background:var(--card2);border:1px solid var(--line);border-radius:10px;
+  width:100%;background:var(--card2);border:1px solid var(--line);border-radius:var(--r-sm);
   color:var(--text);padding:11px 13px;font-size:15px;font-family:inherit;outline:none;
-  transition:border-color .18s ease,box-shadow .18s ease}
-input:focus,textarea:focus,select:focus{border-color:var(--accent);
-  box-shadow:0 0 0 3px rgba(124,109,242,.16)}
+  transition:border-color .18s ease,box-shadow .18s ease,background .18s ease}
+input:hover,textarea:hover,select:hover{border-color:#333846}
+input:focus,textarea:focus,select:focus{border-color:var(--accent);box-shadow:var(--focus)}
 textarea{min-height:96px;resize:vertical;line-height:1.55}
 select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,var(--muted) 50%),linear-gradient(135deg,var(--muted) 50%,transparent 50%);
   background-position:calc(100% - 18px) 20px,calc(100% - 13px) 20px;background-size:5px 5px;background-repeat:no-repeat;padding-right:36px}
-button{font-family:inherit;font-size:15px;font-weight:560;border:none;border-radius:11px;
-  padding:12px 18px;cursor:pointer;transition:transform .12s ease,opacity .18s ease,background .18s ease}
+button{font-family:inherit;font-size:15px;font-weight:570;border:none;border-radius:var(--r-sm);
+  padding:12px 18px;cursor:pointer;transition:transform .12s ease,opacity .18s ease,background .18s ease,box-shadow .18s ease}
 button:active{transform:scale(.975)}
-.btn-main{background:linear-gradient(180deg,var(--accent),var(--accent2));color:#fff;width:100%}
+button:disabled{opacity:.62;cursor:default}
+.btn-main{background:var(--grad);color:#fff;width:100%;box-shadow:0 4px 14px -6px rgba(124,109,242,.75)}
+.btn-main:hover:not(:disabled){filter:brightness(1.06)}
 .btn-sec{background:var(--card2);color:var(--text);border:1px solid var(--line)}
+.btn-sec:hover:not(:disabled){border-color:#3a4050}
 .btn-danger{background:rgba(255,92,92,.14);color:var(--danger);border:1px solid rgba(255,92,92,.3)}
+.btn-danger:hover:not(:disabled){background:rgba(255,92,92,.2)}
 .row{display:flex;gap:10px;flex-wrap:wrap}
 .row>*{flex:1;min-width:120px}
 .switch{display:flex;align-items:center;justify-content:space-between;gap:12px;
-  background:var(--card2);border:1px solid var(--line);border-radius:11px;padding:13px 15px;margin:10px 0}
-.switch .t{font-size:14.5px;font-weight:500}
-.switch .d{font-size:12px;color:var(--muted);margin-top:2px}
+  background:var(--card2);border:1px solid var(--line);border-radius:var(--r-sm);padding:13px 15px;margin:10px 0;
+  transition:border-color .18s ease}
+.switch:hover{border-color:#333846}
+.switch .t{font-size:14.5px;font-weight:520}
+.switch .d{font-size:12px;color:var(--muted);margin-top:2px;line-height:1.5}
 .tg{position:relative;width:50px;height:29px;flex:0 0 50px;border-radius:99px;
-  background:#3a3f4b;transition:background .22s cubic-bezier(.2,.8,.2,1);cursor:pointer}
+  background:#333846;transition:background .22s cubic-bezier(.2,.8,.2,1);cursor:pointer}
 .tg::after{content:"";position:absolute;top:3px;left:3px;width:23px;height:23px;border-radius:50%;
-  background:#fff;transition:transform .22s cubic-bezier(.2,.8,.2,1)}
+  background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.4);transition:transform .22s cubic-bezier(.2,.8,.2,1)}
 .tg.on{background:var(--accent)}
 .tg.on::after{transform:translateX(21px)}
 .note{font-size:12.5px;color:var(--muted);background:var(--card2);border-left:3px solid var(--accent);
-  border-radius:0 9px 9px 0;padding:10px 13px;margin:12px 0}
+  border-radius:0 var(--r-sm) var(--r-sm) 0;padding:10px 13px;margin:12px 0;line-height:1.6}
 .note.warn{border-left-color:var(--warn)}
 .note.danger{border-left-color:var(--danger)}
 .mbar{display:flex;align-items:center;justify-content:space-between;gap:10px;
-  background:var(--card2);border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin:6px 0 14px}
-.mbar b{font-size:14.5px;font-weight:600}
-.btn-ghost{background:var(--card);color:var(--fg);border:1px solid var(--line);border-radius:10px;
-  padding:8px 14px;font-size:13px;cursor:pointer;white-space:nowrap}
-.btn-ghost:hover{border-color:var(--accent)}
+  background:var(--card2);border:1px solid var(--line);border-radius:var(--r-md);padding:12px 14px;margin:6px 0 14px}
+.mbar b{font-size:14.5px;font-weight:620}
+.btn-ghost{background:var(--card);color:var(--fg);border:1px solid var(--line);border-radius:var(--r-sm);
+  padding:8px 14px;font-size:13px;cursor:pointer;white-space:nowrap;transition:border-color .18s ease,background .18s ease}
+.btn-ghost:hover{border-color:var(--accent);background:var(--card2)}
 .mgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:8px;margin:0 0 16px}
-.mchip{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 12px;
-  font-size:13px;cursor:pointer;text-align:left;color:var(--fg);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.mchip:hover{border-color:var(--accent)}
+.mchip{background:var(--card);border:1px solid var(--line);border-radius:var(--r-sm);padding:10px 12px;
+  font-size:13px;cursor:pointer;text-align:left;color:var(--fg);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  transition:border-color .18s ease,background .18s ease,opacity .18s ease}
+.mchip:hover{border-color:var(--accent);background:var(--card2)}
 .mchip.on{border-color:var(--accent);background:var(--card2);box-shadow:0 0 0 1px var(--accent) inset}
 .mchip.off{opacity:.55;border-style:dashed}
-.item{background:var(--card2);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:10px}
+.item{background:var(--card2);border:1px solid var(--line);border-radius:var(--r-md);padding:14px;margin-bottom:10px;
+  transition:border-color .18s ease}
+.item:hover{border-color:#333846}
 .item .top{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
-.item .name{font-weight:600;font-size:14.5px}
-.item .meta{font-size:12px;color:var(--muted);margin-top:3px}
+.item .name{font-weight:620;font-size:14.5px;letter-spacing:.1px}
+.item .meta{font-size:12px;color:var(--muted);margin-top:4px;line-height:1.5}
 .empty{color:var(--muted);font-size:13.5px;text-align:center;padding:26px 0}
+/* [2026-10-03] 顶部状态条：把"线上现在是什么状态"提到第一屏。
+   只用项目已有的语义色（ok 绿 / accent 紫 / muted 灰），不引入新色。 */
+.statusbar{display:flex;flex-wrap:wrap;gap:7px;margin:0 0 16px}
+.pill{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;color:var(--muted);
+  background:var(--card);border:1px solid var(--line);border-radius:99px;padding:6px 12px;white-space:nowrap}
+.pill.on{color:var(--text);border-color:#333846}
+.pill.on::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--ok);flex:0 0 6px}
+.hd{margin-bottom:14px}
 .toast{position:fixed;left:50%;bottom:32px;transform:translateX(-50%) translateY(20px);
   background:#252932;border:1px solid var(--line);color:var(--text);padding:12px 20px;border-radius:12px;
   font-size:14px;opacity:0;pointer-events:none;transition:opacity .24s ease,transform .24s cubic-bezier(.2,.8,.2,1);
@@ -90,18 +120,26 @@ button:active{transform:scale(.975)}
 .toast.ok{border-color:rgba(61,220,151,.5)}
 .toast.err{border-color:rgba(255,92,92,.5)}
 .hide{display:none!important}
-.tabs{display:flex;gap:6px;background:var(--card);border:1px solid var(--line);border-radius:12px;
-  padding:5px;margin-bottom:14px;overflow-x:auto}
-.tab{flex:1;min-width:78px;text-align:center;padding:9px 6px;border-radius:9px;font-size:13.5px;
-  color:var(--muted);cursor:pointer;white-space:nowrap;transition:background .18s ease,color .18s ease}
-.tab.active{background:var(--card2);color:var(--text);font-weight:600}
+/* Tab 栏：活性指示从"整块换底色"改成**下划线 + 提亮**（更轻，也更像成熟的工具后台）。
+   横向滚动保留（5 个标签在窄屏仍然放不下）。 */
+.tabs{display:flex;gap:4px;background:var(--card);border:1px solid var(--line);border-radius:var(--r-md);
+  padding:5px;margin-bottom:16px;overflow-x:auto;scrollbar-width:none;box-shadow:var(--sh-1)}
+.tabs::-webkit-scrollbar{display:none}
+.tab{flex:1;min-width:84px;text-align:center;padding:10px 8px;border-radius:var(--r-sm);font-size:13.5px;
+  color:var(--muted);cursor:pointer;white-space:nowrap;font-weight:500;
+  transition:background .18s ease,color .18s ease;position:relative}
+.tab:hover{color:var(--text);background:var(--card2)}
+.tab.active{background:var(--card2);color:var(--text);font-weight:620;box-shadow:inset 0 -2px 0 var(--accent)}
 .login{max-width:380px;margin:12vh auto 0}
 .login h1{text-align:center;font-size:22px}
 .login .sub{text-align:center}
 .spin{display:inline-block;width:15px;height:15px;border:2px solid rgba(255,255,255,.3);
   border-top-color:#fff;border-radius:50%;animation:sp .7s linear infinite;vertical-align:-2px}
 @keyframes sp{to{transform:rotate(360deg)}}
-@media(max-width:520px){.wrap{padding:16px 12px 70px}h1{font-size:18px}}
+@media(max-width:520px){.wrap{padding:16px 12px 70px}h1{font-size:18px}
+  .card{padding:15px;border-radius:var(--r-sm)}
+  .row>*{min-width:0}
+  .item .top{flex-direction:column}}
 </style>
 </head>
 <body>
@@ -261,10 +299,34 @@ async function uploadApk(file, filename){
 
 /* ---------- 骨架 ---------- */
 const TABS = ["总控","AI 渠道","版本","公告","更新记录"];
+/**
+ * [2026-10-03 视觉重置] 外壳：加一条**实时状态条**，把"现在线上是什么状态"直接摆在最上面。
+ *
+ * 为什么值得加（不是装饰）：这个后台最危险的误操作是「在维护模式开着的时候发版」
+ * 或「不知道当前线上是哪个版本就点了发布」。原来这些信息散在各 tab 里，
+ * 要点进去才知道。状态条把它提到第一屏，改一个字符的成本都没有。
+ */
+function statusStrip(){
+  const c = cache.control || {};
+  const maint = !!c.maintenanceOn || !!c.blocked;
+  const r = cache.release ? relFields(cache.release) : null;
+  const n = (cache.notice || []).filter(x => x.enabled !== false).length;
+  const pill = (on, label) =>
+    `<span class="pill${on ? " on" : ""}">${esc(label)}</span>`;
+  return `<div class="statusbar">
+    ${pill(!maint, maint ? "维护中 · 用户被拦住" : "正常运行")}
+    ${pill(true, r ? "线上版本 " + r.versionName + "（序号 " + r.versionCode + "）" : "线上没有版本记录")}
+    ${pill(true, n > 0 ? "生效公告 " + n + " 条" : "没有生效公告")}
+  </div>`;
+}
+
 function renderShell(){
   $("#app").innerHTML = `
-  <h1>东方无限 · 控制台</h1>
-  <p class="sub">在这里修改的内容，用户打开软件后会自动同步</p>
+  <div class="hd">
+    <h1>东方无限 · 控制台</h1>
+    <p class="sub">在这里修改的内容，用户打开软件后会自动同步</p>
+  </div>
+  ${statusStrip()}
   <div class="tabs" id="tabs">
     ${TABS.map(t => `<div class="tab${t===tab?" active":""}" data-t="${t}">${t}</div>`).join("")}
   </div>

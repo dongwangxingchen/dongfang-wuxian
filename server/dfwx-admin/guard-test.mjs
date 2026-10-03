@@ -306,6 +306,78 @@ check("守卫本身有效：故意抽掉一个变量定义时，它能检出", (
   if (fakeDefined.has("--accent")) throw new Error("抽掉后不该还在集合里");
 });
 
+/* ---------------- [2026-10-03] 顶部状态条 ----------------
+ *
+ * statusStrip() 是这一轮新加的，它把「线上现在是什么状态」提到第一屏。
+ * 它值得守卫的理由：**这个后台最危险的误操作是"不知道当前线上是什么就点了发布"**，
+ * 状态条就是防这个的。它一旦渲染错了（比如维护中却显示"正常运行"），
+ * 比没有这条还糟 —— 会给人错误的安全感。
+ */
+const statusStripSrc = (() => {
+  const escFn = extractFunction(html, "esc");
+  const relFn = extractFunction(html, "relFields");
+  const stripFn = extractFunction(html, "statusStrip");
+  /*
+   * statusStrip() **读的是全局 `cache`**（同文件其它渲染函数也都是这个风格），
+   * 所以桩必须把 `cache` 注入到**同一个作用域**里，而不是当成参数传。
+   * 第一版当成参数传，四条断言直接报 `out.includes is not a function` ——
+   * 那不是产品坏了，是我的桩搭错了。这里改成把 cache 作为形参名注入工厂作用域。
+   */
+  return new Function("cache", escFn + "\n\n" + relFn + "\n\n" + stripFn + "\n\nreturn statusStrip;");
+})();
+/*
+ * 注意这里要**调用两次**：工厂(cache) → statusStrip 函数 → () → 渲染出来的 HTML。
+ * 第一版漏了最后那次调用，于是 makeStatusStrip 返回的是函数、不是字符串，
+ * 断言全报 `out.includes is not a function`。那是**测试桩的错，不是产品的错**。
+ */
+const makeStatusStrip = cache => statusStripSrc(cache)();
+
+check("状态条：维护开启时不许显示「正常运行」", () => {
+  for (const ctl of [{ maintenanceOn: true }, { blocked: true }, { maintenanceOn: true, blocked: true }]) {
+    const out = makeStatusStrip({ control: ctl, release: { versionName: "1.0.0", versionCode: 10000 }, notice: [] });
+    if (!out.includes("维护中")) throw new Error("维护开启却没显示「维护中」：" + out);
+    if (out.includes("正常运行")) throw new Error("维护开启时**同时**出现了「正常运行」，会误导操作者：" + out);
+  }
+});
+
+check("状态条：正常时显示「正常运行」，且版本名与序号都要出现", () => {
+  const out = makeStatusStrip({
+    control: { maintenanceOn: false, blocked: false },
+    release: { versionName: "1.0.0", versionCode: 10000 },
+    notice: [],
+  });
+  assertIncludes(out, "正常运行");
+  assertIncludes(out, "1.0.0");
+  assertIncludes(out, "10000");
+  if (out.includes("维护中")) throw new Error("没开维护却显示了「维护中」：" + out);
+});
+
+check("状态条：没有版本记录时必须明说，不许装作有版本", () => {
+  const out = makeStatusStrip({ control: {}, release: null, notice: [] });
+  assertIncludes(out, "没有版本记录");
+});
+
+check("状态条：只数**生效**的公告（enabled!==false）", () => {
+  const out = makeStatusStrip({
+    control: {}, release: null,
+    notice: [{ enabled: true }, { enabled: false }, { enabled: true }, {}],
+  });
+  // enabled:true ×2 + 缺字段按生效 ×1 = 3；enabled:false 那条不算
+  assertIncludes(out, "生效公告 3 条");
+});
+
+check("状态条：一条生效公告都没有时明说，不显示「0 条」", () => {
+  const out = makeStatusStrip({ control: {}, release: null, notice: [{ enabled: false }] });
+  assertIncludes(out, "没有生效公告");
+});
+
+check("状态条：cache 字段缺失/为 null 也不许抛错（首屏可能还没拉到数据）", () => {
+  for (const c of [{}, { control: null, release: null, notice: null }, { control: undefined, notice: undefined }]) {
+    const out = makeStatusStrip(c);
+    if (typeof out !== "string" || out.length === 0) throw new Error("空 cache 返回了空：" + JSON.stringify(c));
+  }
+});
+
 /* ---------------- 输出 ---------------- */
 console.log(results.join("\n"));
 console.log("\n文件：" + htmlPath);
