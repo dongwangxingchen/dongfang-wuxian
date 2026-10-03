@@ -14,12 +14,29 @@ sudo VER=1.0.22 CODE=10022 SHA=<64位十六进制> SIZE=36824453 python3 set-rel
 ## 铁律
 - **口令永不打印**（只从 `/root/.dfwx-pb-admin-pass` 读）
 - 版本序号**只增不减**：传进来的值比记录里小就拒绝，避免把用户锁在"已是最新"
-- `apkUrl` 用 **https**（[2026-10-03 更正] 这里原来写的是"故意是 http"，
-  但代码从 `e989868` 起写的就是 https —— **注释和代码互相矛盾了几个月**）。
-  之所以敢用 https：用户真机实测**已经成功从 https 下载过**（2026-10-03 那次
-  "下载失败·更新包校验未通过"是**下载成功之后**的校验环节报的，说明 TLS 这一关过了）。
-  兜底也在：`UpdateClient.isAllowedDownloadUrl` 对自有服务器**http/https 都收**，
-  万一将来某台设备不认那张 IP 证书，把这里改回 http **不需要重新出包**。
+- `apkUrl` 用 **http**（[2026-10-03 用户拍板]）
+
+  ⚠️ 这一条**来回翻过三次**，把最终依据记全，别再翻案：
+
+  | 时间 | 结论 | 依据 |
+  |---|---|---|
+  | 早期 | http | 注释写的，但**代码从 `e989868` 起就是 https**，注释和代码矛盾了几个月 |
+  | 10-03 白天 | https | 真机实测**确认 https 能下**：那次「更新包校验未通过」是**下载成功之后**的校验环节报的，说明 TLS 这一关过了 |
+  | 10-03 晚 | **http（定案）** | 见下 |
+
+  **为什么最终选 http —— 不是因为 https 不能下，而是因为它有一个会过期的东西：**
+
+  那张证书是 Let's Encrypt 签的 **IP 证书**（SAN 是 `IP Address:39.106.33.135`，不是域名），
+  实测有效期**只有 6 天**（域名证书是 90 天）。它必须一天不停地自动续期，
+  **一天没续上，用户就下不了更新**。http 不需要证书，没有「到期」这回事。
+
+  而且 https 在这个场景下基本是白挂的：**软件读「版本信息 + 校验值」那一步走的是
+  `http://39.106.33.135/pb`**（`RemoteConfigClient.BASE`，本来就是明文）。
+  能篡改下载地址的人，同时就能把校验值一起改掉。真正拦住坏包的是**签名校验**，与传输层无关。
+
+  **代价是零**：`UpdateClient.isAllowedDownloadUrl`（`UpdateClient.java:203-212`）
+  对自有服务器 **http 与 https 都收**，所以切换**不需要重新出包**，
+  已经装在用户手机上的旧版照样能下。
 """
 import json
 import os
@@ -29,6 +46,11 @@ import urllib.request
 PB = "http://127.0.0.1:8090"
 PASS_FILE = "/root/.dfwx-pb-admin-pass"
 IDENTITY = "dongfang@dfwx.local"
+# 安装包对外的地址前缀。**http，不是 https** —— 完整理由见文件头「铁律」第二条。
+# 这里抽成常量是为了**能被跨文件检查盯住**：`server/dfwx-admin/pan_render_test.mjs`
+# 会把它和控制台里的 `APK_ORIGIN`、上传服务返回的 `"url"` 三处放在一起比，
+# 不一致就红。当初就是这几处漂移了（控制台 https、服务端 http），谁都没发现。
+APK_ORIGIN = "http://39.106.33.135"
 
 
 def req(method, path, token=None, body=None):
@@ -92,7 +114,7 @@ def main():
     body = {
         "versionName": ver,
         "versionCode": code,
-        "apkUrl": "https://39.106.33.135/apk/dongfang-wuxian-v%s.apk" % ver,
+        "apkUrl": APK_ORIGIN + "/apk/dongfang-wuxian-v%s.apk" % ver,
         "sha256": sha,
         "size": size,
     }
