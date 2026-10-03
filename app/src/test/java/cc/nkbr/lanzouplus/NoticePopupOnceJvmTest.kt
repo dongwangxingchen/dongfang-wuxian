@@ -42,7 +42,7 @@ class NoticePopupOnceJvmTest {
 
     private fun snapshot(vararg notices: RemoteConfigClient.Notice, reachable: Boolean = true) =
         RemoteConfigClient.Snapshot(
-            reachable, RemoteConfigClient.Control.normal(), null, notices.toList(), emptyList(),
+            reachable, reachable, RemoteConfigClient.Control.normal(), null, notices.toList(), emptyList(),
         )
 
     // ── 核心：拿不到后台数据时绝不能清理已读 ────────────────────────────────

@@ -181,7 +181,7 @@ class NoticeDialogJvmTest {
     fun dialog_marksTheNoticeRead_soOnceModeDoesNotRepeat() {
         val a = activity()
         a.noticeSnapshot = RemoteConfigClient.Snapshot(
-            true, RemoteConfigClient.Control.normal(), null,
+            true, true, RemoteConfigClient.Control.normal(), null,
             listOf(notice(id = "once", mode = RemoteConfigClient.Notice.MODE_ONCE)), emptyList(),
         )
         assertEquals("前置：未读时应是弹窗候选", 1, a.noticeCenter().popupNotices(a.noticeSnapshot).size)

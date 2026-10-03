@@ -57,7 +57,7 @@ class ChangelogJvmTest {
 
     private fun snapshot(reachable: Boolean, entries: List<RemoteConfigClient.Changelog>) =
         RemoteConfigClient.Snapshot(
-            reachable,
+            reachable, reachable,
             RemoteConfigClient.Control.normal(),
             null,
             emptyList(),

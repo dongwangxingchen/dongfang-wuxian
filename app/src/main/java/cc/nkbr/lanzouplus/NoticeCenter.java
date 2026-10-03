@@ -108,13 +108,24 @@ final class NoticeCenter {
    */
   private Set<String> prunedReadIds(RemoteConfigClient.Snapshot snapshot) {
     Set<String> read = store.readIds();
-    // **拿不到后台数据时绝不能清理**：`snapshot == null` 或 `reachable == false` 表示
-    // "还不知道后台有哪些公告"，而不是"公告都被删了"。旧实现把这两件事当成同一件，
+    // **拿不到"后台到底有哪些公告"时绝不能清理**。旧实现把这件事当成"公告都被删了"，
     // 于是这条链路会**每次启动都把已读集合清空并写盘**：
     //   showHomeLanding() → refreshNoticeBell() → unreadCount(null) → 这里 → 清空
     // 等公告拉回来时它又变成"未读" → 又弹一次。用户 2026-10-01 反馈的
     // "发布后只弹一次你没做"就是它——不是没写模式，是已读状态每次开机都被抹掉。
-    if (snapshot == null || !snapshot.reachable) return read;
+    //
+    // [2026-10-03 修第二个漏洞] 上次只堵住了 `snapshot == null` 这一种，
+    // 用的是 `!snapshot.reachable` —— 但 **`reachable` 的语义是"四个集合里任意一个拉到了"**
+    // （`RemoteConfigClient.fetch` 里 `anyOk` 的赋值，那边注释也写明了）。
+    // 于是还有一个洞：**公告这一路单独失败、其余三路正常**时 `reachable=true`，
+    // 而 `notices` 是空表 → `alive` 为空 → `read.retainAll(空)` → 已读集合被清空并落盘。
+    // 触发条件很日常：公告接口超时/返回非 200/格式坏（`get()` 这些情况都抛 IOException，
+    // 被 fetch 的 catch 吞掉），而 control/release/changelog 正常。
+    //
+    // 现在改用 `noticeOk`：它**只**代表"公告这一路自己成功了"。
+    //   · noticeOk=false → 不知道后台有哪些公告 → 一律不动已读集合（fail-safe）；
+    //   · noticeOk=true 且公告为空 → 后台确实清空了公告 → 正常做垃圾回收。
+    if (snapshot == null || !snapshot.noticeOk) return read;
     Set<String> alive = new LinkedHashSet<>();
     for (RemoteConfigClient.Notice notice : visible(snapshot)) alive.add(notice.id);
     if (read.retainAll(alive)) store.setReadIds(read);

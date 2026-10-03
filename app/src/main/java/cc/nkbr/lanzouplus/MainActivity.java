@@ -336,7 +336,33 @@ loadSearchSettings();applyUserAgentSettings();detectWeakDevice();installBackAnim
     // 幂等且放后台线程，避免每次回前台都在主线程做文件 IO。
     if(!crashFolderEnsured&&storageAccessGranted()){crashFolderEnsured=true;io.execute(this::ensureCrashFolder);}if(manageAllFilesSettingsPending&&Build.VERSION.SDK_INT>=30){manageAllFilesSettingsPending=false;boolean startup=manageAllFilesStartupFlow;manageAllFilesStartupFlow=false;if(Environment.isExternalStorageManager()){ensureCrashFolder();runPendingStorageAccessActions();}else{pendingStorageAccessActions.clear();showNotice("未获得管理所有文件权限；下载、更新、删除和自定义路径可能不可用",true);}if(startup)ui.post(this::maybeRequestBatteryExemption);}if(pendingInstallEntry!=null&&(Build.VERSION.SDK_INT<26||getPackageManager().canRequestPackageInstalls())){DownloadEntry ready=pendingInstallEntry;pendingInstallEntry=null;ui.post(()->installEntryWithSystemInstaller(ready));}}
   final List<Models.Source> libraries=new ArrayList<>();final Map<String,String> libraryNames=new HashMap<>();
-  static volatile boolean LIBRARY_AUTO_IMPORT=true;// v1.19.0：JVM 回归测试置 false 静默批量导入（85 源真实网络探测不能进测试）
+  /**
+   * 是否允许「85 个内置软件源」的自动批量导入。
+   *
+   * [2026-10-03 修测试偷偷联网] 这个开关原来是 `= true`，**靠 44 个测试类各自在
+   * `@BeforeClass` 里置 false 来压制**。但那是"每个测试自己记得关"，必然漏：
+   * 实测有 5 个类会启动完整 `MainActivity.setup()` 却**没设**它
+   * （`DfLogWiringJvmTest` / `CrashReportExportJvmTest` / `SettingsStructureTest` /
+   *  `SearchPageBudgetJvmTest` / `AiPermissionGateJvmTest`）。
+   *
+   * 更隐蔽的是**它看起来是好的**：`app/build.gradle.kts:122` 是 `forkEvery = 24`，
+   * 24 个测试类共用一个 JVM —— 只要同批里**前面**有一个类置过 false，静态字段就一直是 false，
+   * 后面这 5 个类跟着白蹭，全量跑往往看不出来。
+   * 但 `bash tools/run-tests.sh --class SearchPageBudgetJvmTest` **单跑就现原形**：
+   * 走 `MainActivity:349` 的自动导入 → `LanzouCore.addUserSourcesBatch` →
+   * `probeSingleSource` → **对 85 个源发真实网络请求**。
+   * 而 `run-tests.sh` 的 `--class` 恰恰是主要用法。
+   *
+   * 这正是 DFW-124（"测试偶发失败"）的**第二条联网路径** —— 当时只堵了
+   * `RemoteConfigClient.get()` 那一个咽喉，`LanzouCore` 全文 `isJvmUnitTest` 出现 0 次。
+   *
+   * 修法：默认值直接取**唯一那份判据** `App.isJvmUnitTest()`
+   * （`App.java` 的 javadoc 明确写了"判据只有这一处实现，不要在别处再抄一份"）。
+   * 线上 APK 里 classpath 没有 Robolectric → `isJvmUnitTest()=false` → 这里为 true，行为不变；
+   * 测试里恒为 false，**不再依赖任何测试类"记得关"**。
+   * 44 个 `@BeforeClass` 里现有的 `= false` 保留不动（它们是显式声明，无害）。
+   */
+  static volatile boolean LIBRARY_AUTO_IMPORT=!App.isJvmUnitTest();
   void loadRecommendations(){
     List<Models.Source> values=core.recommendations();
     libraries.clear();libraryNames.clear();libraries.addAll(values);
