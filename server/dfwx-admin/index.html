@@ -12,6 +12,17 @@
   --text:#eceff4; --muted:#8e96a5; --accent:#7c6df2; --accent2:#6a5ae0;
   --ok:#3ddc97; --warn:#ffb020; --danger:#ff5c5c;
   --r:14px;
+  /* [2026-10-03] 补齐三个**一直被引用、却从没定义**的变量。
+     这是一个真 bug，不是风格问题：CSS 的 `var()` 在「变量未定义 + 没写回退值」时，
+     **整条声明会被丢弃**（不是回退成 inherit），所以它坏得很安静。
+     实测影响 4 处：
+       · `.btn-ghost` / `.mchip` 的 `color:var(--fg)` → 失效 → 文字回落成浏览器默认黑，
+         在 #0f1013 深色底上几乎看不见（观感就是「后台有按钮是空的 / 没做完」）；
+       · `:956` 与 `:993` 两个 `<select>` 行内的 `background:var(--surface2)`
+         与 `border:1px solid var(--border)` → 全失效 → 下拉框变成**白底无边框**，
+         在深色页面里视觉完全断裂。
+     三个值都直接取本文件已有的面/描边阶梯，不引入任何新颜色。 */
+  --fg:var(--text); --surface2:var(--card2); --border:var(--line);
 }
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{margin:0;padding:0;background:var(--bg);color:var(--text);

@@ -90,39 +90,74 @@ class DownloadActionRowJvmTest {
         idle()
         val a = controller.get()
 
-        // ① 空历史：整行不出现（暂停/取消都没有对象，更多里的删除两项也是空操作）
+        // ① 空历史：整行不出现（暂停/取消都没有对象），页头 ⋮ 也隐藏（菜单三项同为空操作）
         a.showDownloads()
         idle()
         assertEquals("空历史时不该摆出一排点了没反应的按钮", View.GONE, a.downloadActionRowView.visibility)
+        assertEquals("空历史时页头 ⋮ 也该隐藏", View.GONE, a.downloadHeaderMenuButton.visibility)
 
-        // ② 有进行中的任务：三个带文字的胶囊，文案各不相同
+        // ② 有进行中的任务：两颗带文字的胶囊，文案各不相同
         a.downloadEntries.add(entry("无限画质增强器_v2.3.1.apk", MainActivity.DOWNLOAD_RUNNING, 47))
         a.showDownloads()
         idle()
         assertEquals(View.VISIBLE, a.downloadActionRowView.visibility)
-        assertEquals(listOf("暂停全部", "取消全部", "更多"), visibleChipLabels(a))
+        assertEquals(listOf("暂停全部", "取消全部"), visibleChipLabels(a))
+        assertEquals("有记录时页头 ⋮ 必须出现（删除类操作全在它里面）", View.VISIBLE, a.downloadHeaderMenuButton.visibility)
 
         // ③ 全部已暂停：左胶囊必须改口叫「继续全部」——它点下去执行的是 resumeAllPaused。
         //    改前的实现把标签写死成「暂停全部」，点下去却是继续，属于「标签与动作不符」。
         for (e in a.downloadEntries) e.state = MainActivity.DOWNLOAD_PAUSED
         a.showDownloads()
         idle()
-        assertEquals(listOf("继续全部", "取消全部", "更多"), visibleChipLabels(a))
+        assertEquals(listOf("继续全部", "取消全部"), visibleChipLabels(a))
         assertEquals("继续全部", chipLabel(a.downloadPauseControlButton))
 
-        // ④ 全部结束：暂停/取消都该消失，只留「更多」；文案要能和左边的区分开
+        // ④ [DFW-113 2026-10-03 重做] 全部结束：**整行隐藏**（不再只留一颗孤零零的「更多」）。
+        //    这是用户真机截图的直接来源：改前这一行会 VISIBLE 但只剩「更多」贴在最右，
+        //    看着就是「那两个字按钮崩坏了、位置都错误了」。现在它彻底不出现，高度还给列表。
         for (e in a.downloadEntries) e.state = MainActivity.DOWNLOAD_COMPLETED
         a.showDownloads()
         idle()
-        assertEquals(View.VISIBLE, a.downloadActionRowView.visibility)
-        assertEquals(listOf("更多"), visibleChipLabels(a))
+        assertEquals("没有在跑的任务时整行必须隐藏（不再留孤零零的「更多」）", View.GONE, a.downloadActionRowView.visibility)
+        assertEquals("确认这一行里一颗胶囊都不剩", emptyList<String>(), visibleChipLabels(a))
+        assertEquals("但页头 ⋮ 必须还在——删除类操作不能跟着一起消失", View.VISIBLE, a.downloadHeaderMenuButton.visibility)
 
         // ⑤ 回到有进行中：胶囊必须回来（证明 ④ 是状态驱动而不是一次性隐藏）
         a.downloadEntries.add(entry("新任务.zip", MainActivity.DOWNLOAD_RUNNING, 3))
         a.showDownloads()
         idle()
-        assertEquals(listOf("暂停全部", "取消全部", "更多"), visibleChipLabels(a))
+        assertEquals(listOf("暂停全部", "取消全部"), visibleChipLabels(a))
 
+        controller.destroy()
+    }
+
+    /**
+     * [DFW-113 2026-10-03] 页头 ⋮ 必须真的能打开那个清理菜单。
+     *
+     * 为什么单独立一条：「更多」从列表上方的操作行搬进页头，是本轮**唯一**的功能入口迁移。
+     * 只断言 `downloadHeaderMenuButton` 存在是不够的 —— 按钮在、点击没接上，用户就再也删不掉记录。
+     */
+    @Test
+    fun theHeaderOverflowButtonActuallyOpensTheCleanupMenu() {
+        val controller = Robolectric.buildActivity(MainActivity::class.java)
+        controller.setup()
+        idle()
+        val a = controller.get()
+        a.downloadEntries.add(entry("测试包.zip", MainActivity.DOWNLOAD_COMPLETED, 100))
+        a.showDownloads()
+        idle()
+
+        val button = a.downloadHeaderMenuButton
+        assertEquals(View.VISIBLE, button.visibility)
+        button.performClick()
+        idle()
+
+        val dialog = ShadowDialog.getLatestDialog() as AlertDialog
+        assertTrue("点页头 ⋮ 必须真的弹出清理菜单", dialog.isShowing)
+        val labels = texts(dialog.window!!.decorView)
+        for (expected in listOf("删除全部记录", "删除全部文件", "清除保存的分享密码")) {
+            assertTrue("菜单里必须有「$expected」这一行：$labels", labels.contains(expected))
+        }
         controller.destroy()
     }
 

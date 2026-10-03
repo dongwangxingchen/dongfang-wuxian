@@ -249,6 +249,63 @@ check("没有当前版本时（r=null）预填为 0，提示走「必须是正�
   assertIncludes(renderHint(null), "必须是个正整数");
 });
 
+/* ---------------- [2026-10-03] CSS 变量完整性守卫 ----------------
+ *
+ * 为什么值得单独立一组：CSS 的 `var()` 在「引用的变量没定义 + 没写回退值」时，
+ * **整条声明会被静默丢弃**（不是回退成 inherit，也不报错）。
+ * 于是症状是"某几个控件颜色不对/边框没了"，但代码里看起来一切正常。
+ *
+ * 真实的失败模式（本轮修掉的）：
+ *   · `.btn-ghost` / `.mchip` 写 `color:var(--fg)`，而 `--fg` 从没定义
+ *     → 文字颜色失效 → 回落成浏览器默认黑，在 #0f1013 深色底上几乎看不见；
+ *   · 两处 `<select>` 行内写 `background:var(--surface2)` + `border:…var(--border)`
+ *     → 全失效 → 下拉框白底无边框，深色页面里视觉断裂。
+ *
+ * 这条守卫的做法：把 `<style>` 里所有 `--x: ...` 收成"已定义"集合，
+ * 再把全文件（含行内 style）里所有 `var(--x)` 收成"被引用"集合，
+ * **引用减定义必须为空**。`var(--x, fallback)` 形式自带回退值，不算违规。
+ */
+const cssRootVars = (() => {
+  const styleMatch = html.match(/<style>([\s\S]*?)<\/style>/);
+  if (!styleMatch) throw new Error("找不到 <style> 块");
+  const style = styleMatch[1];
+  const defined = new Set();
+  for (const m of style.matchAll(/(--[a-zA-Z0-9-]+)\s*:/g)) defined.add(m[1]);
+  const missing = new Map();
+  // 扫描**全文件**（含 HTML 行内 style=）；带 fallback 的 var() 不参与。
+  for (const m of html.matchAll(/var\(\s*(--[a-zA-Z0-9-]+)\s*([,)])/g)) {
+    const name = m[1];
+    const hasFallback = m[2] === ",";
+    if (hasFallback) continue;          // var(--x, 回退值) —— 变量缺失也有兜底
+    if (defined.has(name)) continue;
+    missing.set(name, (missing.get(name) || 0) + 1);
+  }
+  return { defined, missing };
+})();
+
+check("CSS 里没有「引用了但从未定义」的变量（var() 会让整条声明静默失效）", () => {
+  const { missing } = cssRootVars;
+  if (missing.size > 0) {
+    const detail = [...missing.entries()].map(([n, c]) => n + "（被引用 " + c + " 次）").join("、");
+    throw new Error(
+      "以下变量被 var() 引用但没有定义，会导致对应声明整条失效：" + detail +
+      "。修法：在 :root 里定义它，或给 var() 加回退值 var(--x, 某值)"
+    );
+  }
+});
+
+check("守卫本身有效：故意抽掉一个变量定义时，它能检出", () => {
+  // 反向探针写进测试里 —— 保证上面那条不是"永远为真"的空断言。
+  const { defined } = cssRootVars;
+  if (!defined.has("--accent")) throw new Error("--accent 应当是已定义变量，守卫的取样有问题");
+  const fakeDefined = new Set(defined);
+  fakeDefined.delete("--accent");
+  const stillReferenced = [...html.matchAll(/var\(\s*(--accent)\s*([,)])/g)]
+    .some(m => m[2] === ")" );
+  if (!stillReferenced) throw new Error("--accent 应当有无回退值的引用，反向探针无从成立");
+  if (fakeDefined.has("--accent")) throw new Error("抽掉后不该还在集合里");
+});
+
 /* ---------------- 输出 ---------------- */
 console.log(results.join("\n"));
 console.log("\n文件：" + htmlPath);
