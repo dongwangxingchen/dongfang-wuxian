@@ -54,10 +54,34 @@ input[type=text],input[type=number],input[type=password],textarea,select{
 input:hover,textarea:hover,select:hover{border-color:#333846}
 input:focus,textarea:focus,select:focus{border-color:var(--accent);box-shadow:var(--focus)}
 textarea{min-height:96px;resize:vertical;line-height:1.55}
+/* [task-12 缺陷3] 原生文件选择器原来完全没样式化：实测 253×21、背景透明、文字色 rgb(242,244,248)
+   → 在深色主题下浏览器把它画成**白底白字**的「Choose File / No file chosen」，等于看不见。
+   这里把它拉进同一套 token（面 + 描边 + 圆角），并单独样式化内部那个按钮。
+   注意：`::file-selector-button` 是标准写法（Chrome 89+），`::-webkit-file-upload-button` 是老别名。 */
+input[type=file]{width:100%;background:var(--card2);border:1px dashed var(--line);border-radius:var(--r-sm);
+  color:var(--muted);padding:10px 12px;font-size:13px;font-family:inherit;line-height:1.5;cursor:pointer;
+  transition:border-color .18s ease,background .18s ease}
+input[type=file]:hover{border-color:var(--accent)}
+input[type=file]::file-selector-button{font-family:inherit;font-size:13.5px;font-weight:560;
+  background:var(--card);color:var(--text);border:1px solid var(--line);border-radius:8px;
+  padding:9px 14px;margin:0 12px 0 0;cursor:pointer;
+  transition:border-color .18s ease,background .18s ease}
+input[type=file]::file-selector-button:hover{border-color:var(--accent);background:var(--card2)}
+/* [task-12 缺陷4/5] 长值字段（sha256 / 下载地址）。
+   实测 390px：`#sh` 内容宽 575 > 可见 332、`#au` 399 > 332 —— 单行 input 装不下，
+   用户根本看不到自己发的到底是哪个哈希/哪个地址。改成会**自动换行**的多行框，
+   并用等宽字体，这样 64 位哈希能整段读完、也方便逐段核对。 */
+textarea.mono{min-height:0;height:auto;resize:vertical;
+  font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12.5px;line-height:1.55;
+  word-break:break-all;overflow-wrap:anywhere;letter-spacing:.2px}
 select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,var(--muted) 50%),linear-gradient(135deg,var(--muted) 50%,transparent 50%);
   background-position:calc(100% - 18px) 20px,calc(100% - 13px) 20px;background-size:5px 5px;background-repeat:no-repeat;padding-right:36px}
 button{font-family:inherit;font-size:15px;font-weight:570;border:none;border-radius:var(--r-sm);
-  padding:12px 18px;cursor:pointer;transition:transform .12s ease,opacity .18s ease,background .18s ease,box-shadow .18s ease}
+  padding:12px 18px;cursor:pointer;transition:transform .12s ease,opacity .18s ease,background .18s ease,box-shadow .18s ease;
+  /* [task-12 缺陷2] 按钮文字**永不换行**。
+     实测（390px）：「换成「永久」」被挤成 68px 高 × 95px 宽 = 文字折成两行。
+     配合下面 .row 的 min-width 让按钮**换行到下一行**，而不是把文字压成两行。 */
+  white-space:nowrap}
 button:active{transform:scale(.975)}
 button:disabled{opacity:.62;cursor:default}
 .btn-main{background:var(--grad);color:#fff;width:100%;box-shadow:0 4px 14px -6px rgba(124,109,242,.75)}
@@ -67,11 +91,37 @@ button:disabled{opacity:.62;cursor:default}
 .btn-danger{background:rgba(255,92,92,.14);color:var(--danger);border:1px solid rgba(255,92,92,.3)}
 .btn-danger:hover:not(:disabled){background:rgba(255,92,92,.2)}
 .row{display:flex;gap:10px;flex-wrap:wrap}
-.row>*{flex:1;min-width:120px}
+/* [task-12 缺陷2 + 遗留1] 按钮排布。
+ *
+ * 缺陷2 的根因：窄屏媒体查询里把下限抹成 `min-width:0`，三个按钮挤进一行、每个 95px
+ * → 文字被迫折行。第一版修法是给 120px 下限，但那样会引出**层级反了**的新问题：
+ * 三个按钮放不下时最后一个独占下一行**整行**，而它通常正是破坏性的「删除」——
+ * 于是最危险的按钮成了整行最显眼的东西。用户原话「不要搞的一堆的崩坏界面」。
+ *
+ * 现在的规则：
+ *   ① 每个按钮**保持自己的内容宽度**（`flex:0 1 auto` + `min-width:auto`），谁也不许被拉伸；
+ *   ② 放不下就换行，换行后每个仍是内容宽、左对齐 —— 不会再有"最后一个吃满剩余宽度"；
+ *   ③ 破坏性按钮（删除）自然就是最窄的那一档，不再是最大的。
+ * `min-width:auto` 是 flex 项的默认值，这里写出来是因为**上一版正是在这里被改成 0 才出的问题**：
+ * 它保证按钮不会被压到比文字还窄（配合 `button{white-space:nowrap}` 即"宁可换行，不缩文字"）。
+ */
+.row>*{flex:0 1 auto;min-width:auto}
+/* `button.btn-main` 基类带 `width:100%`；作为 flex 项时 flex-basis:auto 会解析成整行宽，
+   必须覆盖，否则「编辑」这种主按钮又会把同行其他按钮挤走。 */
+.row>.btn-main{width:auto}
+/* 例外：整行只有**一个**按钮时（发布 / 保存 / 退出登录）仍然占满整行 —— 那是主行动作。
+   放在上面两条之后，同特异度靠顺序取胜。 */
+.row>:only-child{flex:1 1 auto;width:100%}
 .switch{display:flex;align-items:center;justify-content:space-between;gap:12px;
   background:var(--card2);border:1px solid var(--line);border-radius:var(--r-sm);padding:13px 15px;margin:10px 0;
   transition:border-color .18s ease}
 .switch:hover{border-color:#333846}
+/* [task-12 缺陷7] 「弹出方式」那一行被挤成"左侧说明 4 行 + 右侧 select 孤零零"。
+   根因不是说明太长，而是那个 <select> 继承了上面 `select{width:100%}`：
+   在 flex 行里它按 100% 抢宽，把左侧文字压扁。这里让它**按内容宽度**排。 */
+.switch select{width:auto;flex:0 0 auto;max-width:56%;padding:9px 34px 9px 12px;font-size:14px}
+/* 左侧文字块允许收缩（否则长说明会把 select 顶出去），但下限交给 flex 自己算 */
+.switch>div:first-child{min-width:0}
 .switch .t{font-size:14.5px;font-weight:520}
 .switch .d{font-size:12px;color:var(--muted);margin-top:2px;line-height:1.5}
 .tg{position:relative;width:50px;height:29px;flex:0 0 50px;border-radius:99px;
@@ -103,6 +153,12 @@ button:disabled{opacity:.62;cursor:default}
 .item .top{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
 .item .name{font-weight:620;font-size:14.5px;letter-spacing:.1px}
 .item .meta{font-size:12px;color:var(--muted);margin-top:4px;line-height:1.5}
+/* [task-12 缺陷6] 长 URL 断行。
+   原来这里是行内 `word-break:break-all`，它允许在**任意字符**处断，
+   于是 55 个字符的地址被切成「…dongfang-wuxian-v1.0.0.ap」+「k」——末行孤零零一个字。
+   现在：默认只在合理位置断（由 JS 插入的 <wbr> 提供断点），
+   万一某个 token 本身超长，再用 overflow-wrap:anywhere 兜底，保证**永远不会溢出**。 */
+.item .meta.url{overflow-wrap:anywhere;word-break:normal}
 .empty{color:var(--muted);font-size:13.5px;text-align:center;padding:26px 0}
 /* [2026-10-03] 顶部状态条：把"线上现在是什么状态"提到第一屏。
    只用项目已有的语义色（ok 绿 / accent 紫 / muted 灰），不引入新色。 */
@@ -136,9 +192,23 @@ button:disabled{opacity:.62;cursor:default}
 .spin{display:inline-block;width:15px;height:15px;border:2px solid rgba(255,255,255,.3);
   border-top-color:#fff;border-radius:50%;animation:sp .7s linear infinite;vertical-align:-2px}
 @keyframes sp{to{transform:rotate(360deg)}}
+/* [task-12] 窄屏（≤520px）适配。四个宽度 360/390/420/480 都要过验收。 */
 @media(max-width:520px){.wrap{padding:16px 12px 70px}h1{font-size:18px}
   .card{padding:15px;border-radius:var(--r-sm)}
-  .row>*{min-width:0}
+  /* [task-12 缺陷1] 标签条改成**换行成两排**，不再横向滚动。
+     原来 5 个标签 min-width:84px，合计 446px，而 390px 屏的容器只有 364px：
+     「更新记录」整个在屏幕外；overflow-x:auto 又没有任何视觉提示，
+     点了也不会把它滚进视野（360px 时是**两个**标签被切）。
+     换行之后五个标签**永远全部可见**，不依赖滚动，也就不需要"提示可滚动"。
+     每排 3 个：3×(33.333%−3px) + 2×4px 间隙 = 100%−1px，正好放得下。 */
+  .tabs{flex-wrap:wrap}
+  .tab{min-width:calc(33.333% - 3px);padding:10px 6px;font-size:13px}
+  /* [task-12 遗留1] 窄屏把按钮的左右内边距收一点：360px 下卡片内可用宽只有 278px，
+     而「编辑 + 换成「永久」+ 删除」三个内容宽合计约 258px，只剩 20px 余量。
+     收 4px/边 后合计约 234px，余量充足 —— 三个按钮能**稳定地排成一行**，
+     而不是在字体度量的边界上忽上忽下。
+     注意：`.btn-ghost` / `.mchip` 有自己的 padding（特异度更高），不受这条影响。 */
+  button{padding:12px 14px}
   .item .top{flex-direction:column}}
 </style>
 </head>
@@ -175,12 +245,58 @@ let adminUser = "dongfang@dfwx.local", adminPass = "";
 let tab = "总控";
 let cache = { control:null, release:null, notice:[], changelog:[],
   // [DFW-106] 发布历史。单独一个集合，**绝不混进 release**（理由见 renderRelease 上方的注释）。
-  history:[], histPage:1, histTotal:0, histPages:1, histMissing:false, histError:"" };
+  history:[], histPage:1, histTotal:0, histPages:1, histMissing:false, histError:"",
+  /*
+   * [task-12 公告分版本] notice 集合有没有 versionName 字段。
+   *
+   * 必须**探测**、不能直接发：实测 PocketBase 对未知字段是**静默忽略**的
+   * （带一个不存在的字段 POST → HTTP 200、字段被丢掉）。也就是说字段没建时，
+   * 控制台会显示"发布成功"、值却没存下来 —— 又一个静默失效。
+   * null = 还没探测出来。
+   */
+  noticeHasVersion:null, noticeSchemaError:"" };
 let pending = {};
+/** [task-12] 面板的 MutationObserver，见 renderShell 里的说明。 */
+let paneObserver = null;
 
 /* ---------- 小工具 ---------- */
 const $ = (s, r=document) => r.querySelector(s);
 function esc(s){ return String(s==null?"":s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+/**
+ * [task-12 缺陷6] 给长 URL 插**软断点**，让它在合理位置换行。
+ *
+ * 原来用 `word-break:break-all`，它允许在任意字符处断，于是 52 字符的下载地址
+ * 被切成「…dongfang-wuxian-v1.0.0.ap」+「k」——末行孤零零一个字母。
+ *
+ * 现在只在 `/` 之后插 `<wbr>`（**不是**每个标点都插）。
+ * 这一点是量出来的：如果在 `- . _ ? & =` 后面也插，浏览器会贪心地断在最后一个
+ * 刚好放得下的 `-` 或 `.` 上，末行只剩 `apk`（实测 20px）；
+ * 只在 `/` 后插，断点变少，浏览器只能断在最后那个 `/` 上，得到的是
+ *   `https://39.106.33.135/apk/` + `dongfang-wuxian-v1.0.0.apk`
+ * 这种两行均衡、一眼能读的形状。
+ *
+ * 万一某一段本身比整行还长（比如一个超长文件名），CSS 的 `overflow-wrap:anywhere`
+ * 兜底，保证任何情况下都不会横向溢出。
+ *
+ * ⚠️ 顺序不能反：必须先 esc() 再插 <wbr>，反过来会把 <wbr> 自己转义成文本。
+ */
+function breakableUrl(u){
+  return esc(u).replace(/\//g, "/<wbr>");
+}
+
+/**
+ * [task-12 缺陷4/5] 多行框跟着内容长高 —— 64 位 sha256、长下载地址都整段可见，不被裁。
+ * `height:auto` 先归零再读 scrollHeight，否则只会越量越大。
+ */
+function autoGrow(el){
+  if (!el) return;
+  el.style.height = "auto";
+  el.style.height = Math.max(el.scrollHeight + 2, 40) + "px";
+}
+function growAll(root){
+  (root || document).querySelectorAll("textarea.mono").forEach(autoGrow);
+}
 function toast(msg, kind){
   const t = $("#toast");
   t.textContent = msg;
@@ -339,16 +455,27 @@ function renderShell(){
   };
   $("#out").onclick = logout;
   renderPane();
+  /*
+   * [task-12 缺陷4/5] 面板每次重渲染都会换掉 DOM，长值多行框要**重新**按内容撑高
+   * （编辑表单是点开后才出现的，在渲染函数里逐个绑早晚会漏）。
+   * 挂一个观察器最省心：growAll 只碰 textarea.mono，通常 0~2 个元素，开销可忽略。
+   * 先把上一个观察器断开 —— renderShell 会重建 #pane，旧目标已不存在。
+   */
+  if (paneObserver) paneObserver.disconnect();
+  paneObserver = new MutationObserver(() => growAll($("#pane")));
+  paneObserver.observe($("#pane"), { childList:true, subtree:true });
 }
 
 /* ---------- 分页渲染 ---------- */
 function renderPane(){
   const p = $("#pane");
-  if (tab === "总控") return renderControl(p);
-  if (tab === "AI 渠道") return renderAiChannel(p);
-  if (tab === "版本") return renderRelease(p);
-  if (tab === "公告") return renderNotice(p);
-  if (tab === "更新记录") return renderChangelog(p);
+  if (tab === "总控") renderControl(p);
+  else if (tab === "AI 渠道") renderAiChannel(p);
+  else if (tab === "版本") renderRelease(p);
+  else if (tab === "公告") renderNotice(p);
+  else if (tab === "更新记录") renderChangelog(p);
+  // [task-12 缺陷4/5] 渲染完再量 scrollHeight，把长值多行框撑到刚好装下内容
+  growAll(p);
 }
 
 /* ---------- 总控 ---------- */
@@ -695,7 +822,7 @@ function relItemHtml(key, o, isCurrent, meta){
             ${isCurrent ? '<span style="color:var(--ok);font-size:12px"> ● 当前</span>' : ""}</div>
           ${meta ? `<div class="meta">${meta}</div>` : ""}
           <div class="meta">${MODE_TEXT[f.updateMode] || esc(f.updateMode)} · ${f.size ? mbText(f.size) : "大小未填"} · sha256 ${esc(shortSha)}</div>
-          <div class="meta" style="word-break:break-all">${esc(f.apkUrl || "（未填下载地址）")}</div>
+          <div class="meta url">${f.apkUrl ? breakableUrl(f.apkUrl) : "（未填下载地址）"}</div>
         </div>
       </div>
       <div style="height:10px"></div>
@@ -726,9 +853,9 @@ function relEditForm(key, isCurrent){
       <label>安装包大小</label>
       <input id="eszText" type="text" readonly value="${f.size ? mbText(f.size) : "（未填）"}">
       <label>校验值（sha256）</label>
-      <input id="esh" type="text" value="${esc(f.sha256)}">
+      <textarea id="esh" class="mono" rows="2" spellcheck="false" autocapitalize="off" autocorrect="off">${esc(f.sha256)}</textarea>
       <label>下载地址</label>
-      <input id="eau" type="text" value="${esc(f.apkUrl)}">
+      <textarea id="eau" class="mono" rows="3" spellcheck="false" autocapitalize="off" autocorrect="off">${esc(f.apkUrl)}</textarea>
       <input id="esz" type="hidden" value="${f.size || ""}">
       <div style="height:12px"></div>
       <div class="row">
@@ -826,7 +953,10 @@ function histHtml(){
 function histPagerHtml(){
   const pages = cache.histPages || 1, cur = cache.histPage || 1;
   if (pages <= 1) return "";
-  return `<div class="row" style="margin-top:12px">
+  /* [task-12 遗留1] 分页行单独用 space-between 撑开：
+     按钮现在是内容宽（不再被 flex:1 拉伸），不撑开的话三个元素会挤在左边、右边空一截。
+     只影响这一行，不影响别的 .row。 */
+  return `<div class="row" style="margin-top:12px;justify-content:space-between">
     <button class="btn-sec" data-page="${cur - 1}"${cur <= 1 ? " disabled" : ""}>上一页</button>
     <div style="flex:0 0 auto;min-width:auto;display:flex;align-items:center;justify-content:center;
       color:var(--muted);font-size:13px">第 ${cur} / ${pages} 页</div>
@@ -885,10 +1015,15 @@ function renderRelease(p){
     <div class="note">下面三项在选完安装包后自动带出，一般不用改。</div>
     <label>安装包大小</label>
     <input id="szText" type="text" readonly value="${r && r.size ? mbText(r.size) : "（选文件后自动算出）"}">
+    <!-- [task-12 缺陷4/5] 这两项原来是单行 input：390px 下 sh 内容宽 575 > 可见 332、
+         au 399 > 332，用户**根本看不到自己发的到底是哪个哈希/哪个地址**。
+         改成会自动换行的多行框 + 等宽字体，整段可读可核对。 -->
     <label for="sh">校验值（sha256）</label>
-    <input id="sh" type="text" value="${esc(r ? r.sha256 : "")}">
+    <textarea id="sh" class="mono" rows="2" spellcheck="false" autocapitalize="off" autocorrect="off"
+      placeholder="选一个安装包就会自动算好">${esc(r ? r.sha256 : "")}</textarea>
     <label for="au">下载地址</label>
-    <input id="au" type="text" value="${esc(r ? r.apkUrl : "")}">
+    <textarea id="au" class="mono" rows="3" spellcheck="false" autocapitalize="off" autocorrect="off"
+      placeholder="选一个安装包就会自动填好">${esc(r ? r.apkUrl : "")}</textarea>
     <input id="sz" type="hidden" value="${r && r.size ? r.size : ""}">
 
     <div style="height:14px"></div>
@@ -946,6 +1081,8 @@ function renderRelease(p){
       const v = versionFromName(f.name);
       if (v) $("#vn").value = v;              // 文件名里通常就带版本号
       $("#au").value = APK_ORIGIN + "/apk/" + f.name;
+      // [task-12 缺陷4/5] 这两行是**程序赋值**，不触发 input 事件，手动撑一次高
+      autoGrow($("#sh")); autoGrow($("#au"));
       info.innerHTML = "✅ 已就绪：<b>" + esc(f.name) + "</b> · " + mbText(f.size)
         + " · 点「保存并发布」会上传并生效";
     } catch(err){
@@ -1045,7 +1182,17 @@ function renderRelease(p){
       await upsert("release", cache.release && cache.release.id, body);
       // [DFW-106] 发布成功后再往历史里追一条。写历史失败不影响发布本身（snapshot 内部已兜住）。
       await snapshot(body, "publish", "");
-      toast("已发布，用户下次打开就会看到", "ok");
+      /*
+       * [task-12 公告分版本] 把上一个版本的专属公告复制给新版本（用户已同意这个默认行为）。
+       * 放在发布成功**之后**：复制失败绝不能让"版本已经发出去了"这件事看起来失败。
+       * 此刻 cache.release 还是**旧**的那条，所以 prevName 正是"上一个版本"。
+       */
+      const prevName = cache.release && cache.release.versionName;
+      const cp = await copyNoticesToNewVersion(prevName, body.versionName);
+      let msg = "已发布，用户下次打开就会看到";
+      if (cp.copied) msg += "；已把 " + prevName + " 的 " + cp.copied + " 条公告复制给 " + body.versionName;
+      if (cp.failed) msg += "；⚠️ 有 " + cp.failed + " 条公告没复制成功，请到「公告」里手动补";
+      toast(msg, cp.failed ? "err" : "ok");
       pendingApk = null;
       cache.histPage = 1;
       await refresh();
@@ -1103,6 +1250,119 @@ function renderRelease(p){
 let editingNoticeId = null;
 
 /** 公告编辑表单：**发布之后也要能改全部字段**（用户 2026-10-01 要求）。 */
+/* ---------- [task-12] 公告分版本 ---------- */
+
+/**
+ * 版本名归一化：去掉首尾空白和**开头的 v**。
+ *
+ * App 端比对时就是去掉开头的 `v` 的（Lead 2026-10-03 确认），
+ * 所以后台填 `v1.0.0` 与 `1.0.0` 是同一个版本。
+ * 这里必须跟着归一化，否则用户填 `v1.0.0` 时会被下面那句提醒**误报**
+ * （明明能匹配上，却说"线上没有这个版本"）。
+ */
+function normVersion(v){
+  return String(v == null ? "" : v).trim().replace(/^[vV]/, "");
+}
+
+/**
+ * 线上已知的版本号集合：release 当前版本 + 发布历史里出现过的所有版本。
+ * 用来判断用户填的「适用版本」是不是一个真实存在的版本。**已归一化**。
+ */
+function knownVersions(){
+  const set = new Set();
+  const r = cache.release;
+  if (r && r.versionName) set.add(normVersion(r.versionName));
+  (cache.history || []).forEach(h => { if (h && h.versionName) set.add(normVersion(h.versionName)); });
+  set.delete("");
+  return set;
+}
+
+/**
+ * 「你填的这个版本名，线上 release 记录里没有」——**只提示不拦**。
+ * 留空（通用公告）永远返回空串，不打扰。
+ */
+function versionNameWarning(v){
+  const name = normVersion(v);
+  if (!name) return "";
+  if (knownVersions().has(name)) return "";
+  const list = [...knownVersions()];
+  return `线上 release 记录里没有「${name}」这个版本号`
+    + (list.length ? `（现有：${list.join("、")}）` : "（目前一条版本记录都没有）")
+    + `。只提示不拦 —— 照样能发，App 端按版本号精确匹配（开头带不带 v 都行）。`;
+}
+
+/**
+ * 探测 notice 集合有没有 versionName 字段。
+ *
+ * 为什么要探测：**PocketBase 对未知字段静默忽略**（实测：带一个不存在的字段 POST，
+ * 返回 200、字段被丢掉）。字段没建时若直接发，控制台会显示"发布成功"、
+ * 值却根本没存下来 —— 用户以为设了「只对 1.0.1 可见」，实际是条通用公告。
+ * 所以先问 schema，没有就**明说**，绝不装作成功。
+ *
+ * 字段本身由服务端维护（2026-10-03 已加：text / 非必填 / max 50）。
+ * 这里**不做**在 UI 里建字段这种事 —— DDL 不该藏在页面里。
+ */
+async function loadNoticeSchema(){
+  try {
+    const c = await api("/notice");
+    cache.noticeHasVersion = !!(c && Array.isArray(c.fields) && c.fields.some(f => f && f.name === "versionName"));
+    cache.noticeSchemaError = "";
+  } catch(e){
+    cache.noticeHasVersion = null;
+    cache.noticeSchemaError = e.message || String(e);
+  }
+}
+
+/**
+ * 「notice 还没有 versionName 字段」的横幅。返回空串 = 一切正常，页面什么都不显示。
+ *
+ * 三种状态分开说，不含糊：
+ *   true  → 字段在，正常用，不显示任何东西
+ *   null  → 还没探到（读 schema 失败），说明原因，但不吓唬人
+ *   false → 字段确实不在，明确讲清"现在填了不会生效"，并指向怎么补
+ */
+function noticeSchemaBanner(){
+  if (cache.noticeHasVersion === true) return "";
+  if (cache.noticeHasVersion === null) {
+    return `<div class="note">正在检查「适用版本」字段…`
+      + (cache.noticeSchemaError ? `（读集合结构失败：${esc(cache.noticeSchemaError)}）` : "")
+      + `</div>`;
+  }
+  return `<div class="note warn">公告集合（<code>notice</code>）现在<b>没有</b>「适用版本」字段，
+    <b>填了也不会生效</b> —— PocketBase 对不认识的字段是静默丢弃的，
+    界面会显示"发布成功"、值却没存下来。<br>
+    字段由服务端维护（需要 <code>versionName</code>，text / 非必填），请先把它加回来再用这个功能。</div>`;
+}
+
+/**
+ * [task-12 公告分版本] 发布新版本时，把**上一个版本**的专属公告复制一份、换成新版本名。
+ *
+ * 为什么默认这么做（用户已同意）：一条公告往往就是"这个版本要注意的事"，
+ * 用户一升级，最该看到的正是它。不复制的话，升级完那条公告就再也看不到了。
+ *
+ * 只复制**上一个版本专属**的公告（`versionName === 上一个版本名`）：
+ * 通用公告（留空）本来就对所有版本生效，不需要复制。
+ * 复制失败**不影响发布本身**（版本已经发出去了），只把失败条数报给用户。
+ */
+async function copyNoticesToNewVersion(prevName, newName){
+  const from = String(prevName || "").trim(), to = String(newName || "").trim();
+  if (!from || !to || from === to) return { copied:0, failed:0 };
+  const src = (cache.notice || []).filter(n => String(n.versionName || "").trim() === from);
+  if (!src.length) return { copied:0, failed:0 };
+  let copied = 0, failed = 0;
+  for (const n of src) {
+    try {
+      await api("/notice/records", { method:"POST", body: JSON.stringify({
+        title: n.title, body: n.body, level: n.level,
+        popupMode: n.popupMode, pinned: !!n.pinned,
+        enabled: n.enabled !== false, versionName: to
+      })});
+      copied++;
+    } catch(e){ failed++; }
+  }
+  return { copied, failed };
+}
+
 function noticeEditForm(n){
   const pm = n.popupMode || "once";   // 与客户端 normalizeMode 一致：空值按「一次性」算
   const opt = (v, label) => `<option value="${v}"${pm===v?" selected":""}>${label}</option>`;
@@ -1117,6 +1377,9 @@ function noticeEditForm(n){
       <option value="important"${n.level==="important"?" selected":""}>重要</option>
       <option value="urgent"${n.level==="urgent"?" selected":""}>紧急</option>
     </select>
+    <label for="env_${n.id}">适用版本</label>
+    <input id="env_${n.id}" type="text" maxlength="50" value="${esc(n.versionName||"")}"
+      placeholder="留空 = 所有版本可见" autocapitalize="off" autocorrect="off">
     <div class="switch">
       <div><div class="t">弹出方式</div><div class="d">静默＝只进列表不打扰；一次性＝每条只弹一次；永久＝每次打开都弹</div></div>
       <select id="ep_${n.id}" style="background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:10px;padding:9px 12px;font-size:14px;font-family:inherit">
@@ -1154,6 +1417,12 @@ function renderNotice(p){
       <option value="important">重要</option>
       <option value="urgent">紧急</option>
     </select>
+    <!-- [task-12 公告分版本] 空 = 通用公告，所有版本都看得到。maxlength 与服务端字段的 max 50 对齐。 -->
+    <label for="nv">适用版本</label>
+    <input id="nv" type="text" maxlength="50" placeholder="留空 = 所有版本可见" autocapitalize="off" autocorrect="off">
+    <p class="hint">填了版本号（例如 <code>1.0.1</code>），这条公告就<b>只对那个版本的用户</b>显示；<b>留空则所有版本都能看到</b>。开头带不带 <code>v</code> 都行（<code>v1.0.1</code> 与 <code>1.0.1</code> 等价）。</p>
+    <div class="note warn hide" id="nvWarn"></div>
+    ${noticeSchemaBanner()}
     <div class="switch">
       <div><div class="t">弹出方式</div><div class="d">静默＝只进列表不打扰；一次性＝弹一次；永久＝每次打开都弹</div></div>
       <select id="np" style="background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:10px;padding:9px 12px;font-size:14px;font-family:inherit">
@@ -1175,6 +1444,18 @@ function renderNotice(p){
     <div id="nlist"></div>
   </div>`;
   $("#npin").onclick = () => $("#npin").classList.toggle("on");
+
+  /* [task-12 公告分版本] 「适用版本」的实时提醒：填了线上不存在的版本号就当场说一句。
+     只提示不拦 —— 用户可以先把公告准备好、版本稍后再发。 */
+  const nvEl = $("#nv"), nvWarn = $("#nvWarn");
+  const refreshNvWarn = () => {
+    if (!nvEl || !nvWarn) return;
+    const msg = versionNameWarning(nvEl.value);
+    if (msg) { nvWarn.textContent = msg; nvWarn.classList.remove("hide"); }
+    else { nvWarn.textContent = ""; nvWarn.classList.add("hide"); }
+  };
+  if (nvEl) { nvEl.oninput = refreshNvWarn; refreshNvWarn(); }
+
   const box = $("#nlist");
   if (!list.length) box.innerHTML = '<div class="empty">还没有公告</div>';
   else box.innerHTML = list.map(n => `
@@ -1182,7 +1463,7 @@ function renderNotice(p){
       <div class="top">
         <div>
           <div class="name">${esc(n.title || "(无标题)")}</div>
-          <div class="meta">${n.level==="urgent"?"紧急 · ":n.level==="important"?"重要 · ":""}${n.pinned?"置顶 · ":""}${n.enabled===false?"已停用 · ":""}${({silent:"静默",once:"一次性弹出",always:"永久弹出"})[n.popupMode||"once"]}</div>
+          <div class="meta">${n.versionName ? "仅 "+esc(n.versionName)+" · " : "所有版本 · "}${n.level==="urgent"?"紧急 · ":n.level==="important"?"重要 · ":""}${n.pinned?"置顶 · ":""}${n.enabled===false?"已停用 · ":""}${({silent:"静默",once:"一次性弹出",always:"永久弹出"})[n.popupMode||"once"]}</div>
         </div>
       </div>
       ${editingNoticeId===n.id ? noticeEditForm(n) : `
@@ -1210,6 +1491,9 @@ function renderNotice(p){
         const pinEl = p.querySelector('[data-tg="pin_'+id+'"]'), enEl = p.querySelector('[data-tg="en_'+id+'"]');
         await api("/notice/records/" + id, { method:"PATCH", body: JSON.stringify({
           title, body, level: $("#el_"+id).value, popupMode: $("#ep_"+id).value,
+          /* [task-12 公告分版本] 空串 = 通用公告。字段不存在时 PocketBase 会静默丢弃，
+             页面顶部的横幅已经把这件事说明白了（见 noticeSchemaBanner）。 */
+          versionName: ($("#env_"+id) ? $("#env_"+id).value.trim() : ""),
           pinned: !!(pinEl && pinEl.classList.contains("on")),
           enabled: !!(enEl && enEl.classList.contains("on"))
         })});
@@ -1233,13 +1517,26 @@ function renderNotice(p){
     try {
       const title = $("#nt").value.trim(), body = $("#nb").value.trim();
       if (!title && !body) throw new Error("请至少填写标题或内容");
+      const vName = ($("#nv") ? $("#nv").value.trim() : "");
       await api("/notice/records", { method:"POST", body: JSON.stringify({
         title, body, level: $("#nl").value,
         popupMode: $("#np").value,
+        // [task-12 公告分版本] 空串 = 通用公告，所有版本都看得到
+        versionName: vName,
         pinned: $("#npin").classList.contains("on"),
         enabled: true
       })});
-      toast("发布成功", "ok"); await refresh();
+      /*
+       * [task-12] 字段确实不存在时，上面这次 POST 的 versionName 会被 PocketBase **静默丢掉**
+       * （实测：未知字段 → HTTP 200 + 字段消失）。所以不能只报"发布成功"就完事 ——
+       * 必须让用户知道这一条到底有没有按版本生效。
+       */
+      if (vName && cache.noticeHasVersion === false) {
+        toast("公告发了，但「仅 " + vName + " 可见」没生效：notice 还没有 versionName 字段", "err");
+      } else {
+        toast("发布成功" + (vName ? "（仅 " + vName + " 可见）" : ""), "ok");
+      }
+      await refresh();
     } catch(e){ toast(e.message, "err"); b.disabled = false; b.textContent = "发 布"; }
   };
 }
@@ -1315,6 +1612,8 @@ async function load(){
   cache.notice = (n.items || []);
   cache.changelog = (g.items || []);
   await loadHistory(cache.histPage);
+  // [task-12 公告分版本] 顺带探一下 notice 有没有 versionName 字段（见 loadNoticeSchema 的注释）
+  await loadNoticeSchema();
 }
 
 /**
@@ -1329,6 +1628,15 @@ async function refresh(){
 }
 
 /* ---------- 启动 ---------- */
+/*
+ * [task-12 缺陷4/5] 在长值多行框里打字时实时撑高（值变化不触发 DOM 变更，
+ * 所以 MutationObserver 管不到这种；用事件委托注册一次即可）。
+ */
+document.addEventListener("input", e => {
+  const t = e.target;
+  if (t && t.classList && t.classList.contains("mono")) autoGrow(t);
+});
+
 async function boot(){
   if (!token) { renderLogin(); return; }
   $("#app").innerHTML = '<div class="empty" style="padding-top:22vh"><span class="spin"></span> 正在载入…</div>';

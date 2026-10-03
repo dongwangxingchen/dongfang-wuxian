@@ -47,9 +47,17 @@ class VersionNumberSinglePlaceJvmTest {
      * ⚠️ 原来那版第一条探针是 `bad.contains("BuildConfig.VERSION_NAME") && bad.contains("text(")`——
      * 两个操作数都是字符串字面量，**编译期恒真**，跟产品代码毫无关系，等于"假装验过了"。
      * 正确写法见 `RenderFolderNullSafetyJvmTest.theGuardActuallyDetectsAnUnguardedCall`。
+     *
+     * ⚠️ [2026-10-03 修假阳性] 判据原来写的是 `it.contains("text(")` —— 那会**撞子串**：
+     * `NoticeCenter.forCon`**`text(`**`(this,BuildConfig.VERSION_NAME)` 里就含 `text(`，
+     * 于是「把版本号传给公告中心做分版本过滤」这种**根本没渲染 UI** 的代码被判成"又在渲染版本号"。
+     * 守卫一旦开始误报，下一个人就会把它删掉 —— 那才是真正的损失。
+     * 现在改成**词边界**匹配（`text(` 前面不许是标识符字符），并加了对应探针。
      */
+    private val textCall = Regex("(?<![A-Za-z0-9_])text\\(")
+
     private fun linesRenderingTheVersion(src: String): List<String> =
-        src.lines().filter { it.contains("BuildConfig.VERSION_NAME") && it.contains("text(") }
+        src.lines().filter { it.contains("BuildConfig.VERSION_NAME") && textCall.containsMatchIn(it) }
 
     private fun hardCodesVersionName(src: String): Boolean =
         Regex("versionName = \"\\d+\\.\\d+\\.\\d+\"").containsMatchIn(src)
@@ -216,6 +224,16 @@ class VersionNumberSinglePlaceJvmTest {
             "好代码（只是把版本号当参数传给设置项，没有 text() 渲染）不该被误判",
             linesRenderingTheVersion(
                 "settingsAction(R.drawable.ic_refresh,\"检查更新\",BuildConfig.VERSION_NAME,v->x())",
+            ).isEmpty(),
+        )
+        /* [2026-10-03] 子串假阳性探针。
+           真实踩到过：`NoticeCenter.forContext(this,BuildConfig.VERSION_NAME)` 里含子串 `text(`，
+           旧的 `contains("text(")` 判据把它当成"又在渲染版本号"，让整个测试套变红。
+           这条把那个假阳性钉死 —— 它红了说明判据又退回成裸 contains 了。 */
+        assertTrue(
+            "`forContext(` 里含子串 `text(`，但它**不是** text() 渲染，不许被误判",
+            linesRenderingTheVersion(
+                "if(c==null)c=NoticeCenter.forContext(this,BuildConfig.VERSION_NAME);",
             ).isEmpty(),
         )
         // ② versionName 又写死成字符串 —— 必须被正则抓到
