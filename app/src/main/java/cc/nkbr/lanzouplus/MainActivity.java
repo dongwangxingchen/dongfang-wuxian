@@ -149,6 +149,22 @@ public final class MainActivity extends androidx.activity.ComponentActivity impl
    * 教训：**超时必须由独立定时器驱动，不能寄生在"某个函数会被反复调用"这个假设上。**
    * 现在由 {@link #armResolveWatchdog} 排一个真正的延时任务，不依赖任何其它代码路径。
    */
+  /**
+   * [DFW-132 2026-10-03] 「软件介绍」正文。用户选的是**说明书式**（清楚直白，先说能做什么）。
+   *
+   * 抽成常量而不是留在方法里的局部变量，是为了**能直接测**：
+   * 文案是产品的一部分，改坏了（写空、留占位符、承诺过头）必须能被测试拦住，
+   * 而不是等用户翻到「关于」页才发现。
+   */
+  static final String ABOUT_INTRO_TEXT="东方无限把「找资源」和「日常工具」放进了同一个应用。\n\n【主要功能】\n· 资源搜索与下载：浏览、搜索多个网盘分享站的公开目录，把文件直接下载到手机；安装包下载完成后可以直接安装。\n· 常用工具：内置一批日常小工具，随用随开。\n· AI 对话：遇到不懂的问题可以直接问。\n\n【关于广告与收费】\n软件内没有广告，没有会员，也不强制付费。\n\n【关于你的数据】\n不需要注册账号。你的搜索记录、下载记录、保存路径等设置，都只保存在这台手机上。";
+  /**
+   * [DFW-132 2026-10-03] 「隐私政策」正文。同样是**说明书式**：分条、先给结论再解释。
+   *
+   * 为什么要有测试守着：隐私政策里每一句都是**对用户的承诺**。
+   * 少写一条（比如漏掉"不会读取通讯录"）或写过头（"绝对安全"），
+   * 都不是排版问题，是诚信问题。
+   */
+  static final String PRIVACY_POLICY_TEXT="一、我们不收集什么\n东方无限没有账号系统，不需要手机号、邮箱或任何身份信息，也不会读取你的通讯录、位置、相册或短信。\n\n二、你的数据存在哪里\n源规则、搜索记录、下载记录、保存路径等设置，全部保存在你自己的手机上。卸载应用时一并删除，我们的服务器上没有这些数据。\n\n三、什么时候会联网\n只有三种情况：检查软件更新、接收我们发布的公告、搜索和下载你指定的资源。这些请求会访问我们自己的服务器，以及你选择的网盘分享站。\n\n四、下载的文件去了哪里\n文件从来源站点直接下载到你的手机，保存在系统 Download 目录或你自己选择的位置，不经过我们的服务器。\n\n五、关于权限\n软件只在实际用到某个功能时才申请对应的 Android 权限。拒绝授权不会导致任何文件被上传。\n\n六、关于静默安装（可选能力）\n如果你通过 Shizuku / Sui 明确授权，软件可以把你自己选择的安装包交给隔离的 shell/root 进程执行系统安装。这个能力默认关闭，需要你主动开启；我们不会上传安装包，也不会在未授权时伪造静默安装。";
   static final long RESOLVE_WATCHDOG_MS=25000L;
   static final class BatchResolved{final DownloadEntry entry;final boolean cached;BatchResolved(DownloadEntry entry,boolean cached){this.entry=entry;this.cached=cached;}}
   static final class PendingRetry{final DownloadEntry entry;final int generation;final String state;PendingRetry(DownloadEntry entry){this.entry=entry;this.generation=entry.controlGeneration;this.state=entry.state;}}
@@ -4274,7 +4290,23 @@ content=new LinearLayout(this);content.setOrientation(LinearLayout.VERTICAL);pag
        标题补 singleLine + END 截断：它现在会随字体放大变宽，大字体下必须截断，而不是换行后被 52dp 盒裁掉。 */
     TextView heading=primaryHeader("下载历史");
     if(heading!=null){heading.setSingleLine(true);heading.setEllipsize(android.text.TextUtils.TruncateAt.END);LinearLayout.LayoutParams headingLp=(LinearLayout.LayoutParams)heading.getLayoutParams();headingLp.width=LinearLayout.LayoutParams.WRAP_CONTENT;headingLp.weight=0;heading.setLayoutParams(headingLp);}
-    String fullPath=downloadDisplayPath();LinearLayout path=new LinearLayout(this);path.setGravity(Gravity.CENTER_VERTICAL);path.setPadding(dp(6),0,dp(8),0);path.setContentDescription("保存路径 "+fullPath+"，点击用文件管理器打开，长按重新选择");path.setClickable(true);path.setFocusable(true);ImageView pathIcon=new ImageView(this);pathIcon.setImageResource(R.drawable.ic_folder);pathIcon.setColorFilter(PRIMARY);pathIcon.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);path.addView(pathIcon,new LinearLayout.LayoutParams(dp(22),dp(22)));downloadPathText=text(fullPath,11,MUTED);downloadPathText.setSingleLine(true);downloadPathText.setEllipsize(android.text.TextUtils.TruncateAt.START);downloadPathText.setPadding(dp(8),0,0,0);path.addView(downloadPathText,new LinearLayout.LayoutParams(0,dpText(44),1));path.setOnClickListener(downloadDirectoryClick);path.setOnLongClickListener(v->{chooseDownloadDirectory();return true;});LinearLayout.LayoutParams pathParams=new LinearLayout.LayoutParams(0,dpText(44),1);pathParams.setMargins(dp(4),dp(2),0,dp(2));pageHeaderRow.addView(path,pathParams);/* [DFW-113 2026-10-03] 「更多」从列表上方的操作行**搬进页头**，做成 ⋮ 图标。
+    String fullPath=downloadDisplayPath();LinearLayout path=new LinearLayout(this);path.setGravity(Gravity.CENTER_VERTICAL);path.setPadding(dp(6),0,dp(8),0);path.setContentDescription("保存路径 "+fullPath+"，点击用文件管理器打开，长按重新选择");path.setClickable(true);path.setFocusable(true);ImageView pathIcon=new ImageView(this);pathIcon.setImageResource(R.drawable.ic_folder);pathIcon.setColorFilter(PRIMARY);pathIcon.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);path.addView(pathIcon,new LinearLayout.LayoutParams(dp(22),dp(22)));
+    /* [2026-10-03 用户要求加回] 「保存路径」文字标签。
+       为什么之前删掉、现在又要加回来：删它的理由是"文件夹图标已经表达了含义"，
+       但**用户看图时不这么想** —— 没有标签时那串 `…al-files/Download/东方无限`
+       在眼里就是一串来路不明的字符，有标签才知道它是什么。
+       用户的判断优先，加回来。
+
+       代价控制：标签用 10sp（不是正文的 11sp）并压缩左内边距，实测占 43dp；
+       路径文字从 140dp 降到约 97dp。**这个代价是可以接受的**，因为路径是
+       START 截断（保留结尾），而用户真正要看的就是结尾那段目录名「东方无限」——
+       中间被吃掉的是 `storage/emulated/0/Download` 这种不看也知道的固定前缀。 */
+    TextView pathLabel=text("保存路径",10,MUTED);
+    pathLabel.setSingleLine(true);
+    pathLabel.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+    pathLabel.setPadding(dp(5),0,0,0);
+    path.addView(pathLabel,new LinearLayout.LayoutParams(-2,-2));
+    downloadPathText=text(fullPath,11,MUTED);downloadPathText.setSingleLine(true);downloadPathText.setEllipsize(android.text.TextUtils.TruncateAt.START);downloadPathText.setPadding(dp(8),0,0,0);path.addView(downloadPathText,new LinearLayout.LayoutParams(0,dpText(44),1));path.setOnClickListener(downloadDirectoryClick);path.setOnLongClickListener(v->{chooseDownloadDirectory();return true;});LinearLayout.LayoutParams pathParams=new LinearLayout.LayoutParams(0,dpText(44),1);pathParams.setMargins(dp(4),dp(2),0,dp(2));pageHeaderRow.addView(path,pathParams);/* [DFW-113 2026-10-03] 「更多」从列表上方的操作行**搬进页头**，做成 ⋮ 图标。
         为什么必须搬（2026-10-03 实测几何，不是观感）：操作行里三颗胶囊的前两颗是「暂停全部/取消全部」，
         它们只在 hasWork（有进行中或已暂停的任务）时才 VISIBLE；于是**历史里有记录、但没有在跑的任务**时，
         整排只剩一颗「更多」孤零零贴在最右边（实测 chip0=GONE chip1=GONE chip2=VISIBLE），
@@ -4459,7 +4491,7 @@ content=new LinearLayout(this);content.setOrientation(LinearLayout.VERTICAL);pag
     int adaptiveSourceLimit=Math.max(1,LanzouCore.adaptiveSourceWorkers(0,Integer.MAX_VALUE)),adaptiveNetworkLimit=Math.max(1,LanzouCore.adaptiveNetworkWorkers(Integer.MAX_VALUE)),adaptiveTransferLimit=Math.max(1,TransferCoordinator.adaptiveUnlimitedLimit()),storedProbes=sourceProbeParallelism(),storedResolves=directResolveParallelism(),storedTransfers=downloadTransferParallelism(),probes=storedProbes==0?0:Math.min(storedProbes,adaptiveSourceLimit),resolves=storedResolves==0?0:Math.min(storedResolves,adaptiveNetworkLimit),transfers=storedTransfers==0?0:Math.min(storedTransfers,adaptiveTransferLimit);LinearLayout panel=new LinearLayout(this);panel.setOrientation(LinearLayout.VERTICAL);panel.setPadding(0,dp(2),0,dp(12));TextView probeLabel=text(probes==0?"识别并发：自动适配":"识别并发："+probes,14,TEXT);LumaSlider probeBar=new LumaSlider(this);probeBar.setMax(adaptiveSourceLimit);probeBar.setProgressValue(probes==0?adaptiveSourceLimit:probes-1,false);probeBar.setContentDescription("调整添加源识别并发数，最右为按设备 CPU 与内存自动适配");probeBar.setOnChangeListener((position,user)->{int selected=position==adaptiveSourceLimit?0:position+1;probeLabel.setText(selected==0?"识别并发：自动适配":"识别并发："+selected);if(user)setSourceProbeParallelism(selected);});panel.addView(probeLabel,new LinearLayout.LayoutParams(-1,dp(42)));panel.addView(probeBar,new LinearLayout.LayoutParams(-1,dp(56)));TextView resolveLabel=text(resolves==0?"解析并发：自动极速":"解析并发："+resolves,14,TEXT);LumaSlider resolveBar=new LumaSlider(this);resolveBar.setMax(adaptiveNetworkLimit);resolveBar.setProgressValue(resolves==0?adaptiveNetworkLimit:resolves-1,false);resolveBar.setContentDescription("调整直链解析并发数，最右为自动极速；手动值可覆盖");resolveBar.setOnChangeListener((position,user)->{int selected=position==adaptiveNetworkLimit?0:position+1;resolveLabel.setText(selected==0?"解析并发：自动极速":"解析并发："+selected);if(user)setDirectResolveParallelism(selected);});panel.addView(resolveLabel,new LinearLayout.LayoutParams(-1,dp(42)));panel.addView(resolveBar,new LinearLayout.LayoutParams(-1,dp(56)));TextView transferLabel=text(transfers==0?"同时下载：自动适配":"同时下载："+transfers,14,TEXT);LumaSlider transferBar=new LumaSlider(this);transferBar.setMax(adaptiveTransferLimit);transferBar.setProgressValue(transfers==0?adaptiveTransferLimit:transfers-1,false);transferBar.setContentDescription("调整批量任务同时下载数，最右为按设备内存自动适配");transferBar.setOnChangeListener((position,user)->{int selected=position==adaptiveTransferLimit?0:position+1;transferLabel.setText(selected==0?"同时下载：自动适配":"同时下载："+selected);if(user)setDownloadTransferParallelism(selected);});panel.addView(transferLabel,new LinearLayout.LayoutParams(-1,dp(42)));panel.addView(transferBar,new LinearLayout.LayoutParams(-1,dp(56)));return panel;
   }
   LinearLayout buildDownloadPathPanel(){LinearLayout path=settingsRowShell();path.setBackground(settingsPress());applePressScale(path);ImageView folder=settingsLeadingIcon(R.drawable.ic_folder);path.addView(folder,settingsIconBox());TextView pathTitle=settingsRowTitle("下载路径");path.addView(pathTitle,new LinearLayout.LayoutParams(-2,-1));settingsDownloadPathText=text(downloadDisplayPath(),11,PRIMARY);settingsDownloadPathText.setSingleLine(true);settingsDownloadPathText.setGravity(Gravity.END|Gravity.CENTER_VERTICAL);settingsDownloadPathText.setEllipsize(android.text.TextUtils.TruncateAt.START);path.addView(settingsDownloadPathText,new LinearLayout.LayoutParams(0,-1,1));path.setClickable(true);path.setFocusable(true);path.setLongClickable(true);path.setContentDescription("更改下载路径，当前 "+downloadDisplayPath());path.setOnClickListener(v->chooseDownloadDirectory());path.setOnLongClickListener(v->{chooseDownloadDirectory();return true;});return path;}
-  LinearLayout buildPrivacyPolicyPanel(){LinearLayout panel=new LinearLayout(this);panel.setOrientation(LinearLayout.VERTICAL);panel.setPadding(dp(6),0,dp(6),dp(12));String policy="本软件不会建立自有云端账号系统。源规则、搜索记录、下载记录与保存路径等设置保存在本机。\n\n搜索、解析、图标读取、更新检查与下载会访问对应蓝奏云分享地址、软件官网或开源发布服务。下载文件仅保存在系统 Download 或用户所选目录。\n\nADB Shell 与静默安装为可选能力：应用仅在用户通过 Shizuku / Sui 明确授权后，将用户选择的 APK 文件描述符交给隔离的 shell/root 进程执行系统 pm install；不会上传 APK，也不会在未授权时伪造静默安装。\n\n软件仅在安装、目录访问、后台下载等对应功能时申请 Android 权限；拒绝权限不会上传本机文件。";TextView content=text(policy,13,TEXT);content.setGravity(Gravity.START);content.setTextIsSelectable(true);content.setLineSpacing(dp(3),1f);selectableLinks(content);panel.addView(content,new LinearLayout.LayoutParams(-1,-2));return panel;}
+  LinearLayout buildPrivacyPolicyPanel(){LinearLayout panel=new LinearLayout(this);panel.setOrientation(LinearLayout.VERTICAL);panel.setPadding(dp(6),0,dp(6),dp(12));String policy=PRIVACY_POLICY_TEXT;TextView content=text(policy,13,TEXT);content.setGravity(Gravity.START);content.setTextIsSelectable(true);content.setLineSpacing(dp(3),1f);selectableLinks(content);panel.addView(content,new LinearLayout.LayoutParams(-1,-2));return panel;}
   LinearLayout buildSourceSettingsPanel(){LinearLayout panel=new LinearLayout(this);panel.setOrientation(LinearLayout.VERTICAL);panel.setPadding(0,dp(2),0,dp(12));LinearLayout.LayoutParams groupParams=new LinearLayout.LayoutParams(-1,settingsRowHeight());groupParams.setMargins(0,dp(4),0,0);panel.addView(recoveryGroup(),groupParams);return panel;}
   // T4 关于页（用户指令：独立页面不弹窗；名单/感谢语/介绍/参考/隐私/版本号，顺序按 drafts-about-page.md 结构图；感谢语用户原文一字不改）
   void showAboutPage(){primaryBase(3);pageKind=7;activeSource=null;clearFolderTrail();systemBackAction=this::showSettings;LinearLayout body=aboutBackBar("关于");
@@ -4472,7 +4504,7 @@ content=new LinearLayout(this);content.setOrientation(LinearLayout.VERTICAL);pag
     body.addView(peopleCard,aboutCardLp());
     LinearLayout thanksCard=aboutCard();TextView thanksText=text("感谢各位朋友的支持与帮助，因为有你们，我才可以更好的将我的想法实现出来。并帮助更多的人，有你们在，吾道不孤。",13,SET_T2);thanksText.setLineSpacing(dp(3),1f);thanksCard.addView(thanksText,new LinearLayout.LayoutParams(-1,-2));
     body.addView(thanksCard,aboutCardLp());
-    LinearLayout introCard=aboutCard();introCard.addView(aboutHeading("软件介绍"),new LinearLayout.LayoutParams(-1,dp(24)));TextView introText=text("东方无限把找资源和日常工具放进了同一个应用。\n\n你可以浏览、搜索多个网盘分享站的公开目录，把文件直接下载到手机；下载完的安装包可以直接安装；还内置了一批常用的小工具和 AI 对话，遇到不懂的问题可以直接问。\n\n没有广告，不强制付费，也不收集你的隐私，所有数据都只保存在你自己的设备上。",13,TEXT);introText.setLineSpacing(dp(3),1f);introCard.addView(introText,new LinearLayout.LayoutParams(-1,-2));introCard.addView(aboutDivider());TextView opensrc=text("东方无限以 AGPL-3.0 协议开源 · 查看源码",12,PRIMARY);opensrc.setClickable(true);opensrc.setFocusable(true);opensrc.setOnClickListener(v->openInBrowser(DFWX_REPOSITORY,""));introCard.addView(opensrc,new LinearLayout.LayoutParams(-1,-2));
+    LinearLayout introCard=aboutCard();introCard.addView(aboutHeading("软件介绍"),new LinearLayout.LayoutParams(-1,dp(24)));TextView introText=text(ABOUT_INTRO_TEXT,13,TEXT);introText.setLineSpacing(dp(3),1f);introCard.addView(introText,new LinearLayout.LayoutParams(-1,-2));introCard.addView(aboutDivider());TextView opensrc=text("东方无限以 AGPL-3.0 协议开源 · 查看源码",12,PRIMARY);opensrc.setClickable(true);opensrc.setFocusable(true);opensrc.setOnClickListener(v->openInBrowser(DFWX_REPOSITORY,""));introCard.addView(opensrc,new LinearLayout.LayoutParams(-1,-2));
     body.addView(introCard,aboutCardLp());
     LinearLayout privacyCard=aboutCard();privacyCard.addView(aboutHeading("隐私政策"),new LinearLayout.LayoutParams(-1,dp(24)));privacyCard.addView(aboutDivider());privacyCard.addView(buildPrivacyPolicyPanel(),new LinearLayout.LayoutParams(-1,-2));
     body.addView(privacyCard,aboutCardLp());
