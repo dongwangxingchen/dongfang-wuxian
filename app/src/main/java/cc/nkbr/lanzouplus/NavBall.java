@@ -83,6 +83,8 @@ final class NavBall {
 
   private final Host host;
   private final View scrim;
+  /** 让位中（底部有操作条时置 true，球隐藏）。见 {@link #setSuppressed}。 */
+  private boolean suppressed;
   private final FrameLayout ball;
   private final ImageView gridIcon, closeIcon;
   private GradientDrawable ballBg;
@@ -377,6 +379,43 @@ final class NavBall {
 
   // ── 位置 ─────────────────────────────────────────────────────────────
 
+  /**
+   * 临时让位：隐藏/恢复整个悬浮球。
+   *
+   * ## 为什么需要（2026-10-03 实测）
+   * 球是**全局浮动**的，默认贴在右下角、距底 `EDGE_BOTTOM_DP = 36dp`，而它**完全不知道页面底部有什么**。
+   * 下载页进入多选后底部会升起一条操作条，球正好压在它上面 —— 实测：
+   * ```
+   *   球      x=1015..1211   y=2478..2674
+   *   操作条  x=56..1204     y=2240..2800
+   * ```
+   * 两者相交，球**把操作条最后一列上下两排的图标全盖掉了**，而且球右缘 1211 还越出了内容边界 1204。
+   * 用户 2026-10-03 原话：「按钮都被黑色遮住了，甚至覆盖住其他按钮了，错位了」。
+   *
+   * ## 为什么用"隐藏"而不是"往上躲"
+   * 底部操作条高 160dp，球躲到它上方会**贴着列表内容**，反而更容易盖住卡片；
+   * 而且多选期间用户是在选文件，导航球在这个时刻没有用途。
+   * 手机上"进入选择模式时浮动球让位"也是通行做法。
+   */
+  void setSuppressed(boolean value) {
+    if (!attached || suppressed == value) return;
+    suppressed = value;
+    if (value) {
+      if (menuOpen) closeMenu();
+      else if (!menuClosing) forceHidePills();
+      ball.setVisibility(View.GONE);
+    } else {
+      ball.setVisibility(View.VISIBLE);
+      applyPosition(false);
+      refreshPillColors();
+    }
+  }
+
+  /** 供测试断言"让位期间球是不是真的不可见"。 */
+  boolean isSuppressed() {
+    return suppressed;
+  }
+
   private void defaultPosition() {
     int cw = host.contentWidth(), ch = host.contentHeight();
     float r = host.dp(BALL_DP) / 2f;
@@ -385,6 +424,8 @@ final class NavBall {
   }
 
   private void applyPosition(boolean animate) {
+    /* 让位期间不落位：球已经 GONE，再算位置没意义，而且解除让位时会重新算一次。 */
+    if (suppressed) return;
     int cw = host.contentWidth(), ch = host.contentHeight();
     if (cw <= 0 || ch <= 0) return;
     float r = host.dp(BALL_DP) / 2f;

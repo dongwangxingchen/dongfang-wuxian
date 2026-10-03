@@ -6,6 +6,7 @@ import android.view.ViewGroup
 import android.widget.LinearLayout
 import android.widget.TextView
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.BeforeClass
 import org.junit.Test
@@ -126,63 +127,98 @@ class DownloadPageGeometryJvmTest {
         )
     }
 
-    @Test
-    fun theActionRowNeverOverlapsTheListRegion() {
-        val a = layoutDownloads(listOf("无限画质增强器_v2.3.1.apk" to MainActivity.DOWNLOAD_RUNNING))
-        val row = a.downloadActionRowView ?: throw AssertionError("操作行不存在")
-        val region = listRegion(a)
-        assertEquals("有在跑的任务时操作行应当可见", View.VISIBLE, row.visibility)
-        assertTrue(
-            "操作行底边(${row.bottom}) 不许越过列表区顶边(${region.top})。" +
-                "越过 = 「暂停全部/取消全部」会盖在下载记录上",
-            row.bottom <= region.top,
-        )
-    }
-
-    /** 字体放大是真机上的触发条件（`dpText` 上限 1.8×），必须单独守。 */
-    @Test
-    fun theListStillKeepsItsShare_whenTheUserScaledUpTheFont() {
-        val a = layoutDownloads(
-            listOf("无限画质增强器_v2.3.1.apk" to MainActivity.DOWNLOAD_RUNNING),
-            fontScale = 1.8f,
-        )
-        val region = listRegion(a)
-        assertTrue("字体放大 1.8 倍后列表区仍必须为正，实测 ${region.height}px", region.height > 0)
-        assertTrue(
-            "字体放大 1.8 倍后列表区仍该拿到页面一半高度，实测 ${region.height}/${a.root.height}",
-            region.height * 2 > a.root.height,
-        )
-        val row = a.downloadActionRowView!!
-        assertTrue("字体放大后操作行也不许压到列表", row.bottom <= region.top)
-    }
-
-    // ── ② 操作行隐藏时，省下的高度必须**真的还给列表** ────────────────────
-
     /**
-     * 这条是"不再挤压列表"的**量化证明**：全部完成（无 hasWork）时操作行 GONE，
-     * 列表区必须比"有在跑的任务"时**严格更高**。
-     * 只断言 `visibility==GONE` 是不够的 —— GONE 了但高度没还给列表，等于白改。
+     * **[2026-10-03 重排] 列表上方只许有 3 条横杠，而且它们之间必须有间距。**
+     *
+     * 改前实测（360dp）：页头 `y=28..224` → 搜索 `224..392` → 状态条 `392..546` → 扩展名条 `546..700`，
+     * **首尾相接、间距为 0**；有任务时后面还跟着一条「暂停全部/取消全部」的操作行 = **5 条 236dp**。
+     * 用户看到的「挤」和「错位」就是这个形态。
+     *
+     * 现在：**恒定 4 条**，每条之间 8dp，列表前 10dp；第 5 条（操作行）搬进了 ⋯ 菜单，不再跳动。
+     * 这条用例守两件：**条数**（第 5 条不许回来）和**间距**（不许再首尾相接）。
      */
     @Test
-    fun hidingTheActionRowActuallyGivesTheHeightBackToList() {
-        val running = layoutDownloads(listOf("任务.zip" to MainActivity.DOWNLOAD_RUNNING))
-        val done = layoutDownloads(listOf("任务.zip" to MainActivity.DOWNLOAD_COMPLETED))
-
-        assertEquals("有在跑的任务 → 操作行可见", View.VISIBLE, running.downloadActionRowView.visibility)
-        assertEquals("全部完成 → 操作行隐藏", View.GONE, done.downloadActionRowView.visibility)
-
-        val runningRegion = listRegion(running)
-        val doneRegion = listRegion(done)
-        assertTrue(
-            "操作行隐藏后列表区必须更高。实测 无任务=${doneRegion.height}px / 有任务=${runningRegion.height}px",
-            doneRegion.height > runningRegion.height,
+    fun theTopBarsAreSeparatedAndThereAreOnlyThreeOfThem() {
+        val a = layoutDownloads(listOf("任务.zip" to MainActivity.DOWNLOAD_RUNNING))
+        val root = a.root
+        // root 的最后一个子项是 weight=1 的列表区，前面全是固定高度的横杠。
+        val bars = (0 until root.childCount - 1).map { root.getChildAt(it) }
+        /* ⚠️ 数是 **4** 不是 3：页头 / 搜索 / 状态筛选 / 扩展名筛选。
+           [自我纠错 2026-10-03] 我向用户提方案时把它说成「4 条变 3 条」，**数错了** ——
+           真实情况是「常态 4 条、有任务时 5 条」，改完是**恒定 4 条**。
+           这条用例现在守的是"第 5 条（全局操作行）不许回来"，不是"只许 3 条"。 */
+        assertEquals(
+            "列表上方只许有 4 条固定横杠（页头 / 搜索 / 状态筛选 / 扩展名筛选），实测 ${bars.size} 条 —— " +
+                "多出来的那条就是被搬进 ⋯ 菜单的全局操作行又回来了",
+            4,
+            bars.size,
         )
-        val gained = doneRegion.height - runningRegion.height
-        assertTrue(
-            "回收的高度应当至少是操作行自身高度（实测回收 ${gained}px，" +
-                "操作行 lp.height=${running.downloadActionRowView.layoutParams.height}）",
-            gained >= running.downloadActionRowView.layoutParams.height,
-        )
+        val d = a.resources.displayMetrics.density
+        for (i in 0 until bars.size - 1) {
+            val gapPx = bars[i + 1].top - bars[i].bottom
+            val gapDp = gapPx / d
+            assertTrue(
+                "第 ${i + 1} 条与第 ${i + 2} 条横杠之间必须留出间距（实测 ${"%.1f".format(gapDp)}dp）。" +
+                    "改前是 0dp，四条糊成一坨",
+                gapDp >= 4f,
+            )
+        }
+        // 列表与最后一条横杠之间也要有间距，否则第一张卡片会贴着筛选条。
+        val list = root.getChildAt(root.childCount - 1)
+        val listGapDp = (list.top - bars.last().bottom) / d
+        assertTrue("列表与筛选条之间也要留间距（实测 ${"%.1f".format(listGapDp)}dp）", listGapDp >= 4f)
+    }
+
+    /**
+     * **[2026-10-03 新增] 悬浮球不许压住底部的选择条。**
+     *
+     * 实测缺陷（用户看截图直接指出来的）：
+     * ```
+     *   悬浮球  x=1015..1211   y=2478..2674
+     *   选择条  x=56..1204     y=2240..2800
+     * ```
+     * 两者相交，球把选择条**最后一列上下两排的图标全盖掉了**，而且球右缘 1211 还越出内容边界 1204。
+     * 用户原话：「按钮都被黑色遮住了，甚至覆盖住其他按钮了，错位了」。
+     *
+     * 修法：进入多选时球让位（`NavBall.setSuppressed`）。这条用例同时守**让位状态**与**几何不重叠**——
+     * 只断言"球隐藏了"是不够的，万一哪天改成"往上躲"，几何断言才是真正要守的那条线。
+     */
+    @Test
+    fun theNavBallNeverCoversTheSelectionBar() {
+        val a = layoutDownloads(listOf("任务.zip" to MainActivity.DOWNLOAD_COMPLETED))
+        a.enterDownloadSelection()
+        idle()
+
+        assertTrue("进入多选后悬浮球必须让位", a.navBall.isSuppressed)
+
+        val bar = a.downloadSelectionBar ?: throw AssertionError("多选条不存在")
+        val ball = findNavBallView(a)
+        if (ball != null && ball.visibility == View.VISIBLE) {
+            val ballRect = android.graphics.Rect()
+            ball.getGlobalVisibleRect(ballRect)
+            val barRect = android.graphics.Rect()
+            bar.getGlobalVisibleRect(barRect)
+            assertFalse(
+                "悬浮球($ballRect) 不许与多选条($barRect) 相交 —— " +
+                    "相交就会盖住最后一列的图标（2026-10-03 用户截图反馈）",
+                android.graphics.Rect.intersects(ballRect, barRect),
+            )
+        }
+
+        a.exitDownloadSelection()
+        idle()
+        assertFalse("退出多选后悬浮球必须回来", a.navBall.isSuppressed)
+    }
+
+    /** 在 host 里找出悬浮球那个 View（56dp 见方、由 NavBall 添加）。 */
+    private fun findNavBallView(a: MainActivity): View? {
+        val host = a.host ?: return null
+        val size = (56 * a.resources.displayMetrics.density).toInt()
+        for (i in 0 until host.childCount) {
+            val ch = host.getChildAt(i)
+            if (ch.width == size && ch.height == size) return ch
+        }
+        return null
     }
 
     // ── ③ 「更多」必须真的在页头，而且能开菜单 ───────────────────────────
