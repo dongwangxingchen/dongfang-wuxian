@@ -107,4 +107,53 @@ class HomeShotsJvmTest {
         activity.showSettings(); idle(); shot(activity, "24_page_settings")
         controller.destroy()
     }
+
+    /**
+     * [DFW-114 2026-10-03] 下载界面第二轮重做的**视觉取证**。
+     *
+     * 为什么要有这几张：几何断言能证明「宽度 ≥48dp」「盒子没溢出」，证明不了「看起来对不对」。
+     * 本轮改的全是观感（触控目标、卡片面、图标底、胶囊形、空态、层级），**必须让人真的看一眼**。
+     *
+     * ⚠️ 这几张**故意放在本类里，不另开新类**。踩过的坑（2026-10-03 实测）：
+     * 另开一个带 `@GraphicsMode(NATIVE)` 的测试类，会让 `forkEvery = 24` 的分叉分组改变，
+     * 结果 `IntegrityPayShineJvmTest > unpaidButtonHasNoSweep` 开始报
+     * `java.nio.file.FileSystemAlreadyExistsException`（android-all 的 ZipFileSystem 被重复打开）。
+     * 实测因果：新类移出去 → 全量 901 条 0 失败；放回来 → 1 条红，两次完全一致（确定性）。
+     * 所以**不要为了加截图而新增 GraphicsMode 类**，加到已有类里。
+     */
+    @Test fun captureDownloadStatesForAudit() {
+        val controller = Robolectric.buildActivity(MainActivity::class.java)
+        controller.setup()
+        idle()
+        val activity = controller.get()
+
+        fun entry(name: String, state: String, percent: Int): MainActivity.DownloadEntry {
+            val e = MainActivity.DownloadEntry()
+            e.name = name
+            e.state = state
+            e.percent = percent
+            e.totalBytes = 15_200_000L
+            e.downloadedBytes = 15_200_000L * percent / 100
+            return e
+        }
+
+        // 空态：本轮把它从「一行灰字」改成「图标 + 标题 + 下一步」。
+        activity.showDownloads(); idle()
+        shot(activity, "30_download_empty")
+
+        activity.downloadEntries.add(entry("东方无限-v1.0.0.apk", MainActivity.DOWNLOAD_COMPLETED, 100))
+        activity.downloadEntries.add(entry("一个名字很长很长很长很长很长很长很长的压缩包.zip", MainActivity.DOWNLOAD_RUNNING, 47))
+        activity.downloadEntries.add(entry("下载失败的文件.pdf", MainActivity.DOWNLOAD_FAILED, 12))
+        activity.downloadEntries.add(entry("排队等待中.mp4", MainActivity.DOWNLOAD_WAITING, 0))
+        activity.renderDownloads(""); idle()
+        shot(activity, "31_download_list")
+
+        // 多选：本轮修掉「动作按钮和复选框挤在一行」之后的样子。
+        activity.enterDownloadSelection()
+        activity.toggleDownloadSelection(activity.downloadEntries[0])
+        idle()
+        shot(activity, "32_download_selection")
+
+        controller.destroy()
+    }
 }
