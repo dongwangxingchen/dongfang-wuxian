@@ -181,7 +181,17 @@ public final class MainActivity extends androidx.activity.ComponentActivity impl
      *
      * 用 LinkedHashSet 而不是 List：同一个源可能失败多次，只记一次、且保持首现顺序。
      */
-    final java.util.LinkedHashSet<String> failedSources=new java.util.LinkedHashSet<>();}
+    final java.util.LinkedHashSet<String> failedSources=new java.util.LinkedHashSet<>();
+    /**
+     * [DFW-36 2026-10-04] 源名 → 失败原因。
+     *
+     * 和 `failedSources` 分开存：那个是 LinkedHashSet（只记「谁失败过」），
+     * 这个是 Map（记「为什么」）。保留两套是因为 `failedSources` 已经被
+     * 状态行和测试用着，改它的类型会波及面太大。
+     *
+     * 用 LinkedHashMap：用户看到的顺序应该和失败发生的顺序一致。
+     */
+    final java.util.LinkedHashMap<String,Models.FailureKind> failedReasons=new java.util.LinkedHashMap<>();}
   static final class ItemCard{Models.Item item;final ImageView icon;final TextView title,meta,sourceBadge;final CheckBox check;String iconUrl;boolean folder;ItemCard(Models.Item item,ImageView icon,TextView title,TextView meta,TextView sourceBadge,CheckBox check){this.item=item;this.icon=icon;this.title=title;this.meta=meta;this.sourceBadge=sourceBadge;this.check=check;}}
   static final class FolderSearchEntry{final Models.Item item;final String folded;FolderSearchEntry(Models.Item item){this.item=item;this.folded=item.title.toLowerCase(Locale.ROOT);}}
   static final class ImageDelivery{final String url;final Bitmap bitmap;final List<java.lang.ref.WeakReference<ImageView>> targets;ImageDelivery(String url,Bitmap bitmap,List<java.lang.ref.WeakReference<ImageView>> targets){this.url=url;this.bitmap=bitmap;this.targets=targets;}}
@@ -2856,7 +2866,11 @@ FrameLayout.LayoutParams tp=new FrameLayout.LayoutParams(Math.max(dp(1),Math.min
    *       否则报"上拉加载"；到底了报"已全部加载"。颜色一律 `MUTED`。
    */
   void updateItemCount(int shown){if(status!=null)status.setText("已显示 "+shown+" 个项目");if(statusRight!=null){int localLeft=Math.max(0,current.size()-shown);boolean more=folderHasMore&&currentSourceQuery.isEmpty();statusRight.setText(localLeft>0?"还有 "+localLeft+" 个":(more?"上拉加载":"已全部加载"));statusRight.setTextColor(MUTED);}}
-  void renderSearchResults(){if(homeHistory==null)return;int session=searchGeneration;homeHistory.removeAllViews();progress=new ProgressBar(this,null,android.R.attr.progressBarStyleHorizontal);progress.setMax(100);homeHistory.addView(progress,new LinearLayout.LayoutParams(-1,dp(3)));LinearLayout statusRow=new LinearLayout(this);statusRow.setGravity(Gravity.CENTER_VERTICAL);status=text("",12,MUTED);statusRight=text("",11,PRIMARY);statusRight.setGravity(Gravity.END|Gravity.CENTER_VERTICAL);searchPauseButton=toolbarTextButton("暂停");searchPauseButton.setContentDescription("暂停全源搜索");searchPauseButton.setOnClickListener(v->toggleSearchPaused(session));statusRow.addView(status,new LinearLayout.LayoutParams(0,dp(30),1));statusRow.addView(statusRight,new LinearLayout.LayoutParams(-2,dp(30)));statusRow.addView(searchPauseButton,new LinearLayout.LayoutParams(dp(52),dp(30)));homeHistory.addView(statusRow,new LinearLayout.LayoutParams(-1,dp(30)));pageScroll=new ScrollView(this){
+  void renderSearchResults(){if(homeHistory==null)return;int session=searchGeneration;homeHistory.removeAllViews();progress=new ProgressBar(this,null,android.R.attr.progressBarStyleHorizontal);progress.setMax(100);homeHistory.addView(progress,new LinearLayout.LayoutParams(-1,dp(3)));LinearLayout statusRow=new LinearLayout(this);statusRow.setGravity(Gravity.CENTER_VERTICAL);status=text("",12,MUTED);statusRight=text("",11,PRIMARY);statusRight.setGravity(Gravity.END|Gravity.CENTER_VERTICAL);searchPauseButton=toolbarTextButton("暂停");searchPauseButton.setContentDescription("暂停全源搜索");searchPauseButton.setOnClickListener(v->toggleSearchPaused(session));/* [DFW-36] 点状态行看「每个失败的源为什么失败、下一步做什么」。
+       这是阻止用户误删正常源的关键入口：在这之前他只看到「N 源异常」，没有别的信息可用。 */
+        statusRow.setContentDescription("搜索状态，点击查看失败源的详细原因");
+        statusRow.setOnClickListener(v->showSearchFailureDetail());
+        statusRow.addView(status,new LinearLayout.LayoutParams(0,dp(30),1));statusRow.addView(statusRight,new LinearLayout.LayoutParams(-2,dp(30)));statusRow.addView(searchPauseButton,new LinearLayout.LayoutParams(dp(52),dp(30)));homeHistory.addView(statusRow,new LinearLayout.LayoutParams(-1,dp(30)));pageScroll=new ScrollView(this){
       // v1.19.4 修复：搜索结果嵌在可滚动 homeScroll 内，外层普通 ScrollView 在 onInterceptTouchEvent 超过
       // touchSlop 后会无条件抢走竖向手势（实测仪表日志 homeScroll intercept=true），而搜索模式下外层已
       // 钉在最大偏移——表现为手指直滑搜索结果完全不动（"直接断"）、窗口化渲染的 maybeAppendSearchWindow
@@ -2919,6 +2933,105 @@ content=new LinearLayout(this);content.setOrientation(LinearLayout.VERTICAL);pag
     if(shown==0)return "";
     if(total>shown)sb.append(" 等 ").append(total).append(" 个");
     return sb.toString();
+  }
+
+  /**
+   * [DFW-36 2026-10-04] 把「哪些源失败了、为什么、下一步做什么」摊开给用户看。
+   *
+   * 这张卡的验收标准是「不会因 App 故障误导用户删除正常源」。
+   * 所以这个弹窗刻意做了三件事：
+   *  1. **每条都带下一步动作**（`FailureKind.advice`），不是干巴巴一个错误码；
+   *  2. 明确区分「我们这边要修的」和「这个源确实没了」—— 只有 `GONE` 才说源没了；
+   *  3. 给「重试这些源」和「复制诊断信息」两个出口，
+   *     用户不必靠删源来「解决问题」。
+   */
+  void showSearchFailureDetail(){
+    java.util.LinkedHashMap<String,Models.FailureKind> reasons;
+    java.util.LinkedHashSet<String> names;
+    synchronized(globalSearch){
+      reasons=new java.util.LinkedHashMap<>(globalSearch.failedReasons);
+      names=new java.util.LinkedHashSet<>(globalSearch.failedSources);
+    }
+    if(names.isEmpty()&&reasons.isEmpty()){showNotice("这次搜索没有源出错",false);return;}
+
+    /* 把「有名字但没原因」的也带上：极少数情况下 onFailure 先到、onSourceFailure 后到。 */
+    java.util.LinkedHashSet<String> all=new java.util.LinkedHashSet<>(names);
+    all.addAll(reasons.keySet());
+
+    StringBuilder body=new StringBuilder();
+    body.append("共 ").append(all.size()).append(" 个源这次没返回结果。\n\n");
+    int gone=0,ours=0;
+    for(String name:all){
+      Models.FailureKind kind=reasons.get(name);
+      if(kind==null)kind=Models.FailureKind.UNKNOWN;
+      if(kind==Models.FailureKind.GONE)gone++;
+      if(kind==Models.FailureKind.PARSE||kind==Models.FailureKind.UNKNOWN)ours++;
+      body.append("· ").append(name).append(" —— ").append(kind.label).append('\n');
+      body.append("    ").append(kind.advice).append("\n\n");
+    }
+    body.append("————\n");
+    if(gone==0){
+      /*
+       * 关键的一句。历史上用户就是因为看到「源失效」才去删源的，
+       * 而 lessons.md 2026-09-26 那次翻案证明：源一个都没坏。
+       */
+      body.append("其中没有一个是「分享被删了」——多数是临时的网络/限频问题，重试通常就好。\n");
+      body.append("请先别删源。");
+    }else{
+      body.append("其中 ").append(gone).append(" 个确实已经失效（分享被删）。\n");
+    }
+    if(ours>0)body.append("\n另有 ").append(ours).append(" 个是我们这边要修的，不是你的问题。");
+
+    final String full=body.toString();
+    final java.util.LinkedHashSet<String> retrySet=all;
+    AlertDialog dialog=new AlertDialog.Builder(this)
+      .setTitle("这次搜索的失败详情")
+      .setMessage(full)
+      .setNegativeButton("关闭",null)
+      .setNeutralButton("复制诊断信息",(d,w)->copySearchFailureReport(retrySet,reasons))
+      .setPositiveButton("重试这些源",(d,w)->retryFailedSources(retrySet))
+      .create();
+    showRounded(dialog);
+  }
+
+  /** [DFW-36] 生成可粘贴给开发者的诊断文本（不含任何个人数据）。 */
+  String searchFailureReport(java.util.Collection<String> names,java.util.Map<String,Models.FailureKind> reasons){
+    StringBuilder sb=new StringBuilder();
+    sb.append("东方无限 搜索失败诊断\n");
+    sb.append("时间 ").append(new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss",java.util.Locale.ROOT).format(new java.util.Date())).append('\n');
+    String q;
+    synchronized(globalSearch){q=globalSearch.query;}
+    /* 查询词脱敏：只说长度，不回显用户搜了什么。 */
+    sb.append("查询词长度 ").append(q==null?0:q.length()).append('\n');
+    sb.append("失败源 ").append(names.size()).append(" 个：\n");
+    for(String name:names){
+      Models.FailureKind kind=reasons==null?null:reasons.get(name);
+      sb.append("  ").append(name).append(" —— ").append(kind==null?"未归类":kind.name()).append('\n');
+    }
+    return sb.toString();
+  }
+
+  void copySearchFailureReport(java.util.Collection<String> names,java.util.Map<String,Models.FailureKind> reasons){
+    try{
+      ClipboardManager clipboard=(ClipboardManager)getSystemService(CLIPBOARD_SERVICE);
+      if(clipboard!=null){
+        clipboard.setPrimaryClip(android.content.ClipData.newPlainText("dfwx_search_failure",searchFailureReport(names,reasons)));
+        showNotice("诊断信息已复制，可以粘贴反馈给我们",false);
+      }
+    }catch(Exception error){showNotice("复制失败："+friendlyError(error),true);}
+  }
+
+  /** [DFW-36] 只重试失败的源，不动其他。 */
+  void retryFailedSources(java.util.Collection<String> names){
+    if(names==null||names.isEmpty())return;
+    List<Models.Source> chosen=new ArrayList<>();
+    for(String name:names){
+      for(Models.Source source:libraries){
+        if(source.title.equals(name)){chosen.add(source);break;}
+      }
+    }
+    if(chosen.isEmpty()){showNotice("这些源已经不在软件库里了",true);return;}
+    retestSelectedSources(chosen,1);
   }
 
   void refreshSearchUi(int session){if(!searchUiCurrent(session)||status==null||statusRight==null||progress==null)return;String line,right;int percent;boolean running,nameOnly,indexOnly,paused; synchronized(globalSearch){running=globalSearch.running;nameOnly=globalSearch.nameOnly;indexOnly=globalSearch.indexOnly;paused=globalSearch.paused;percent=globalSearch.percent;if(nameOnly)line="名称匹配 "+globalSearch.items.size()+" 个项目";else if(indexOnly)line="仅索引匹配 · 找到 "+globalSearch.items.size()+" 个项目";else line=(running?"正在搜索 "+globalSearch.active+"/"+Math.max(1,globalSearch.total)+" 个源 · ":"")+"已完成 "+globalSearch.done+" · 找到 "+globalSearch.items.size()+(globalSearch.source.isEmpty()?"":" · "+globalSearch.source);right=paused?"已暂停":globalSearch.right.isEmpty()?(running?"实时追加":globalSearch.failures==0?"已完成":"已完成 · "+globalSearch.failures+" 源异常"+failedSourceSuffix(globalSearch.failedSources)):globalSearch.right;}progress.setVisibility(running?View.VISIBLE:View.GONE);progress.setIndeterminate(running&&!paused&&percent==0);if(paused||percent>0){progress.setIndeterminate(false);progress.setProgress(percent);}status.setText(line);statusRight.setText(right);if(searchPauseButton!=null){searchPauseButton.setVisibility(running&&!nameOnly&&!indexOnly?View.VISIBLE:View.GONE);searchPauseButton.setText(paused?"继续":"暂停");searchPauseButton.setContentDescription(paused?"继续全源搜索":"暂停全源搜索");}}
@@ -3907,7 +4020,7 @@ content=new LinearLayout(this);content.setOrientation(LinearLayout.VERTICAL);pag
   List<Models.Item> readDailySearchCache(String query,Set<String> allowed,Models.SearchOptions options){List<Models.Item> out=new ArrayList<>();try{android.content.SharedPreferences prefs=getSharedPreferences("daily_search_cache_v1",MODE_PRIVATE);int day=dailySearchDay();if(prefs.getInt("day",-1)!=day){prefs.edit().clear().putInt("day",day).commit();return out;}String signature=dailySearchSignature(query,allowed,options),raw=prefs.getString(dailySearchCacheKey(signature),"");if(raw.isEmpty())return out;org.json.JSONObject root=new org.json.JSONObject(raw);if(!signature.equals(root.optString("signature")))return out;org.json.JSONArray values=root.optJSONArray("items");if(values==null)return out;for(int i=0;i<values.length();i++){org.json.JSONObject value=values.getJSONObject(i);Models.Item item=new Models.Item();item.title=value.optString("title");item.url=value.optString("url");item.shareUrl=value.optString("share",item.url);item.size=value.optString("size");item.time=value.optString("time");item.iconUrl=value.optString("icon");item.source=value.optString("source");item.sourceId=value.optString("sourceId");item.password=value.optString("password");item.description=value.optString("description");item.folder=value.optBoolean("folder");item.sourceEntry=value.optBoolean("sourceEntry");if(!item.url.isEmpty())out.add(item);}}catch(Exception ignored){android.util.Log.w("MainActivity", "MainActivity Exception: "+ignored.getMessage(), ignored);}return out;}
   void writeDailySearchCache(String query,Set<String> allowed,Models.SearchOptions options,List<Models.Item> items){try{String signature=dailySearchSignature(query,allowed,options);org.json.JSONArray values=new org.json.JSONArray();for(Models.Item item:items)values.put(new org.json.JSONObject().put("title",item.title).put("url",item.url).put("share",item.shareUrl).put("size",item.size).put("time",item.time).put("icon",item.iconUrl).put("source",item.source).put("sourceId",item.sourceId).put("password",item.password).put("description",item.description).put("folder",item.folder).put("sourceEntry",item.sourceEntry));org.json.JSONObject root=new org.json.JSONObject().put("signature",signature).put("items",values);android.content.SharedPreferences prefs=getSharedPreferences("daily_search_cache_v1",MODE_PRIVATE);int day=dailySearchDay();android.content.SharedPreferences.Editor edit=prefs.edit();if(prefs.getInt("day",-1)!=day)edit.clear().putInt("day",day);edit.putString(dailySearchCacheKey(signature),root.toString()).commit();if(core!=null)core.mergeSearchResultsIntoIndex(items,indexRetentionMillis());}catch(Exception ignored){android.util.Log.w("MainActivity", "MainActivity Exception: "+ignored.getMessage(), ignored);}}
   void runSearch(String q){
-    if(q.isEmpty())return;homeSearchHistoryOnly=false;homeSearchRequested=true;if(!homeSearchFocused)showHomeSearchMode(false);saveSearchHistory(q);if(search!=null){if(!q.equals(search.getText().toString())){search.setText(q);search.setSelection(q.length());}search.clearFocus();((android.view.inputmethod.InputMethodManager)getSystemService(INPUT_METHOD_SERVICE)).hideSoftInputFromWindow(search.getWindowToken(),0);}if(selectionMode)exitSelection();clearFolderTrail();folderRootSources=false;activeSource=home;systemBackAction=this::exitHomeSearchFocus;final int session=++searchGeneration,points=q.codePointCount(0,q.length());final String category=sessionSearchCategory;final int searchMode=sessionSearchMode,searchModeMask=sessionSearchModeMask;final Set<String> sourceNameScope=searchCategoryIds(category);final List<Models.Item> homeSnapshot=new ArrayList<>(homeItems);synchronized(globalSearch){globalSearch.query=q;globalSearch.source="";globalSearch.right=points<2?"仅名称匹配":searchMode==Models.SearchOptions.MODE_API?"API 搜索":searchMode==Models.SearchOptions.MODE_INDEX?"仅索引匹配":"目录缓存优先";globalSearch.active=0;globalSearch.done=0;globalSearch.total=0;globalSearch.pages=0;globalSearch.percent=0;globalSearch.failures=0;globalSearch.folderCount=0;globalSearch.running=points>=2;globalSearch.nameOnly=points<2;globalSearch.indexOnly=points>=2&&searchMode==Models.SearchOptions.MODE_INDEX;globalSearch.paused=false;globalSearch.items.clear();globalSearch.byUrl.clear();globalSearch.notifyAll();}renderSearchResults();if(points>=2)setDirectoryIndexSearchPaused(true);
+    if(q.isEmpty())return;homeSearchHistoryOnly=false;homeSearchRequested=true;if(!homeSearchFocused)showHomeSearchMode(false);saveSearchHistory(q);if(search!=null){if(!q.equals(search.getText().toString())){search.setText(q);search.setSelection(q.length());}search.clearFocus();((android.view.inputmethod.InputMethodManager)getSystemService(INPUT_METHOD_SERVICE)).hideSoftInputFromWindow(search.getWindowToken(),0);}if(selectionMode)exitSelection();clearFolderTrail();folderRootSources=false;activeSource=home;systemBackAction=this::exitHomeSearchFocus;final int session=++searchGeneration,points=q.codePointCount(0,q.length());final String category=sessionSearchCategory;final int searchMode=sessionSearchMode,searchModeMask=sessionSearchModeMask;final Set<String> sourceNameScope=searchCategoryIds(category);final List<Models.Item> homeSnapshot=new ArrayList<>(homeItems);synchronized(globalSearch){globalSearch.query=q;globalSearch.source="";globalSearch.right=points<2?"仅名称匹配":searchMode==Models.SearchOptions.MODE_API?"API 搜索":searchMode==Models.SearchOptions.MODE_INDEX?"仅索引匹配":"目录缓存优先";globalSearch.active=0;globalSearch.done=0;globalSearch.total=0;globalSearch.pages=0;globalSearch.percent=0;globalSearch.failures=0;/* [DFW-36] 新搜索必须清掉上一轮的失败记录，否则会跨搜索累积、越攒越多 */globalSearch.failedSources.clear();globalSearch.failedReasons.clear();globalSearch.folderCount=0;globalSearch.running=points>=2;globalSearch.nameOnly=points<2;globalSearch.indexOnly=points>=2&&searchMode==Models.SearchOptions.MODE_INDEX;globalSearch.paused=false;globalSearch.items.clear();globalSearch.byUrl.clear();globalSearch.notifyAll();}renderSearchResults();if(points>=2)setDirectoryIndexSearchPaused(true);
     io.execute(()->{try{
       Set<String> allowedSources=searchAllowedSourceIds(category,searchMode);int sourceTotal=points<2?0:searchableSourceTotal(allowedSources);Models.SearchOptions options=searchOptions(sourceTotal).withModeMask(searchModeMask);synchronized(globalSearch){if(session!=searchGeneration)return;globalSearch.total=sourceTotal;}queueSearchRefresh(session);if(points>=2&&options.indexOnly()){searchIndexIo.execute(()->{try{acceptSearchBatch(session,core.cachedPartialIndexMatches(q,allowedSources,fuzzyIndexEnabled()));}catch(Exception ignored){android.util.Log.w("MainActivity", "MainActivity Exception: "+ignored.getMessage(), ignored);}finally{finishSearchJob(session);}});return;}if(points>=2){acceptSearchBatch(session,readDailySearchCache(q,allowedSources,options));if(options.indexEnabled())acceptSearchBatch(session,core.cachedPartialIndexMatches(q,allowedSources,fuzzyIndexEnabled()));}searchIndexIo.execute(()->{try{acceptSearchBatch(session,core.sourceNameItems(q,sourceNameScope));}catch(Exception ignored){android.util.Log.w("MainActivity", "MainActivity Exception: "+ignored.getMessage(), ignored);}});if(points>=2&&options.indexEnabled())searchIndexIo.execute(()->{try{acceptSearchBatch(session,core.cachedDirectoryMatchesWarm(q,allowedSources,sessionSearchRecursiveFolders,sessionSearchMaxPages,fuzzyIndexEnabled()));}catch(Exception ignored){android.util.Log.w("MainActivity", "MainActivity Exception: "+ignored.getMessage(), ignored);}});List<Models.Item> homeLocal=allowedSources==null||allowedSources.contains(sourceKey(home))?homeSnapshot:new ArrayList<>();String homeId=sourceKey(home);for(Models.Item item:homeLocal){if(item.source.isEmpty())item.source=home.title;if(item.sourceId.isEmpty())item.sourceId=homeId;}if(points<2){try{homeLocal.addAll(core.localSourceItems(allowedSources));}catch(Exception ignored){android.util.Log.w("MainActivity", "MainActivity Exception: "+ignored.getMessage(), ignored);}String key=q.toLowerCase(Locale.ROOT);List<Models.Item> matches=new ArrayList<>();for(Models.Item item:homeLocal)if(folderMatchRank(item.title.toLowerCase(Locale.ROOT),key,sessionSearchFuzzyMatching)>=0)matches.add(item);acceptSearchBatch(session,matches);queueSearchRefresh(session);return;}List<Models.Item> result=core.search(q,home,homeLocal,options,allowedSources,new Models.Progress(){
         @Override public boolean isCancelled(){return session!=searchGeneration;}
@@ -3925,6 +4038,27 @@ content=new LinearLayout(this);content.setOrientation(LinearLayout.VERTICAL);pag
          * 现在连名字一起记，让状态行能说出是哪些源。
          */
         @Override public void onFailure(String source){synchronized(globalSearch){if(session!=searchGeneration)return;globalSearch.failures++;String name=source==null?"":source.trim();if(!name.isEmpty())globalSearch.failedSources.add(name);}}
+        /**
+         * [DFW-36 2026-10-04] 记录「这个源为什么失败」。
+         *
+         * 这是这张卡的核心：在这之前用户只看到「3 源异常」，
+         * 不知道原因，唯一的反应就是去删源 —— 而源往往是好的。
+         * 现在每个源都带一个 `FailureKind`，用户点状态行就能看到
+         * 「为什么」和「下一步做什么」。
+         */
+        @Override public void onSourceFailure(String source,Models.FailureKind kind){
+          synchronized(globalSearch){
+            if(session!=searchGeneration)return;
+            String name=source==null?"":source.trim();
+            if(name.isEmpty()||kind==null)return;
+            /*
+             * 保留**第一次**的原因，不覆盖。
+             * 同一个源在一次搜索里可能失败多次（重试、换线路），
+             * 第一次通常是最有信息量的那次；后面的往往是同一原因的重复。
+             */
+            if(!globalSearch.failedReasons.containsKey(name))globalSearch.failedReasons.put(name,kind);
+          }
+        }
         @Override public void onIndexSource(String sourceId,String source){if(!options.indexEnabled())return;try{LanzouCore.IndexSnapshot snapshot=core.markSearchSourceIndexed(sourceId,source,indexRetentionMillis());runOnUiThread(()->{if(session==searchGeneration)applyIndexSnapshot(snapshot);});}catch(Exception ignored){android.util.Log.w("MainActivity", "MainActivity Exception: "+ignored.getMessage(), ignored);}}
         @Override public void onPage(String source,int page,int pageItems,int sourceFound,int totalPagesSeen){synchronized(globalSearch){if(session!=searchGeneration)return;globalSearch.source=source;globalSearch.pages=totalPagesSeen;globalSearch.right="第 "+page+" 页 · 累计 "+totalPagesSeen+" 页";}queueSearchRefresh(session);}
         @Override public void onProgress(int done,int total,int found,String source){synchronized(globalSearch){if(session!=searchGeneration)return;globalSearch.done=done;globalSearch.total=total;globalSearch.source=source;globalSearch.percent=Math.max(globalSearch.percent,done*100/Math.max(1,total));globalSearch.right="已显示 "+globalSearch.items.size();}queueSearchRefresh(session);}

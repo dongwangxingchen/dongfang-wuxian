@@ -309,6 +309,16 @@ final class LanzouCore {
   private static final class SourceSearchState{
     final Models.Source source;final Models.SourceMember hydrate;final List<Models.Item> local;final String needle,foldedNeedle,groupKey,displaySource;final LinkedHashMap<String,Models.Item> merged=new LinkedHashMap<>();final ArrayDeque<Models.Item> folders=new ArrayDeque<>();final Set<String> folderKeys=new HashSet<>(),pageFingerprints=new HashSet<>();
     boolean remoteAvailable,remoteUsed,localEmitted,apiDone,apiProgressDone,apiQueued,apiInFlight,dirDone,dirProgressDone,dirFailed,dirQueued,dirInFlight,dirReady=true,replayed;volatile boolean active,terminal;int page=1,folderApiPage,firstApiFolderCount;byte directoryUa=UA_UNKNOWN;final Set<Byte> directoryUaTried=new HashSet<>();Models.Item folder;DirectLink directorySession;ScheduledFuture<?> pageFuture;
+    /**
+     * [DFW-36 2026-10-04] 这个源**最后一次**失败时的异常，用来给用户解释「为什么」。
+     *
+     * 在此之前，异常在 `executeApi` 的 `catch(Exception ignored)` 里被直接吞掉，
+     * `finishSourceLocked` 只拿到一个布尔 `failed`，所以 UI 只能说「源异常」，
+     * 说不出原因 —— 用户唯一能做的就是去删源，而历史上那正是误删的起因。
+     *
+     * 保持 null 表示「不是出错，是搜索预算用完了被截断」（见 `expireBudgetLocked`）。
+     */
+    Exception lastError;
     SourceSearchState(Models.Source source,String query,List<Models.Item> local){this(source,query,local,sourceId(source),source.title);}
     SourceSearchState(Models.Source source,String query,List<Models.Item> local,String group){this(source,query,local,group,source.title);}
     SourceSearchState(Models.Source source,String query,List<Models.Item> local,String group,String displaySource){this.source=source;groupKey=group;this.displaySource=firstNonEmpty(displaySource,source.title);hydrate=null;this.local=local;needle=query==null?"":query.trim();foldedNeedle=needle.toLowerCase(Locale.ROOT);boolean composite=source.kind==Models.SOURCE_COMPOSITE;apiDone=composite||source.kind==Models.SOURCE_SINGLE||!source.searchable;if(source.kind==Models.SOURCE_SINGLE){dirDone=true;return;}if(composite){dirDone=true;return;}Models.Item root=new Models.Item();root.folder=true;root.title=source.title;root.url=root.shareUrl=source.url;root.password=source.password==null?"":source.password;root.source=this.displaySource;folders.add(root);folderKeys.add(searchFolderKey(root.url));}
@@ -384,7 +394,7 @@ final class LanzouCore {
     }
     @Override public void opened(HttpURLConnection connection){boolean close;synchronized(this){close=cancelled;if(!close)openConnections.add(connection);}if(close)connection.disconnect();}
     @Override public void closed(HttpURLConnection connection){synchronized(this){openConnections.remove(connection);}}
-    private void executeApi(SourceSearchState state){boolean completed=false,failed=false;try{if(state.hydrate!=null)hydrateCompositeSearchState(state);else searchSourceApi(state,new BatchBudget(0),items->publishBatch(state,items),(items,page,pageItems,sourceFound)->publishPage(state,items,page,pageItems,sourceFound),()->stopped(state));completed=true;}catch(SearchCancelled ignored){android.util.Log.w("LanzouCore", "LanzouCore SearchCancelled: "+ignored.getMessage(), ignored);}catch(Exception ignored){completed=true;failed=true;}synchronized(this){state.apiInFlight=false;if(completed)state.apiDone=true;else queueApiLocked(state);if(failed&&state.hydrate!=null)state.dirFailed=true;publishWorkProgressLocked(state);finishSourceLocked(state,failed);}}
+    private void executeApi(SourceSearchState state){boolean completed=false,failed=false;try{if(state.hydrate!=null)hydrateCompositeSearchState(state);else searchSourceApi(state,new BatchBudget(0),items->publishBatch(state,items),(items,page,pageItems,sourceFound)->publishPage(state,items,page,pageItems,sourceFound),()->stopped(state));completed=true;}catch(SearchCancelled ignored){android.util.Log.w("LanzouCore", "LanzouCore SearchCancelled: "+ignored.getMessage(), ignored);}catch(Exception ignored){completed=true;failed=true;/* [DFW-36] 原来这里连日志都没有，失败原因就是在这里丢的 */state.lastError=ignored;DfLog.failure("search","source-api-failed",ignored);}synchronized(this){state.apiInFlight=false;if(completed)state.apiDone=true;else queueApiLocked(state);if(failed&&state.hydrate!=null)state.dirFailed=true;publishWorkProgressLocked(state);finishSourceLocked(state,failed);}}
     private void hydrateCompositeSearchState(SourceSearchState state)throws Exception{if(stopped(state))throw new SearchCancelled();Models.SourceMember live=hydrateCompositeIcon(state.hydrate);if(stopped(state))throw new SearchCancelled();Models.Item item=itemFromMember(live,state.displaySource);item.sourceId=state.groupKey;List<Models.Item> batch=new ArrayList<>(1);boolean updated=false;synchronized(state.merged){if(matches(item,state.foldedNeedle,options.fuzzyMatching)){updated=state.merged.put(item.url,item)!=null;if(!updated)batch.add(item);}}publishBatch(state,batch);if(updated)publishUpdate(item);}
     private void executeDirectory(SourceSearchState state){DirectLink prepared=null;Models.Folder listing=null;List<Models.Item> folderBatch=null;int folderCount=0;Exception failure=null;boolean preparing=state.directorySession==null,folderPaging=!preparing&&state.folderApiPage>0;BooleanSupplier stop=()->stopped(state);int uaScope=pushUaScope(UA_SCOPE_DIRECTORY_SEARCH);try{checkSearchCancelled(stop);if(preparing){prepared=browseSession(state.folder.url,state.folder.password,System.nanoTime()+TimeUnit.MILLISECONDS.toNanos(SOURCE_PROBE_TIMEOUT_MS),false,state.directoryUa);checkSearchCancelled(stop);}else{ASYNC_PAGE_CANCEL.set(stop);if(folderPaging){int[] raw={0};folderBatch=apiFolders(state.directorySession,System.nanoTime()+TimeUnit.MILLISECONDS.toNanos(SOURCE_PROBE_TIMEOUT_MS),state.folderApiPage,true,raw,sourceProfile(state.folder.url));folderCount=raw[0];}else listing=browsePreparedSearchPage(state,stop);checkSearchCancelled(stop);}}catch(Exception error){failure=error;}finally{ASYNC_PAGE_CANCEL.remove();restoreUaScope(uaScope);}
       synchronized(this){state.dirInFlight=false;if(cancelled)return;if(failure!=null){handleDirectoryFailureLocked(state,failure);return;}if(preparing){state.directorySession=prepared;state.directoryUa=prepared.ua;sourceProfile(state.folder.url).directoryUa=prepared.ua;state.firstApiFolderCount=prepared.folderEndpoint.isEmpty()?0:-1;state.dirReady=true;queueDirectoryLocked(state);return;}if(folderPaging)acceptFolderPageLocked(state,folderBatch,folderCount);else acceptListingLocked(state,listing);}}
@@ -394,13 +404,13 @@ final class LanzouCore {
     private int mergedSize(SourceSearchState state){synchronized(state.merged){return state.merged.size();}}
     private int pageLimit(){return options.untilLastPage?(options.maxPages>0?options.maxPages:1000):1;}
     private void completeFolderLocked(SourceSearchState state){cancelPageTimerLocked(state);state.folder=null;state.directorySession=null;startNextFolderLocked(state);queueDirectoryLocked(state);}
-                private void handleDirectoryFailureLocked(SourceSearchState state,Exception error){if(error instanceof SearchCancelled){state.dirReady=true;queueDirectoryLocked(state);return;}if(routePressureError(error))observeRouteFailure(error);if(error instanceof PageWaitException){scheduleDirectoryLocked(state,((PageWaitException)error).delayMillis);return;}if(error instanceof PageCapabilityException&&switchDirectoryUaLocked(state))return;if(!state.replayed&&recoverableBrowseError(error)){resetDirectoryForReplayLocked(state,error);return;}if(recoverableBrowseError(error)&&switchDirectoryUaLocked(state))return;state.dirDone=true;state.dirFailed=true;publishWorkProgressLocked(state);finishSourceLocked(state,true);}
+                private void handleDirectoryFailureLocked(SourceSearchState state,Exception error){if(error instanceof SearchCancelled){state.dirReady=true;queueDirectoryLocked(state);return;}if(routePressureError(error))observeRouteFailure(error);if(error instanceof PageWaitException){scheduleDirectoryLocked(state,((PageWaitException)error).delayMillis);return;}if(error instanceof PageCapabilityException&&switchDirectoryUaLocked(state))return;if(!state.replayed&&recoverableBrowseError(error)){resetDirectoryForReplayLocked(state,error);return;}if(recoverableBrowseError(error)&&switchDirectoryUaLocked(state))return;state.dirDone=true;state.dirFailed=true;/* [DFW-36] 进终态前留证，否则 finishSourceLocked 无法解释原因 */state.lastError=error;publishWorkProgressLocked(state);finishSourceLocked(state,true);}
     private boolean switchDirectoryUaLocked(SourceSearchState state){SourceProfile profile=sourceProfile(state.folder.url);byte next=nextUaCandidate(UA_SCOPE_DIRECTORY_SEARCH,profile.directoryUa,state.directoryUaTried);if(next==UA_UNKNOWN)return false;state.directoryUaTried.add(next);invalidateBrowseSessions(state.folder.url,state.folder.password);state.directorySession=null;state.directoryUa=next;state.page=1;state.folderApiPage=0;state.firstApiFolderCount=0;state.replayed=false;state.pageFingerprints.clear();state.dirReady=true;queueDirectoryLocked(state);return true;}
     private void resetDirectoryForReplayLocked(SourceSearchState state,Exception error){state.replayed=true;invalidateBrowseSessions(state.folder.url,state.folder.password);state.directorySession=null;state.page=1;state.folderApiPage=0;state.firstApiFolderCount=0;state.pageFingerprints.clear();scheduleDirectoryLocked(state,sourceProfile(state.folder.url).interval(state.directoryUa,1));}
     private void scheduleDirectoryLocked(SourceSearchState state,long delayMillis){if(budgetExpired)return;cancelPageTimerLocked(state);state.dirReady=false;state.pageFuture=searchScheduler.schedule(()->{synchronized(SearchCoordinator.this){state.pageFuture=null;if(cancelled||state.terminal)return;state.dirReady=true;queueDirectoryLocked(state);pumpNetworkLocked();notifyAll();}},Math.max(0L,delayMillis),TimeUnit.MILLISECONDS);}
     private void scheduleRotationLocked(String key){if(options.sourceSwitchDelayMillis<=0||rotations.containsKey(key)||waitingGroups.isEmpty())return;rotations.put(key,searchScheduler.schedule(()->rotateSourceLocked(key),options.sourceSwitchDelayMillis,TimeUnit.MILLISECONDS));}
     private void rotateSourceLocked(String key){synchronized(this){rotations.remove(key);if(cancelled||paused||!activeGroups.contains(key)||remaining.getOrDefault(key,0)<=0){if(paused&&activeGroups.contains(key))scheduleRotationLocked(key);return;}if(waitingGroups.isEmpty()){scheduleRotationLocked(key);return;}List<SourceSearchState> members=groups.get(key);if(members!=null)for(SourceSearchState state:members)if(!state.terminal){apiReady.remove(state);directoryReady.remove(state);state.apiQueued=state.dirQueued=false;state.active=false;}activeGroups.remove(key);active--;waitingGroups.addLast(key);refillActiveLocked();publishActivityLocked(members==null||members.isEmpty()?"":members.get(0).source.title);pumpNetworkLocked();notifyAll();}}
-    private void finishSourceLocked(SourceSearchState state,boolean failed){if(state.terminal||!state.dirDone||!state.apiDone)return;state.terminal=true;state.active=false;cancelPageTimerLocked(state);if(failed||state.dirFailed)failedGroups.add(state.groupKey);int left=remaining.compute(state.groupKey,(key,value)->Math.max(0,(value==null?1:value)-1));if(left>0)return;ScheduledFuture<?> rotation=rotations.remove(state.groupKey);if(rotation!=null)rotation.cancel(false);if(activeGroups.remove(state.groupKey))active--;int value=done.incrementAndGet();if(progress!=null)synchronized(progress){if(failedGroups.contains(state.groupKey))progress.onFailure(state.source.title);else if(!options.apiOnly()&&!options.indexOnly())progress.onIndexSource(state.groupKey,state.source.title);progress.onProgress(value,total,found.get(),state.source.title);}refillActiveLocked();publishActivityLocked(state.source.title);}
+    private void finishSourceLocked(SourceSearchState state,boolean failed){if(state.terminal||!state.dirDone||!state.apiDone)return;state.terminal=true;state.active=false;cancelPageTimerLocked(state);if(failed||state.dirFailed)failedGroups.add(state.groupKey);int left=remaining.compute(state.groupKey,(key,value)->Math.max(0,(value==null?1:value)-1));if(left>0)return;ScheduledFuture<?> rotation=rotations.remove(state.groupKey);if(rotation!=null)rotation.cancel(false);if(activeGroups.remove(state.groupKey))active--;int value=done.incrementAndGet();if(progress!=null)synchronized(progress){if(failedGroups.contains(state.groupKey)){progress.onFailure(state.source.title);/* [DFW-36] 同步上报「为什么」。lastError 为 null = 预算截断，分类器归到 BUDGET */progress.onSourceFailure(state.source.title,classifyFailure(state.lastError));}else if(!options.apiOnly()&&!options.indexOnly())progress.onIndexSource(state.groupKey,state.source.title);progress.onProgress(value,total,found.get(),state.source.title);}refillActiveLocked();publishActivityLocked(state.source.title);}
     private void publishActivityLocked(String current){if(progress!=null)synchronized(progress){if(!cancelled)progress.onActivity(active,total,current);}}
     private void publishWorkProgressLocked(SourceSearchState state){int added=0;if(state.apiDone&&!state.apiProgressDone){state.apiProgressDone=true;added++;}if(state.dirDone&&!state.dirProgressDone){state.dirProgressDone=true;added++;}if(added<=0)return;int value=workDone.addAndGet(added);if(progress!=null)synchronized(progress){if(!cancelled)progress.onWorkProgress(value,totalWork);}}
     private void stampSource(SourceSearchState state,List<Models.Item> items){if(items==null)return;for(Models.Item item:items){item.source=firstNonEmpty(item.source,state.displaySource);item.sourceId=state.groupKey;}}
@@ -500,6 +510,86 @@ final class LanzouCore {
   private static int directRemainingMillis(long deadline)throws SocketTimeoutException{long nanos=deadline-System.nanoTime();if(nanos<=0)throw new SocketTimeoutException("直链解析超时");return(int)Math.min(Integer.MAX_VALUE,Math.max(1L,TimeUnit.NANOSECONDS.toMillis(nanos)));}
   private static DirectRetryException directRetry(Throwable error){for(Throwable value=error;value!=null;value=value.getCause())if(value instanceof DirectRetryException)return(DirectRetryException)value;return null;}
   private static boolean terminalDirectFailure(Throwable error){String value=error.getMessage();return value!=null&&DIRECT_PROFILE_TERMINAL_INFO.matcher(value).find();}
+
+  /**
+   * [DFW-36 2026-10-04] 把异常翻译成「用户看得懂、并且知道下一步做什么」的失败类型。
+   *
+   * **这个方法的唯一目的是阻止用户去删源。**
+   *
+   * 历史教训（`lessons.md` 2026-09-26）：84 个源曾被判「失效」，真实原因却是
+   * 默认 UA 被 CDN 拉黑 + 解锁请求少发 `lx/fid/pg` 字段 —— **源一个都没坏**。
+   * 当时的提示语是「该源已失效或跳转异常」，用户看到就会去删。
+   *
+   * 所以这里的分类顺序是**从「最确定是我们这边的问题」到「最确定是源的问题」**：
+   * 超时/限频/网络这类**明显的临时故障**先判掉，只有真的拿到「分享已取消」
+   * 这种源站明确回复时，才允许落到 `GONE`。
+   *
+   * 判定依据全部来自本类里已有的异常类型与既有判定函数，不发明新信号：
+   * - `DirectPasswordException`（本类 246 行）→ 密码
+   * - `DirectRetryException.rateLimited`（本类 245 行）→ 限频
+   * - `SocketTimeoutException` → 超时
+   * - `SearchCancelled`（本类 335 行）→ 用户取消
+   * - `recoverableBrowseError` / `routePressureError` → 可恢复的临时故障
+   * - 消息里出现「分享已取消」等字样 → 源站明确说没了
+   *
+   * @param error 可以为 null —— 表示「预算用完了被截断」，不是源出错
+   */
+  static Models.FailureKind classifyFailure(Throwable error){
+    if(error==null)return Models.FailureKind.BUDGET;
+
+    /*
+     * 先沿着 cause 链找，不要只看最外层。
+     * 这些异常经常被包装（比如套在 IOException 里），只看外层会全部落到 UNKNOWN。
+     */
+    for(Throwable value=error;value!=null;value=value.getCause()){
+      if(value instanceof SearchCancelled)return Models.FailureKind.CANCELLED;
+      if(value instanceof DirectPasswordException)return Models.FailureKind.PASSWORD;
+
+      if(value instanceof DirectRetryException){
+        DirectRetryException retry=(DirectRetryException)value;
+        return retry.rateLimited?Models.FailureKind.RATE_LIMIT:Models.FailureKind.TIMEOUT;
+      }
+
+      if(value instanceof SocketTimeoutException)return Models.FailureKind.TIMEOUT;
+
+      /*
+       * TLS / 证书：这是**线路**的问题，不是源的问题。
+       * DFW-88 的实证：`wwc.lanzoux.com` 的证书过期导致下载全失败，
+       * 但源本身是好的。所以这一档必须给「网络异常」而不是「源失效」。
+       */
+      if(isTlsFailure(value))return Models.FailureKind.NETWORK;
+
+      String message=value.getMessage();
+      if(message==null)continue;
+
+      /*
+       * 源站明确说「没了」才认 GONE。
+       * 关键词表刻意收窄：只说「取消分享」不算，必须是源站自己的措辞。
+       * 放宽会让误判卷土重来 —— 那正是这张卡存在的理由。
+       */
+      if(message.contains("分享已取消")||message.contains("文件不存在")||message.contains("分享不存在")){
+        return Models.FailureKind.GONE;
+      }
+
+      /*
+       * 「页面结构变了」这类：我们能修。
+       * 证据是解析层报出的具体信号，不是网络层。
+       */
+      if(message.contains("无效直链")||message.contains("验证失败")||message.contains("解析失败")){
+        return Models.FailureKind.PARSE;
+      }
+    }
+
+    /*
+     * 兜底：网络类 IOException 归到 NETWORK（临时、可重试），
+     * 其余归 UNKNOWN（需要我们看）。
+     * 这里**故意不返回 GONE** —— 宁可让用户重试一次，也不要让他去删源。
+     */
+    for(Throwable value=error;value!=null;value=value.getCause()){
+      if(value instanceof java.io.IOException)return Models.FailureKind.NETWORK;
+    }
+    return Models.FailureKind.UNKNOWN;
+  }
 
   /**
    * [DFW-88] 这个异常是不是 **TLS / 证书** 类故障。
