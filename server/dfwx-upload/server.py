@@ -34,6 +34,48 @@ def meta_path(name):
     return os.path.join(META_DIR, name + ".json")
 
 
+# [DFW-146 2026-10-04] 「总下载链接」指向哪个包。
+#
+# 用户要的东西：后台里有一个固定链接，点开就下载**当前设为默认**的那个安装包；
+# 以后不管传多少个包，只要在后台点一下「设为默认」，这个链接就跟着变，
+# 不用重新发给别人。
+#
+# 为什么不放在 APK_DIR：那个目录是 nginx 直接对外的公开下载目录，
+# 放状态文件进去会被列进文件列表，也会污染公开目录。
+DEFAULT_FILE = os.path.join(META_DIR, "_default.json")
+
+
+def read_default():
+    """当前默认包的**文件名**（不含路径）。没设过就返回 None。"""
+    try:
+        with open(DEFAULT_FILE, encoding="utf-8") as handle:
+            value = json.load(handle)
+    except (OSError, ValueError):
+        return None
+    name = value.get("name") if isinstance(value, dict) else None
+    if not isinstance(name, str) or not name:
+        return None
+    # 包被删掉之后状态文件可能还留着旧名字 —— 这里核对一次，避免总链接 404
+    if not os.path.isfile(os.path.join(APK_DIR, name)):
+        return None
+    return name
+
+
+def write_default(name):
+    os.makedirs(META_DIR, exist_ok=True)
+    tmp = DEFAULT_FILE + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as handle:
+        json.dump({"name": name, "setAt": int(time.time())}, handle, ensure_ascii=False)
+    os.replace(tmp, DEFAULT_FILE)
+
+
+def clear_default():
+    try:
+        os.unlink(DEFAULT_FILE)
+    except OSError:
+        pass
+
+
 def read_meta(name):
     """读上传时留下的元数据。读不到就返回空字典 —— 元数据缺失不该让接口失败。"""
     try:
@@ -117,11 +159,40 @@ class Handler(BaseHTTPRequestHandler):
         }
 
     def do_GET(self):
-        """[DFW-134] GET / 列目录；GET /<文件名> 看单个文件（缺哈希就现算）。"""
+        """[DFW-134] GET / 列目录；GET /<文件名> 看单个文件（缺哈希就现算）。
+
+        [DFW-146] 另外两条特殊路由，必须在文件名校验**之前**拦下来 ——
+        它们的名字以下划线开头，过不了 NAME_RE（那条规则故意禁止首字符是下划线，
+        防的是路径穿越），不先拦就会被当成非法文件名返回 400。
+        """
         raw = urllib.parse.unquote(self.path.split("?")[0])
         name = os.path.basename(raw.lstrip("/"))
+
+        # 总下载链接的跳转入口：/d → 302 → 当前默认包
+        if name == "_go":
+            target = read_default()
+            if not target:
+                self._json(404, {"ok": False, "error": "还没有设置默认安装包"})
+                return
+            self.send_response(302)
+            # 用相对路径：站点可能走 http 也可能走 https，写死任一个都会在另一种下出错
+            self.send_header("Location", "/apk/" + urllib.parse.quote(target))
+            self.send_header("Cache-Control", "no-store")
+            # ⚠️ 必须显式写 Content-Length: 0。
+            # 少了这一行，HTTP/1.1 下客户端不知道响应体在哪结束，会一直等连接关闭 ——
+            # nginx 代理这一层就会挂到超时，外部看到的是「打不开」（实测踩到，curl 返回 000）。
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
+
+        # 查当前默认包（后台用）
+        if name == "_default":
+            self._json(200, {"ok": True, "name": read_default()})
+            return
+
         if not name:
             files = []
+            current = read_default()
             try:
                 entries = sorted(os.listdir(APK_DIR))
             except OSError:
@@ -134,14 +205,17 @@ class Handler(BaseHTTPRequestHandler):
                 if not os.path.isfile(path):
                     continue
                 try:
-                    files.append(self._describe(entry, path))
+                    item = self._describe(entry, path)
                 except OSError:
                     continue
+                item["isDefault"] = (entry == current)
+                files.append(item)
             files.sort(key=lambda item: item["mtime"], reverse=True)
             self._json(200, {
                 "ok": True,
                 "count": len(files),
                 "totalBytes": sum(item["size"] for item in files),
+                "defaultName": current,
                 "files": files,
             })
             return
@@ -158,9 +232,18 @@ class Handler(BaseHTTPRequestHandler):
             self._json(500, {"ok": False, "error": str(error)})
 
     def do_DELETE(self):
-        """[DFW-134] 删除一个文件（连同它的元数据）。防路径穿越同 do_PUT。"""
+        """[DFW-134] 删除一个文件（连同它的元数据）。防路径穿越同 do_PUT。
+
+        [DFW-146] DELETE /_default 取消默认设置（总链接会变成「还没设置」）。
+        """
         raw = urllib.parse.unquote(self.path.split("?")[0])
         name = os.path.basename(raw.lstrip("/"))
+
+        if name == "_default":
+            clear_default()
+            self._json(200, {"ok": True, "name": None})
+            return
+
         if not name or not NAME_RE.match(name):
             self._json(400, {"ok": False, "error": "文件名不合法"})
             return
@@ -172,6 +255,7 @@ class Handler(BaseHTTPRequestHandler):
         if not os.path.isfile(path):
             self._json(404, {"ok": False, "error": "没有这个文件"})
             return
+        was_default = (read_default() == name)
         try:
             os.unlink(path)
         except OSError as error:
@@ -181,9 +265,41 @@ class Handler(BaseHTTPRequestHandler):
             os.unlink(meta_path(name))
         except OSError:
             pass
-        self._json(200, {"ok": True, "deleted": name})
+        # [DFW-146] 删掉的正好是默认包 → 顺手清掉默认，否则总链接会指向一个不存在的文件
+        if was_default:
+            clear_default()
+        self._json(200, {"ok": True, "deleted": name, "wasDefault": was_default})
 
     def do_PUT(self):
+        """[DFW-146] PUT /_default（请求体 = 文件名）设置默认包；其余走上传。"""
+        raw = urllib.parse.unquote(self.path.split("?")[0])
+        name = os.path.basename(raw.lstrip("/"))
+
+        if name == "_default":
+            try:
+                length = int(self.headers.get("Content-Length", "0"))
+            except ValueError:
+                length = 0
+            if length <= 0 or length > 4096:
+                self._json(400, {"ok": False, "error": "请求体不合法"})
+                return
+            body = self.rfile.read(length).decode("utf-8", "replace").strip()
+            # 允许直接发文件名，也允许发 {"name":"..."}
+            if body.startswith("{"):
+                try:
+                    body = (json.loads(body).get("name") or "").strip()
+                except ValueError:
+                    body = ""
+            if not body or not NAME_RE.match(body):
+                self._json(400, {"ok": False, "error": "文件名不合法"})
+                return
+            if not os.path.isfile(os.path.join(APK_DIR, body)):
+                self._json(404, {"ok": False, "error": "没有这个文件"})
+                return
+            write_default(body)
+            self._json(200, {"ok": True, "name": body})
+            return
+
         # [DFW-109 2026-10-02] **必须先 URL 解码。**
         # self.path 是**原始请求行**里的路径，中文在 HTTP 里是百分号编码
         # （「东方寻界-1.0.2.apk」实际是 %E4%B8%9C%E6%96%B9...），

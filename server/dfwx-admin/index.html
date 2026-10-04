@@ -172,6 +172,16 @@ button:disabled{opacity:.62;cursor:default}
 .pan-nohash{color:var(--muted);font-style:italic}
 .pan-acts{margin-top:10px}
 .pan-acts button{font-size:12.5px;padding:7px 12px}
+  /* [DFW-146] 总下载链接卡片。
+     它是这一页的**主操作**，所以给它 accent 描边，让它从其他卡片里跳出来；
+     链接本身用等宽字体 + 放大字号，因为用户要一眼看清、要复制。 */
+  .pan-master{border-color:color-mix(in srgb, var(--accent,#7c5cff) 45%, var(--line))}
+  .pan-master-link{margin:10px 0 8px;padding:12px 14px;border-radius:var(--r-sm);
+    background:var(--card2);border:1px solid var(--line);overflow-wrap:anywhere}
+  .pan-master-link code{font-family:var(--mono,monospace);font-size:14px;color:var(--text);word-break:break-all}
+  /* 当前默认包：左侧竖条 + 绿色描边，扫一眼就能找到 */
+  .pan-is-default{border-color:color-mix(in srgb, var(--ok) 45%, var(--line));
+    box-shadow:inset 3px 0 0 var(--ok)}
 /* [2026-10-03] 顶部状态条：把"线上现在是什么状态"提到第一屏。
    只用项目已有的语义色（ok 绿 / accent 紫 / muted 灰），不引入新色。 */
 .statusbar{display:flex;flex-wrap:wrap;gap:7px;margin:0 0 16px}
@@ -1747,23 +1757,59 @@ function panUploadWarning(name, existing){
 function panFileHtml(f){
   const apk = /\.apk$/i.test(f.name);
   const live = isLiveApk(f.name);
+  const isDef = !!f.isDefault;
   const ver = apk
     ? (f.versionName ? esc(f.versionName) + "（序号 " + esc(String(f.versionCode == null ? "?" : f.versionCode)) + "）" : "读不出，需手填")
     : "—";
   const hash = f.sha256
     ? `<code class="pan-hash">${esc(f.sha256)}</code>`
     : '<span class="pan-nohash">未记录（点「填进版本记录」时会现算）</span>';
-  return `<div class="pan-item" data-n="${esc(f.name)}">
+  return `<div class="pan-item${isDef ? " pan-is-default" : ""}" data-n="${esc(f.name)}">
     <div class="pan-head">
       <b class="pan-name">${esc(f.name)}</b>
+      ${isDef ? '<span class="pill on">总链接指向它</span>' : ""}
       ${live ? '<span class="pill on">线上正在用</span>' : ""}
     </div>
     <div class="pan-meta">${mbText(f.size)} · 上传于 ${esc(fmtUnix(f.uploadedAt || f.mtime))} · 包内版本 ${ver}</div>
     <div class="pan-meta">${hash}</div>
     <div class="row pan-acts">
-      ${apk ? '<button class="btn-main pan-fill">填进版本记录</button>' : ""}
+      ${isDef
+        ? '<button class="btn-sec pan-unset">取消默认</button>'
+        : '<button class="btn-main pan-setdef">设为默认</button>'}
+      ${apk ? '<button class="btn-sec pan-fill">填进版本记录</button>' : ""}
       <button class="btn-sec pan-copy">复制下载链接</button>
       <button class="btn-sec pan-del">删除</button>
+    </div>
+  </div>`;
+}
+
+/**
+ * [DFW-146] 「总下载链接」卡片 —— 用户要的那个固定链接。
+ *
+ * 需求原话：
+ * > 「我希望你可以再加一个功能，就是有一个总网盘链接……我可以把任何上传的软件都设置为默认，
+ * >   而设为默认后，那个总网盘链接就可以直接下载我默认的软件。如果我有三个安装包，
+ * >   分别是 1、2、3，然后总链接只有一个，点开之后会直接弹出安装包。
+ * >   如果我给 R 设置为默认了，然后总链接就会弹出来 R 的安装包。」
+ *
+ * 所以这张卡只回答两个问题：**链接是什么**、**现在指向哪个包**。
+ * 链接本身不带文件名 —— 换默认之后链接不用重新发给别人。
+ */
+function panMasterCard(defaultName){
+  const link = APK_ORIGIN + "/d";
+  const target = defaultName
+    ? `<code>${esc(defaultName)}</code>`
+    : '<span class="pan-nohash">还没设置 —— 点下面任意一个包上的「设为默认」</span>';
+  return `<div class="card pan-master">
+    <h2>总下载链接</h2>
+    <p class="hint">把这个链接发给别人就行。<b>以后不管换哪个包，链接都不用变</b> ——
+      在下面点「设为默认」，这个链接就跟着指向那个包。</p>
+    <div class="pan-master-link"><code id="panmaster">${esc(link)}</code></div>
+    <div class="pan-meta">现在指向：${target}</div>
+    <div style="height:12px"></div>
+    <div class="row">
+      <button class="btn-main" id="pancopymaster">复制总链接</button>
+      <a class="btn-sec" href="${esc(link)}" target="_blank" rel="noopener">打开试试</a>
     </div>
   </div>`;
 }
@@ -1782,7 +1828,10 @@ async function renderPan(p){
   }
 
   const files = data.files || [];
+  const defaultName = data.defaultName || null;
   p.innerHTML = `
+  ${panMasterCard(defaultName)}
+
   <div class="card">
     <h2>上传文件</h2>
     <p class="hint">传上来就能拿到下载链接。<b>校验值、文件大小、包里的版本号都会自动算好</b>，
@@ -1796,8 +1845,9 @@ async function renderPan(p){
 
   <div class="card">
     <h2>文件列表（${files.length}）</h2>
-    <p class="hint">合计 ${mbText(data.totalBytes || 0)}。所有文件都能通过
-      <code>${APK_ORIGIN}/apk/&lt;文件名&gt;</code> 直接下载。</p>
+    <p class="hint">合计 ${mbText(data.totalBytes || 0)}。每个文件都能通过
+      <code>${APK_ORIGIN}/apk/&lt;文件名&gt;</code> 单独下载；
+      标着「总链接指向它」的那个就是 <code>${APK_ORIGIN}/d</code> 会下载的包。</p>
     ${files.length ? files.map(panFileHtml).join("") : '<div class="empty">还没有文件</div>'}
     <div style="height:14px"></div>
     <button class="btn-sec" id="panreload2">刷新列表</button>
@@ -1805,6 +1855,20 @@ async function renderPan(p){
 
   const reload = () => renderPan(p);
   const rb2 = $("#panreload2"); if (rb2) rb2.onclick = reload;
+
+  /* [DFW-146] 复制总链接。
+     剪贴板 API 要安全上下文 + 用户手势，失败就退化成让用户自己抄 ——
+     和「复制下载链接」那条保持一致的行为。 */
+  const cm = $("#pancopymaster");
+  if (cm) cm.onclick = async () => {
+    const link = APK_ORIGIN + "/d";
+    try {
+      await navigator.clipboard.writeText(link);
+      toast("总链接已复制", "ok");
+    } catch(err){
+      prompt("复制这个链接：", link);
+    }
+  };
 
   $("#panup").onclick = async () => {
     const input = $("#panfile");
@@ -1866,6 +1930,37 @@ async function renderPan(p){
         toast(err.message, "err");
         btn.disabled = false;
         btn.textContent = old;
+      }
+      return;
+    }
+
+    if (e.target.closest(".pan-setdef")){
+      const btn = e.target.closest(".pan-setdef");
+      const old = btn.textContent;
+      btn.disabled = true;
+      btn.textContent = "设置中…";
+      try {
+        await panRequest("_default", { method:"PUT", body: name });
+        toast("总链接现在指向：" + name, "ok");
+        reload();
+      } catch(err){
+        toast(err.message, "err");
+        btn.disabled = false;
+        btn.textContent = old;
+      }
+      return;
+    }
+
+    if (e.target.closest(".pan-unset")){
+      const btn = e.target.closest(".pan-unset");
+      btn.disabled = true;
+      try {
+        await panRequest("_default", { method:"DELETE" });
+        toast("已取消默认，总链接暂时打不开", "ok");
+        reload();
+      } catch(err){
+        toast(err.message, "err");
+        btn.disabled = false;
       }
       return;
     }
