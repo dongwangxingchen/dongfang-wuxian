@@ -4,6 +4,8 @@
 
 **安卓上的资源库 + AI 对话 + 下载器 —— 免费、开源、无广告**
 
+作者：**东方**
+
 [![License](https://img.shields.io/github/license/dongwangxingchen/dongfang-wuxian?color=blueviolet)](LICENSE)
 [![Version](https://img.shields.io/badge/version-1.0.0-blueviolet)](https://github.com/dongwangxingchen/dongfang-wuxian/releases)
 [![Platform](https://img.shields.io/badge/Android-8.0%2B%20%7C%20arm64--v8a-brightgreen)](#下载)
