@@ -165,4 +165,51 @@ class BuiltinChannelRemoteJvmTest {
             offenders.isEmpty(),
         )
     }
+
+    /**
+     * [DFW-147] 构建脚本里，`dfwx_ai_*` 这几个**敏感**资源只能用变量赋值，不许写字面量。
+     *
+     * ## 为什么需要这条
+     *
+     * 令牌事故的根因是 `resValue("string", "dfwx_ai_token", "dfwx2779…")` ——
+     * 密钥以字面量形式躺在**公开仓库**里。把那一处改成读 local.properties 只是修了症状：
+     * 下次有人加一个新密钥（比如这次的签名密钥），照样可能顺手写成字面量。
+     *
+     * 上面那条 `repoMustNotContainTheBuiltInToken` 只能抓 `dfwx` + 32 位十六进制这一种形态，
+     * **抓不到签名密钥（64 位纯十六进制）** —— 而 64 位十六进制在仓库里到处都是
+     * （README 和发布站的 APK sha256 就是），不能拿它当判据，会满屏误报。
+     *
+     * 所以换个角度：**不看值长什么样，看它是不是字面量。**
+     * 只要第三个参数是字符串字面量就变红，跟值的内容无关 —— 机械、无歧义、零误报。
+     */
+    @Test fun buildScript_neverInlinesAiSecrets() {
+        val root = run {
+            var dir = java.io.File(System.getProperty("user.dir") ?: ".").absoluteFile
+            while (!java.io.File(dir, "AGENTS.md").isFile && dir.parentFile != null) dir = dir.parentFile
+            dir
+        }
+        val script = java.io.File(root, "app/build.gradle.kts")
+        assertTrue("找不到 app/build.gradle.kts", script.isFile)
+        val text = script.readText()
+
+        // 只查**名字像密钥**的键：token / key / secret / password。
+        // 不查全部 dfwx_ai_* —— 像 dfwx_ai_max_tokens="8192" 这种非机密配置，
+        // 写成字面量完全正常，一起查会误报（实测踩到过一次）。
+        // ⚠️ 必须按**段**精确匹配，不能用子串 —— 实测踩到：`max_tokens` 里含 `token`，
+        // 用子串匹配会把非机密的 `dfwx_ai_max_tokens` 一起判红。
+        val secretSegments = setOf("token", "key", "secret", "password")
+        val inlined = Regex(
+            "resValue\\(\\s*\"string\"\\s*,\\s*\"(dfwx_ai_[a-z_]+)\"\\s*,\\s*\""
+        ).findAll(text)
+            .map { it.groupValues[1] }
+            .filter { name -> name.split("_").any { it.lowercase() in secretSegments } }
+            .toList()
+
+        assertTrue(
+            "这些 AI 资源被写成了字面量，密钥会随公开仓库泄露：$inlined。\n" +
+                "改成从 local.properties / 环境变量读（见同文件里的 dfwxSecret）。",
+            inlined.isEmpty()
+        )
+    }
+
 }

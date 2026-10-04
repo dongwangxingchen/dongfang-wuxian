@@ -29,6 +29,8 @@ import me.rerere.rikkahub.data.ai.mcp.McpManager
 import me.rerere.rikkahub.data.network.SettingsProxySelector
 import me.rerere.rikkahub.data.network.SettingsProxyAuthenticator
 import me.rerere.rikkahub.data.network.SettingsSocks5Authenticator
+import me.rerere.rikkahub.dfwx.DfwxAiSignInterceptor
+import me.rerere.rikkahub.dfwx.DfwxBuiltinChannel
 import me.rerere.rikkahub.data.sync.webdav.WebDavSync
 import me.rerere.search.SearchService
 import me.rerere.rikkahub.data.sync.S3Sync
@@ -217,6 +219,9 @@ val dataSourceModule = module {
         // - followSslRedirects(false): 不跟随 https->http 跨协议重定向（fail-closed，3xx 直接返回错误）
         ProviderManager(
             client = get<OkHttpClient>().newBuilder()
+                // [DFW-147] 只给发往自家服务器的 AI 请求加签名头；第三方渠道原样透传。
+                // 传 lambda 而不是先取值：baseUrl 会被后台远程改，取一次就固化了。
+                .addInterceptor(DfwxAiSignInterceptor { DfwxBuiltinChannel.current().baseUrl })
                 .addInterceptor(AiUrlPolicyInterceptor())
                 .addNetworkInterceptor(AiUrlPolicyInterceptor(resolve = false))
                 .dns(AiPolicyDns())

@@ -85,7 +85,7 @@ android {
   // 10000 < 10034，安卓会把新包当**降级**直接拒绝安装。
   // 所以切换后的**第一版必须卸载重装**，之后就永远对齐了：
   //   1.0.0 → 10000   1.0.1 → 10001   1.1.0 → 10100   2.0.0 → 20000
-  val appVersionName = "1.0.0"
+  val appVersionName = "1.0.1"
   versionName = appVersionName
   versionCode = appVersionName.split(".").let { parts ->
     require(parts.size == 3) { "版本名必须是 major.minor.patch 三段，当前是：$appVersionName" }
@@ -182,6 +182,12 @@ android {
     resValue("string", "dfwx_ai_token", dfwxAiToken)
     resValue("string", "dfwx_ai_model", dfwxAiModel)
     resValue("string", "dfwx_ai_max_tokens", "8192")
+  // [DFW-147] 请求签名密钥。和令牌一样：**绝不写进仓库**，从 local.properties /
+  // 环境变量读，构建期注入。服务端用同一把密钥验签。
+  // 为什么还要签名：APK 里任何密钥都能被扒，这是客户端凭据的固有性质；
+  // 签名的作用是让"光拿到令牌的脚本"失效 —— 还得会算签名才能用。
+  val dfwxAiSignKey = dfwxSecret("dfwx.aiSignKey", "DFWX_AI_SIGN_KEY")
+  resValue("string", "dfwx_ai_sign_key", dfwxAiSignKey)
    // [DFWX AI-004] 原内置渠道 resValue 三件套（dfwx_default_ai_url/_model/_key）已移除：
    // 不再把任何中转站地址、模型或 Key 注入 APK。用户的 AI 渠道全部由用户自行配置。
   }

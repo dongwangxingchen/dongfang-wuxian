@@ -18,7 +18,7 @@
 - `rikkahub/`：Kotlin/Compose vendor（**上游锚点 = re-ovo/rikkahub tag `2.5.5`，versionCode 190**）与东方无限补丁层
 - 上游源码快照 `/tmp/rikkahub-255/`：**已清空**（临时目录），需要时重新下载
 - 
-- 版本号：versionCode `10000` / versionName `1.0.0`（`app/build.gradle.kts`）
+- 版本号：versionCode `10001` / versionName `1.0.1`（`app/build.gradle.kts`）
   - [DFW-118 2026-10-02] **路线 B：只写版本名，序号自动算**（用户选定）。
     `val appVersionName = "x.y.z"` 是**唯一可改的数字**；
     `versionCode = major*10000 + minor*100 + patch` 由它推导 —— 改不错。

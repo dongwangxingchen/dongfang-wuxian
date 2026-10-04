@@ -467,3 +467,48 @@ h2         出现 10 次
 
 **未做真机验证**：需在真机上问助手一个需要联网的问题（比如"今天有什么新闻"），
 确认它真的去搜了而不是编。
+
+## DFW-147 内置 AI 渠道请求签名（2026-10-04）
+
+**背景**：内置渠道的应用令牌曾被写进公开仓库并被外部脚本调用。已轮换令牌并清除历史，
+但"令牌在客户端天然可被扒"这个事实不变，所以再加一层。
+
+### 改动（3 处，都在 vendor 区）
+
+| 文件 | 改动 |
+|---|---|
+| `app/src/main/java/me/rerere/rikkahub/dfwx/DfwxAiSignInterceptor.kt` | **新增自有文件**（不在上游补丁范围）。HMAC-SHA256 请求签名 + 只对自家服务器生效 |
+| `app/src/main/java/me/rerere/rikkahub/di/DataSourceModule.kt` | AI 专用 OkHttpClient 上多挂一个 `DfwxAiSignInterceptor`（在 `AiUrlPolicyInterceptor` **之前**） |
+| `app/build.gradle.kts`（宿主 `:app`，非 vendor） | 注入 `dfwx_ai_sign_key` resValue，来源同令牌：`local.properties` / 环境变量 |
+
+### 同步上游时需重放
+
+1. `DfwxAiSignInterceptor.kt` 是**新增自有文件**，rsync 覆盖 vendor 时会被保留（不在上游目录里），
+   但要确认它还在。
+2. `DataSourceModule.kt` 的 `.addInterceptor(DfwxAiSignInterceptor { ... })` 那行会被 rsync 冲掉，
+   **必须重放**（连同两个 import）。
+3. `DfwxBuiltinChannel.current().baseUrl` 是既有 API，不是新发明的。
+
+### 关键设计约束（改之前先读）
+
+- **只签自家服务器的请求**：按 host 与 `DfwxBuiltinChannel.current().baseUrl` 比对。
+  用户在 RikkaHub 里配的第三方渠道**一个字节都不能碰** —— 加我们的头轻则被拒，重则暴露我们的存在。
+- **fail-open**：签名算不出来时**放行**，不抛异常。否则一个构建期配置没配上
+  就会让用户看到"AI 完全不能用"。服务端此时会记 `bad-ts`/`bad-signature`，能查出来。
+- **签名算法必须与服务端一字不差**：`ts + "\n" + nonce + "\n" + METHOD + "\n" + path`，
+  path **不含查询串**。服务端见 `server/dfwx-ai-guard/server.py`。
+
+### 验证
+
+- 全量测试 113 类 / 979 用例 / 0 失败 0 错误。
+- 新增守卫 `buildScript_neverInlinesAiSecrets`（`:app` 测试）：`dfwx_ai_*` 里名字像密钥的
+  资源**只能用变量赋值**。**反向探针双向验证**：正确写法全绿；植入字面量立刻变红并精确指出键名。
+  ⚠️ 该守卫**按段精确匹配**（`token`/`key`/`secret`/`password`），不能用子串 ——
+  实测 `max_tokens` 含 `token`，用子串会误报。
+
+### 服务端（不在本仓库）
+
+`server/dfwx-ai-guard/server.py` + nginx `auth_request /_ai_verify`。
+**上线先跑 observe 模式**（只记录不拦截），确认 App 侧签名正确率 100% 后再切 enforce ——
+签名有 bug 时 observe 让它暴露在日志里，而不是暴露在用户脸上。
+

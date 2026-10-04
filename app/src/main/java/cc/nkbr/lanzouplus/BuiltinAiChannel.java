@@ -43,6 +43,24 @@ final class BuiltinAiChannel {
       bakedModel = model;
       bakedMaxTokens = maxTokens;
       push(url, token, model, "", "", maxTokens, true);
+      // [DFW-147] 把签名密钥与本机标识推给拦截器。
+      // 为什么要签名：APK 里任何密钥都能被扒，这是客户端凭据的固有性质；
+      // 签名让"光拿到令牌的脚本"失效 —— 还得会算签名才能用。
+      // 读不到就传空串，拦截器会 fail-open（不签名放行），服务端日志里能看出来。
+      String signKey = "";
+      try {
+        signKey = context.getString(R.string.dfwx_ai_sign_key).trim();
+      } catch (Throwable ignored) {
+        // 资源没注入时不能连累启动
+      }
+      String deviceId = "";
+      try {
+        deviceId = android.provider.Settings.Secure.getString(
+            context.getContentResolver(), android.provider.Settings.Secure.ANDROID_ID);
+        if (deviceId == null) deviceId = "";
+      } catch (Throwable ignored) {
+      }
+      me.rerere.rikkahub.dfwx.DfwxAiSign.INSTANCE.install(signKey, deviceId);
       // 付费门：读的是实时状态（Support.unlocked 每次现读 SharedPreferences），
       // 所以用户刚在诚信付费页解锁，回 AI 页就已经放行，不需要重启。
       DfwxBuiltinChannel.INSTANCE.setPaidProvider(() -> Support.unlocked(context));
