@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins { alias(libs.plugins.android.application) }
 
 tasks.withType<JavaCompile>().configureEach { options.compilerArgs.add("-g:none") }
@@ -144,15 +146,41 @@ android {
    // v1.9.1：应用名改用独立资源名 dfwx_app_name——rikkahub 库在 values-zh 等 6 个语言里也定义了
    // app_name="RikkaHub"，中文系统资源解析优先 values-zh，会导致桌面名字变成 RikkaHub（真机实测）。
    resValue("string", "dfwx_app_name", "东方无限")
-    // [DFW-73] 内置渠道回归（用户 2026-10-01 拍板，方案 = 服务端中转）：
-    //   这里注入的是**我们自己服务器的地址**和**应用令牌**，不是上游中转站地址、也不是真实 Key；
-    //   上游地址与真 Key 只存在于服务器 /etc/nginx/dfwx-ai-secret.conf（600），抓包抓不到。
-    //   令牌放在客户端就是可被扒的（用户已知情并接受："防君子就行了，靠诚信"）；
-    //   万一被白用，服务器换令牌 + 后台下发 ai_token 即可，不必发版。
-    //   后台可远程覆盖：RemoteConfigClient 的 control 行 ai_base_url / ai_token / ai_model / ai_max_tokens。
-    resValue("string", "dfwx_ai_url", "https://39.106.33.135/ai/v1")
-    resValue("string", "dfwx_ai_token", "<已轮换的令牌>")
-    resValue("string", "dfwx_ai_model", "deepseek-v4.1-flash")
+    // [DFW-73 / 安全修复 2026-10-04] 内置渠道（服务端中转）。
+    //
+    // ⚠️ **令牌一律不进仓库。** 原来它硬编码在这里，而本仓库是公开的 ——
+    //    等于任何人打开 GitHub 就能抄走，连 APK 都不用下。已实测被外部使用。
+    //
+    // 现在从下面两处读，**仓库里不存任何值**：
+    //   ① `local.properties` 的 `dfwx.aiToken`（该文件不进 git）
+    //   ② 环境变量 `DFWX_AI_TOKEN`
+    // 都没有 → 令牌为空 → 内置渠道自动不可用（用户仍可在设置里自配渠道），
+    // 不会因此编译失败，也不会把凭据泄出去。
+    //
+    // ⚠️ **另一个坑（已实测）**：不能靠后台下发令牌来补救 ——
+    //    PocketBase 的 `control` 集合是**匿名可读**的，把令牌放那儿等于挂在网上公开，
+    //    比写在仓库里更糟。所以令牌只能靠发新版轮换。
+    //
+    // 令牌烧进 APK 后仍是可被反编译扒出的（客户端凭据的固有性质），
+    // 所以服务端必须配合**按 IP 限流 + 配额 + 监控**，发现被白用就再轮换一次。
+    // ⚠️ 注意：`project.findProperty` **读不到 local.properties**（它只认
+    //    gradle.properties 和 -P 参数）。必须手工加载那个文件。
+    //    这个坑踩过一次：令牌静默变成空串，内置渠道起不来，测试才抓出来。
+    val dfwxLocalProps = Properties().apply {
+        val f = rootProject.file("local.properties")
+        if (f.isFile) f.inputStream().use { load(it) }
+    }
+    fun dfwxSecret(key: String, env: String, fallback: String = ""): String =
+        (dfwxLocalProps.getProperty(key)?.takeIf { it.isNotBlank() }
+            ?: System.getenv(env)?.takeIf { it.isNotBlank() }
+            ?: fallback)
+
+    val dfwxAiToken = dfwxSecret("dfwx.aiToken", "DFWX_AI_TOKEN")
+    val dfwxAiUrl = dfwxSecret("dfwx.aiUrl", "DFWX_AI_URL", "https://39.106.33.135/ai/v1")
+    val dfwxAiModel = dfwxSecret("dfwx.aiModel", "DFWX_AI_MODEL", "deepseek-v4.1-flash")
+    resValue("string", "dfwx_ai_url", dfwxAiUrl)
+    resValue("string", "dfwx_ai_token", dfwxAiToken)
+    resValue("string", "dfwx_ai_model", dfwxAiModel)
     resValue("string", "dfwx_ai_max_tokens", "8192")
    // [DFWX AI-004] 原内置渠道 resValue 三件套（dfwx_default_ai_url/_model/_key）已移除：
    // 不再把任何中转站地址、模型或 Key 注入 APK。用户的 AI 渠道全部由用户自行配置。

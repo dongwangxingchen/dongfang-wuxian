@@ -104,13 +104,65 @@ class BuiltinChannelRemoteJvmTest {
         boot()
         val baked = DfwxBuiltinChannel.current()
         assertNotNull(baked)
-        assertTrue("APK 内置值必须非空（否则内置渠道根本起不来）", baked.baseUrl.isNotEmpty())
-        assertTrue(baked.token.isNotEmpty())
+        assertTrue("APK 内置服务器地址必须非空（它是常量）", baked.baseUrl.isNotEmpty())
+
+        // ⚠️ 令牌**可能为空**，这是设计，不是故障。
+        // 2026-10-04 安全修复后，令牌不再硬编码在 build.gradle.kts 里（那会被公开仓库泄露），
+        // 改从 local.properties / 环境变量读 —— 公开克隆里没有这个值。
+        // 没配令牌 → 内置渠道不可用（用户仍可自配渠道），但**绝不能因此崩溃**。
         BuiltinAiChannel.applyRemote(parse(controlJson("", "", "", "", "", 0)))
         val after = DfwxBuiltinChannel.current()
         assertEquals("留空时服务器地址保持 APK 内置值", baked.baseUrl, after.baseUrl)
         assertEquals("留空时令牌保持 APK 内置值", baked.token, after.token)
         assertEquals("留空时模型名保持 APK 内置值", baked.modelId, after.modelId)
         assertEquals("留空时最大输出保持 APK 内置值", baked.maxTokens, after.maxTokens)
+    }
+
+    /**
+     * [安全守卫 2026-10-04] **公开仓库里不得出现内置渠道的应用令牌。**
+     *
+     * ## 为什么加这条
+     * 令牌原本硬编码在 `app/build.gradle.kts`，而本仓库是**公开**的 ——
+     * 等于任何人打开 GitHub 就能抄走，连 APK 都不用下。实测已被外部用脚本调用。
+     *
+     * ## 为什么必须是机械判据
+     * "记得别把密钥提交"这种靠自觉的规矩，拦截率是 0。
+     * 这条测试直接扫源码树，只要令牌再被写回去就立刻变红。
+     */
+    @Test fun repoMustNotContainTheBuiltInToken() {
+        val root = run {
+            var dir = java.io.File(System.getProperty("user.dir") ?: ".").absoluteFile
+            while (!java.io.File(dir, "AGENTS.md").isFile && dir.parentFile != null) dir = dir.parentFile
+            dir
+        }
+        val offenders = mutableListOf<String>()
+        // ⚠️ 只扫 **git 跟踪的文件** —— 那才是真正会被公开的集合。
+        //    不能扫整个磁盘：local.properties 是本地文件（已在 .gitignore 里），
+        //    它**本来就应该**存令牌，扫它会误报。
+        val tracked = runCatching {
+            val p = ProcessBuilder("git", "ls-files")
+                .directory(root).redirectErrorStream(true).start()
+            val out = p.inputStream.bufferedReader().readText()
+            p.waitFor()
+            out.lineSequence().filter { it.isNotBlank() }.toList()
+        }.getOrDefault(emptyList())
+
+        tracked
+            .filter { it.endsWith(".kts") || it.endsWith(".java") || it.endsWith(".kt") ||
+                it.endsWith(".gradle") || it.endsWith(".xml") || it.endsWith(".json") ||
+                it.endsWith(".yml") || it.endsWith(".yaml") || it.endsWith(".md") }
+            .forEach { rel ->
+                val f = java.io.File(root, rel)
+                if (!f.isFile) return@forEach
+                val text = runCatching { f.readText() }.getOrNull() ?: return@forEach
+                // dfwx + 32 位以上十六进制 = 我们的应用令牌形态
+                if (Regex("dfwx[0-9a-f]{32,}").containsMatchIn(text)) offenders += rel
+            }
+
+        assertTrue(
+            "内置渠道令牌是公开仓库不该有的凭据，必须从 local.properties / 环境变量读。\n" +
+                "命中文件：$offenders",
+            offenders.isEmpty(),
+        )
     }
 }
