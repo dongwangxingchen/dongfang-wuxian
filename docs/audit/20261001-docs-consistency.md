@@ -13,7 +13,7 @@
 > **这些代码改动与本报告无关、不是本报告做的**；凡受影响的数字，本报告都同时标注了版本。
 > 复核结束时的 HEAD = `edead6a`，`current-state.md` 已由对方同步为 `1.0.4`。
 > 改动前工作树已有 2 项与本任务无关的既存改动
-> （` M .zcode/skills/codebase-memory-cli/SKILL.md`、`?? docs/handover/`），本报告未触碰它们。
+> （` M <本地技能目录>/codebase-memory-cli/SKILL.md`、`?? docs/handover/`），本报告未触碰它们。
 
 ---
 
@@ -545,7 +545,7 @@ R-11（DFW-86 ✅）、DFW-19（五条链路 ✅ 全部实探成立）。
 > 与本报告的后半部分 —— 这两处需要 lead 决定怎么收尾。
 >
 > **(2) 不要把我改的文件与同期代码改动混在一起提交。** 复核结束时 `git status` 里还有
-> `M app/build.gradle.kts`（版本已推到 1.0.4）与既存的 `M .zcode/skills/codebase-memory-cli/SKILL.md`、
+> `M app/build.gradle.kts`（版本已推到 1.0.4）与既存的 `M <本地技能目录>/codebase-memory-cli/SKILL.md`、
 > `?? docs/handover/` —— **都不是本报告的产物**。本报告按 lead 要求**没有 commit、没有 push**。
 
 ### 4.2 面板卡（1 张）
@@ -593,7 +593,7 @@ $ taskctl issue update DFW-19 --thread-id dfwx \
     是否补一个只含文档的提交、以及提交信息怎么写，**留给 lead 决定**。
 
 **关于 `BrandingCleanlinessJvmTest` —— 顺手纠正一条流传的说法**：
-`docs/handover/README.md` §3 写"注释与文档里不许出现 `黑曜`、`heiyao`（`BrandingCleanlinessJvmTest` 会红）"，
+`docs/handover/README.md` §3 写"注释与文档里不许出现 `<本地归档>`、`<工作区>`（`BrandingCleanlinessJvmTest` 会红）"，
 **这句不准确**。实测该测试的扫描根是 `app/src/main/`：
 ```console
 $ grep -n "app/src/main\|docs" app/src/test/java/cc/nkbr/lanzouplus/BrandingCleanlinessJvmTest.kt
@@ -603,13 +603,13 @@ $ grep -n "app/src/main\|docs" app/src/test/java/cc/nkbr/lanzouplus/BrandingClea
 它只扫 `app/src/main/` 下的 `res/`、`AndroidManifest.xml` 与 Java/Kotlin 源码，**不扫 `docs/`**。
 而 `docs/` 里本来就有该词（归档路径与目录名），例如：
 ```console
-$ grep -rn "黑曜\|heiyao" docs/plan/
-docs/plan/current-state.md:12:  - 实际源码根目录：`/Users/<用户名><仓库根>`
+$ grep -rn "<本地归档>\|<工作区>" docs/plan/
+docs/plan/current-state.md:12:  - 实际源码根目录：`<本地目录>/src`
 docs/plan/current-state.md:16:  - 回退点：… `<本地目录>/vendor-backup-before-255-20260928.tar.gz` …
-docs/plan/current-state.md:59:  … 已归档 `<本地目录>/黑曜/03-构建产物/`
-docs/plan/decisions.md:43:22. 调研三层查…先查本地黑曜参考库…
+docs/plan/current-state.md:59:  … 已归档 `<构建产物目录>/`
+docs/plan/decisions.md:43:22. 调研三层查…先查本地<本地归档>参考库…
 ```
-这些是**工作区路径与本地归档目录名**（仓库本身就在 `/Users/<用户名>/heiyao`），属既存事实，不是品牌残留，
+这些是**工作区路径与本地归档目录名**（仓库本身就在 `<工作区>`），属既存事实，不是品牌残留，
 本轮**一个都没动、也没新增**：我改动的 4 个文档里，新增行中零命中该词。
 本报告为避免制造噪音，正文引用归档路径处统一用"本地归档目录"代替，不写出该词。
 
@@ -619,7 +619,7 @@ docs/plan/decisions.md:43:22. 调研三层查…先查本地黑曜参考库…
 ## 6. 一键复现（本轮全部证据命令）
 
 ```bash
-cd <本地目录>/src
+cd <仓库根>
 
 # R-09
 find . -name "Support*JvmTest*" -o -name "Brand*JvmTest*" | grep -v /build/

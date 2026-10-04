@@ -71,7 +71,7 @@ class EmbedShotsJvmTest {
 
     private fun shoot(name: String) {
         val bmp = compose.onRoot().captureToImage().asAndroidBitmap()
-        val dir = File(System.getProperty("user.home") + "<本地目录>/build_output/ai_shots")
+        val dir = File(System.getProperty("dfwx.shots.dir", System.getProperty("user.home") + "/dfwx-shots/") + "/ai_shots")
         dir.mkdirs()
         File(dir, "$name.png").outputStream().use { bmp.compress(Bitmap.CompressFormat.PNG, 100, it) }
         println("[SHOTS] $name → ${bmp.width}x${bmp.height} 已落盘")

@@ -88,7 +88,7 @@ cd server/dfwx-upload
 # 接口自测（本地临时目录起真服务，不碰生产；30 项）
 python3 server_test.py
 
-# 端到端（打真实 HTTPS 入口，需要 <本地目录>/<凭据文件> 里的密码）
+# 端到端（打真实 HTTPS 入口，需要 <仓库外凭据文件> 里的密码）
 python3 e2e_test.py
 ```
 

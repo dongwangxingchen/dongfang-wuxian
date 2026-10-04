@@ -156,7 +156,7 @@ Caused by: org.xmlpull.v1.XmlPullParserException: Binary XML file line #5<Vector
 ## 回退
 
 `git checkout -- app/build.gradle.kts app/src/test/java/cc/nkbr/lanzouplus/ApkXmlNamespaceJvmTest.kt`。
-release 回退点 = v1.22.8 的 APK（`<本地目录>/黑曜/03-构建产物/东方无限-v1.22.8.apk`）。
+release 回退点 = v1.22.8 的 APK（`<构建产物目录>/东方无限-v1.22.8.apk`）。
 **注意：回退该参数 = 把闪退放回去**，非必要不要回退。
 
 ## 与 BRAND-001 的关系

@@ -72,7 +72,7 @@ Compose 侧（`rikkahub/app/src/main/java/me/rerere/rikkahub/ui/pages/chat/`）�
 
 ## 验收
 
-- 真机（vivo 真机 / Android 16）键盘弹出→收起全过程顶栏无可见位移；
+- 真机（真机（Android 16） / Android 16）键盘弹出→收起全过程顶栏无可见位移；
 - 宿主全量测试 `:app:testEmptyDebugUnitTest` 全绿；
 - 修复后 `rikkahub/PATCHES.md`（若动 vendor）或宿主节（若动 Java）有登记；
 - 明确写出"已验证 / 未验证"。

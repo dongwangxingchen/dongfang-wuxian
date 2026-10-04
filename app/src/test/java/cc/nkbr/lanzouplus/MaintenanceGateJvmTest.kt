@@ -95,7 +95,7 @@ class MaintenanceGateJvmTest {
         assertEquals("永久", MaintenanceGate.untilText("永久"))
         assertEquals("永久", MaintenanceGate.untilText("  永久  "))
         assertEquals("等通知", MaintenanceGate.untilText("等通知"))
-        assertEquals("<日期> 到期", MaintenanceGate.untilText("<日期> 到期"))
+        assertEquals("<到期日>", MaintenanceGate.untilText("<到期日>"))
     }
 
     @Test

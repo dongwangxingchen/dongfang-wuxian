@@ -6,16 +6,19 @@ import org.junit.Test
 import java.io.File
 
 /**
- * [DFWX] DFW-5 文档时效治理守卫。
+ * [DFWX] 文档守卫：时效性 + 公开安全性。
  *
- * ## 发现的危害
- * `<本地目录>/东方无限-项目认知.md` 停更于 **v1.2.1 / 2026-09-09**，而 `src/AGENTS.md` 第一节
- * 把它列为「会话开始第 1 件事」。它含 Windows 路径、旧 minSdk/compileSdk/AGP、
+ * ## 危害一：过期文档被当成事实源（DFW-5）
+ * 曾经有一份仓库外的「项目认知」笔记停更于 v1.2.1 / 2026-09-09，却被
+ * `AGENTS.md` 列为「会话开始第 1 件事」。它含 Windows 路径、旧 minSdk/compileSdk/AGP，
  * 以及**已被移除的"签名口令明文写在源码里"**（v1.9.0 起口令只在 `local.properties`）。
  * 照它建立全貌会被带偏——本项目已实际踩到过。
+ * 现在 `AGENTS.md` 不再指向任何仓库外笔记，事实一律以 `docs/plan/current-state.md` 为准。
  *
- * 该文件在仓库外（`<本地目录>/`，非 git 仓），本卡不改它，而是**修掉指向它的那条指令**：
- * 让接手者知道它是历史背景、事实以 `docs/plan/current-state.md` 为准。
+ * ## 危害二：公开文件里写了本机环境（2026-10-04 修）
+ * `AGENTS.md` 曾经写满本机信息——macOS 用户名（等于真名拼音）、内网 IP、手机型号、
+ * 服务器规格与到期日、凭据文件位置、本地目录结构。**这个仓库是公开的。**
+ * 现在 `agentsMd_isPublicSafe` 用机械判据守着这一条。
  *
  * `docs/design/wear-ui-system.md` 同理：按 Wear 圆屏写，与「只测手机」（decisions #13）冲突，
  * 但其中的 MotionToken / 形状 / 字阶等**仍然有效**，所以不打散、只标注适用范围。
@@ -72,26 +75,54 @@ class DocTimelinessJvmTest {
         )
     }
 
-    /** AGENTS.md 不得再把过期文件当成会话开始的事实源。 */
+    /**
+     * AGENTS.md 是**公开仓库**的一部分，必须只写项目规范、不写本机环境。
+     *
+     * ## 为什么这条比原来的更严
+     * 原来只断言「AGENTS.md 有没有提醒那个过期文档」。2026-10-04 发现真正的危害更大：
+     * 那份文件里塞满了**本机信息**——macOS 用户名（等于真名拼音）、内网 IP、
+     * 手机型号、服务器规格与到期日、凭据文件位置、本地目录结构。
+     * 这些在公开仓库里等于给作者做了个完整画像。
+     *
+     * 所以改成三条：**该指的指到、该提的提到、不该有的一律不能有**。
+     * 第三条是新增的机械判据——靠人自觉不写隐私，拦截率是 0。
+     */
     @Test
-    fun agentsMd_warnsAgainstStaleProjectDoc() {
+    fun agentsMd_isPublicSafe() {
         val agents = read("AGENTS.md")
+
+        // ① 当前事实源必须指对
         assertTrue(
-            "AGENTS.md 必须明确提示「项目认知文档」已过期、不要再当事实源",
-            agents.contains("不要再把") && agents.contains("东方无限-项目认知.md"),
-        )
-        assertTrue(
-            "必须指明当前事实源是 current-state.md",
+            "必须指明当前事实源是 docs/plan/current-state.md",
             agents.contains("docs/plan/current-state.md"),
         )
+
+        // ② 安全红线必须提到
         assertTrue(
-            "必须点出最危险的过期内容（口令明文写在源码里）已被移除",
+            "必须点出签名口令只在 local.properties 且该文件不入库",
             agents.contains("local.properties"),
         )
-        // 不能再出现"读该文件建立全貌"这种无条件指令
-        assertFalse(
-            "不得再写「读该项目认知文档建立全貌」这类无条件指令",
-            agents.contains("读 `<本地目录>/东方无限-项目认知.md` 建立全貌"),
+
+        // ③ 本文件必须声明自己是公开的（提醒后续维护者）
+        assertTrue(
+            "AGENTS.md 必须声明「本文件是公开仓库的一部分」，否则后人会继续往里写机器信息",
+            agents.contains("公开仓库"),
+        )
+
+        // ④ 机械判据：任何本机特征都不许出现
+        val forbidden = mapOf(
+            "macOS 家目录（会泄露真名拼音）" to Regex("""/Users/[A-Za-z0-9._-]+"""),
+            "内网 IP" to Regex("""\b192\.168\.\d+\.\d+"""),
+            "本地家目录相对路径" to Regex("""~/[A-Za-z0-9._-]+/"""),
+            "手机型号/无线调试端口" to Regex("""\b5555\b"""),
+            "凭据文件位置" to Regex("""server\.txt"""),
+            "本机代理端口" to Regex("""127\.0\.0\.1:7890"""),
+        )
+        val hits = forbidden.filterValues { it.containsMatchIn(agents) }.keys
+        assertTrue(
+            "AGENTS.md 是公开文件，不得出现本机信息。命中：$hits\n" +
+                "这些内容应该写进仓库外的本地笔记，不要提交。",
+            hits.isEmpty(),
         )
     }
 

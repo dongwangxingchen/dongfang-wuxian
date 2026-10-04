@@ -76,7 +76,7 @@ echo "▶ $TASK ${GRADLE_EXTRA[*]:-}"
 # 而带 `--class Xxx` 时数组非空、一切正常 —— 所以这个 bug 藏了很久没暴露，
 # 表现是"我只想跑个全量，结果脚本自己死了"，很容易被误判成代码或环境问题。
 # `${A[@]+...}` 的写法在数组为空时展开成空，非空时正常展开，两种 bash 都对。
-DFWX_OFFLINE=1 JAVA_HOME="${JAVA_HOME:-/Users/<用户名>/sdk/jdk-21.0.11.jdk/Contents/Home}" \
+DFWX_OFFLINE=1 JAVA_HOME="${JAVA_HOME:-$JAVA_HOME}" \
   ./gradlew -p "$REPO_ROOT" "$TASK" ${GRADLE_EXTRA[@]+"${GRADLE_EXTRA[@]}"}
 status=$?
 

@@ -98,7 +98,7 @@ md5 server/dfwx-admin/index.html
 **服务器直连 GitHub 下大文件极慢（实测 36MB / 16 分钟未完成），所以用 scp 直推：**
 
 ```bash
-scp <本地目录>/黑曜/03-构建产物/dongfang-wuxian-vX.Y.Z.apk dfwx:/tmp/apk.apk
+scp <构建产物目录>/dongfang-wuxian-vX.Y.Z.apk dfwx:/tmp/apk.apk
 ssh dfwx 'sudo mv /tmp/apk.apk /var/www/dfwx/apk/dongfang-wuxian-vX.Y.Z.apk && \
           sudo chown www-data:www-data /var/www/dfwx/apk/dongfang-wuxian-vX.Y.Z.apk'
 ```

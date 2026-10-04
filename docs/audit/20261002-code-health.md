@@ -1,7 +1,7 @@
 # 复查① 代码健康审计（死代码 / 崩溃风险 / 资源泄漏）
 
 - **日期**：2026-10-02 10:30 (+0800)
-- **审计对象**：`/Users/<用户名><仓库根>`（《东方无限》Android，包名 `cc.nkbr.lanzouplus`）
+- **审计对象**：`<本地目录>/src`（《东方无限》Android，包名 `cc.nkbr.lanzouplus`）
 - **测量基线**：`HEAD = 93858db 复查① 自查发现并修掉两处`
   - `app/src/main/java/cc/nkbr/lanzouplus/MainActivity.java` = **4527 行**，md5 `67fe416ae5422fee5110559363fa8718`
   - 主源码 47 个 `.java`，共 15129 行；测试 90 个文件（`.kt` + `.java`）
@@ -302,7 +302,7 @@
 > 口径：对 `app/src` 下 207 个文件（含 90 个测试文件、`assets/*.js`、全部 `res/**/*.xml`）做标识符全量词频统计，取「有声明行、但标识符全局仅出现 1 次」的方法；`@Override` 框架回调已剔除。
 > 复现命令（无副作用，不写文件）：
 > ```bash
-> cd <本地目录>/src
+> cd <仓库根>
 > find app/src -type f \( -name "*.java" -o -name "*.kt" -o -name "*.js" -o -name "*.xml" \) | sort > /tmp/f.txt
 > LC_ALL=C awk '{while(match($0,/[A-Za-z_][A-Za-z0-9_]*/)){w=substr($0,RSTART,RLENGTH);c[w]++;$0=substr($0,RSTART+RLENGTH)}}END{for(k in c)print k"\t"c[k]}' $(cat /tmp/f.txt) | sort > /tmp/freq.txt
 > # 再与声明清单比对，取频次==1 者

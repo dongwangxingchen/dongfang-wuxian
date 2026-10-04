@@ -107,7 +107,7 @@
 
 ### T12 效率与质量提升（用户新增 2026-09-26）
 - **用户原话要点**："在不影响质量的情况下增加效率，甚至会增强质量……我想要的就是极致的效率、极高的质量……子智能体，你应该是一次性最多放 4 个出来了吧？"
-- **已落地**：① `org.gradle.caching=true` 已开；② 新建 `.zcode/skills/dfwx-verify/SKILL.md`（L0~L3 验证阶梯）；③ 子智能体改**后台并行**（`run_in_background`），不再阻塞主线程。
+- **已落地**：① `org.gradle.caching=true` 已开；② 新建 `<本地技能目录>/dfwx-verify/SKILL.md`（L0~L3 验证阶梯）；③ 子智能体改**后台并行**（`run_in_background`），不再阻塞主线程。
 - **关键效率事实**：`compileEmptyDebugJavaWithJavac --offline` = **17s** vs `assembleEmptyRelease` = 5~9min（**20~30 倍**）。
 - **ABI 陷阱**：debug APK 只含 x86_64，真机 arm64 装不上 → 真机必须用 release 包。
 
@@ -151,7 +151,7 @@
 - 用户已并入总要求：全软件帧率稳定 ≥60fps。与 T6 联动做。
 
 ### T8 发版
-- 全部做完统一发 GitHub Release；测试期版本号递增（覆盖装真机），**最终发布重置 1.0.0**；Release 红线看 `.zcode/skills/dfwx-release/SKILL.md`（已于 commit 3154424 恢复）；AGPL-3.0 源码义务；push 走 backup 远程（SSH over 443）。
+- 全部做完统一发 GitHub Release；测试期版本号递增（覆盖装真机），**最终发布重置 1.0.0**；Release 红线看 `<本地技能目录>/dfwx-release/SKILL.md`（已于 commit 3154424 恢复）；AGPL-3.0 源码义务；push 走 backup 远程（SSH over 443）。
 
 ---
 
@@ -226,7 +226,7 @@
 - 头像备份：`docs/tasks/20260925-ui-overhaul/assets/avatar-{dongfang,chenyu,wanyi}.jpg`
 - 图标源：Phosphor @2.1.1 regular/squares-four + regular/x（SVG 已取，待转 vector）
 - 设计规范：`docs/design/wear-ui-system.md` v2（M3E MotionTokens/ShapeTokens/PressFeedback/字重层级）
-- 构建门：`JAVA_HOME=/Users/<用户名>/sdk/jdk-21.0.11.jdk/Contents/Home <本地目录>/src/gradlew -p <本地目录>/src :app:assembleEmptyRelease :app:testEmptyDebugUnitTest --offline`
+- 构建门：`JAVA_HOME=$JAVA_HOME <仓库根>/gradlew -p <仓库根> :app:assembleEmptyRelease :app:testEmptyDebugUnitTest --offline`
 - 真机：`adb connect <手机IP>:5555`；启动 `am start -n dfwx.dongdang/cc.nkbr.lanzouplus.MainActivity`
 - 崩溃扫描：`adb logcat -d | grep -c "AndroidRuntime.*FATAL"` 应为 0
 
@@ -254,7 +254,7 @@
     - 验证：新增 `LanzouUnlockFieldsJvmTest`（5 例）。**负向验证**：临时还原旧 `formValues` 后 4/5 失败，证明用例真能抓 bug。
     - **重要纠错**：先前"源已失效"结论**错误**——源全部正常，是 App 自身两个 bug。**不要删任何源**。
   - **T14 更新检查**：指向上游仓库（v1.6.4）而 App 是 1.21.x → `compare<=0` 恒成立 → 更新提示**永不出现**。已改自有仓库 + 资产名前缀匹配 + host 白名单同步。新增 `UpdateClientJvmTest`（5 例）。
-  - **T12 效率**：开 `org.gradle.caching=true`；新建 `.zcode/skills/dfwx-verify/SKILL.md`（L0~L3 阶梯，编译反馈 5~9min→17s）；子智能体改**后台并行**不再阻塞。
+  - **T12 效率**：开 `org.gradle.caching=true`；新建 `<本地技能目录>/dfwx-verify/SKILL.md`（L0~L3 阶梯，编译反馈 5~9min→17s）；子智能体改**后台并行**不再阻塞。
   - **测试基线**：7 个类 **20 例全绿**。
   - ⚠️ **操作失误（已如实告知用户）**：装机前误跑 `pm clear dfwx.dongdang`，清空了 App 本地数据（违反项目"清除数据必须先确认"铁律）。影响：搜索历史/下载历史/悬浮球位置/用户自建源等本地偏好丢失；**源码与 assets 内置 84 源不受影响**（`builtInSources()` 从 assets 读）。
 

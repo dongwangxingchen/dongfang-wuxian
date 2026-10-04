@@ -32,7 +32,9 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_ROOT"
 
 GITHUB_REPO="dongwangxingchen/dongfang-wuxian"
-ARCHIVE_DIR="${HOME}<本地目录>/黑曜/03-构建产物"
+# 构建产物归档目录。默认放在家目录下的通用位置；
+# 需要自定义（例如放到别处的归档盘）就设 DFWX_ARCHIVE_DIR。
+ARCHIVE_DIR="${DFWX_ARCHIVE_DIR:-${HOME}/dfwx-builds}"
 RELEASE_TASK=":app:assembleEmptyRelease"   # 注意：绝不能出现 Debug
 
 step() { printf '\n=== %s ===\n' "$1"; }

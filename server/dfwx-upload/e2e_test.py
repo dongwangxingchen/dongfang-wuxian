@@ -8,7 +8,7 @@
 为什么要两个都留：本地全绿但线上挂掉的形态是真实存在的 ——
 比如 nginx 只放行 PUT 不放行 GET/DELETE，本地测试根本发现不了。
 
-凭据来源：`<本地目录>/<凭据文件>` 里的 `密码=`（用户名固定 <管理员账号>）。
+凭据来源：`<仓库外凭据文件>` 里的 `密码=`（用户名固定 <管理员账号>）。
 **凭据只从本地文件读，不写进本脚本，也不打印。**
 
 跑法：
@@ -26,7 +26,7 @@ import urllib.request
 
 BASE = "https://39.106.33.135/admin/apk-upload"
 USER = "<管理员账号>"
-SERVER_TXT = os.path.expanduser("<本地目录>/<凭据文件>")
+SERVER_TXT = os.path.expanduser("<仓库外凭据文件>")
 # 线上版本记录指向的那个包。这三个值是**硬事实**（见 release 集合），
 # 网盘算出来的必须和它们一模一样，否则「自动填校验值」就是填错值。
 LIVE = {
@@ -53,7 +53,7 @@ def load_auth():
     text = open(SERVER_TXT, encoding="utf-8").read()
     match = re.search(r"^密码=(\S+)", text, re.M)
     if not match:
-        print("<凭据文件> 里没有 `密码=` 这一行")
+        print("凭据文件里没有 `密码=` 这一行")
         sys.exit(2)
     return "Basic " + base64.b64encode((USER + ":" + match.group(1)).encode()).decode()
 

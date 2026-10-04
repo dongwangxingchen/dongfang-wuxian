@@ -9,7 +9,7 @@
 
 ## 发布红线
 
-- 发版前阅读 `.zcode/skills/dfwx-release/SKILL.md`；
+- 发版前阅读 `<本地技能目录>/dfwx-release/SKILL.md`；
 - 只构建 arm64 release；
 - 不使用含 Debug 的 release 任务名；
 - Release 标题纯 `vX.Y.Z`；

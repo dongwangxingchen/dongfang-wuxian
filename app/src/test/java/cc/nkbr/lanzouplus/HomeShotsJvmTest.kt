@@ -41,7 +41,7 @@ class HomeShotsJvmTest {
         if (w <= 0 || h <= 0) { w = 1260; h = 2800 }
         val bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
         decor.draw(android.graphics.Canvas(bmp))
-        val out = File(System.getProperty("user.home") + "<本地目录>/build_output/phone_shots/$name.png")
+        val out = File(System.getProperty("dfwx.shots.dir", System.getProperty("user.home") + "/dfwx-shots/") + "/phone_shots/$name.png")
         out.parentFile.mkdirs()
         FileOutputStream(out).use { bmp.compress(Bitmap.CompressFormat.PNG, 100, it) }
         bmp.recycle()

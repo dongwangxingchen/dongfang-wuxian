@@ -4,7 +4,7 @@
 
 | 项目 | 当前值 | 证据 |
 |---|---|---|
-| 工作根目录 | `/Users/<用户名><仓库根>` | `src/AGENTS.md:17-26` |
+| 工作根目录 | `<本地目录>/src` | `src/AGENTS.md:17-26` |
 | 分支 | `test` | 当前 `git status --short --branch` |
 | HEAD | `30af1f0` | 当前 `git log --oneline -15` |
 | 当前版本 | v1.22.4 | `30af1f0`、`app/build.gradle.kts` |
@@ -33,7 +33,7 @@
 禁止：
 
 - `git reset --hard`、`git checkout --`；
-- 删除或覆盖<本地加密备份>、桌面<本地备份>、已有计划和研究目录；
+- 删除或覆盖已有计划和研究目录；
 - 读取、复制或输出 `local.properties` 中的凭据；
 - 清数据、卸载、删除用户源或修改用户手机；
 - 在治理阶段修改源码、依赖、Manifest、版本和发布配置。

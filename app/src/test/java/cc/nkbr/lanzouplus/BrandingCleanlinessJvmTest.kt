@@ -16,7 +16,7 @@ import java.io.File
  * 尤其是"持久化键名"——改错了会让老数据读不到（本卡就遇到两个：
  * `heiyao_origin_v101` 与 `heiyao_diagnostics`，前者已保留向后兼容读取）。
  *
- * 注意：测试代码里的 `<本地目录>/` 是**工作区目录路径**（仓库就放在 `/Users/<用户名>/heiyao`），
+ * 注意：测试代码里的 `<本地目录>/` 是**工作区目录路径**（仓库就放在 `$HOME/heiyao`），
  * 不是品牌，**不属于清理范围**——所以本测试只检查 `src/main/`。
  */
 class BrandingCleanlinessJvmTest {

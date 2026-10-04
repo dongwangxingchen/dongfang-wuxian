@@ -1,6 +1,6 @@
 # 2026-10-02 交付一致性与文档可信度审计
 
-> **审计对象**：`/Users/<用户名><仓库根>`（分支 `test`，HEAD `485cff3`）
+> **审计对象**：`<本地目录>/src`（分支 `test`，HEAD `485cff3`）
 > **审计方式**：**只读**。全部结论由实际执行的命令产出，逐条附原始输出片段（不转述）。
 > **审计时间**：2026-10-02 10:16–10:25 CST（服务器 UTC 02:16–02:23）
 > **遵守的硬约束**：未跑 gradle；未提交、未 push；未修改服务器任何文件（只读命令）；
@@ -92,7 +92,7 @@ $ curl -s 'http://39.106.33.135/pb/api/collections/release/records?perPage=3&sor
 $ ssh dfwx 'sha256sum /var/www/dfwx/apk/dongfang-wuxian-v1.0.25.apk'
 85f0e02a1a2392ca70474ccb1d67e249da374366eb21cd18d3162f4db3904785  /var/www/dfwx/apk/dongfang-wuxian-v1.0.25.apk
 
-$ shasum -a 256 <本地目录>/黑曜/03-构建产物/dongfang-wuxian-v1.0.25.apk
+$ shasum -a 256 <构建产物目录>/dongfang-wuxian-v1.0.25.apk
 85f0e02a1a2392ca70474ccb1d67e249da374366eb21cd18d3162f4db3904785  .../dongfang-wuxian-v1.0.25.apk
 
 $ curl -sI http://39.106.33.135/apk/dongfang-wuxian-v1.0.25.apk
@@ -150,10 +150,10 @@ $ ... | grep -o 'test-20261001-[0-9]*' | sed 's/.*-//' | sort -n | tr '\n' ' '
 | 缺号 | 数量 | 有没有本地归档兜底 |
 |---|---|---|
 | `v1.21.1`、`v1.21.5`、`v1.21.6` | 3 | 未查（不在本轮范围） |
-| **`v1.22.12` – `v1.22.18`** | **7** | **没有**。`<本地目录>/黑曜/03-构建产物/` 里也没有这几个版本的 APK |
+| **`v1.22.12` – `v1.22.18`** | **7** | **没有**。`<构建产物目录>/` 里也没有这几个版本的 APK |
 
 ```console
-$ for v in 1.22.12 … 1.22.18; do ls <本地目录>/黑曜/03-构建产物/dongfang-wuxian-v$v.apk; \
+$ for v in 1.22.12 … 1.22.18; do ls <构建产物目录>/dongfang-wuxian-v$v.apk; \
     gh release view "v$v" --json tagName; done
 v1.22.12  localArchive=MISSING  ghRelease=NONE
 v1.22.13  localArchive=MISSING  ghRelease=NONE

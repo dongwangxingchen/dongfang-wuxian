@@ -33,7 +33,7 @@
 可以直接抽出来单独跑 —— 这样探针测的是**脚本里的真实代码**，不是抄一份。
 
 ```bash
-cd <本地目录>/src
+cd <仓库根>
 P=tools/dfwx-publish-apk.sh
 
 # ① P0：远程同步的退出码
@@ -228,7 +228,7 @@ code="$(curl -s -o /dev/null -w '%{http_code}' "http://39.106.33.135/apk/${NAME}
 **实测**：同一份 `v1.0.0` 的包，脚本的全部检查对 `VER=1.0.5` 一样全部通过：
 
 ```
-$ aapt dump badging <本地目录>/黑曜/03-构建产物/dongfang-wuxian-v1.0.0.apk | grep ^package:
+$ aapt dump badging <构建产物目录>/dongfang-wuxian-v1.0.0.apk | grep ^package:
 package: name='dfwx.dongdang' versionCode='10000' versionName='1.0.0'
 
   VER=1.0.0 → 脚本全部检查通过，按 dongfang-wuxian-v1.0.0.apk 上传，序号 10000
@@ -425,7 +425,7 @@ HTTP 200  size=23493953  time=300.009771s
 
 | 来源 | 取法 | size | sha256 |
 |---|---|---|---|
-| 本地归档 | `shasum -a 256 <本地目录>/黑曜/03-构建产物/dongfang-wuxian-v1.0.0.apk` | 36837310 | `f3dfe0ec8123f65869a9e38057808c013e145b91c286d214402844c41031e042` |
+| 本地归档 | `shasum -a 256 <构建产物目录>/dongfang-wuxian-v1.0.0.apk` | 36837310 | `f3dfe0ec8123f65869a9e38057808c013e145b91c286d214402844c41031e042` |
 | 自有服务器 | `curl -o /tmp/srv.apk http://39.106.33.135/apk/dongfang-wuxian-v1.0.0.apk` 后重算 | 36837310 | `f3dfe0ec…` |
 | GitHub Release | 完整下载 `test-20261002-44` 的资产后重算 | 36837310 | `f3dfe0ec…` |
 | PocketBase | `release` 集合记录的 `size` / `sha256` 字段 | 36837310 | `f3dfe0ec…` |
@@ -435,7 +435,7 @@ HTTP 200  size=23493953  time=300.009771s
 关键原始输出：
 
 ```
-$ shasum -a 256 <本地目录>/黑曜/03-构建产物/dongfang-wuxian-v1.0.0.apk
+$ shasum -a 256 <构建产物目录>/dongfang-wuxian-v1.0.0.apk
 f3dfe0ec8123f65869a9e38057808c013e145b91c286d214402844c41031e042
 $ stat -f%z …/dongfang-wuxian-v1.0.0.apk
 36837310
@@ -540,7 +540,7 @@ $ git log --oneline --all -S 'version.json' -- '*.java' '*.kt' '*.kts'
 （空）
 $ git log --oneline --all -S 'notice.json' -- '*.java' '*.kt' '*.kts'
 （空）
-$ grep -rn 'version\.json' <本地目录>/src --exclude-dir=.git --exclude-dir=build
+$ grep -rn 'version\.json' <仓库根> --exclude-dir=.git --exclude-dir=build
 只有 4 个文档提到（全是审计/计划/交接类），**没有任何代码**
 ```
 

@@ -313,7 +313,7 @@ public final class MainActivity extends androidx.activity.ComponentActivity impl
 | 等级 | P3 |
 | 风险 | 三个 Activity（`FeedbackPage` / `LanzouWebActivity` / `SupportActivity`）用 `onBackPressed()` 处理返回，**Android 13+ 的预测性返回手势（predictive back）不会走这条路**，用户在边缘滑动时可能看到"预测动画回退到上一屏"而不是本页的退场动画 |
 | 当前状态 | 已知、**有意接受**。三处均为 `@SuppressLint("GestureBackNavigation")`；项目对"返回观感"已有统一转场实现，改成 `OnBackPressedDispatcher` 属行为改动，未排期 |
-| 下一证据 | 真机（vivo 真机 / Android 16）开"预测性返回手势"后，边缘滑动这三个页面，录屏对比是否有动画割裂 |
+| 下一证据 | 真机（真机（Android 16） / Android 16）开"预测性返回手势"后，边缘滑动这三个页面，录屏对比是否有动画割裂 |
 | 责任任务 | 待建卡（建议并入下一轮 UI 体验批次） |
 
 **我不把这条写成 A 的理由**：迁移会改变返回动画行为，属于用户可见的观感改动，按 `AGENTS.md` 三-8 应作为方案选型给用户看，不该在"lint 清零"里顺手做。

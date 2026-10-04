@@ -86,7 +86,7 @@
 
 1. **阶段四"每步跑 assembleEmptyRelease"修正为 debug 构建**：日常迭代验证一律 debug 构建（快、不被混淆裁剪）；release 构建只在发版时跑。
 2. **阶段一"至少 3 个并行子智能体、合计 100+ 案例"的大规模搜证默认跳过**：2026-09-21/22 两份深度研究报告 + `docs/design/wear-ui-system.md` v2 已完成通用 UI 研究并把全部参数固化；常规 UI 任务直接引用 spec 与报告（引用即合规）。只有进入全新领域才重新走搜证。
-3. **§一 Windows 路径的 Mac 落点**：`D:\新建文件夹 (2)\` → `<本地目录>/`。项目认知在 `<本地目录>/东方无限-项目认知.md`；m3tok.json/easing.json/m3dir.json 在 `<本地目录>/` 根。
+3. **§一 Windows 路径的 Mac 落点**：`D:\新建文件夹 (2)\` → `<本地目录>/`。项目认知在 `<本地项目笔记>`；m3tok.json/easing.json/m3dir.json 在 `<本地目录>/` 根。
 4. **§二 旧色板（BG #0B0A12 等）被 spec v2 §5 OLED 亮度阶梯取代**：新 UI 一律取 spec token；存量页面按 spec §11 顺序渐进迁移，迁移完成期两套并存不视为违规，但禁止新码引用旧色值常量。
 5. **快照测试路线澄清**："paparazzi 与 AGP9 不兼容已停用"不阻塞 spec §12 的 Roborazzi 视觉回归计划——Roborazzi 走 Robolectric 管线，是替代路线。
 6. **技能路由规则（防过载）**：web 向设计技能只允许"审美评审框架"用途；其规则与 spec 冲突时，一律以 `wear-ui-system.md` §9 的冲突过滤为准。UI 任务只读：AGENTS.md + spec 对应节，禁止遍历技能库找规矩。
@@ -133,17 +133,17 @@
 
 ### ZCode 子智能体成本治理（2026-09-28 固化）
 
-- **187 个子智能体每个都吃 token**：`~/.zcode/agents/*.md` 的角色 name+description 会全量进入每次会话的系统提示（187 个约 6-7k token/次），会话数一多就是纯浪费。已精简为 **10 个东方无限专用角色**。
-- **"关闭"的正确做法 = 移出加载目录**：ZCode 只扫 `~/.zcode/agents/`（**非递归到同级目录**），把定义移到 `~/.zcode/agents-disabled/` 即不再加载且随时可恢复，不要删除。
-- **防回装必须改同步脚本**：`~/.zcode/scripts/codex-agents-convert.py` 会把 `~/.codex/agents/*.toml`（175 个）重新转成 `~/.zcode/agents/*.md`。已在脚本加停用检查：`agents-disabled/<name>.md` 存在则跳过。不改脚本的话，下次 `sync-codex-shared.sh` 跑起来就全装回来了。
-- **全量备份**：`~/.zcode/backups/agents-20260928-full/`（187 个，含 12 个手写角色）。
+- **187 个子智能体每个都吃 token**：`<本地工具目录>/agents/*.md` 的角色 name+description 会全量进入每次会话的系统提示（187 个约 6-7k token/次），会话数一多就是纯浪费。已精简为 **10 个东方无限专用角色**。
+- **"关闭"的正确做法 = 移出加载目录**：ZCode 只扫 `<本地工具目录>/agents/`（**非递归到同级目录**），把定义移到 `<本地工具目录>/agents-disabled/` 即不再加载且随时可恢复，不要删除。
+- **防回装必须改同步脚本**：`<本地工具目录>/scripts/codex-agents-convert.py` 会把 `<本地工具目录>/agents/*.toml`（175 个）重新转成 `<本地工具目录>/agents/*.md`。已在脚本加停用检查：`agents-disabled/<name>.md` 存在则跳过。不改脚本的话，下次 `sync-codex-shared.sh` 跑起来就全装回来了。
+- **全量备份**：`<本地工具目录>/backups/agents-20260928-full/`（187 个，含 12 个手写角色）。
 - 内置的 `general-purpose` / `Explore` 不在这个目录，不受影响（官方不可停用）。
 
 ## 七、AI 开发协议强化（2026-09-21，依据 tryallai 深度研究报告）
 
 **构建分层**：日常调试一律 debug 构建；性能问题用接近 release 的 profileable 构建；release 只管发布。
 
-**结构化日志**：新调试日志一律走 `DfLog` 约定——`DFX|area=gesture|case=<bug编号>|view=<View名>|event=<动作>|handled=…|scrollY=…`；按 case 一次拉完整因果链，禁止散插无关联 TAG。手势类 bug 强制先走 `.zcode/skills/gesture-debug/SKILL.md`；所有 bug 诊断走 `.zcode/skills/android-debug-triage/SKILL.md` 八步闭环。
+**结构化日志**：新调试日志一律走 `DfLog` 约定——`DFX|area=gesture|case=<bug编号>|view=<View名>|event=<动作>|handled=…|scrollY=…`；按 case 一次拉完整因果链，禁止散插无关联 TAG。手势类 bug 强制先走 `<本地技能目录>/gesture-debug/SKILL.md`；所有 bug 诊断走 `<本地技能目录>/android-debug-triage/SKILL.md` 八步闭环。
 
 **UI 规范**：颜色/圆角/间距/字体/动效只允许取自 `docs/design/wear-ui-system.md`（v2：M3E 官方弹簧值；按压 0.94/0.96+确认态 haptic；形状四档 Circle/Pill/Card20/Panel26-30；OLED 亮度阶梯替 elevation 阴影；中文用字重不用字号做层级）的 Token 层与四类页面 archetype(ListScreen/ToolScreen/DetailScreen/Conversation)，禁止新 magic number；UI 改动必须走截图矩阵+12 点评审(wear-ui-system.md §9)；Compose 只许做孤立岛屿(ComposeView)且五项视觉 token 与主 UI 同源，85 源列表与 37 工具页不迁移。
 
@@ -157,7 +157,7 @@
 
 1. **能力菜单先行(先问再做)**：涉及审美/风格/方案选型的任务，动手前先向用户呈现 2-4 个可选方案——各带效果说明或截图对比、适用场景、工作量；用户挑选后才实施。豁免：纯技术修复(编译错误、崩溃、性能)、规范已钉死的 token 取值、用户明说"直接做"的场景。
 2. **错误记忆协议**：用户每纠正一次做法，当场把教训蒸馏成一条"症状→根因→防再犯"追加进踩坑记录；开工前先检索踩坑记录与任务相关条目；条目一行一条不写长文，防上下文膨胀。
-3. **偏好沉淀**：用户表达审美/交互/工作方式偏好时，追加进 `<本地目录>/东方无限-用户偏好.md`。
+3. **偏好沉淀**：用户表达审美/交互/工作方式偏好时，追加进 `<本地偏好笔记>`。
 4. **开源参考库可检索化**：新核验的 GitHub 项目/设计规范/库必须落到 `黑曜/06-开源参考库/` 对应分类文件，条目带 star 快照/协议/用途/采用裁决；任何会话开工前先读 00-总索引.md 再按需取用。
 
 ## 九、构建/测试环境坑（2026-09-30 实测）
@@ -182,7 +182,7 @@
    `Method red in android.graphics.Color not mocked`。凡是要做颜色运算的测试，**必须挂 Robolectric**
    （`@RunWith(RobolectricTestRunner::class)` + `@Config(sdk=[35])`）。
 3. **`github.com:443` 本机直连不通**：验证 GitHub Release 直链必须走代理
-   （`curl -sL -x http://127.0.0.1:7890 ...`），否则会长时间挂住或返回 `http=000`。
+   （`curl -sL -x <本地代理> ...`），否则会长时间挂住或返回 `http=000`。
    上传走 `gh`（已登录），不受影响。
 4. **「先删后量」会把基线一起删掉，导致差异无法归因 —— 要删先存到仓库外**：
    症状 = 重跑对比之后发现某个数字变了（多几条 / 少几条），**但你无法证明是谁造成的**，

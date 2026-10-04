@@ -105,6 +105,6 @@ release 构建与 Debug 测试分开。真机验收使用 arm64 release 包，�
 - 不以旧计划、旧代理结论或规划者身份压过新证据；不把推测写成确定根因。
 - 宿主不擅自引入第三方依赖；图标走现行 Phosphor SVG 转换；不恢复字体切换、SF Symbols 或已禁用的物理弹簧/`dynamicanimation`。
 - 内置上游 AI key 不进 APK、不远程下发给客户端；服务端代理未就绪时不得带密钥占位发布；自定义渠道边界不能被误伤。服务端只允许经校验的 `http/https` 出站目标，拒绝 localhost、回环、私有和保留地址，凭据只从环境变量或密钥服务读取。
-- 服务器、域名、付费服务、公开发布和删除/清理动作都不是默认批准项。清理前先列清单、体积和影响；不得触碰<本地加密备份>、<本地备份>、已豁免系统组件或用户数据。
+- 服务器、域名、付费服务、公开发布和删除/清理动作都不是默认批准项。清理前先列清单、体积和影响；不得触碰已豁免系统组件或用户数据。
 - 遵守 Mimosa 写入边界：源码/配置使用受控编辑工具，不用 Bash 写入；Git 按 hook 要求操作，不用被拦截的单文件 `git add` 方式。`local.properties` 不进 git/CI。
-- 发版遵守 AGPL-3.0、RikkaHub 署名、ABI、签名、版本和 Release 命名规则；发布前读取 `.zcode/skills/dfwx-release/SKILL.md`。
+- 发版遵守 AGPL-3.0、RikkaHub 署名、ABI、签名、版本和 Release 命名规则；发布前读取 `<本地技能目录>/dfwx-release/SKILL.md`。

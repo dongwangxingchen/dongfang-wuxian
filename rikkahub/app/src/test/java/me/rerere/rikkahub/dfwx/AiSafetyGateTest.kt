@@ -33,7 +33,7 @@ import java.net.InetAddress
 class AiSafetyGateTest {
 
     /**
-     * 仓库根（`/Users/<用户名><仓库根>`）。
+     * 仓库根（`<本地目录>/src`）。
      *
      * 注意：vendor 模块的单测工作目录是 `rikkahub/`（它自己也有 settings.gradle.kts），
      * 所以**不能**用"第一个含 settings.gradle.kts 的目录"来判定根——

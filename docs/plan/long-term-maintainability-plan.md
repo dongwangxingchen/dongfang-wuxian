@@ -1,7 +1,7 @@
 # 东方无限：长期可维护规范化方案
 
 > 建立日期：**2026-10-02**。基线：分支 `test`，HEAD `f832ca6`（DFW-91）。
-> 适用源码根目录：`/Users/<用户名><仓库根>`。
+> 适用源码根目录：`<本地目录>/src`。
 >
 > **本文的定位**：不是又一份"治理包"，而是**一次减法审查**。结论按证据分等级
 > （A=当前源码/命令输出/真实产物，B=项目规范，C=历史文档，D=推测，沿用 `current-state.md` §6）。
@@ -33,7 +33,7 @@
 | 风险台账 | `docs/plan/risk-register.md`（R-01–R-21，42 行） | 含"不能把'已验证'一直写成'待验证'"（`:41`）这种自我纠偏规则 |
 | 事实页 / 总计划 / 任务入口 | `docs/plan/current-state.md`(237 行)、`DFWX-MASTER-PLAN.md`(179 行)、`docs/tasks/README.md` | 唯一入口已建成，R-14 已闭环 |
 | 踩坑台账 | `docs/agents/lessons.md`(171 行，含"覆盖声明"与踩坑全文) | AGENTS.md 已瘦身并改为按需检索，方向正确 |
-| 发版技能（**已入库**） | `.zcode/skills/dfwx-release/SKILL.md`（4497 字节，`git ls-files .zcode/` 可见 4 个技能） | 发版知识不是只活在某人脑子里，bus factor 已改善 |
+| 发版清单（**已入库**） | `docs/` 内的发版清单（发版红线 + 验收步骤） | 发版知识不是只活在某人脑子里，bus factor 已改善 |
 | 仓库卫生基础 | `.gitattributes`（`* text=auto` + 按后缀钉 eol）、`.gitignore`（含"无锚规则曾吞源码包"的历史注释与根锚定修复） | 实测索引已 LF 归一化：`git grep --cached -Il $'\r' -- '*.java' '*.kt' '*.md'` 零命中 |
 | 许可与 SBOM 简版 | `LICENSE`(AGPL-3.0)、`README.md:111-124` 致谢表、`docs/THIRD-PARTY-NOTICES.md`(5210 字节) | 且 `tools/release.sh:89-93` 每次发版强制校验署名义务 |
 
@@ -263,7 +263,7 @@ Keep a Changelog 的第一条原则就是"Changelogs are *for humans*, not machi
 
 **为什么这个仓库需要清理**：
 `lessons.md:68` 自己标注"命令速查（**Windows 时代**，仅回 Windows 适用）"，`lessons.md:94` 标注 PowerShell 坑"仅回 Windows 适用"，
-而 `AGENTS.md:24-32` 全篇已是 Mac 路径（`<本地目录>/src`）与真机流程。
+而 `AGENTS.md:24-32` 全篇已是 Mac 路径（`<仓库根>`）与真机流程。
 留着它们的代价不是磁盘，而是**误导**：下一个接手者/AI 在 `tools/` 里找构建入口时，
 会先看到 `make_release_*.ps1` 这一堆**看起来像发版脚本**的东西，
 而真正的入口是 `tools/release.sh`。本项目已经因为"文档看起来可信但内容是旧的"栽过一次（DFW-5）。
@@ -577,7 +577,7 @@ issue 模板同理：0 个 issue。
 **为什么不做**：CONTRIBUTING 的价值是"告诉**外部贡献者**怎么参与"。
 这个仓库 0 PR、0 issue、单人开发，**没有外部贡献者**。
 它已经有的替代品**更强**：`AGENTS.md`(9243 字节) 是给"下一个 AI 窗口"看的贡献规范，
-`docs/handover/README.md` 是 30 秒接手页，`.zcode/skills/dfwx-release/SKILL.md` 是发版规范。
+`docs/handover/README.md` 是 30 秒接手页，`<本地技能目录>/dfwx-release/SKILL.md` 是发版规范。
 再加一个 `CONTRIBUTING.md` 只会**增加一条可能腐烂的入口**——
 而"多个入口互相矛盾"正是这个项目花了好几轮才治理掉的问题
 （`docs/archive/plan/ARCHIVED.md` 记录 33 个文件被归档就是为了收拢入口）。

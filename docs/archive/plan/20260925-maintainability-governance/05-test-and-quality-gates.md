@@ -81,6 +81,6 @@
 - 用户手机操作前先汇报并请示；不做卸载、清数据、`pm clear`、删除文件等不可逆动作；
 - release 与 Debug 任务分开；
 - `aapt` 检查包名、version、arm64-v8a；
-- 正式发布前读取 `.zcode/skills/dfwx-release/SKILL.md`；
+- 正式发布前读取 `<本地技能目录>/dfwx-release/SKILL.md`；
 - GitHub Release 标题纯 `vX.Y.Z`，资产名 `dongfang-wuxian-vX.Y.Z.apk`；
 - 未完成 P0/P1 证据不得发布。

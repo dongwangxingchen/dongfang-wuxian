@@ -15,7 +15,7 @@
 | M-3 | **补丁台账断档**：PATCHES.md 只登记到 P19，代码里存在 P20/P21/P24 | P20/P21 在 `rikkahub/app/src/main/java/me/rerere/rikkahub/ui/pages/chat/ChatList.kt:307,323,333`（v1.19.9 引入）；P24 在 `dfwx/AiPageHost.kt:23,49`（v1.21.5 字体移除+存量迁移）。**P13 全仓零定义**（编号空洞）；**P18 标记错位**——台账定义是"手表适配"，代码里 `[DFWX PATCH P18]`（`AiPageHost.kt:22`、`dfwx/RikkaHubEmbed.kt:138`）标的却是"强制深色"（v1.11.1 引入，从未按正确编号登记） |
 | M-4 | **"测试没跑不能标记完成" vs current-state.md 声称"DownloadPolicyTest 已通过"**——该测试连同其被测实现全部 untracked，CI checkout 后根本不存在这些文件 | `git status`：`DownloadSourcePolicy.java`、`DownloadUrlPolicy.java`、`DownloadPolicyTest.java` 均为 `??`。CI 两个工作流**从不跑任何 test 任务**（`.github/workflows/android-build.yml` 只 assemble+ABI 断言；`lanzouplus-empty.yml` 只编译冒烟）。本地跑过 ≠ CI 验证过 |
 | M-5 | **RikkaHubEmbed.kt 头注释声称"音量键桥接为参数"，实际签名无此参数** | `dfwx/RikkaHubEmbed.kt:133-137` 只有 `activity` / `onBackStackReady` / `onOpenUsageAccessSettings` 三个参数。上游 2.5.4 的音量键滚动（`RouteActivity.dispatchKeyEvent` + `volumeKeyListeners`）在内嵌态**完全失效**（宿主 MainActivity 是 ComponentActivity，不经 RouteActivity） |
-| M-6 | **PATCHES.md 上游锚点过时**：写的是 `re-ovo/rikkahub`（旧组织名）+ vendor 目录 `<仓库根>\rikkahub\`（Windows 路径） | `gh api` 实测：`re-ovo/rikkahub` 已重定向至 `rikkahub/rikkahub`（组织改名）；本机在 macOS `<本地目录>/src`。台账写于 Windows 时代，跨机器未更新 |
+| M-6 | **PATCHES.md 上游锚点过时**：写的是 `re-ovo/rikkahub`（旧组织名）+ vendor 目录 `<仓库根>\rikkahub\`（Windows 路径） | `gh api` 实测：`re-ovo/rikkahub` 已重定向至 `rikkahub/rikkahub`（组织改名）；本机在 macOS `<仓库根>`。台账写于 Windows 时代，跨机器未更新 |
 | M-7 | **lessons.md 规定 Conventional Commits（feat/fix/docs 前缀），git log 全是随意中文** | `git log --oneline -15`：如 "v1.22.4 版本号 1039024"、"动效三修：删开关行图标闪烁bug…"，无一条带前缀 |
 
 ---

@@ -19,7 +19,7 @@
 | R-13 | RikkaHub vendor 的上游版本、floatingx/QuickJS/Theme 等迁移与现有 PATCH 关系复杂；不能盲删或整包照抄 | `rikkahub/PATCHES.md`；旧移植研究 | 待 T2 复核 | T2、T2-K |
 | R-14 | 工作区混合未提交导航、解析、更新、测试和文档；批量提交或顺手格式化会破坏回退边界 | `git status --short`（本次未修改） | 待 P00 梳理 | P00、T8 |
 | R-15 | 构建注入的 `assets/c` 等内容不能仅由空文件或静态目录判断；真实 APK/构建输入需按专题核对 | 构建配置、历史审计 | 待采样 | T6、T15、T8 |
-| R-16 | release 与 debug 的 ABI 曾不一致，错误产物可能无法在手机安装；旧命令把 Debug 测试混入 release 不能照抄 | `AGENTS.md`、`.zcode/skills/dfwx-release/SKILL.md` | 发版门禁 | T7、T8 |
+| R-16 | release 与 debug 的 ABI 曾不一致，错误产物可能无法在手机安装；旧命令把 Debug 测试混入 release 不能照抄 | `AGENTS.md`、`<本地技能目录>/dfwx-release/SKILL.md` | 发版门禁 | T7、T8 |
 | R-17 | 旧计划、梳理草案和研究报告存在编号、状态、依赖及完成口径冲突 | 旧 `plan.md`、`audit.md`、`research.md` | 已通过本目录隔离；原文仅作历史证据 | 全部 |
 | R-18 | 用户要求只测手机，手表及圆屏模拟器不能重新纳入验收；旧文档中的手表要求已失效 | `东方无限-用户偏好.md`（2026-09-24） | 已确认边界 | T1、T7、T8 |
 | R-19 | 触摸路径禁止物理弹簧和 `dynamicanimation`；旧偏好文件中曾有相反的历史批准，现以最新项目规范为准 | `src/AGENTS.md`；最新用户偏好 | 已确认边界 | T1、T5-V、T9 |

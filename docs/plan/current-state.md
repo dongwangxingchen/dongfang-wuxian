@@ -8,8 +8,8 @@
 
 ## 1. 工作区
 
-- 桌面交接目录：`/Users/<用户名>/Desktop/东方无限`（仅存<本地备份> zip，勿删勿动）
-- 实际源码根目录：`/Users/<用户名><仓库根>`
+- 桌面交接目录：
+- 实际源码根目录：`<本地目录>/src`
 - 当前分支：`test`
 - 当前 HEAD：见 `git log --oneline -1`（2026-09-29 起含 v1.22.9 提交；v1.22.10 改动尚未提交，见 §1.2）
 - 工作树：**源码零改动**；`docs/handover/` 为 untracked（**故意不提交，勿顺手入库**）
@@ -17,7 +17,7 @@
 - applicationId：`dfwx.dongdang`；宿主 Java 包：`cc.nkbr.lanzouplus`
 - `rikkahub/`：Kotlin/Compose vendor（**上游锚点 = re-ovo/rikkahub tag `2.5.5`，versionCode 190**）与东方无限补丁层
 - 上游源码快照 `/tmp/rikkahub-255/`：**已清空**（临时目录），需要时重新下载
-- 桌面<本地备份> `东方无限_交接总包_20260920.zip`：禁止删除或移动
+- 
 - 版本号：versionCode `10000` / versionName `1.0.0`（`app/build.gradle.kts`）
   - [DFW-118 2026-10-02] **路线 B：只写版本名，序号自动算**（用户选定）。
     `val appVersionName = "x.y.z"` 是**唯一可改的数字**；
@@ -84,7 +84,7 @@
 - **目录先出现**：拿到权限后（或启动时已授权）静默创建 `Download/东方无限/崩溃日志/` 并放一个空 `crash.log`，用户在文件管理器里立刻看得到；下载完成时也会 ensure 一次。
 - **顺手修的**：删除死代码 `maybeRequestStartupStorageAccess()`；`storageAccessGranted()` 全包 try/catch（Robolectric 下 `Environment.isExternalStorageManager()` 直接抛 `ArrayIndexOutOfBoundsException`，曾带崩 10 例界面测试）；`DownloadFileProvider` 移除已废的 `crash` 私有目录分支，分享统一走 `shared` 真实路径只读通道。
 - **测试**：宿主 **59 例全绿**（v1.22.9 的 57 + 新增 3 − 改写 1 例）。
-- **产物**：`dongfang-wuxian-v1.22.10.apk`，37046462 字节，sha256 `d3bf6a76b09730e59030cca70e32f985d6c7f8d4071cc5ccc02792ee642a683a`，badging `versionCode=1039030 / versionName=1.22.10 / native-code: arm64-v8a`，已归档 `<本地目录>/黑曜/03-构建产物/`。
+- **产物**：`dongfang-wuxian-v1.22.10.apk`，37046462 字节，sha256 `d3bf6a76b09730e59030cca70e32f985d6c7f8d4071cc5ccc02792ee642a683a`，badging `versionCode=1039030 / versionName=1.22.10 / native-code: arm64-v8a`，已归档 `<构建产物目录>/`。
 
 ## 1.3 v1.22.11 变更（2026-09-29 第二轮真机反馈，DFW-4）
 
@@ -102,7 +102,7 @@
   - 修法：`scroll.setFocusableInTouchMode(true)` + `setDescendantFocusability(FOCUS_BEFORE_DESCENDANTS)`，让滚动容器自己当锚点，焦点落容器上不产生任何滚动；进页后再 `scrollTo(0,0)` 兜底。
   - **不砍选区**：正文保留 `setTextIsSelectable(true)`，长按复制能力不受影响（有专门断言守住）。
 - **测试**：新增 `CrashLogPageJvmTest`（4 例，**验证过鉴别力**：去掉焦点锚点修复后立刻 1 红）。宿主 **63 例全绿**。
-- **产物**：`dongfang-wuxian-v1.22.11.apk`，badging `versionCode=1039031 / versionName=1.22.11 / native-code: arm64-v8a`，已归档 `<本地目录>/黑曜/03-构建产物/`。
+- **产物**：`dongfang-wuxian-v1.22.11.apk`，badging `versionCode=1039031 / versionName=1.22.11 / native-code: arm64-v8a`，已归档 `<构建产物目录>/`。
 
 ## 1.4 v1.22.12–1.22.13 变更（2026-09-30，按看板队列逐个推进）
 

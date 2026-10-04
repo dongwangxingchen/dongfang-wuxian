@@ -9,7 +9,7 @@
 
 ### 1. 编译反馈从 5~9 分钟降到 **17 秒**（最大收益）
 
-**实测数据**（`<本地目录>/src`，2026-09-26）：
+**实测数据**（`<仓库根>`，2026-09-26）：
 
 | 命令 | 实测耗时 | 用途 |
 |---|---|---|
@@ -112,11 +112,11 @@ Anthropic 工程团队结论："**自我评估是陷阱**，对抗式评估智�
 
 ## 四、顺带发现的规范缺陷（需修）
 
-`.zcode/skills/` 下**只有 3 个**技能：`codebase-memory-cli`、`dfwx-emulator`、`dfwx-release`。
+`<本地技能目录>/` 下**只有 3 个**技能：`codebase-memory-cli`、`dfwx-emulator`、`dfwx-release`。
 
 但项目 `AGENTS.md` §七要求：
-- "手势类 bug 强制先走 `.zcode/skills/gesture-debug/SKILL.md`"
-- "所有 bug 诊断走 `.zcode/skills/android-debug-triage/SKILL.md` 八步闭环"
+- "手势类 bug 强制先走 `<本地技能目录>/gesture-debug/SKILL.md`"
+- "所有 bug 诊断走 `<本地技能目录>/android-debug-triage/SKILL.md` 八步闭环"
 
 **这两个技能不存在** → 任何遵守规范的会话都会先撞一次空指针再即兴发挥。这正是"读了 Skill 反而更慢"的典型成因，且是**规范层的错误**。
 
@@ -127,7 +127,7 @@ Anthropic 工程团队结论："**自我评估是陷阱**，对抗式评估智�
 ## 五、可落地的改进清单（按优先级）
 
 ### P0（立即可做）
-1. **建立 L0~L3 验证阶梯**，写进 `.zcode/skills/dfwx-verify/SKILL.md`，并在 `AGENTS.md` 指向它。
+1. **建立 L0~L3 验证阶梯**，写进 `<本地技能目录>/dfwx-verify/SKILL.md`，并在 `AGENTS.md` 指向它。
    - 收益：编译反馈 **5~9min → 17s**（约 95% 缩减）
    - 风险：无
 2. **开启 `org.gradle.caching=true`**。
