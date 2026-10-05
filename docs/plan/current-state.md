@@ -185,7 +185,7 @@
     清理器认的是老身份「智能中转(内置)」（`baseUrl=https://www.<已停用渠道>/v1` + 模型 `glm-5.3`，
     见 `DfwxBuiltinProviderCleanup.kt:37-43`），负责把老版本播过的这条一次性移除；
     **新身份「内置渠道」**由 `DfwxBuiltinChannel.syncIfNeeded()`（`RikkaHubApp.kt:123`）每次启动同步播种，
-    走自有服务器中转（`DfwxBuiltinChannel.kt:49` `DEFAULT_BASE_URL = "https://39.106.33.135/ai/v1"`）。
+    走自有服务器中转（`DfwxBuiltinChannel.kt:49` `DEFAULT_BASE_URL = "https://<你的服务器>/ai/v1"`）。
     所以"新装不再播老渠道"与"新装要播新渠道"同时成立，并不矛盾。
 - **P17/P25 品牌化**：`DongfangTheme` 置首 + 全新安装默认主题；背景 OLED 真黑 `#000000`；关闭上游默认开启的 `dynamicColor`（否则 Android 12+ 系统壁纸取色会完全绕过预设主题）。
 - **U1/NET-001 + U4–U8 重放**：AI 链 HTTPS-only 四道防线；EmojiBurst 空闲挂起；三处空态 72dp FAB 净空；SettingWebPage 88dp 底部净空。
@@ -227,7 +227,7 @@
 - 赞助页重做（BRAND-001）、关于/致谢/隐私/许可证页（BRAND-002）；
 - UI 四卡（UI-001 动画取证 / UI-002 设置页 / UI-003 下载页 / UI-004 AI 页）、宿主领域拆分（ARCH-001）、vendor/依赖/CI/SBOM/许可证治理（DEP/CI/RELEASE）；
 - release 真机负向链路验证（用户已豁免日常下载/安装类验证）；
-- **内部服务器（已上线且 APP 端已完整接入）**：阿里云轻量 `39.106.33.135`，nginx + PocketBase。
+- **内部服务器（已上线且 APP 端已完整接入）**：阿里云轻量 `<你的服务器>`，nginx + PocketBase。
   **⚠️ 2026-10-01 更正**：旧文写"APP 端接入代码尚未开发"**已不成立**。现在已接入并跑通的有：
   远程公告、远程更新清单、APK 分发、内置 AI 渠道中转、以及一个网页控制台 `/admin/`
   （可远程改公告 / 发新版 / 切内置模型 / 换令牌，改完用户**不用更新软件**）。

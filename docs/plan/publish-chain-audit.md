@@ -179,7 +179,7 @@ ssh dfwx "sudo ALLOW_DOWNGRADE='${ALLOW_DOWNGRADE:-0}' VER='${VER}' CODE='${CODE
 
 ```bash
 echo "→ 外网可达性检查…"
-curl -s -o /dev/null -w "APK  http://39.106.33.135/apk/${NAME} -> %{http_code}\n" "http://39.106.33.135/apk/${NAME}"
+curl -s -o /dev/null -w "APK  http://<你的服务器>/apk/${NAME} -> %{http_code}\n" "http://<你的服务器>/apk/${NAME}"
 echo "完成。"
 ```
 
@@ -190,10 +190,10 @@ echo "完成。"
 
 ```
 $ bash -c 'set -euo pipefail; echo "→ 外网可达性检查…"; \
-    curl -s -o /dev/null -w "APK  http://39.106.33.135/apk/${0} -> %{http_code}\n" \
-    "http://39.106.33.135/apk/根本不存在-v9.9.9.apk"; echo "完成。"' "根本不存在-v9.9.9.apk"
+    curl -s -o /dev/null -w "APK  http://<你的服务器>/apk/${0} -> %{http_code}\n" \
+    "http://<你的服务器>/apk/根本不存在-v9.9.9.apk"; echo "完成。"' "根本不存在-v9.9.9.apk"
 → 外网可达性检查…
-APK  http://39.106.33.135/apk/根本不存在-v9.9.9.apk -> 404
+APK  http://<你的服务器>/apk/根本不存在-v9.9.9.apk -> 404
 完成。
   ↳ 退出码 = 0        ← ★ 404 却返回成功
 ```
@@ -204,7 +204,7 @@ APK  http://39.106.33.135/apk/根本不存在-v9.9.9.apk -> 404
 **建议改法**：
 
 ```bash
-code="$(curl -s -o /dev/null -w '%{http_code}' "http://39.106.33.135/apk/${NAME}")"
+code="$(curl -s -o /dev/null -w '%{http_code}' "http://<你的服务器>/apk/${NAME}")"
 [[ "$code" == "200" ]] || { echo "❌ 外网取不到 ${NAME}（HTTP $code）" >&2; exit 1; }
 ```
 
@@ -426,7 +426,7 @@ HTTP 200  size=23493953  time=300.009771s
 | 来源 | 取法 | size | sha256 |
 |---|---|---|---|
 | 本地归档 | `shasum -a 256 <构建产物目录>/dongfang-wuxian-v1.0.0.apk` | 36837310 | `f3dfe0ec8123f65869a9e38057808c013e145b91c286d214402844c41031e042` |
-| 自有服务器 | `curl -o /tmp/srv.apk http://39.106.33.135/apk/dongfang-wuxian-v1.0.0.apk` 后重算 | 36837310 | `f3dfe0ec…` |
+| 自有服务器 | `curl -o /tmp/srv.apk http://<你的服务器>/apk/dongfang-wuxian-v1.0.0.apk` 后重算 | 36837310 | `f3dfe0ec…` |
 | GitHub Release | 完整下载 `test-20261002-44` 的资产后重算 | 36837310 | `f3dfe0ec…` |
 | PocketBase | `release` 集合记录的 `size` / `sha256` 字段 | 36837310 | `f3dfe0ec…` |
 
@@ -475,7 +475,7 @@ V2 Signer: certificate SHA-256 digest: 93898e05e64f294c0c105b73898e0dd4cf24e12ff
 
 # 三、三条分发路径到底能不能下到包
 
-先说一个**纠正**：卡里写的第三条「网页控制台 `https://39.106.33.135/admin/` 的下载页」
+先说一个**纠正**：卡里写的第三条「网页控制台 `https://<你的服务器>/admin/` 的下载页」
 **不存在**。`/admin/` 是**发布用的管理后台**，里面没有任何面向用户的下载入口
 （全文只有两处 `/apk/`，都是内部拼 `apkUrl` 用的：`index.html:227` 的注释、
 `:819` 的 `APK_ORIGIN + "/apk/" + f.name`）。
@@ -485,14 +485,14 @@ V2 Signer: certificate SHA-256 digest: 93898e05e64f294c0c105b73898e0dd4cf24e12ff
 
 ```
 $ for u in / /health /api/notice.json /api/version.json /apk/ /apk/<包> /admin/ /pb/; do curl -o /dev/null -w "%{http_code}" $u; done
-http://39.106.33.135/                                HTTP 403   ← 站点根没有索引页
-http://39.106.33.135/health                          HTTP 200   application/json
-http://39.106.33.135/api/notice.json                 HTTP 200   application/json
-http://39.106.33.135/api/version.json                HTTP 200   application/json（废弃，见第四节）
-http://39.106.33.135/apk/                            HTTP 404   ← 目录**没有** autoindex
-http://39.106.33.135/apk/dongfang-wuxian-v1.0.0.apk  HTTP 200   application/vnd.android.package-archive
-https://39.106.33.135/admin/                         HTTP 200   管理后台（不是下载页）
-https://39.106.33.135/pb/                            HTTP 302   → /admin/
+http://<你的服务器>/                                HTTP 403   ← 站点根没有索引页
+http://<你的服务器>/health                          HTTP 200   application/json
+http://<你的服务器>/api/notice.json                 HTTP 200   application/json
+http://<你的服务器>/api/version.json                HTTP 200   application/json（废弃，见第四节）
+http://<你的服务器>/apk/                            HTTP 404   ← 目录**没有** autoindex
+http://<你的服务器>/apk/dongfang-wuxian-v1.0.0.apk  HTTP 200   application/vnd.android.package-archive
+https://<你的服务器>/admin/                         HTTP 200   管理后台（不是下载页）
+https://<你的服务器>/pb/                            HTTP 302   → /admin/
 ```
 
 nginx 配置印证：80 端口的 `/apk/` 是 `try_files $uri =404;`（`sites-available/dfwx:52-59`），
@@ -503,9 +503,9 @@ nginx 配置印证：80 端口的 `/apk/` 是 `try_files $uri =404;`（`sites-av
 | 分发路径 | 状态 | 证据 |
 |---|---|---|
 | **GitHub Release 资产** | ✅ 能下 | 完整下载 36837310 字节，sha256 完全吻合；`gh release view` 的 digest 也一致；`-r 0-1023` 返回 206 且前两字节是 `PK` |
-| **`http://39.106.33.135/apk/<文件名>`** | ✅ 能下（**但必须知道确切文件名**） | 完整下载 36837310 字节 + sha256 吻合 + aapt/apksigner 核验通过。目录本身 404 |
+| **`http://<你的服务器>/apk/<文件名>`** | ✅ 能下（**但必须知道确切文件名**） | 完整下载 36837310 字节 + sha256 吻合 + aapt/apksigner 核验通过。目录本身 404 |
 | ~~网页控制台下载页~~ | ❌ **该路径不存在** | `/admin/` 是发布后台；`/` 是 403；全站没有面向用户的下载页 |
-| App 内下载页（真实路径） | ✅ 数据源可用 | App 从 PocketBase 取 `apkUrl`（`RemoteConfigClient.java:37-38`，`BASE="http://39.106.33.135/pb"`），该 URL 就是上面第二个 ✅ |
+| App 内下载页（真实路径） | ✅ 数据源可用 | App 从 PocketBase 取 `apkUrl`（`RemoteConfigClient.java:37-38`，`BASE="http://<你的服务器>/pb"`），该 URL 就是上面第二个 ✅ |
 
 > 也就是说：**目前真正可用的分发面是「GitHub + 自有服务器直链」两条**，
 > 第三条在 App 里（读的是第二条的地址）。想给用户一个网页下载页，得**新建**，
@@ -520,11 +520,11 @@ nginx 配置印证：80 端口的 `/apk/` 是 `try_files $uri =404;`（`sites-av
 ### 1）它还在，而且内容已经和事实相反
 
 ```
-$ curl -s http://39.106.33.135/api/version.json | head -12
+$ curl -s http://<你的服务器>/api/version.json | head -12
 { "version": 1, "deprecated": true, "channel": "stable",
   "latest": {
     "versionName": "1.0.21",  "versionCode": 10021,
-    "apkUrl": "http://39.106.33.135/apk/dongfang-wuxian-v1.0.21.apk",
+    "apkUrl": "http://<你的服务器>/apk/dongfang-wuxian-v1.0.21.apk",
     "size": 36824033,
     "publishedAt": "2026-10-01T17:10:00+08:00", … },
   "notes": ["⚠️ 本文件已废弃，没有任何代码读它，保留仅为兼容旧链接。", …] }
@@ -547,7 +547,7 @@ $ grep -rn 'version\.json' <仓库根> --exclude-dir=.git --exclude-dir=build
 当前 App 的更新源是**唯一**的（`RemoteConfigClient.java:37-38`）：
 
 ```java
-static final String BASE = "http://39.106.33.135/pb";
+static final String BASE = "http://<你的服务器>/pb";
 private static final String API = BASE + "/api/collections/";
 ```
 
@@ -587,7 +587,7 @@ private static final String API = BASE + "/api/collections/";
 改完 `curl` 回来的实际内容：
 
 ```
-$ curl -s http://39.106.33.135/api/version.json
+$ curl -s http://<你的服务器>/api/version.json
 {
   "version": 1,
   "deprecated": true,
@@ -599,7 +599,7 @@ $ curl -s http://39.106.33.135/api/version.json
     "不会读兄弟节点里的 notes，于是会把一个更老的构建当成升级包（而那个 APK 当时也还在，确实能下）。",
     "已删除 latest 块：保留本文件只为不让旧链接 404，但不再对外提供任何版本信息。",
     "App 真正的、唯一的更新源是 PocketBase：",
-    "  http://39.106.33.135/pb/api/collections/release/records?perPage=1&sort=-id",
+    "  http://<你的服务器>/pb/api/collections/release/records?perPage=1&sort=-id",
     "发版时请改 PocketBase 的 release 记录，不要改这里。"
   ]
 }
@@ -609,7 +609,7 @@ $ curl -s http://39.106.33.135/api/version.json
 会误报；要按 JSON 结构看）：
 
 ```
-$ curl -s http://39.106.33.135/api/version.json | python3 -c '...'
+$ curl -s http://<你的服务器>/api/version.json | python3 -c '...'
   顶层键        : ['version', 'deprecated', 'channel', 'notes']
   有 latest 键吗: ✅ 没有
   有 versionCode: ✅ 没有（非 notes 部分）
@@ -617,7 +617,7 @@ $ curl -s http://39.106.33.135/api/version.json | python3 -c '...'
   notes 条数    : 8
   → 任何按字段读的客户端现在都拿不到版本号 ✅
 
-$ curl -s -o /dev/null -w "%{http_code} %{size_download}\n" http://39.106.33.135/api/version.json
+$ curl -s -o /dev/null -w "%{http_code} %{size_download}\n" http://<你的服务器>/api/version.json
 200 833
 ```
 

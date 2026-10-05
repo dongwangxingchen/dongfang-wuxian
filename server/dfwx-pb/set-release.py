@@ -12,7 +12,7 @@ sudo VER=1.0.22 CODE=10022 SHA=<64位十六进制> SIZE=36824453 python3 set-rel
 ```
 
 ## 铁律
-- **口令永不打印**（只从 `<凭据文件>` 读）
+- **口令永不打印**（只从凭据文件读；路径见 `DFWX_PB_PASS_FILE` 环境变量）
 - 版本序号**只增不减**：传进来的值比记录里小就拒绝，避免把用户锁在"已是最新"
 - `apkUrl` 用 **http**（[2026-10-03 用户拍板]）
 
@@ -44,8 +44,12 @@ import sys
 import urllib.request
 
 PB = "http://127.0.0.1:8090"
-PASS_FILE = "<凭据文件>"
-IDENTITY = "<管理员账号>"
+# 凭据文件路径与管理员账号都从环境变量读，默认值只是本机部署时的常见位置。
+# 写死在脚本里等于把「密码放在哪、账号叫什么」一起公开 —— 公开仓库里不该有这些。
+PASS_FILE = os.environ.get("DFWX_PB_PASS_FILE", "")
+if not PASS_FILE:
+    sys.exit("请先设置 DFWX_PB_PASS_FILE 指向存放后台口令的文件（权限应为 600）")
+IDENTITY = os.environ.get("DFWX_PB_IDENTITY", "")
 # 安装包对外的地址前缀。**http，不是 https** —— 完整理由见文件头「铁律」第二条。
 # 这里抽成常量是为了**能被跨文件检查盯住**：`server/dfwx-admin/pan_render_test.mjs`
 # 会把它和控制台里的 `APK_ORIGIN`、上传服务返回的 `"url"` 三处放在一起比，

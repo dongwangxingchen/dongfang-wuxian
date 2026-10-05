@@ -41,8 +41,8 @@
 
 | 遗留项 | 结论 | 原始证据 |
 |---|---|---|
-| `/var/www/dfwx/apk/t2.txt` 是否还在 | **还在**，6 字节内容 `hello`，且**公网可读** | `-rw-r--r-- 1 www-data www-data 6 Oct  1 03:10 t2.txt`；`curl -sI http://39.106.33.135/apk/t2.txt` → `HTTP/1.1 200 OK`，body `hello` |
-| 80 端口 `/admin/` 有没有 `Cache-Control` | **没有**。HTTP 只有 `ETag`/`Last-Modified`；HTTPS 才有 `Cache-Control` | `curl -sI http://39.106.33.135/admin/` 无该头；`curl -skI https://39.106.33.135/admin/` → `Cache-Control: no-store, no-cache, must-revalidate, max-age=0` |
+| `/var/www/dfwx/apk/t2.txt` 是否还在 | **还在**，6 字节内容 `hello`，且**公网可读** | `-rw-r--r-- 1 www-data www-data 6 Oct  1 03:10 t2.txt`；`curl -sI http://<你的服务器>/apk/t2.txt` → `HTTP/1.1 200 OK`，body `hello` |
+| 80 端口 `/admin/` 有没有 `Cache-Control` | **没有**。HTTP 只有 `ETag`/`Last-Modified`；HTTPS 才有 `Cache-Control` | `curl -sI http://<你的服务器>/admin/` 无该头；`curl -skI https://<你的服务器>/admin/` → `Cache-Control: no-store, no-cache, must-revalidate, max-age=0` |
 
 ---
 
@@ -76,8 +76,8 @@ $ ssh dfwx 'ls -la /var/www/dfwx/apk/ | tail -3'
 -rw-r--r-- 1 www-data www-data 36830986 Oct  2 10:14 dongfang-wuxian-v1.0.25.apk
 -rw-r--r-- 1 www-data www-data        6 Oct  1 03:10 t2.txt
 
-$ curl -s 'http://39.106.33.135/pb/api/collections/release/records?perPage=3&sort=-id'
-{"items":[{"apkUrl":"http://39.106.33.135/apk/dongfang-wuxian-v1.0.25.apk",
+$ curl -s 'http://<你的服务器>/pb/api/collections/release/records?perPage=3&sort=-id'
+{"items":[{"apkUrl":"http://<你的服务器>/apk/dongfang-wuxian-v1.0.25.apk",
 "collectionName":"release","id":"kev9q0jrpyo1xy0",
 "sha256":"85f0e02a1a2392ca70474ccb1d67e249da374366eb21cd18d3162f4db3904785",
 "size":36830986,"updateMode":"soft","versionCode":10025,"versionName":"1.0.25"}],
@@ -95,7 +95,7 @@ $ ssh dfwx 'sha256sum /var/www/dfwx/apk/dongfang-wuxian-v1.0.25.apk'
 $ shasum -a 256 <构建产物目录>/dongfang-wuxian-v1.0.25.apk
 85f0e02a1a2392ca70474ccb1d67e249da374366eb21cd18d3162f4db3904785  .../dongfang-wuxian-v1.0.25.apk
 
-$ curl -sI http://39.106.33.135/apk/dongfang-wuxian-v1.0.25.apk
+$ curl -sI http://<你的服务器>/apk/dongfang-wuxian-v1.0.25.apk
 HTTP/1.1 200 OK
 Content-Type: application/vnd.android.package-archive
 Content-Length: 36830986
@@ -272,29 +272,29 @@ no-same-name-on-github: ['dongfang-wuxian-v1.0.0.apk']
 ### 3.3 接口与遗留项
 
 ```console
-$ curl -s http://39.106.33.135/health
+$ curl -s http://<你的服务器>/health
 {"status":"ok","service":"dfwx-backend"}
 
-$ curl -sI http://39.106.33.135/pb/
+$ curl -sI http://<你的服务器>/pb/
 HTTP/1.1 302 Moved Temporarily
-Location: http://39.106.33.135/admin/
+Location: http://<你的服务器>/admin/
 
-$ curl -sI 'http://39.106.33.135/pb/api/collections/release/records?perPage=1'
+$ curl -sI 'http://<你的服务器>/pb/api/collections/release/records?perPage=1'
 HTTP/1.1 200 OK                      ← 关键：/pb/ 精确匹配 302 没有误伤 App 数据路径
 Content-Type: application/json
 
-$ curl -sI http://39.106.33.135/admin/          ← 80 端口：无 Cache-Control
+$ curl -sI http://<你的服务器>/admin/          ← 80 端口：无 Cache-Control
 HTTP/1.1 200 OK
 Last-Modified: Thu, 01 Oct 2026 10:30:36 GMT
 ETag: "6abe364c-9979"
 X-Loc: root
 
-$ curl -skI https://39.106.33.135/admin/        ← 443 端口：有
+$ curl -skI https://<你的服务器>/admin/        ← 443 端口：有
 HTTP/1.1 200 OK
 Cache-Control: no-cache
 Cache-Control: no-store, no-cache, must-revalidate, max-age=0
 
-$ curl -sI http://39.106.33.135/apk/t2.txt ; curl -s http://39.106.33.135/apk/t2.txt
+$ curl -sI http://<你的服务器>/apk/t2.txt ; curl -s http://<你的服务器>/apk/t2.txt
 HTTP/1.1 200 OK
 Content-Type: text/plain
 hello
@@ -406,7 +406,7 @@ $ gh release view test-20261001-24 --json name,isPrerelease,assets
 {"assets":[{"digest":"sha256:4048e0f1…cdfe","name":"dongfang-wuxian-v1.0.15.apk","size":36827197}],
  "isPrerelease":true,"name":"test-20261001-24 (v1.0.15)"}
 
-$ curl -sI http://39.106.33.135/apk/dongfang-wuxian-v1.0.15.apk
+$ curl -sI http://<你的服务器>/apk/dongfang-wuxian-v1.0.15.apk
 HTTP/1.1 200 OK
 ```
 
@@ -417,7 +417,7 @@ HTTP/1.1 200 OK
 ### 4.4 死掉的公开接口：`/api/version.json` 停在 1.0.21
 
 ```console
-$ curl -s http://39.106.33.135/api/version.json
+$ curl -s http://<你的服务器>/api/version.json
 {
   "version": 1,
   "deprecated": true,
@@ -425,7 +425,7 @@ $ curl -s http://39.106.33.135/api/version.json
   "latest": {
     "versionName": "1.0.21",
     "versionCode": 10021,
-    "apkUrl": "http://39.106.33.135/apk/dongfang-wuxian-v1.0.21.apk",
+    "apkUrl": "http://<你的服务器>/apk/dongfang-wuxian-v1.0.21.apk",
     "sha256": "9d560b3adcebe263c7d2c2bf12eb594a3c8afed326185a01160bac07f6d8a732",
     ...
   },

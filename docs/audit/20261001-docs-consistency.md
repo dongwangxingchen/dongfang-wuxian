@@ -30,7 +30,7 @@
 | R-11 | 帧级证据未完成 | **复核中状态变了**：DFW-86 当天已建卡并**当晚取证+修复入库**（`5d9dd40`），卡 `in_review`；但取证是**静态**的，真机帧级证据仍未完成 | 采纳（补充了 DFW-23→DFW-86→修复这条完整时间线） |
 | R-01/R-08/R-17/R-19/R-20/R-21 | 真机待验 | **成立**，已补"截至 2026-10-01"时间戳 | 采纳 |
 | R-19 行号 | `ModelList.kt:846` | **失效**：实际 `:876` | 额外发现 |
-| R-20 放行清单 | "蓝奏 8 个域名池 + 回环/.local" | **不完整**：还放行了自有后台 `39.106.33.135`；用例数是 **8 不是 6** | 额外发现 |
+| R-20 放行清单 | "蓝奏 8 个域名池 + 回环/.local" | **不完整**：还放行了自有后台 `<你的服务器>`；用例数是 **8 不是 6** | 额外发现 |
 | DFW-19 | "App 端一行代码未写" | **过期**：五条链路全部已接入，四条在**生产使用** | 采纳 |
 | DFW-44/45/47/48 | "仅存档/剩余并入其它卡" | **确认可关**（4 张） | 采纳 |
 | DFW-49 | 同上 | ⚠️ **不建议关**：其"现状修正"已被 DFW-73 推翻 | ❌ 与 lead 预期不同 |
@@ -297,7 +297,7 @@ R-17（空会话无文字）、R-19（附件图标冒烟）、R-20（蓝奏解�
 - `R-20` 的放行清单**漏了自有后台**：
   ```console
   $ grep -n "39.106" app/src/main/res/xml/network_security_config.xml
-  56:        <domain includeSubdomains="false">39.106.33.135</domain>
+  56:        <domain includeSubdomains="false"><你的服务器></domain>
   ```
   该放行是 decisions #33（HTTP + 三重校验）的实现。同时 `NetworkSecurityConfigJvmTest` 实测 **8 例**
   （`grep -c "@Test"` = 8，含 2 例清单死配置检查），台账旧文写的 6 例不准。两处都已更正。
@@ -318,32 +318,32 @@ RemoteConfigClient.java  18859 Oct  1 14:50
 NoticeBanner.java         9040 Sep 30 20:59
 UpdateClient.java        10907 Oct  1 11:50
 $ grep -n "BASE =" app/src/main/java/cc/nkbr/lanzouplus/RemoteConfigClient.java
-37:  static final String BASE = "http://39.106.33.135/pb";
+37:  static final String BASE = "http://<你的服务器>/pb";
 $ ls server/dfwx-admin/index.html server/dfwx-upload/server.py
 ```
 
 **证据（服务器外网实探，全部只读）**：
 ```console
-$ curl -s http://39.106.33.135/health
+$ curl -s http://<你的服务器>/health
 {"status":"ok","service":"dfwx-backend"}
 
-$ curl -s "http://39.106.33.135/pb/api/collections/release/records?perPage=3"
-{"items":[{"apkUrl":"http://39.106.33.135/apk/dongfang-wuxian-v1.0.3.apk",
+$ curl -s "http://<你的服务器>/pb/api/collections/release/records?perPage=3"
+{"items":[{"apkUrl":"http://<你的服务器>/apk/dongfang-wuxian-v1.0.3.apk",
  "sha256":"6a0814812887186377c17ab1a94adcef470a9f0e9676ea55dc4ef417a80d5c54",
  "size":36828141,"updateMode":"soft","versionCode":10003,"versionName":"1.0.3"}],"totalItems":1}
 
-$ curl -s "http://39.106.33.135/pb/api/collections/notice/records?perPage=2"
+$ curl -s "http://<你的服务器>/pb/api/collections/notice/records?perPage=2"
 {"items":[{"title":"东方无限 正式公测","enabled":true,"level":"normal",...}],"totalItems":1}
 
-$ curl -sI http://39.106.33.135/apk/dongfang-wuxian-v1.0.3.apk | head -4
+$ curl -sI http://<你的服务器>/apk/dongfang-wuxian-v1.0.3.apk | head -4
 HTTP/1.1 200 OK
 Content-Type: application/vnd.android.package-archive
 Content-Length: 36828141                     # 与集合记录一致
 
-$ curl -sk -o /dev/null -w "%{http_code}\n" https://39.106.33.135/ai/v1/models
+$ curl -sk -o /dev/null -w "%{http_code}\n" https://<你的服务器>/ai/v1/models
 401                                            # 端点存在且受保护，未泄露上游
 
-$ curl -sk -o /dev/null -w "%{http_code} %{size_download}\n" https://39.106.33.135/admin/
+$ curl -sk -o /dev/null -w "%{http_code} %{size_download}\n" https://<你的服务器>/admin/
 200 39289                                      # 网页控制台
 
 $ ssh dfwx 'ls -l /etc/nginx/dfwx-ai-secret.conf; ls /var/www/dfwx/apk/'
@@ -379,7 +379,7 @@ $ grep -n "DfwxBuiltinProviderCleanup\|DfwxBuiltinChannel" rikkahub/app/src/main
 ```
 `DfwxBuiltinProviderCleanup.kt:45-73` 的实现体也完整保留。真实关系是**两个身份并存**：
 清理器删老身份「智能中转(内置)」（`DfwxBuiltinProviderCleanup.kt:37-43`，`<已停用渠道>` + `glm-5.3`），
-`DfwxBuiltinChannel` 每启动同步新身份「内置渠道」（`DfwxBuiltinChannel.kt:49` `https://39.106.33.135/ai/v1`）。
+`DfwxBuiltinChannel` 每启动同步新身份「内置渠道」（`DfwxBuiltinChannel.kt:49` `https://<你的服务器>/ai/v1`）。
 代码注释自己写着"并存不冲突"。
 
 **改成了什么**：保留 lead 的删除线与"已被推翻"，把最后那句换成带行号的更正段（含 `RikkaHubApp.kt:118/120-123`、
@@ -389,7 +389,7 @@ $ grep -n "DfwxBuiltinProviderCleanup\|DfwxBuiltinChannel" rikkahub/app/src/main
 复核了它列的每一项（远程公告 / 远程更新清单 / APK 分发 / 内置 AI 渠道中转 / 网页控制台 `/admin/`），
 服务器实探全部成立（见 1.9）。特别是 **`/admin/` 这个路径是对的**：
 ```console
-$ curl -sk https://39.106.33.135/admin/ -o /tmp/admin.html && wc -c /tmp/admin.html
+$ curl -sk https://<你的服务器>/admin/ -o /tmp/admin.html && wc -c /tmp/admin.html
    39289 /tmp/admin.html
 $ cmp -s server/dfwx-admin/index.html /tmp/admin.html && echo 一致
 一致
@@ -437,10 +437,10 @@ $ taskctl issue list --project dfwx-android        # 不带才对
 
 ### 1.12 `decisions.md` #42 的控制台入口 —— 额外发现
 
-**文档原话**：入口 `https://39.106.33.135/pb/`
+**文档原话**：入口 `https://<你的服务器>/pb/`
 **实测**：`/pb/` 返回的是**旧版**控制台。
 ```console
-$ curl -sk https://39.106.33.135/pb/ -o /tmp/pb.html; wc -c /tmp/pb.html
+$ curl -sk https://<你的服务器>/pb/ -o /tmp/pb.html; wc -c /tmp/pb.html
    22182 /tmp/pb.html                       # vs /admin/ 的 39289
 $ grep -c "AI 渠道" /tmp/pb.html
 0                                            # 没有 DFW-80 加的标签页
@@ -468,7 +468,7 @@ $ ssh dfwx 'ls -d /var/www/dfwx/*'
 | 4 | taskctl 改卡用 `--if_version <version>` | 该参数名不存在，实际是 **`--if-version`**（连字符） | `taskctl issue update ... --if_version 1` → `Unknown option --if_version` |
 | 5 | "仓库里已搜不到 SNAPSHOT" | 构建配置里确实没有，但 `PATCHES.md` / 测试资源 / 旧审计归档里还有该词 | `grep -rn -i snapshot .` |
 | 6 | R-19 只需补时间戳 | 它还带着一个**失效行号**：`ModelList.kt:846` 实际是 `:876` | `grep -rn painterResource .../ModelList.kt` |
-| 7 | R-20 只需补时间戳 | 它的放行清单**漏了自有后台 `39.106.33.135`**，用例数 6 实际是 **8** | `network_security_config.xml:56`；`grep -c "@Test"` = 8 |
+| 7 | R-20 只需补时间戳 | 它的放行清单**漏了自有后台 `<你的服务器>`**，用例数 6 实际是 **8** | `network_security_config.xml:56`；`grep -c "@Test"` = 8 |
 | 8 | DFW-49 归入"建议关闭" | **不建议关**：它的"现状修正"（AI-004 已移除全部内置渠道，T3-G 前提消失）已被 **DFW-73 于 2026-10-01 推翻** | DFW-49 描述末段 vs `DfwxBuiltinChannel.kt` |
 
 lead **说对**的：R-09（7 个测试类 ✅ 实测就是 7 个）、R-12 主结论、R-13、R-10（4242 ✅）、
@@ -496,7 +496,7 @@ R-11（DFW-86 ✅）、DFW-19（五条链路 ✅ 全部实探成立）。
 > 所以 T3-G 的前提已变——现在没有"内置渠道"可限制了。
 
 **这句话在 2026-10-01 已被推翻**：用户当天拍板**恢复「内置渠道」**（DFW-73，走服务端中转），
-代码里 `DfwxBuiltinChannel` 已是活实现（`DEFAULT_BASE_URL = "https://39.106.33.135/ai/v1"`，
+代码里 `DfwxBuiltinChannel` 已是活实现（`DEFAULT_BASE_URL = "https://<你的服务器>/ai/v1"`，
 模型 `deepseek-v4.1-flash`，未付费点击弹引导窗）。
 
 也就是说 **T3-G 的前提又回来了**：现在**确实有**"内置渠道"这件事需要考虑限制/引导边界。
@@ -649,12 +649,12 @@ done
 # 实测输出：DFW-46 / DFW-23 / DFW-2 / DFW-1
 
 # DFW-19 / 服务器（全部只读）
-curl -s http://39.106.33.135/health
-curl -s "http://39.106.33.135/pb/api/collections/release/records?perPage=3"
-curl -s "http://39.106.33.135/pb/api/collections/notice/records?perPage=2"
-curl -sI http://39.106.33.135/apk/dongfang-wuxian-v1.0.3.apk
-curl -sk -o /dev/null -w "%{http_code}\n" https://39.106.33.135/ai/v1/models
-curl -sk https://39.106.33.135/admin/ -o /tmp/admin.html && cmp -s server/dfwx-admin/index.html /tmp/admin.html && echo 一致
+curl -s http://<你的服务器>/health
+curl -s "http://<你的服务器>/pb/api/collections/release/records?perPage=3"
+curl -s "http://<你的服务器>/pb/api/collections/notice/records?perPage=2"
+curl -sI http://<你的服务器>/apk/dongfang-wuxian-v1.0.3.apk
+curl -sk -o /dev/null -w "%{http_code}\n" https://<你的服务器>/ai/v1/models
+curl -sk https://<你的服务器>/admin/ -o /tmp/admin.html && cmp -s server/dfwx-admin/index.html /tmp/admin.html && echo 一致
 ssh dfwx 'ls -l /etc/nginx/dfwx-ai-secret.conf; ls /var/www/dfwx/apk/'
 
 # current-state 守卫自检（纯静态，不调 gradle）

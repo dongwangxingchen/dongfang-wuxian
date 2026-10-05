@@ -31,7 +31,9 @@ import sys
 import urllib.request
 
 PB = "http://127.0.0.1:8090"
-PASS_FILE = "<凭据文件>"
+PASS_FILE = os.environ.get("DFWX_PB_PASS_FILE", "")
+if not PASS_FILE:
+    sys.exit("请先设置 DFWX_PB_PASS_FILE 指向存放后台口令的文件（权限应为 600）")
 
 
 def req(method, path, token=None, body=None):
@@ -48,7 +50,7 @@ def req(method, path, token=None, body=None):
 def main():
     pw = open(PASS_FILE).read().strip()
     tok = req("POST", "/api/collections/_superusers/auth-with-password",
-              body={"identity": "<管理员账号>", "password": pw})["token"]
+              body={"identity": os.environ.get("DFWX_PB_IDENTITY", ""), "password": pw})["token"]
 
     # App 用的就是这个查询（MainActivity 侧按 sort=-id 取第一条）
     latest = req("GET", "/api/collections/release/records?perPage=1&sort=-id", tok)["items"][0]

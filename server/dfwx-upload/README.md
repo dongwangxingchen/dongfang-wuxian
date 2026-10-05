@@ -75,7 +75,8 @@ sudo cp dfwx-upload.service /etc/systemd/system/
 sudo systemctl daemon-reload && sudo systemctl enable --now dfwx-upload
 
 # 密码文件（复用后台管理员口令，全程不打印）
-printf '<管理员账号>:%s\n' "$(openssl passwd -apr1 "$(sudo cat <凭据文件>)")" \
+printf '%s:%s\n' "${DFWX_ADMIN_USER:?先设这个环境变量}" \
+       "$(openssl passwd -apr1 "$(sudo cat "${DFWX_ADMIN_PASS_FILE:-${DFWX_ADMIN_PASS_FILE:-<凭据文件>}}")")" \
   | sudo tee /etc/nginx/.dfwx-upload.htpasswd >/dev/null
 sudo chown root:www-data /etc/nginx/.dfwx-upload.htpasswd && sudo chmod 640 /etc/nginx/.dfwx-upload.htpasswd
 ```
@@ -133,14 +134,14 @@ location /admin/apk-upload/ {
    **为什么最终选 http：**
 
    1. **https 在光秃秃的 IP 上只有 6 天有效期。**
-      这张证书的 SAN 就是 `IP Address:39.106.33.135`（是 IP 证书，不是域名证书），
+      这张证书的 SAN 就是 `IP Address:<你的服务器>`（是 IP 证书，不是域名证书），
       实测 `notBefore=Oct 3 04:41` / `notAfter=Oct 9 20:41`。
       域名证书是 90 天，IP 证书只有 6 天 —— 它必须一天不停地自动续期，
       **一天没续上，用户就下不了更新**，而 App 端没有回退。
       http 不需要证书，没有「到期」这回事。
 
    2. **挂 https 在这个场景下基本是白挂的。**
-      软件读「版本信息 + 校验值」那一步走的是 `http://39.106.33.135/pb`
+      软件读「版本信息 + 校验值」那一步走的是 `http://<你的服务器>/pb`
       （`RemoteConfigClient.BASE`，本来就是明文）。也就是说：
       能篡改下载地址的人，**同时就能把校验值一起改掉**，https 挡不住他。
 
@@ -148,7 +149,7 @@ location /admin/apk-upload/ {
       别人签不出来，改过的包装不上。这一层跟 http/https 毫无关系。
 
    4. App 端本来就允许：`app/src/main/res/xml/network_security_config.xml` 里
-      `39.106.33.135` 那条显式 `cleartextTrafficPermitted="true"`。
+      `<你的服务器>` 那条显式 `cleartextTrafficPermitted="true"`。
 
    ⚠️ **不要再改成 https。** 换来的是一点点心理安慰，代价是多一个
    「随时可能过期、一过期更新就断」的依赖。

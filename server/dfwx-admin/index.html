@@ -246,13 +246,17 @@ const AUTH = "/pb/api/collections/_superusers/auth-with-password";
  *
  * 用户反馈原话：「他当时让我填的时候，只让我填了密码，可没有问我什么用户名，所以我很纳闷。」
  *
- * 根因：登录框的「管理员邮箱」是**写死在 HTML 里预填好的**（value="<管理员账号>"），
+ * 根因：登录框的「管理员邮箱」是**写死在 HTML 里预填好的**（value 属性里直接写了账号），
  * 用户只看到一个密码框，压根不知道还有个用户名 —— 这是个设计缺陷，不是用户记错。
  *
  * 现在：用户名框**留空**、标签写清楚，用户填「东方」即可。
  * PocketBase 的 _superusers 底层要求邮箱格式，所以这里做一层映射，用户不用记邮箱。
  */
-const USER_ALIAS = { "\u4e1c\u65b9": "<管理员账号>" };
+// 登录账号别名：用户可能习惯用中文名登录，这里做一次映射。
+// 账号本身不写死在文件里（本仓库公开），由部署方通过 DFWX_ADMIN_USER 配置，
+// 或在浏览器 localStorage 里设 dfwx.adminUser 覆盖。
+const ADMIN_USER = localStorage.getItem("dfwx.adminUser") || "";
+const USER_ALIAS = ADMIN_USER ? { "\u4e1c\u65b9": ADMIN_USER } : {};
 function resolveIdentity(u){
   const key = String(u == null ? "" : u).trim();
   return USER_ALIAS[key] || key;
@@ -263,7 +267,7 @@ let token = localStorage.getItem("dfwx_token") || "";
  * 上传安装包走 nginx 的 basic auth，用的是同一套后台口令，省得再记一个。
  * 刷新页面后会丢，届时上传会提示重新输入。
  */
-let adminUser = "<管理员账号>", adminPass = "";
+let adminUser = ADMIN_USER, adminPass = "";
 let tab = "总控";
 let cache = { control:null, release:null, notice:[], changelog:[],
   // [DFW-106] 发布历史。单独一个集合，**绝不混进 release**（理由见 renderRelease 上方的注释）。

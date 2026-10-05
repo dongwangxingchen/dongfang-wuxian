@@ -8,7 +8,7 @@
 为什么要两个都留：本地全绿但线上挂掉的形态是真实存在的 ——
 比如 nginx 只放行 PUT 不放行 GET/DELETE，本地测试根本发现不了。
 
-凭据来源：`<仓库外凭据文件>` 里的 `密码=`（用户名固定 <管理员账号>）。
+凭据来源：仓库外的凭据文件（用户名与路径见 `DFWX_ADMIN_USER` / `DFWX_ADMIN_PASS_FILE`）。
 **凭据只从本地文件读，不写进本脚本，也不打印。**
 
 跑法：
@@ -25,7 +25,7 @@ import urllib.parse
 import urllib.request
 
 BASE = "https://39.106.33.135/admin/apk-upload"
-USER = "<管理员账号>"
+USER = os.environ.get("DFWX_ADMIN_USER", "")
 SERVER_TXT = os.path.expanduser("<仓库外凭据文件>")
 # 线上版本记录指向的那个包。这三个值是**硬事实**（见 release 集合），
 # 网盘算出来的必须和它们一模一样，否则「自动填校验值」就是填错值。

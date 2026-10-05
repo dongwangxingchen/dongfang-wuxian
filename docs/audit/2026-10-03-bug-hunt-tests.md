@@ -368,7 +368,7 @@ val branch = after.substring(0, branchEnd)
 
 | # | 要跑什么 | 验证什么 | 预期 |
 |---|---|---|---|
-| 1 | `bash tools/run-tests.sh --class SearchPageBudgetJvmTest`（**先开抓包或看 logcat / 用 `ss -tn` 看连接**） | §1.2：单跑是否真的对蓝奏云发起请求 | 若看到到 `*.lanzou*.com` / `39.106.33.135` 的连接 → **实锤**。也可临时把 `LIBRARY_AUTO_IMPORT` 默认改 `false` 再跑一次做对照 |
+| 1 | `bash tools/run-tests.sh --class SearchPageBudgetJvmTest`（**先开抓包或看 logcat / 用 `ss -tn` 看连接**） | §1.2：单跑是否真的对蓝奏云发起请求 | 若看到到 `*.lanzou*.com` / `<你的服务器>` 的连接 → **实锤**。也可临时把 `LIBRARY_AUTO_IMPORT` 默认改 `false` 再跑一次做对照 |
 | 2 | 对 §1.2 的 5 个类各单跑一次，比对耗时 | 联网路径是否存在（联网的类会明显慢） | 单跑耗时 vs 全量跑该类的耗时差异 |
 | 3 | 把 `NoticeCenter.unreadCount` 改成"读失败返回 0"，跑 `NoticeCenterJvmTest` | §1.1 的假绿是否真的无鉴别力 | **预期仍然全绿**（这就是证明） |
 | 4 | 删掉 `NavBall.java:220`/`:228` 的 `forceHidePills()` 调用，跑 `NavBallJvmTest` | §1.3 的 6 条锚点 | **预期仍然全绿** |
