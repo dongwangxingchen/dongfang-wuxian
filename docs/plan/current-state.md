@@ -185,7 +185,7 @@
     清理器认的是老身份「智能中转(内置)」（`baseUrl=https://www.<已停用渠道>/v1` + 模型 `glm-5.3`，
     见 `DfwxBuiltinProviderCleanup.kt:37-43`），负责把老版本播过的这条一次性移除；
     **新身份「内置渠道」**由 `DfwxBuiltinChannel.syncIfNeeded()`（`RikkaHubApp.kt:123`）每次启动同步播种，
-    走自有服务器中转（`DfwxBuiltinChannel.kt:49` `DEFAULT_BASE_URL = "https://<你的服务器>/ai/v1"`）。
+    走自有服务器中转（`DfwxBuiltinChannel.kt:49` 的 `DEFAULT_BASE_URL`）。
     所以"新装不再播老渠道"与"新装要播新渠道"同时成立，并不矛盾。
 - **P17/P25 品牌化**：`DongfangTheme` 置首 + 全新安装默认主题；背景 OLED 真黑 `#000000`；关闭上游默认开启的 `dynamicColor`（否则 Android 12+ 系统壁纸取色会完全绕过预设主题）。
 - **U1/NET-001 + U4–U8 重放**：AI 链 HTTPS-only 四道防线；EmojiBurst 空闲挂起；三处空态 72dp FAB 净空；SettingWebPage 88dp 底部净空。

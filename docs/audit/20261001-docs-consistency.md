@@ -318,7 +318,7 @@ RemoteConfigClient.java  18859 Oct  1 14:50
 NoticeBanner.java         9040 Sep 30 20:59
 UpdateClient.java        10907 Oct  1 11:50
 $ grep -n "BASE =" app/src/main/java/cc/nkbr/lanzouplus/RemoteConfigClient.java
-37:  static final String BASE = "http://<你的服务器>/pb";
+37:  static final String BASE = ...;   // 自有服务器地址，见 RemoteConfigClient.java:38
 $ ls server/dfwx-admin/index.html server/dfwx-upload/server.py
 ```
 
@@ -496,7 +496,7 @@ R-11（DFW-86 ✅）、DFW-19（五条链路 ✅ 全部实探成立）。
 > 所以 T3-G 的前提已变——现在没有"内置渠道"可限制了。
 
 **这句话在 2026-10-01 已被推翻**：用户当天拍板**恢复「内置渠道」**（DFW-73，走服务端中转），
-代码里 `DfwxBuiltinChannel` 已是活实现（`DEFAULT_BASE_URL = "https://<你的服务器>/ai/v1"`，
+代码里 `DfwxBuiltinChannel` 已是活实现（`DEFAULT_BASE_URL` 指向自有服务器，
 模型 `deepseek-v4.1-flash`，未付费点击弹引导窗）。
 
 也就是说 **T3-G 的前提又回来了**：现在**确实有**"内置渠道"这件事需要考虑限制/引导边界。

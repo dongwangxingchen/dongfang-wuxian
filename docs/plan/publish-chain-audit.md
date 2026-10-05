@@ -505,7 +505,7 @@ nginx 配置印证：80 端口的 `/apk/` 是 `try_files $uri =404;`（`sites-av
 | **GitHub Release 资产** | ✅ 能下 | 完整下载 36837310 字节，sha256 完全吻合；`gh release view` 的 digest 也一致；`-r 0-1023` 返回 206 且前两字节是 `PK` |
 | **`http://<你的服务器>/apk/<文件名>`** | ✅ 能下（**但必须知道确切文件名**） | 完整下载 36837310 字节 + sha256 吻合 + aapt/apksigner 核验通过。目录本身 404 |
 | ~~网页控制台下载页~~ | ❌ **该路径不存在** | `/admin/` 是发布后台；`/` 是 403；全站没有面向用户的下载页 |
-| App 内下载页（真实路径） | ✅ 数据源可用 | App 从 PocketBase 取 `apkUrl`（`RemoteConfigClient.java:37-38`，`BASE="http://<你的服务器>/pb"`），该 URL 就是上面第二个 ✅ |
+| App 内下载页（真实路径） | ✅ 数据源可用 | App 从 PocketBase 取 `apkUrl`（`RemoteConfigClient.java:37-38` 的 `BASE`），该 URL 就是上面第二个 ✅ |
 
 > 也就是说：**目前真正可用的分发面是「GitHub + 自有服务器直链」两条**，
 > 第三条在 App 里（读的是第二条的地址）。想给用户一个网页下载页，得**新建**，
@@ -547,7 +547,7 @@ $ grep -rn 'version\.json' <仓库根> --exclude-dir=.git --exclude-dir=build
 当前 App 的更新源是**唯一**的（`RemoteConfigClient.java:37-38`）：
 
 ```java
-static final String BASE = "http://<你的服务器>/pb";
+static final String BASE = ...;   // 自有服务器地址，见 RemoteConfigClient.java:38
 private static final String API = BASE + "/api/collections/";
 ```
 
