@@ -256,10 +256,14 @@ const AUTH = "/pb/api/collections/_superusers/auth-with-password";
 // 账号本身不写死在文件里（本仓库公开），由部署方通过 DFWX_ADMIN_USER 配置，
 // 或在浏览器 localStorage 里设 dfwx.adminUser 覆盖。
 const ADMIN_USER = localStorage.getItem("dfwx.adminUser") || "";
-const USER_ALIAS = ADMIN_USER ? { "\u4e1c\u65b9": ADMIN_USER } : {};
+// 只输名字（不含 @）时补上这个域名。它是 PocketBase 的本地域，不是真实邮箱域名。
+const ADMIN_DOMAIN = localStorage.getItem("dfwx.adminDomain") || "dfwx.local";
 function resolveIdentity(u){
   const key = String(u == null ? "" : u).trim();
-  return USER_ALIAS[key] || key;
+  if (!key) return key;
+  // 已经带 @ 就原样用；只输名字就补域名，省得每次打全
+  if (key.includes("@")) return key;
+  return key + "@" + ADMIN_DOMAIN;
 }
 let token = localStorage.getItem("dfwx_token") || "";
 /**
