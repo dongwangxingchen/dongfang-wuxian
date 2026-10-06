@@ -159,9 +159,20 @@ gate_unit() {
 #    任务自己会因为 error 失败，这里不需要再解析报告去数数。
 #    但若哪天有人把 `abortOnError` 改成 false，这条门禁会静默失效，
 #    所以下面补了一道**兜底断言**：直接数 XML 里的 `severity="Error"`。
+#
+# ⚠️ [2026-10-05 修复] 任务名里带 "Release"，会触发 app/build.gradle.kts 的
+#    DFWX-SEC-003 fail-closed 签名门禁（配置期检查 taskNames 里有没有 "Release"）。
+#    CI 上没有 keystore，所以必须和 gate_apk 一样显式声明 unsigned，否则**每次推送必红**，
+#    且红在一个和本次改动毫无关系的地方（实测 CI 日志：
+#    "DFWX-SEC-003：release 签名配置不完整，构建终止（fail-closed）"）。
+#    本地有 local.properties，不会触发，所以这个坑只在 CI 暴露。
 gate_lint() {
   step "Lint 门禁：emptyRelease 变体（0 error；warning 不拦）"
-  ./gradlew "${GRADLE_ARGS[@]}" :app:lintEmptyRelease
+  local lint_args=(:app:lintEmptyRelease)
+  if [[ "${DFWX_UNSIGNED:-0}" == "1" ]]; then
+    lint_args+=(-Pdfwx.unsigned)
+  fi
+  ./gradlew "${GRADLE_ARGS[@]}" "${lint_args[@]}"
 
   # 兜底：确认报告真的存在、且 error 数为 0。
   # 这一道防的是"任务假成功"—— 上面那条命令的退出码只反映 AGP 配置，不反映报告内容。

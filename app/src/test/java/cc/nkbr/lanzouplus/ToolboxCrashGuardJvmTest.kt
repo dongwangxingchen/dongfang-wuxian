@@ -77,13 +77,40 @@ class ToolboxCrashGuardJvmTest {
         assertFalse("不该说成日期格式错误，会把人带偏：$out", out.contains("2000-06-15"))
     }
 
-    /** 合法输入必须仍然正常工作 —— 修崩溃不能把功能修坏。 */
+    /**
+     * 合法输入必须仍然正常工作 —— 修崩溃不能把功能修坏。
+     *
+     * ## ⚠️ 必须钉住时区，否则「本地绿、CI 红」
+     *
+     * `Toolbox.stampToDate` 用的是 `SimpleDateFormat`，它走**运行环境的默认时区**。
+     * 而 1700000000 秒这个瞬间：
+     *
+     * | 时区 | 换算结果 |
+     * |---|---|
+     * | Asia/Shanghai (UTC+8) | 2023-11-15 06:13:20 |
+     * | UTC | **2023-11-14 22:13:20** |
+     *
+     * 原来这里直接断言 `contains("2023-11-15")` —— 开发机是 UTC+8 所以一直绿，
+     * GitHub Actions 的 runner 是 UTC，于是**每次推送 CI 都红**，
+     * 而且红在一个和本次改动毫无关系的用例上（实测 CI 日志：
+     * `979 tests completed, 1 failed`）。
+     *
+     * 修法不是把断言改宽（那等于不测了），而是**显式钉住时区**：
+     * 断言保持精确，跑在哪个时区结果都一样。用完立刻还原，不污染其它用例。
+     */
     @Test
     fun validTimestampsStillConvertCorrectly() {
-        // 1700000000 秒 = 2023-11-15 06:13:20 (UTC+8)
-        val out = Toolbox.timestampAuto("1700000000")
-        assertTrue("合法秒级时间戳应当正常换算，实际：$out", out.contains("2023-11-15"))
-        assertTrue("应当带上星期，实际：$out", out.contains("星期：") || out.contains("周"))
+        val original = java.util.TimeZone.getDefault()
+        try {
+            java.util.TimeZone.setDefault(java.util.TimeZone.getTimeZone("Asia/Shanghai"))
+            // 1700000000 秒 = 2023-11-15 06:13:20 (UTC+8)，周二
+            val out = Toolbox.timestampAuto("1700000000")
+            assertTrue("合法秒级时间戳应当正常换算，实际：$out", out.contains("2023-11-15"))
+            assertTrue("应当带上星期，实际：$out", out.contains("星期：") || out.contains("周"))
+            assertTrue("应当给出 ISO 8601 形式，实际：$out", out.contains("2023-11-15T06:13:20"))
+        } finally {
+            java.util.TimeZone.setDefault(original)
+        }
     }
 
     // ── BUG-2：随机数 ────────────────────────────────────────────────

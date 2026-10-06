@@ -116,7 +116,12 @@ jobs:
         with:
           packages: 'platforms;android-37.0 build-tools;37.0.0'
 
+      # [2026-10-05 修复] 必须声明 unsigned：lintEmptyRelease 任务名带 "Release"，
+      # 会撞上 app/build.gradle.kts 的 DFWX-SEC-003 签名门禁，而 CI 上没有 keystore。
+      # 缺这一行 = 每次推送 lint 必红（此前连续多次失败就是这个原因）。
       - name: Run lint gate
+        env:
+          DFWX_UNSIGNED: '1'
         run: |
           chmod +x gradlew tools/ci-gate.sh
           tools/ci-gate.sh lint
