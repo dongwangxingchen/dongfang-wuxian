@@ -512,3 +512,44 @@ h2         出现 10 次
 **上线先跑 observe 模式**（只记录不拦截），确认 App 侧签名正确率 100% 后再切 enforce ——
 签名有 bug 时 observe 让它暴露在日志里，而不是暴露在用户脸上。
 
+## P42（DFW-130）AI 错误卡人话翻译——内置渠道故障时安抚付费用户
+
+**背景**：渠道炸了的时候，付费用户看到的是 `Failed to get response: 401 {...}` 这类
+英文机器话（抛出点 `ai/.../openai/ChatCompletionsAPI.kt:106`），第一反应是
+「付了钱用不了 = 跑路了」。用户原话："给出像我一样说话的语气的提示，
+不至于让他们觉得付费之后我跑路了"。
+
+### 改动（2 个文件）
+
+| 文件 | 改动 |
+|---|---|
+| `app/src/main/java/me/rerere/rikkahub/dfwx/DfwxErrorMessages.kt` | **新增自有文件**。纯函数分类器：Throwable → 东方语气文案；认不出返回 null |
+| `app/src/main/java/me/rerere/rikkahub/ui/components/ui/ErrorCard.kt` | 有翻译显示人话（maxLines 放宽到 3），没有维持原样；复制按钮仍复制**原始** message |
+
+### 关键设计约束
+
+- **只做增量**：`explain()` 返回 null = ErrorCard 行为与改造前完全一致。
+  新错误类型没被分类器覆盖时永远不会被错误文案张冠李戴。
+- **内置渠道判断是启发式**：HTTP 异常不带 host，只有连接层异常 message 里有；
+  所以"内置渠道专属安抚文案"的判据 = message 含内置 host，**或** 用户已付费+渠道启用
+  （付费用户默认就走这条渠道）。自配渠道用户偶尔被安抚一下，无副作用。
+- **文案红线（有测试钉死）**：任何人话里不许出现上游地址、`sk-`、IP 等敏感串；
+  必须是中文。改文案时同步改 `DfwxErrorMessagesTest`。
+- 分类覆盖：UnknownHost/Connect/SSL/Socket → 网络；SocketTimeout → 超时；
+  HTTP 401/403 → 钥匙、402/余额 → 额度、429 → 限流、5xx → 服务故障；
+  流中断关键词（connection reset 等）→ 网络；上游不合法响应 → 让用户重试。
+
+### 同步上游时需重放
+
+1. `DfwxErrorMessages.kt` 是**新增自有文件**，rsync 保留但要确认还在。
+2. `ErrorCard.kt` 三处改动会被 rsync 冲掉，**必须重放**：import、
+   `val friendly = remember(...)`、`text = friendly ?: error.error.message ?: ...`。
+
+### 验证
+
+- 新增 `DfwxErrorMessagesTest`（17 用例）：分类正确性 + 认不出返 null +
+  文案红线 + 付费/未付费语气分流。
+- vendor 全量 `--rerun`：38 类 297 → **39 类 314 用例 / 0 失败**。
+- `:rikkahub-app:compileReleaseKotlin` exit=0。
+- **未做真机验证**：需断网/改错 token 各试一次，看错误卡人话（发版前做）。
+

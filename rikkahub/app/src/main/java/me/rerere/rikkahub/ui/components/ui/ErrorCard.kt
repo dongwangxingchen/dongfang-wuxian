@@ -20,6 +20,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -42,6 +43,7 @@ import me.rerere.hugeicons.stroke.Copy01
 import me.rerere.hugeicons.stroke.Delete01
 import me.rerere.rikkahub.R
 import me.rerere.rikkahub.Screen
+import me.rerere.rikkahub.dfwx.DfwxErrorMessages
 import me.rerere.rikkahub.service.ChatError
 import me.rerere.rikkahub.service.ChatErrorSolution
 import me.rerere.rikkahub.ui.context.LocalNavController
@@ -114,6 +116,12 @@ fun ErrorCard(
     val checkFastModelSettings = stringResource(R.string.chat_page_check_fast_model_settings)
     val linkColor = MaterialTheme.colorScheme.primary
 
+    // [DFW-130] 认得出的错误先翻成人话；翻不出 friendly 为 null，走原有展示。
+    // 原始 message 不丢：复制按钮仍复制原文，方便用户反馈与排查。
+    val friendly = remember(error.id, error.error.message) {
+        DfwxErrorMessages.explain(error.error)?.text
+    }
+
     // 5 秒后自动消失
     LaunchedEffect(error.id) {
         delay(5000)
@@ -147,9 +155,12 @@ fun ErrorCard(
                     )
                 }
                 Text(
-                    text = error.error.message ?: "Unknown error",
+                    // [DFW-130] 有翻译就显示人话，没有就维持原始 message
+                    text = friendly ?: error.error.message ?: "Unknown error",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onErrorContainer.copy(alpha = 0.8f),
+                    // 人话可能有两行（说明+下一步），比原始报错放宽一行
+                    maxLines = if (friendly != null) 3 else 2,
                     overflow = TextOverflow.Ellipsis,
                 )
                 if (error.solution == ChatErrorSolution.CheckFastModelSettings) {
