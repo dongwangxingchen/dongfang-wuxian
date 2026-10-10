@@ -421,6 +421,9 @@ private fun SendButton(
     onLongClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    // [DFW-131] 发送键是全页最重的确认操作，点按给一次实体键级别的触感。
+    // 长按（跳过回答）沿用现有 GestureThresholdActivate，不在这里加。
+    val haptic = LocalHapticFeedback.current
     val showStop = loading && empty
     val containerColor = when {
         showStop -> MaterialTheme.colorScheme.errorContainer
@@ -440,7 +443,10 @@ private fun SendButton(
             .clip(CircleShape)
             .combinedClickable(
                 enabled = showStop || !empty,
-                onClick = onClick,
+                onClick = {
+                    haptic.performHapticFeedback(HapticFeedbackType.KeyboardTap)
+                    onClick()
+                },
                 onLongClick = onLongClick,
             )
     ) {
@@ -464,8 +470,14 @@ private fun ActionIconButton(
     onClick: () -> Unit,
     content: @Composable () -> Unit,
 ) {
+    // [DFW-131] 输入栏小按钮（加号/语音/模型切换入口）统一轻点触感。
+    // KeyboardTap 与上游 ChatMessage.kt:310 引用点击反馈的先例一致。
+    val haptic = LocalHapticFeedback.current
     Surface(
-        onClick = onClick,
+        onClick = {
+            haptic.performHapticFeedback(HapticFeedbackType.KeyboardTap)
+            onClick()
+        },
         modifier = Modifier.size(30.dp),
         shape = CircleShape,
         tonalElevation = 0.dp,

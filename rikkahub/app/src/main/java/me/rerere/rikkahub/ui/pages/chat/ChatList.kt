@@ -320,7 +320,9 @@ private fun ChatListNormal(
                 items = conversation.messageNodes,
                 key = { index, item -> item.id },
             ) { index, node ->
-                Column {
+                // [DFW-131] 新消息进列表/分支切换重排时平滑归位（LazyItemScope 的 animateItem，
+                // fade + 滑入由框架默认 spring 给出；这是官方 API，无第三方依赖）
+                Column(modifier = Modifier.animateItem()) {
                     ListSelectableItem(
                         key = node.id,
                         onSelectChange = {

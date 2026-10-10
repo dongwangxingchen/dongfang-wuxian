@@ -553,3 +553,38 @@ h2         出现 10 次
 - `:rikkahub-app:compileReleaseKotlin` exit=0。
 - **未做真机验证**：需断网/改错 token 各试一次，看错误卡人话（发版前做）。
 
+## P43（DFW-131）AI 对话页手感：点按触感 + 消息条目平滑归位
+
+**背景**：用户原话"它那个按钮什么都没有反馈的，点击之后直接出现效果…像原生的一样，非常丝滑"。
+排查确认：聊天页的触感**只覆盖了长按手势/拖拽/语音**（`ChatInput.kt:202/207`、
+`ModelList.kt:571/574`、`ChatMessage.kt:310`），**所有点按路径零触感**；
+消息列表也没有 `animateItem`，新消息/分支切换是硬切。
+
+### 改动（3 个文件，全是小改）
+
+| 文件 | 改动 |
+|---|---|
+| `ChatInput.kt` | `SendButton` 点按 → `KeyboardTap`（发送=确认级）；`ActionIconButton`（加号/语音入口）点按 → `KeyboardTap` |
+| `ErrorCard.kt` | 复制按钮 → `Confirm`（操作成功确认）；关闭按钮 → `KeyboardTap`（移除级，与复制区分） |
+| `ChatList.kt:323` | 消息条目 `Column` 挂 `Modifier.animateItem()`——新消息进列表、分支切换重排时平滑归位 |
+
+### 设计决策
+
+- **类型选型**：`KeyboardTap`=轻点、`Confirm`=成功确认，均为 Compose 1.11+
+  `HapticFeedbackType` 官方枚举（BOM 2026.09.00）；不引第三方、不造轮子。
+- **涟漪不动**：`Surface(onClick)`/`IconButton` 本身带 M3 ripple，无需改；
+  用户感受到的"没反馈"根源是触感缺失，不是涟漪缺失。
+- **不加弹簧动画**：触摸路径禁物理弹簧是项目红线（docs/agents/lessons.md），
+  `animateItem` 用框架默认 spring（仅用于布局归位，不在触摸路径）。
+- 刻意**只做增量**：不动布局、不动配色、不动文案，回归面最小。
+
+### 同步上游时需重放
+
+三处都是上游文件内的就地小改，rsync 会冲掉，按上面表格重放。
+
+### 验证
+
+- vendor 全量 `--rerun`：39 类 314 用例 / 0 失败（与 P42 后基线持平）。
+- `:rikkahub-app:compileReleaseKotlin` exit=0。
+- **未做真机验证**：真机点发送键/加号/错误卡复制+关闭听触感、看新消息滑入（发版前做）。
+

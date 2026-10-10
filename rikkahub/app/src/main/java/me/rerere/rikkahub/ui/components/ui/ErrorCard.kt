@@ -26,6 +26,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.ClipEntry
 import androidx.compose.ui.platform.LocalClipboard
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.LinkAnnotation
 import androidx.compose.ui.text.SpanStyle
@@ -113,6 +115,8 @@ fun ErrorCard(
     val clipboard = LocalClipboard.current
     val navController = LocalNavController.current
     val scope = rememberCoroutineScope()
+    // [DFW-131] 错误卡操作按钮的触感反馈
+    val haptic = LocalHapticFeedback.current
     val checkFastModelSettings = stringResource(R.string.chat_page_check_fast_model_settings)
     val linkColor = MaterialTheme.colorScheme.primary
 
@@ -191,6 +195,8 @@ fun ErrorCard(
             }
             IconButton(
                 onClick = {
+                    // [DFW-131] 复制成功的操作给一次确认触感
+                    haptic.performHapticFeedback(HapticFeedbackType.Confirm)
                     scope.launch {
                         clipboard.setClipEntry(
                             ClipEntry(
@@ -209,7 +215,11 @@ fun ErrorCard(
                 )
             }
             IconButton(
-                onClick = onDismiss,
+                onClick = {
+                    // [DFW-131] 关闭错误卡是"移除"操作，给轻点触感与复制区分
+                    haptic.performHapticFeedback(HapticFeedbackType.KeyboardTap)
+                    onDismiss()
+                },
                 modifier = Modifier.size(32.dp),
             ) {
                 Icon(
