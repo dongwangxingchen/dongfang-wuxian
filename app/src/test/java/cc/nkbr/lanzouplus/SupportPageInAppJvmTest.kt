@@ -254,7 +254,11 @@ class SupportPageInAppJvmTest {
         )) {
             assertFalse("用户 2026-10-01 口述删掉的文案不得回来：「$gone」\n$joined", joined.contains(gone))
         }
-        assertTrue("权益只留用户口述的那一条：\n$joined", joined.contains("每周自费续 1 万次 DeepSeek v4.1"))
+        // [DFW-135] 权益行升级为可展开模型卡（用户 2026-10-11 指示：不写死 DeepSeek 型号，
+        // 点开展开看当前模型）。旧断言钉的「每周自费续 1 万次 DeepSeek v4.1」随之退役；
+        // 新形态：权益话术 + 展开入口在触发行里。
+        assertTrue("权益行保留自费续额话术：\n$joined", joined.contains("每周自费续额度"))
+        assertTrue("权益行带展开入口提示：\n$joined", joined.contains("点这里看当前模型"))
         assertTrue("￥5 必须保持可见：\n$joined", joined.contains("￥5"))
         assertTrue("必须诚实说明是本地标记：\n$joined", joined.contains("解锁记录保存在本机 · 不付费也可以完整使用"))
     }

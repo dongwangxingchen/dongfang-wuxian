@@ -29,7 +29,7 @@ import kotlin.uuid.Uuid
  * 令牌在客户端天然可被扒（用户已知情接受）；万一被白用，服务器换令牌 + 后台下发即可，不必发版。
  *
  * ## 本文件的职责
- *  1. 播种：首次启动把「内置渠道 / deepseek-v4.1-flash」写进 RikkaHub 设置（幂等、可远程改）；
+ *  1. 播种：首次启动把「内置渠道 / glm-5.3-flash」写进 RikkaHub 设置（幂等、可远程改）；
  *  2. 身份识别：哪些 Provider 属于内置渠道（只认 baseUrl，用户改名也算）；
  *  3. 付费门：未诚信付费时选中内置渠道要弹窗引导（见 ModelList.kt 的调用点）；
  *  4. 只读：内置渠道不出现在 AI 设置的渠道列表里，用户改不到（改由后台下发覆盖）。
@@ -52,7 +52,9 @@ object DfwxBuiltinChannel {
 
     const val PROVIDER_NAME = "内置渠道"
     const val DEFAULT_BASE_URL = "https://39.106.33.135/ai/v1"
-    const val DEFAULT_MODEL_ID = "deepseek-v4.1-flash"
+    // [DFW-129] 默认模型换天枢 glm-5.3-flash。后台 ai_model 留空时回落到这里；
+    // 换模型不发版：后台改 ai_model 即可，存量+新装都跟。
+    const val DEFAULT_MODEL_ID = "glm-5.3-flash"
     const val DEFAULT_MAX_TOKENS = 8192
     /** RikkaHub 的 OpenAI 渠道默认路径（`ProviderSetting.OpenAI.chatCompletionsPath` 的默认值）。 */
     const val DEFAULT_CHAT_PATH = "/chat/completions"

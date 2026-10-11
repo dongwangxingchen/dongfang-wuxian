@@ -177,7 +177,9 @@ android {
 
     val dfwxAiToken = dfwxSecret("dfwx.aiToken", "DFWX_AI_TOKEN")
     val dfwxAiUrl = dfwxSecret("dfwx.aiUrl", "DFWX_AI_URL", "https://39.106.33.135/ai/v1")
-    val dfwxAiModel = dfwxSecret("dfwx.aiModel", "DFWX_AI_MODEL", "deepseek-v4.1-flash")
+    // [DFW-129] 内置模型默认值换天枢 glm-5.3-flash（后台 ai_model 留空时回落到这里；
+    // 存量用户靠后台下发切换，新装机靠这个 baked 值）
+    val dfwxAiModel = dfwxSecret("dfwx.aiModel", "DFWX_AI_MODEL", "glm-5.3-flash")
     resValue("string", "dfwx_ai_url", dfwxAiUrl)
     resValue("string", "dfwx_ai_token", dfwxAiToken)
     resValue("string", "dfwx_ai_model", dfwxAiModel)

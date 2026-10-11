@@ -114,10 +114,14 @@ public class SupportPageCopyJvmTest {
   }
 
   @Test public void supportPage_keepsTheSinglePerkSentence() {
+    // [DFW-135] 用户 2026-10-11 指示：权益行不再写死 DeepSeek 型号，改为模型卡（点开看当前模型）。
+    // 保留「自费续额度」的诚意话术与展开入口；「专供诚信付费的朋友」语义不变。
     String joined = supportPageTexts();
-    assertTrue("权益区必须是用户口述的那一条（每周自费续 1 万次 DeepSeek v4.1）：\n" + joined,
-        joined.contains("1 万次 DeepSeek v4.1"));
-    assertTrue("口述文案的其余部分也要在：\n" + joined, joined.contains("自动刷新") && joined.contains("请诚信付费"));
+    assertTrue("权益区必须有自费续额话术（不再写死型号）：\n" + joined,
+        joined.contains("每周自费续额度"));
+    assertTrue("权益区必须带展开入口（点开看当前模型）：\n" + joined,
+        joined.contains("点这里看当前模型"));
+    assertTrue("专供诚信付费的语义保留：\n" + joined, joined.contains("专供诚信付费的朋友"));
   }
 
   @Test public void supportPage_keepsThePriceVisible() {

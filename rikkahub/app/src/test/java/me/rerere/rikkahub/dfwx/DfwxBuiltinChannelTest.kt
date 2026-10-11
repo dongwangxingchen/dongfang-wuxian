@@ -42,7 +42,7 @@ class DfwxBuiltinChannelTest {
             DfwxBuiltinChannel.Config(
                 baseUrl = proxyUrl,
                 token = "dfwx-test-token",
-                modelId = "deepseek-v4.1-flash",
+                modelId = DfwxBuiltinChannel.DEFAULT_MODEL_ID,
                 maxTokens = 8192,
                 enabled = enabled,
             )
@@ -50,7 +50,7 @@ class DfwxBuiltinChannelTest {
     }
 
     /** 造一个"内置渠道 + 一个模型"，返回模型对象（findProvider 是按 model.id 反查的，必须用同一个对象）。 */
-    private fun builtinProvider(modelId: String = "deepseek-v4.1-flash"): Pair<ProviderSetting.OpenAI, Model> {
+    private fun builtinProvider(modelId: String = DfwxBuiltinChannel.DEFAULT_MODEL_ID): Pair<ProviderSetting.OpenAI, Model> {
         val model = Model(modelId = modelId, displayName = modelId)
         return ProviderSetting.OpenAI(
             name = DfwxBuiltinChannel.PROVIDER_NAME,
@@ -178,7 +178,7 @@ class DfwxBuiltinChannelTest {
     fun gate_allowsWhenModelNotInAnyProviderList() {
         installChannel()
         DfwxBuiltinChannel.paidProvider = { false }
-        val orphan = Model(modelId = "deepseek-v4.1-flash", displayName = "deepseek-v4.1-flash")
+        val orphan = Model(modelId = DfwxBuiltinChannel.DEFAULT_MODEL_ID, displayName = DfwxBuiltinChannel.DEFAULT_MODEL_ID)
         assertFalse(DfwxBuiltinChannel.shouldBlockSelection(orphan, emptyList()))
     }
 
@@ -203,7 +203,8 @@ class DfwxBuiltinChannelTest {
     @Test
     fun config_modelNameIsExactlyTheUpstreamId() {
         // 用户 2026-10-01 明确纠正过："名字你不要显示为 DeepSeek4.1，得叫 deepseek-v4.1-flash"
-        assertEquals("deepseek-v4.1-flash", DfwxBuiltinChannel.DEFAULT_MODEL_ID)
+        // [DFW-129] 默认模型换天枢 glm-5.3-flash；语义不变：显示名 = 真实上游 id（用户 2026-10-01 原话仍适用："名字你不要显示为 DeepSeek4.1"）
+        assertEquals("glm-5.3-flash", DfwxBuiltinChannel.DEFAULT_MODEL_ID)
     }
 
     // ── 同步：幂等 + 模型 id 跨轮稳定（DFW-26 审计查出的必现 bug） ──────────

@@ -4998,7 +4998,7 @@ content=new LinearLayout(this);content.setOrientation(LinearLayout.VERTICAL);pag
     LinearLayout perks=aboutCard();
     // [BRAND-001] 内边距与开发者信同基准（原来 14/6，与信的 16/14 不在一个节奏上）
     perks.setPadding(dp(16),dp(8),dp(16),dp(8));
-    perks.addView(benefitRow(R.drawable.ic_trophy,"每周自费续 1 万次 DeepSeek v4.1，自动刷新，专供诚信付费的朋友，请诚信付费。"),new LinearLayout.LayoutParams(-1,-2));
+    perks.addView(expandableModelBenefitRow(),new LinearLayout.LayoutParams(-1,-2));
     supportBody.addView(perks,aboutCardLp());
     // [BRAND-001] 价格区从"裸行"升级成一张卡：上面是开发者信、中间是权益、这里是价格，
     // 三块同一节奏才像一页设计过的产品页；￥5 仍然在**中段**一眼可见（用户 2026-10-01 的要求）。
@@ -5131,6 +5131,91 @@ content=new LinearLayout(this);content.setOrientation(LinearLayout.VERTICAL);pag
     label.setPadding(dp(10),0,0,0);
     row.addView(label,new LinearLayout.LayoutParams(0,-2,1));
     return row;
+  }
+
+  /**
+   * [DFW-135] 权益行的可展开版：点开展开「当前可用的内置模型」。
+   *
+   * ## 为什么不再写死「DeepSeek v4.1」
+   * 模型是后台 ai_model 随时远程换的（渠道炸了 30 秒切完，不用发版）——
+   * 写死型号等于每换一次就得改代码重发版。所以固定文案只讲权益，
+   * 具体模型点开后读 DfwxBuiltinChannel 的当前生效值，永远和真实一致。
+   *
+   * 动效纪律：VPA + standardEase 150ms（触摸路径禁物理弹簧）；
+   * 展开区用 pivotY=0 的 scaleY + alpha，收起反向并在结束时 GONE。
+   * 低动效模式直接切可见性，不播动画。
+   */
+  LinearLayout expandableModelBenefitRow(){
+    LinearLayout container=new LinearLayout(this);
+    container.setOrientation(LinearLayout.VERTICAL);
+    // ── 触发行：图标 + 文案 + 展开箭头 ──
+    LinearLayout row=new LinearLayout(this);
+    row.setGravity(Gravity.CENTER_VERTICAL);
+    row.setPadding(0,dp(9),0,dp(9));
+    row.setClickable(true);
+    row.setFocusable(true);
+    ImageView icon=new ImageView(this);
+    icon.setImageResource(R.drawable.ic_trophy);
+    icon.setColorFilter(PRIMARY);
+    icon.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+    row.addView(icon,new LinearLayout.LayoutParams(dp(20),dp(20)));
+    TextView label=text("内置 AI 渠道已开启，每周自费续额度，专供诚信付费的朋友（点这里看当前模型）。",13,TEXT);
+    label.setLineSpacing(dp(3),1f);
+    label.setPadding(dp(10),0,0,0);
+    row.addView(label,new LinearLayout.LayoutParams(0,-2,1));
+    ImageView arrow=new ImageView(this);
+    arrow.setImageResource(R.drawable.ic_expand);
+    arrow.setColorFilter(PRIMARY);
+    arrow.setPadding(dp(8),dp(8),dp(8),dp(8));
+    arrow.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+    row.addView(arrow,new LinearLayout.LayoutParams(dp(32),dp(40)));
+    container.addView(row,new LinearLayout.LayoutParams(-1,-2));
+    // ── 展开区：当前生效模型（后台 ai_model 远程换完，这里点开就是新值） ──
+    LinearLayout detail=new LinearLayout(this);
+    detail.setOrientation(LinearLayout.VERTICAL);
+    detail.setPadding(dp(30),dp(2),0,dp(4));
+    detail.setVisibility(View.GONE);
+    me.rerere.rikkahub.dfwx.DfwxBuiltinChannel.Config cfg=
+        me.rerere.rikkahub.dfwx.DfwxBuiltinChannel.INSTANCE.current();
+    String modelName=cfg.getEffectiveDisplayName();
+    if(!cfg.getEnabled()||cfg.getToken().isEmpty())modelName="维护中，稍后恢复";
+    final String modelShown=modelName;
+    TextView modelLabel=text("当前可用模型",11,MUTED);
+    detail.addView(modelLabel,new LinearLayout.LayoutParams(-2,-2));
+    TextView modelNameView=text(modelName,14,PRIMARY);
+    modelNameView.setTypeface(AppFonts.bold(this));
+    LinearLayout.LayoutParams nameLp=new LinearLayout.LayoutParams(-2,-2);
+    nameLp.topMargin=dp(3);
+    detail.addView(modelNameView,nameLp);
+    detail.setContentDescription("当前可用模型："+modelShown);
+    container.addView(detail,new LinearLayout.LayoutParams(-1,-2));
+    // ── 展开/收起：scaleY + alpha，VPA，150ms ──
+    final boolean[] expanded={false};
+    row.setOnClickListener(v->{
+      expanded[0]=!expanded[0];
+      arrow.animate().cancel();
+      if(motionEnabled())arrow.animate().rotation(expanded[0]?180f:0f).setDuration(150).setInterpolator(standardEase()).start();
+      else arrow.setRotation(expanded[0]?180f:0f);
+      if(!motionEnabled()){
+        detail.setVisibility(expanded[0]?View.VISIBLE:View.GONE);
+        return;
+      }
+      if(expanded[0]){
+        detail.setAlpha(0f);
+        detail.setScaleY(0f);
+        detail.setPivotY(0f);
+        detail.setVisibility(View.VISIBLE);
+        detail.animate().cancel();
+        detail.animate().alpha(1f).scaleY(1f).setDuration(150).setInterpolator(standardEase()).start();
+      }else{
+        detail.setPivotY(0f);
+        detail.animate().cancel();
+        detail.animate().alpha(0f).scaleY(0f).setDuration(150).setInterpolator(standardEase())
+            .withEndAction(()->{if(!expanded[0])detail.setVisibility(View.GONE);}).start();
+      }
+      row.setContentDescription("内置 AI 渠道权益，"+(expanded[0]?"已展开，当前模型 "+modelShown:"点按查看当前模型"));
+    });
+    return container;
   }
 
   /** 收款码卡片：白底浮起（深色页面上收款码必须白底才可扫）；码图 adjustViewBounds 撑满卡宽、

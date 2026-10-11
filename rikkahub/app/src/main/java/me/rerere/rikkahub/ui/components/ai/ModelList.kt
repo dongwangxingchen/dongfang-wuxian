@@ -1,5 +1,6 @@
 package me.rerere.rikkahub.ui.components.ai
 
+import android.widget.Toast
 import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -50,6 +51,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -62,6 +64,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
+import me.rerere.rikkahub.dfwx.DfwxModelTester
 import me.rerere.ai.provider.Modality
 import me.rerere.ai.provider.Model
 import me.rerere.ai.provider.ModelAbility
@@ -791,10 +794,69 @@ private fun ModelItem(
                         ModelAbilityTag(model = model)
                     }
                 }
+                // [DFW-135] 内置渠道的模型才有「测试」按钮：点一下发一条最小请求验证模型可用。
+                // 未付费也能测（用户 2026-10-11 拍板）——测试不等于选择，不走付费墙。
+                if (me.rerere.rikkahub.dfwx.DfwxBuiltinChannel.isBuiltin(providerSetting)) {
+                    BuiltinModelTestButton(
+                        model = model,
+                        onDismiss = onDismiss,
+                    )
+                }
                 tail()
             }
             dragHandle?.let { it() }
         }
+    }
+}
+
+/**
+ * [DFW-135] 内置模型的「测试」小按钮。
+ *
+ * 交互：点按 → 按钮文字变「测试中…」并禁用（防连点）→ 出结果弹一条 Toast（成功绿/失败红）。
+ * 成功判据、错误翻译、防滥用边界都在 [DfwxModelTester]；这里只管 UI 状态。
+ * 进行中用户关掉面板也没事：协程随组合取消，DfwxModelTester 会把取消原样上抛。
+ */
+@Composable
+private fun BuiltinModelTestButton(
+    model: Model,
+    onDismiss: () -> Unit,
+) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val haptic = LocalHapticFeedback.current
+    var testing by remember { mutableStateOf(false) }
+
+    TextButton(
+        enabled = !testing,
+        onClick = {
+            if (testing) return@TextButton
+            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+            testing = true
+            scope.launch {
+                val result = try {
+                    DfwxModelTester.test()
+                } finally {
+                    testing = false
+                }
+                val message = when (result) {
+                    is DfwxModelTester.Result.Success ->
+                        if (result.preview.isBlank()) "模型正常，能用！"
+                        else "模型正常，能用！它说：「${result.preview}」"
+                    is DfwxModelTester.Result.Failure -> result.humanText
+                }
+                Toast.makeText(
+                    context,
+                    message,
+                    if (result is DfwxModelTester.Result.Success) Toast.LENGTH_SHORT else Toast.LENGTH_LONG,
+                ).show()
+            }
+        },
+        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+    ) {
+        Text(
+            text = if (testing) "测试中…" else "测试",
+            style = MaterialTheme.typography.labelMedium,
+        )
     }
 }
 

@@ -188,10 +188,17 @@ class SponsorPageJvmTest {
         val texts = textsIn(a.root).joinToString("|")
         assertFalse("「诚信付费 ￥5 · 一次付清 · 承诺永久更新」必须保持删除", texts.contains("诚信付费 ￥5 · 一次付清 · 承诺永久更新"))
         assertFalse("页头 kicker「诚信付费 · 自愿」必须保持删除", texts.contains("诚信付费 · 自愿"))
+        // [DFW-135] 权益行升级为模型卡（用户 2026-10-11 指示）：话术不再写死 DeepSeek 型号，
+        // 「每周自费续额度」话术 + 「点这里看当前模型」展开入口各恰好出现一次。
         assertEquals(
-            "权益只留用户口述的那一条",
+            "自费续额话术只出现一次",
             1,
-            textsIn(a.root).count { it.contains("每周自费续 1 万次 DeepSeek v4.1") },
+            textsIn(a.root).count { it.contains("每周自费续额度") },
+        )
+        assertEquals(
+            "展开入口只出现一次",
+            1,
+            textsIn(a.root).count { it.contains("点这里看当前模型") },
         )
     }
 }

@@ -588,3 +588,39 @@ h2         出现 10 次
 - `:rikkahub-app:compileReleaseKotlin` exit=0。
 - **未做真机验证**：真机点发送键/加号/错误卡复制+关闭听触感、看新消息滑入（发版前做）。
 
+
+## P44（DFW-129 + DFW-135）默认模型换天枢 glm-5.3-flash + 模型测试按钮
+
+**日期**：2026-10-11。**任务卡**：DFW-129（模型切换）/ DFW-135（赞助页模型卡片 + 测试按钮）。
+
+### 背景
+
+用户 2026-10-11：赞助页还写着 DeepSeek，要改成可点开看当前模型；AI 对话页模型列表要能一键测试模型可用性（未付费也能测）；内置模型要能随时远程换。
+
+### 改动（vendor 2 个文件 + 新增 2 个）
+
+| 文件 | 改动 |
+|---|---|
+| `DfwxBuiltinChannel.kt:55` | `DEFAULT_MODEL_ID` `deepseek-v4.1-flash` → `glm-5.3-flash`（baked 兜底；后台 ai_model 留空时回落到此值，host 侧 build.gradle.kts 同步改） |
+| `DfwxBuiltinChannelTest.kt` | 模型名 hardcode 全部改引用 `DEFAULT_MODEL_ID` 常量（防下次换模型再改一遍）；`config_modelNameIsExactlyTheUpstreamId` 断言随默认值更新，语义（显示名=上游 id）不变 |
+| `DfwxModelTester.kt`（新增） | 模型连通性测试：走 `GenerationLoop.generateText` 真实链路（带签名拦截器同一条 OkHttpClient），maxTokens 钉 64、探针一句话、取第一个增量即成功（`firstOrNull` + 协程取消断流）；失败走 `DfwxErrorMessages.explain` 人话翻译；`precheck` 纯校验独立成函数供 JVM 测试 |
+| `DfwxModelTesterTest.kt`（新增） | 6 用例钉死 precheck：停用渠道拦 / 空令牌拦 / 模型未同步拦 / 就绪放行 / 未注入按不可用 / Result 契约 |
+
+### 上游 ModelList.kt 挂钩（1 处 + 新增 1 个组件）
+
+| 文件 | 改动 |
+|---|---|
+| `ModelList.kt` ModelItem | 内置渠道模型行尾自动追加 `BuiltinModelTestButton`（`DfwxBuiltinChannel.isBuiltin` 判定；用户自有渠道不出现按钮） |
+| `ModelList.kt` BuiltinModelTestButton（新增） | 点按 → 触感 + 「测试中…」禁用防连点 → Toast 出结果（成功附模型回话前 24 字；失败用人话文案）。未付费可点：测试不等于选择，不经过 `shouldBlockSelection` 付费墙 |
+
+### 设计决策
+
+- **为什么发真请求而不是 ping**：中转站常见故障是"连接正常但模型名不认"，必须走一次最小真实生成。
+- **防滥用**：maxTokens=64 硬上限 + 固定探针话术 + 无工具/无记忆/无系统提示 + 按钮进行中禁用。
+- **付费墙豁免**：用户 2026-10-11 明确"即便是没有赞助的人，也能点击并测试"。测试读的是 DfwxBuiltinChannel 当前配置，不触发 shouldBlockSelection。
+
+### 验证
+
+- `DfwxModelTesterTest` 6/0/0、`DfwxBuiltinChannelTest` 40/0/0、`DfwxErrorMessagesTest` 17/0/0。
+- 全 vendor `--rerun` 回归见任务卡落账。
+- **未做真机验证**（发版前）：点测试按钮出结果、赞助页展开动画、后台换模型后赞助页/对话页跟着变。
