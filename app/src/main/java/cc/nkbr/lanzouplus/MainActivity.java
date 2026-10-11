@@ -3881,6 +3881,111 @@ content=new LinearLayout(this);content.setOrientation(LinearLayout.VERTICAL);pag
   public void pickToolColorImage(Runnable onPicked){pendingToolColorImagePick=onPicked;try{Intent intent=new Intent(Intent.ACTION_GET_CONTENT);intent.setType("image/*");startActivityForResult(Intent.createChooser(intent,"选择图片"),TOOL_PICK_IMAGE2);}catch(Exception error){pendingToolColorImagePick=null;showNotice("没有可用的图片选择器",true);}}
   // v1.18.0 分贝仪麦克风权限：授予后回调启动测量
   public void requestToolMicPermission(Runnable onGranted){if(Build.VERSION.SDK_INT>=23&&checkSelfPermission(Manifest.permission.RECORD_AUDIO)!=PackageManager.PERMISSION_GRANTED){pendingMicAction=onGranted;requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO},TOOL_MIC_PERMISSION);return;}onGranted.run();}
+
+  // ── [DFW-132] 音乐转换 ─────────────────────────────────────────────
+
+  static final int TOOL_PICK_AUDIO=72;
+  android.net.Uri toolAudioUriValue;MusicConvertEngine.Target toolAudioTargetValue=MusicConvertEngine.Target.M4A;
+  volatile java.util.concurrent.atomic.AtomicBoolean toolAudioCancel;
+
+  @Override public android.net.Uri toolAudioUri(){return toolAudioUriValue;}
+  @Override public void setToolAudioUri(android.net.Uri value){toolAudioUriValue=value;}
+  @Override public MusicConvertEngine.Target toolAudioTarget(){return toolAudioTargetValue;}
+  @Override public void setToolAudioTarget(MusicConvertEngine.Target value){toolAudioTargetValue=value;}
+
+  /** 音频选择器：music/* 覆盖不到 flac/ogg 等部分机型，用 audio/* 通配。 */
+  @Override public void pickToolAudio(){try{Intent intent=new Intent(Intent.ACTION_GET_CONTENT);intent.setType("audio/*");intent.addCategory(Intent.CATEGORY_OPENABLE);startActivityForResult(Intent.createChooser(intent,"选择音频"),TOOL_PICK_AUDIO);}catch(Exception error){showNotice("没有可用的文件选择器",true);}}
+
+  /** 回流：选完音频读元数据刷新信息卡（ToolHost 的 "mc-info"）。 */
+  void handleToolAudioPicked(Uri uri){toolAudioUriValue=uri;io.execute(()->{String info;try{info=describeAudio(uri);}catch(Exception error){info="选中了文件，但读不出信息（可能已损坏或受保护）";}final String shown=info;ui.post(()->{toolAudioUriValue=uri;refreshToolAudioInfoText(shown);});});}
+
+  String describeAudio(Uri uri) throws Exception{
+    android.media.MediaMetadataRetriever mmr=new android.media.MediaMetadataRetriever();
+    try{mmr.setDataSource(this,uri);
+      String mime=mmr.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_MIMETYPE);
+      String durationMs=mmr.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_DURATION);
+      String bitrate=mmr.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_BITRATE);
+      long size=queryUriSize(uri);
+      StringBuilder sb=new StringBuilder();
+      if(size>0)sb.append(toolBytes(size)).append("  ");
+      if(durationMs!=null)try{long ms=Long.parseLong(durationMs);sb.append(String.format(java.util.Locale.CHINA,"%d:%02d",ms/60000,ms%60000/1000)).append("  ");}catch(NumberFormatException ignored){}
+      if(bitrate!=null)try{sb.append(Integer.parseInt(bitrate)/1000).append(" kbps  ");}catch(NumberFormatException ignored){}
+      if(mime!=null)sb.append(mime);
+      return sb.length()==0?"信息未知":sb.toString();
+    }finally{try{mmr.release();}catch(Exception ignored){}}
+  }
+
+  long queryUriSize(Uri uri){try(android.database.Cursor cursor=getContentResolver().query(uri,new String[]{android.provider.OpenableColumns.SIZE},null,null,null)){if(cursor!=null&&cursor.moveToFirst()){int idx=cursor.getColumnIndex(android.provider.OpenableColumns.SIZE);if(idx>=0&&!cursor.isNull(idx))return cursor.getLong(idx);}}catch(Exception ignored){}return 0;}
+
+  /** ToolHost 的信息卡刷新入口（无选择时显示占位）。 */
+  @Override public void refreshToolAudioInfo(){
+    if(toolAudioUriValue==null){refreshToolAudioInfoText("未选择文件");return;}
+    final Uri uri=toolAudioUriValue;
+    io.execute(()->{String info;try{info=describeAudio(uri);}catch(Exception error){info="读不出信息（可能已损坏或受保护）";}final String shown=info;ui.post(()->refreshToolAudioInfoText(shown));});
+  }
+
+  /** 找 ToolHost 页里的信息卡并更新（找不到=工具页没开，忽略）。 */
+  void refreshToolAudioInfoText(String message){
+    LinearLayout body=toolAudioBody();
+    if(body==null)return;
+    android.view.View info=body.findViewWithTag("mc-info");
+    if(info instanceof android.widget.TextView)((android.widget.TextView)info).setText(message);
+  }
+
+  /** 当前工具页内容区（ToolHost.toolBody；未打开工具页时为 null）。 */
+  LinearLayout toolAudioBody(){return toolHost==null?null:toolHost.toolBody;}
+
+  /** 转换执行：io 线程跑引擎，进度回写 UI，结束给出路径与分享。 */
+  @Override public void runToolAudioConvert(){
+    final Uri input=toolAudioUriValue;
+    if(input==null){showNotice("先选择音频",true);return;}
+    // 写 Download/东方无限 需要存储授权（与下载/崩溃日志同一扇门，复用人话提示）
+    if(!storageAccessGranted()){requestManageAllFilesAccess("转换后的音频会保存到「Download/东方无限」，需要存储权限。",this::runToolAudioConvert,false);return;}
+    if(toolAudioCancel!=null){toolAudioCancel.set(true);}
+    final java.util.concurrent.atomic.AtomicBoolean cancel=new java.util.concurrent.atomic.AtomicBoolean(false);
+    toolAudioCancel=cancel;
+    final MusicConvertEngine.Target target=toolAudioTargetValue;
+    final String outName=audioOutputName(target);
+    final java.io.File outDir=new java.io.File(android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_DOWNLOADS),PRODUCT_NAME);
+    showNotice("开始转换…",false);
+    updateToolAudioProgress(0,true);
+    io.execute(()->{
+      try{
+        if(!outDir.isDirectory()&&!outDir.mkdirs())throw new java.io.IOException("无法创建输出目录");
+        long inputBytes=queryUriSize(input);
+        if(inputBytes>MusicConvertEngine.MAX_INPUT_BYTES)throw new java.io.IOException("文件超过 100MB 上限");
+        java.io.File outFile=new java.io.File(outDir,outName);
+        MusicConvertEngine.convert(this,input,target,outFile,percent->ui.post(()->updateToolAudioProgress(percent,false)),cancel::get);
+        final String shownPath=outDir+"/"+outName;
+        ui.post(()->{updateToolAudioProgress(100,false);showNotice("转换完成："+shownPath,false);});
+      }catch(Exception error){
+        ui.post(()->{updateToolAudioProgress(0,true);showNotice(MusicConvertEngine.humanError(new java.io.IOException(friendlyError(error))),true);});
+      }
+    });
+  }
+
+  /** 输出文件名：源文件名(去扩展) + .目标扩展。 */
+  String audioOutputName(MusicConvertEngine.Target target){
+    String name="audio";
+    if(toolAudioUriValue!=null){String last=toolAudioUriValue.getLastPathSegment();if(last!=null&&!last.trim().isEmpty())name=last;}
+    int dot=name.lastIndexOf('.');
+    if(dot>0)name=name.substring(0,dot);
+    name=name.replaceAll("[\\\\/:*?\"<>|]","_");
+    if(name.length()>60)name=name.substring(name.length()-60);
+    return name+"."+MusicConvertEngine.extension(target);
+  }
+
+  /** 进度条/状态回写（工具页没开就静默）。 */
+  void updateToolAudioProgress(int percent,boolean hide){
+    LinearLayout body=toolAudioBody();
+    if(body==null)return;
+    android.view.View bar=body.findViewWithTag("mc-bar");
+    if(bar instanceof android.widget.ProgressBar){((android.widget.ProgressBar)bar).setVisibility(hide?View.GONE:View.VISIBLE);((android.widget.ProgressBar)bar).setProgress(percent);}
+    android.view.View status=body.findViewWithTag("mc-status");
+    if(status instanceof android.widget.TextView)((android.widget.TextView)status).setText(hide?"":percent<100?"转换中 "+percent+"%":"完成");
+  }
+
+  // ── [DFW-132] 音乐转换结束 ─────────────────────────────────────────
   /** v1.22.0 AI 首启权限一次性引导（用户要求）：未引导过且存在未授权限时，串行走系统弹窗；无论同意/拒绝都放行进 AI 页，功能入口再按需提示 */
   void maybeGuideAiPermissions(Runnable proceed){
     if(AiPermissionGate.guided(this)){proceed.run();return;}
@@ -5588,6 +5693,7 @@ else if(isApkEntry(entry))runOnUiThread(()->{if(generation==entry.controlGenerat
     if(request==EXPORT_RULES)io.execute(()->{try{writeTextUri(uri,core.exportSourceRules());showNotice("源规则已导出",false);}catch(Exception error){showNotice("导出失败："+friendlyError(error),true);}});
     if(request==TOOL_PICK_IMAGE)io.execute(()->runImageCompress(uri));
     if(request==TOOL_PICK_IMAGE2){Runnable r=pendingToolColorImagePick;pendingToolColorImagePick=null;if(r!=null)io.execute(r);}
+    if(request==TOOL_PICK_AUDIO)handleToolAudioPicked(uri);
   }
 
         @Override public void onRequestPermissionsResult(int request,String[] permissions,int[] results){super.onRequestPermissionsResult(request,permissions,results);if(request==TOOL_MIC_PERMISSION){Runnable r=pendingMicAction;pendingMicAction=null;if(results.length>0&&results[0]==PackageManager.PERMISSION_GRANTED&&r!=null)r.run();else showNotice("未获得麦克风权限，无法测量噪音",true);return;}if(request==AI_PERMISSION){java.util.List<String> list=pendingAiPermissions;int index=pendingAiIndex;Runnable proceed=pendingAiProceed;pendingAiPermissions=null;pendingAiProceed=null;if(list==null||proceed==null)return;requestNextAiPermission(list,index+1,proceed);return;}if(request==STARTUP_STORAGE_PERMISSION){if(storageAccessGranted())runPendingStorageAccessActions();else{pendingStorageAccessActions.clear();showNotice("未授予存储权限，下次启动会再次询问",false);}ui.post(this::maybeRequestBatteryExemption);return;}if(request==DIRECT_STORAGE_PERMISSION){if(storageAccessGranted())runPendingStorageAccessActions();else{pendingStorageAccessActions.clear();showNotice("未获得存储权限，无法访问下载目录",true);}return;}if(request!=STORAGE_PERMISSION)return;boolean granted=results.length>0&&results[0]==PackageManager.PERMISSION_GRANTED;if(pendingPermissionBatch!=null){List<Models.Item> items=pendingPermissionBatch;pendingPermissionBatch=null;if(granted)startBulkDownloads(items);else showNotice("未获得存储权限，无法批量写入 Download",true);return;}if(pendingPermissionDownload!=null){Models.Item item=pendingPermissionDownload;boolean auto=pendingPermissionAutoInstall;String expected=pendingPermissionUpdateVersion;pendingPermissionDownload=null;pendingPermissionAutoInstall=false;pendingPermissionUpdateVersion="";if(granted){if(expected.isEmpty())beginDownload(item,null,auto);else beginVerifiedUpdateDownload(item,expected);}else showNotice("未获得存储权限，无法写入 Download",true);return;}if(pendingRetryDownload!=null){PendingRetry pending=pendingRetryDownload;pendingRetryDownload=null;DownloadEntry entry=pending.entry;boolean current;synchronized(entry){current=entry.controlGeneration==pending.generation&&entry.state.equals(pending.state);}if(granted&&current)requestRetryDownload(entry);else if(!granted)showNotice("未获得存储权限，无法重试下载",true);}}

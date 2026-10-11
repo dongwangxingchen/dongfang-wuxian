@@ -35,7 +35,7 @@
 
 <div align="center">
   <img src="docs/screenshots/home.png" width="24%" alt="软件库首页：分类导航" />
-  <img src="docs/screenshots/tools.png" width="24%" alt="工具箱：37 个离线小工具" />
+  <img src="docs/screenshots/tools.png" width="24%" alt="工具箱：38 个离线小工具" />
   <img src="docs/screenshots/downloads.png" width="24%" alt="下载管理：队列与历史" />
   <img src="docs/screenshots/settings.png" width="24%" alt="设置：主题与偏好" />
   <br />
@@ -85,7 +85,7 @@
 - 可申请电池优化豁免，后台下载不被打断
 - 可选 **ADB 静默安装**：免确认自动装（需授权）
 
-### 🧰 工具箱 —— 37 个小工具
+### 🧰 工具箱 —— 38 个小工具
 
 全部离线可用，按五类组织：
 

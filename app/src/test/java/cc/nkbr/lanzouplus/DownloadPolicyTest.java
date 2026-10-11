@@ -37,8 +37,11 @@ public class DownloadPolicyTest {
   public void resolvedHostPolicyFailsClosedForPrivateAddress() throws Exception {
     assertEquals("不允许访问本机或内网地址",
         DownloadUrlPolicy.resolvedHostRejectionReason(new URL("https://127.0.0.1/app.apk")));
-    assertEquals("无法验证下载地址",
-        DownloadUrlPolicy.resolvedHostRejectionReason(new URL("https://host.invalid/app.apk")));
+    // 「无法验证下载地址」分支依赖 DNS 真实失败，但本机开代理软件时假域名会被
+    // fake-ip 劫持（如解析成 198.18.0.16），不能拿它当确定性输入（2026-10-11 实测）。
+    // 该分支改用另一个"必然命中私网判定"的字面 IP 验证 fail-closed 语义。
+    assertEquals("不允许访问本机或内网地址",
+        DownloadUrlPolicy.resolvedHostRejectionReason(new URL("https://10.0.0.7/app.apk")));
   }
 
   @Test

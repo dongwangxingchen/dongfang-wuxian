@@ -311,6 +311,7 @@ final class ToolHost {
       case "password":password(body);break;
       case "uuid":uuid(body);break;
       case "img_compress":imageCompress(body);break;
+      case "music_convert":musicConvert(body);break;
       case "sketch":act.toolHostSketch(body);break;
       case "deviceinfo":deviceinfo(body);break;
       case "screen_test":{TextView info=text("全屏循环纯色（黑/白/红/绿/蓝/灰），点按切换，返回退出。用于检查坏点、漏光与烧屏。",12,act.MUTED());info.setPadding(0,0,0,act.dp(10));body.addView(info,new LinearLayout.LayoutParams(-1,-2));LinearLayout actions=actionRow(body);primaryAction(actions,"开始检测",()->act.startScreenTest());result(body);break;}
@@ -985,6 +986,39 @@ final class ToolHost {
     result(body);
   }
 
+  /**
+   * [DFW-132] 音乐转换工具页。
+   * 结构照抄 imageCompress（选文件 → 信息卡 → 目标格式 chip → 执行 → 结果）。
+   * 转换在宿主 io 线程跑；进度条只作展示，取消靠转换线程轮询 act 的取消标记。
+   */
+  void musicConvert(LinearLayout body){
+    TextView info=text("选择音频 → 选目标格式 → 转换并保存。全程本机完成，不上传。",12,act.MUTED());info.setPadding(0,0,0,act.dp(10));body.addView(info,new LinearLayout.LayoutParams(-1,-2));
+    LinearLayout actions=actionRow(body);action(actions,"选择音频",()->act.pickToolAudio());
+    TextView meta=text("未选择文件",12,act.MUTED());meta.setTag("mc-info");meta.setBackground(solid(act.SURFACE()));meta.setPadding(act.dp(12),act.dp(10),act.dp(12),act.dp(10));meta.setMinHeight(act.dp(72));
+    body.addView(meta,new LinearLayout.LayoutParams(-1,-2));
+    LinearLayout fmtRow=chipRow(body);fmtRow.setPadding(0,act.dp(10),0,0);
+    LinearLayout.LayoutParams fmtLp=chipMargin();fmtLp.rightMargin=act.dp(12);fmtRow.addView(text("目标格式",12,act.TEXT()),fmtLp);
+    // M4A 是 CDD 强制档（所有设备都行）放最前；FLAC 依赖设备编码器，点转换时才探测并给出人话报错
+    String[] labels={"M4A","WAV","FLAC"};MusicConvertEngine.Target[] targets={MusicConvertEngine.Target.M4A,MusicConvertEngine.Target.WAV,MusicConvertEngine.Target.FLAC};
+    TextView[] chips=new TextView[targets.length];
+    for(int i=0;i<targets.length;i++){final int idx=i;chips[i]=selectChip(fmtRow,labels[i],act.toolAudioTarget()==targets[i],()->{act.setToolAudioTarget(targets[idx]);for(int j=0;j<chips.length;j++)styleSelect(chips[j],targets[j]==targets[idx]);});}
+    LinearLayout run=actionRow(body);action(run,"开始转换",()->{
+      if(act.toolAudioUri()==null){act.showNotice("先选择音频",true);return;}
+      // FLAC 无编码器的设备直接人话拦住，不进转换线程
+      if(act.toolAudioTarget()==MusicConvertEngine.Target.FLAC&&!MusicConvertEngine.encoderAvailable(android.media.MediaFormat.MIMETYPE_AUDIO_FLAC)){act.showNotice("这台设备不支持 FLAC 输出，换 M4A 试试",true);return;}
+      act.runToolAudioConvert();
+    });
+    // 进度条：与下载页一致的横条
+    android.widget.ProgressBar bar=new android.widget.ProgressBar(ctx,null,android.R.attr.progressBarStyleHorizontal);bar.setMax(100);bar.setProgress(0);bar.setTag("mc-bar");bar.setVisibility(View.GONE);
+    body.addView(bar,new LinearLayout.LayoutParams(-1,act.dp(20)));
+    TextView status=text("",12,act.MUTED());status.setTag("mc-status");status.setPadding(0,act.dp(4),0,0);
+    body.addView(status,new LinearLayout.LayoutParams(-1,-2));
+    // 结果行（复用 DFW-11 的复制/分享出口展示输出文件路径）
+    result(body);
+    // 已有选择就回填信息（页面从分享/返回回来时）
+    act.refreshToolAudioInfo();
+  }
+
   void deviceinfo(LinearLayout body){
     // 复审2-推倒重做:进入即加载,分组卡片,不要"点按钮才出结果";所有读取包 try-catch,任一项失败显示"不可用"而不是崩溃
     body.addView(infoSection(ctx,"系统"));
@@ -1535,6 +1569,10 @@ final class ToolHost {
     boolean startTorch();void stopTorch();void startNoise(boolean white);void stopNoise();void speakTts(String value);void stopTts();void setTtsRate(float rate);
     void toolHostSketch(LinearLayout body);void toolHostRuler(LinearLayout body);void toolHostLevel(LinearLayout body);
     void pickToolImage();void runImageCompressPending();
+    /** [DFW-132] 音乐转换：选音频 / 刷新信息卡 / 执行转换（引擎在 MusicConvertEngine）。 */
+    void pickToolAudio();void refreshToolAudioInfo();void runToolAudioConvert();
+    android.net.Uri toolAudioUri();void setToolAudioUri(android.net.Uri value);
+    MusicConvertEngine.Target toolAudioTarget();void setToolAudioTarget(MusicConvertEngine.Target value);
     void pickToolColorImage(Runnable onPicked);void requestToolMicPermission(Runnable onGranted);
     Runnable levelCleanup();void setLevelCleanup(Runnable value);
     int pageDirection();void setPageDirection(int value);
