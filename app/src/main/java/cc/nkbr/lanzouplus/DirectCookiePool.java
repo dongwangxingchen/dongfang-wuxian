@@ -27,6 +27,41 @@ final class DirectCookiePool {
     }
   }
 
+  /**
+   * [DFW-133-F] 条目池容量上限与回收。
+   *
+   * 旧实现里条目**只增不减**：acquire 找不到可用的就 newEntry，而这些条目（含整份 cookie jar）
+   * 会永远留在内存和 SharedPreferences 里。正常用户单会话只攒几个，但长期使用 +
+   * 换号/清数据等操作会把池子越养越大 —— 老条目的 cookie 早就过期，纯属死重。
+   *
+   * 规则（保守，不动正常路径）：
+   * - 上限 {@link #POOL_LIMIT}：超过时先回收"最没价值"的条目 —— 冷却中的、
+   *   最久未用的优先逐出；正在窗口内活跃（count>0 且未冷却）的不动。
+   * - 惰性清理：只在本类方法被调用时执行，不加后台线程（本项目无线程纪律例外）。
+   */
+  static final int POOL_LIMIT=24;
+  void enforceLimitLocked(long now){
+    // 收缩目标 = POOL_LIMIT-1：本方法只在 newEntry **添加之前**调用，
+    // 先腾出一个名额，加一后池子恰好不超过 POOL_LIMIT
+    if(entries.size()<=POOL_LIMIT-1)return;
+    // 逐出候选：优先冷却中的，其次最久未用的；窗口内活跃（count>0 未冷却）的不逐
+    Entry victim=null;
+    while(entries.size()>POOL_LIMIT-1){
+      victim=null;
+      for(Entry entry:entries){
+        if(entry.count>0&&entry.cooldownUntil<=now)continue;
+        if(victim==null) {victim=entry;continue;}
+        boolean victimCooling=victim.cooldownUntil>now;
+        boolean entryCooling=entry.cooldownUntil>now;
+        if(entryCooling&&!victimCooling)victim=entry;
+        else if(entryCooling==victimCooling&&entry.lastUsed<victim.lastUsed)victim=entry;
+      }
+      if(victim==null)break;
+      entries.remove(victim);
+      prefs.edit().remove(ENTRY+victim.id).apply();
+    }
+  }
+
   void finish(Lease lease,Map<String,LinkedHashMap<String,String>> jar,boolean success,boolean rateLimited,long retryAfterMs,long now){
     if(lease==null)return;synchronized(lock){Entry entry=find(lease.id);if(entry==null)return;rollWindow(entry,now);if(jar!=null&&!jar.isEmpty())entry.jar=copyJar(jar);entry.lastUsed=now;if(success){entry.failures=0;entry.cooldownUntil=0;}else{entry.failures=Math.min(12,entry.failures+1);long delay=Math.max(rateLimited?15000:2000,retryAfterMs);delay=Math.min(2*60*1000L,delay*(1L<<Math.min(4,entry.failures-1)));entry.cooldownUntil=Math.max(entry.cooldownUntil,now+delay);}saveEntryLocked(entry);}
   }
@@ -34,7 +69,11 @@ final class DirectCookiePool {
   int size(){synchronized(lock){return entries.size();}}
 
     private Entry newEntry(long now){return newEntry(now,PROFILE_UNSPECIFIED);}
-  private Entry newEntry(long now,int preferredProfile){Entry entry=new Entry();entry.id=UUID.randomUUID().toString();entry.profile=preferredProfile>=0?preferredProfile:PROFILE_UNSPECIFIED;entry.windowStarted=now;entries.add(entry);saveEntryLocked(entry);return entry;}
+  private Entry newEntry(long now,int preferredProfile){
+    // [DFW-133-F] 新建前先回收，保证"新建后也不超上限"（先减后加，池子永不溢出）
+    enforceLimitLocked(now);
+    Entry entry=new Entry();entry.id=UUID.randomUUID().toString();entry.profile=preferredProfile>=0?preferredProfile:PROFILE_UNSPECIFIED;entry.windowStarted=now;entries.add(entry);saveEntryLocked(entry);return entry;
+  }
   private Entry find(String id){for(Entry entry:entries)if(entry.id.equals(id))return entry;return null;}
   private static void rollWindow(Entry entry,long now){if(entry.windowStarted<=0||now<entry.windowStarted||now-entry.windowStarted>=WINDOW_MS){entry.windowStarted=now;entry.count=0;}}
 

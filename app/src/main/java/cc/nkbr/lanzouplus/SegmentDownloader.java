@@ -71,7 +71,10 @@ final class SegmentDownloader {
     Sink destinationOut;
     try{destinationOut=openDestination(destination,response.start);}catch(Exception error){response.connection.disconnect();throw error;}
     try(Sink sink=destinationOut){
-      OutputStream out=sink.out;long lastEvent=0;byte[] buffer=new byte[32768];
+      OutputStream out=sink.out;long lastEvent=0;
+      // [DFW-133-B] 32KB→256KB：手机网络 RTT 高，32KB 缓冲把 socket 读摊成更多次系统调用；
+      // 缓冲只在单次 read 内复用，无 offset 语义，调大零风险。
+      byte[] buffer=new byte[262144];
       while(done<total){
         checkStopped();
         if(response.start!=done||response.total!=total){response.connection.disconnect();throw new IOException("Range 连续性校验失败");}

@@ -408,6 +408,12 @@ async function sha256Hex(file){
   if (!(window.crypto && crypto.subtle && crypto.subtle.digest)) {
     throw new Error("这个页面不是 https 打开的，浏览器不让算校验值——请改用 https://39.106.33.135/admin/");
   }
+  // WebCrypto 的 digest 只吃单个完整 buffer（没有标准增量 API，自己搭状态机不划算）。
+  // 一次性 arrayBuffer 对超大文件会内存翻倍（File 对象 + 全量拷贝），这是 OOM 根因。
+  // APK 实际 37MB 完全无压力；给个 512MB 硬上限，超了就人话拒绝并给替代方案。
+  if (file.size > 512 * 1024 * 1024) {
+    throw new Error("文件超过 512MB，浏览器算不动 sha256——请在电脑上用 shasum -a 256 算好后手动填入");
+  }
   const buf = await file.arrayBuffer();
   const digest = await crypto.subtle.digest("SHA-256", buf);
   return Array.from(new Uint8Array(digest)).map(b => b.toString(16).padStart(2, "0")).join("");
@@ -415,7 +421,10 @@ async function sha256Hex(file){
 
 /** 从文件名里猜版本号：dongfang-wuxian-v1.0.0.apk → 1.0.0 */
 function versionFromName(name){
-  const m = /v?(\d+\.\d+\.\d+)/.exec(name || "");
+  // 空白或分隔符开头 + 可选 v 前缀 + 三段数字；结尾必须是空白/点/结尾
+  // （前后不锚定会吃进 "2026.01.02" 日期；纯 \d+\.\d+\.\d+ 不锚尾会把
+  //   "1.0.2.1" 之类吃一半——这里统一锚定到非数字边界）
+  const m = /(?:^|[\s\-_（(])v?(\d{1,3}\.\d{1,3}\.\d{1,3})(?=$|[\s.\-）)（(])/.exec(name || "");
   return m ? m[1] : "";
 }
 

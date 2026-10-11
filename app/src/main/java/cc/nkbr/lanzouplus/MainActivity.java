@@ -216,6 +216,7 @@ public final class MainActivity extends androidx.activity.ComponentActivity impl
     final SearchDragBar searchDragBar;
     final ImageButton sourceSelectionRename;
     final Button sourceSelectionAllButton;
+    final int scrollY;
     final List<Models.Source> sourcePageSources,visibleSources;
     final Map<String,CheckBox> sourceSelectionChecks;
     final Set<String> selectedSourceUrls;
@@ -226,6 +227,8 @@ public final class MainActivity extends androidx.activity.ComponentActivity impl
     SourceListPageState(){
       pageFrame=MainActivity.this.pageFrame;root=MainActivity.this.root;primaryShell=MainActivity.this.primaryShell;pageHeaderRow=MainActivity.this.pageHeaderRow;pageScroll=MainActivity.this.pageScroll;sourceGrid=MainActivity.this.sourceGrid;sourceHeading=MainActivity.this.sourceHeading;sourceFilter=MainActivity.this.sourceFilter;sourceCategoryStrip=MainActivity.this.sourceCategoryStrip;searchDragBar=MainActivity.this.searchDragBar;sourceSelectionBar=MainActivity.this.sourceSelectionBar;sourceSelectionSummary=MainActivity.this.sourceSelectionSummary;sourceSelectionRename=MainActivity.this.sourceSelectionRename;sourceSelectionAllButton=MainActivity.this.sourceSelectionAllButton;
       sourcePageSources=MainActivity.this.sourcePageSources;visibleSources=new ArrayList<>(MainActivity.this.visibleSources);sourceSelectionChecks=new HashMap<>(MainActivity.this.sourceSelectionChecks);selectedSourceUrls=new LinkedHashSet<>(MainActivity.this.selectedSourceUrls);sourceSelectionMode=MainActivity.this.sourceSelectionMode;sourceSelectionKinds=MainActivity.this.sourceSelectionKinds.clone();activeSourceCategory=MainActivity.this.activeSourceCategory;query=sourceFilter==null?"":sourceFilter.getText().toString();sourceDataRevision=MainActivity.this.sourceDataRevision;densityDpi=getResources().getDisplayMetrics().densityDpi;colorSignature=sourceListColorSignature();
+      // [DFW-133-A] 显式记录滚动位置：即使视图实例被复用，attach/measure 后也可能被框架重置
+      scrollY=pageScroll==null?0:pageScroll.getScrollY();
     }
   }
   static final class SourceDestination{final String category,nodeId,path;final Models.Source composite;SourceDestination(String category,Models.Source composite,String nodeId,String path){this.category=category==null?"":category;this.composite=composite;this.nodeId=nodeId==null?"":nodeId;this.path=path==null?"":path;}boolean categoryOnly(){return composite==null&&!category.isEmpty();}String key(){return categoryOnly()?"category:"+category:"directory:"+LanzouCore.sourceId(composite)+":"+nodeId;}}
@@ -2677,7 +2680,10 @@ FrameLayout.LayoutParams tp=new FrameLayout.LayoutParams(Math.max(dp(1),Math.min
     FrameLayout.LayoutParams pageParams=new FrameLayout.LayoutParams(-1,-1);pageHost.addView(pageFrame,0,pageParams);/* [DFW-75] 方向判定：悬浮球切档=fadeThrough(0)；**首次进入**=推入(+1)；从源/文件夹返回=弹出(-1)。
        旧实现只有 0 和 -1 两支，从设置点进来会被当成"返回"，播的是返回动画。 */
     boolean entry=sourceListEntry;sourceListEntry=false;
-    if(primaryNavigationSwitch){primaryNavigationSwitch=false;animatePage(previous,pageFrame,0);}else animatePage(previous,pageFrame,entry?1:-1);pageDirection=1;if(root!=null)root.post(this::reflowVisibleLayouts);if(navBall!=null)ui.post(this::refreshNavBall);return true;
+    if(primaryNavigationSwitch){primaryNavigationSwitch=false;animatePage(previous,pageFrame,0);}else animatePage(previous,pageFrame,entry?1:-1);pageDirection=1;if(root!=null)root.post(this::reflowVisibleLayouts);if(navBall!=null)ui.post(this::refreshNavBall);
+    // [DFW-133-A] 滚动位置回放：与目录页 restoreFolderScrollBeforeDraw 同一套 pre-draw 机制，
+    // 在首帧绘制前把 ScrollView 送回原位置（scrollY>0 才有动作）
+    restoreFolderScrollBeforeDraw(state.pageScroll,state.scrollY);return true;
   }
   void openSourcePage(Models.Source source){source=runtimeLanzouSource(source);retainSourceListPage();pageDirection=1;resetFolderTrail(source);folderRootSources=true;showFolderPage(activeFolderState.source,true);}
   void openNestedFolder(Models.Item item){pageDirection=1;if(activeSource==null)activeSource=home;captureActiveFolderState();Models.Source nested;try{if(compositeSource(activeSource)&&!item.folderId.isEmpty()&&!item.folderId.startsWith("remote:"))nested=core.compositeFolderSource(activeSource,item.folderId,item.title);else{nested=new Models.Source();nested.title=item.title;nested.url=preferredLanzouUrl(item.url);nested.password=item.password;}}catch(Exception error){showNotice(friendlyError(error),true);return;}activeFolderState=new FolderPageState(nested);folderTrail.add(activeFolderState);showFolderPage(nested,true);}

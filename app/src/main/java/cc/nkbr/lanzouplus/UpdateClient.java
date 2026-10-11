@@ -154,7 +154,10 @@ final class UpdateClient {
     if(value==null||value.isEmpty())return;
     try{
       URL url=new URL(value);String host=url.getHost().toLowerCase(Locale.ROOT);
-      if(!"https".equalsIgnoreCase(url.getProtocol())||url.getUserInfo()!=null||!defaultHttpsPort(url)||!(host.endsWith(".nkbr.cc")||host.equals("github.com")||host.endsWith(".githubusercontent.com")))throw new IOException("镜像安装包地址不受信任");
+      // [DFW-133-G] 收紧镜像白名单：nkbr.cc 是**上游作者**的域名（docs/archive/…/backend-plan.md
+      // 核实过），整域通配等于允许上游任意子域给我们发安装包。镜像只信 GitHub；
+      // 未来自建镜像（ownServerHost）若要当镜像用，在这里追加精确主机，不做后缀通配。
+      if(!"https".equalsIgnoreCase(url.getProtocol())||url.getUserInfo()!=null||!defaultHttpsPort(url)||!(host.equals("github.com")||host.equals("githubusercontent.com")||host.endsWith(".githubusercontent.com")))throw new IOException("镜像安装包地址不受信任");
       if(!isReleaseAsset(lastPathSegment(url.getPath())))throw new IOException("镜像安装包地址不受信任");
     }catch(IOException error){throw error;}catch(Exception error){throw new IOException("镜像安装包地址无效",error);}
   }
@@ -208,7 +211,10 @@ final class UpdateClient {
     String own=ownServerHost();
     if(!own.isEmpty()&&host.equals(own))return standardWebPort(url);
     if(!"https".equals(protocol)||!defaultHttpsPort(url))return false;
-    return host.equals("github.com")||host.equals("githubusercontent.com")||host.endsWith(".githubusercontent.com")||host.endsWith(".nkbr.cc");
+    // [DFW-133-G] nkbr.cc 从白名单移除：那是**上游作者**的域名，不是我们的资产
+    // （docs/archive/tasks/20260926-search-web-overhaul/backend-plan.md 二次核实结论）。
+    // 自有下载走 ownServerHost 分支（精确主机），开源资产走 GitHub。
+    return host.equals("github.com")||host.equals("githubusercontent.com")||host.endsWith(".githubusercontent.com");
   }
 
   /**

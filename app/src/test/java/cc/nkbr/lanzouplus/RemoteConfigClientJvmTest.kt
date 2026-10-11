@@ -209,6 +209,20 @@ class RemoteConfigClientJvmTest {
         assertEquals("置顶公告必须排第一", "置顶", fieldString(list[0], "title"))
     }
 
+    /** [DFW-133-G] 公告的 versionName（"本公告适用于哪个版本"）必须被解析并 trim。 */
+    @Test
+    fun notices_versionNameParsedAndTrimmed() {
+        val list = parseNotices("""
+        [
+          {"id":"1","title":"带版本","body":"x","versionName":" 1.0.2 ","enabled":true},
+          {"id":"2","title":"无版本字段","body":"y","enabled":true},
+          {"id":"3","title":"空版本","body":"z","versionName":"","enabled":true}
+        ]""")
+        assertEquals("版本号必须 trim", "1.0.2", fieldString(list[0], "versionName"))
+        assertEquals("缺字段回落空串", "", fieldString(list[1], "versionName"))
+        assertEquals("空串保持空串", "", fieldString(list[2], "versionName"))
+    }
+
     @Test
     fun notices_levelsAreRecognised() {
         val list = parseNotices("""

@@ -53,7 +53,6 @@ class UpdateClientJvmTest {
     fun allowsOwnedDownloadHosts() {
         assertTrue(checkUrlAllowed("https://github.com/dongwangxingchen/dongfang-wuxian/releases/download/v1.21.4/dongfang-wuxian-v1.21.4.apk"))
         assertTrue(checkUrlAllowed("https://objects.githubusercontent.com/foo/dongfang-wuxian-v1.21.4.apk"))
-        assertTrue(checkUrlAllowed("https://lanzouplus.nkbr.cc/download/dongfang-wuxian-v1.21.4.apk"))
     }
 
     @Test
@@ -61,6 +60,8 @@ class UpdateClientJvmTest {
         assertFalse("上游域名必须拒绝", checkUrlAllowed("https://lanzouplus.nkbr.cc.evil.com/x.apk"))
         assertFalse("明文 http 必须拒绝", checkUrlAllowed("http://github.com/x/dongfang-wuxian-v1.21.4.apk"))
         assertFalse("无关域名必须拒绝", checkUrlAllowed("https://evil.com/dongfang-wuxian-v1.21.4.apk"))
+        // [DFW-133-G] nkbr.cc 整域从白名单移除：那是上游作者的域名，不是我们的资产
+        assertFalse("上游根域必须拒绝", checkUrlAllowed("https://lanzouplus.nkbr.cc/download/dongfang-wuxian-v1.21.4.apk"))
     }
 
     /**
