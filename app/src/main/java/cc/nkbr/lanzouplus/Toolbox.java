@@ -38,7 +38,7 @@ final class Toolbox {
     {"password","密码生成","按长度与字符类型生成强密码","密码 随机 生成 安全 强密码",EDIT,"文字处理","62"},
     {"uuid","UUID 生成","批量生成 UUID v4","uuid 唯一标识 生成",COPY,"文字处理","30"},
     {"img_compress","图片压缩","选图按质量压缩，存到相册","图片 压缩 照片 变小 省空间",IMAGE,"图片工具","78"},
-    {"music_convert","音乐转换","WAV/M4A/FLAC 互转，本机完成","音乐 音频 转换 wav m4a flac mp3 格式",AUDIO,"图片工具","70"},
+    {"music_convert","音乐转换","WAV/M4A/FLAC 互转，本机完成","音乐 音频 转换 wav m4a flac mp3 格式",AUDIO,"设备相关","70"},
     {"sketch","简易画板","手绘涂鸦，保存 PNG 到相册","画板 画画 涂鸦 手绘 素描",PALETTE,"图片工具","44"},
     {"deviceinfo","设备信息","品牌/屏幕/内存/电池/Android 版本","设备 信息 参数 硬件 手机",INFO,"设备相关","66"},
     {"screen_test","屏幕检测","全屏纯色循环，找坏点烧屏","屏幕 坏点 检测 漏光 烧屏",CHECK,"设备相关","46"},
